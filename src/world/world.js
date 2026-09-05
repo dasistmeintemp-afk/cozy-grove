@@ -1,0 +1,434 @@
+/** Weltmodell: Kacheln, Objekte, Kollision, raeumlicher Index. */
+import { T, TILE_SIZE, isWalkable, isWater } from '../art/tiles.js';
+import {
+  MAP_W, MAP_H, REGION, generateTiles, tileIndex, regionAt,
+  walkableTilesOf, findWalkableNear, CAMP_TILE,
+  FORD_X0, FORD_X1, RIVER_Y0, RIVER_Y1,
+  CHANNEL_X0, CHANNEL_X1, BRIDGE_Y0, BRIDGE_Y1,
+} from './worldgen.js';
+import { makeEntity, defOf } from './entities.js';
+import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
+import { syncIdCounter } from '../core/util.js';
+
+const CELL = 48;
+const GRID_W = Math.ceil((MAP_W * TILE_SIZE) / CELL);
+const GRID_H = Math.ceil((MAP_H * TILE_SIZE) / CELL);
+
+export const WORLD_W = MAP_W * TILE_SIZE;
+export const WORLD_H = MAP_H * TILE_SIZE;
+
+/** Wo die Geister zuhause sind (Kachelkoordinaten). */
+export const SPIRIT_HOMES = {
+  flamey: { tx: CAMP_TILE.x, ty: CAMP_TILE.y - 3, region: REGION.CAMP },
+  mira: { tx: CAMP_TILE.x - 11, ty: CAMP_TILE.y + 4, region: REGION.CAMP },
+  kiesel: { tx: CAMP_TILE.x + 9, ty: CAMP_TILE.y + 11, region: REGION.CAMP },
+  bruno: { tx: 38, ty: 26, region: REGION.FOREST },
+  tobi: { tx: 44, ty: 14, region: REGION.FOREST },
+  nelly: { tx: 78, ty: 50, region: REGION.CLIFFS },
+};
+
+export class World {
+  constructor(seed) {
+    this.seed = seed >>> 0;
+    this.w = MAP_W;
+    this.h = MAP_H;
+    this.tiles = generateTiles(this.seed);
+    this.entities = [];
+    this.byId = Object.create(null);
+    this.grid = new Array(GRID_W * GRID_H);
+    for (let i = 0; i < this.grid.length; i++) this.grid[i] = [];
+    this.groundDirty = true;
+    this.groundStamp = 0;
+    this.unlocked = [true, false, false];
+    this.bridgeBuilt = false;
+  }
+
+  /* ---------- Kacheln ---------- */
+
+  tileAtTile(tx, ty) {
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return T.WATER_DEEP;
+    return this.tiles[tileIndex(tx, ty)];
+  }
+
+  tileAt(px, py) {
+    return this.tileAtTile(Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE));
+  }
+
+  setTile(tx, ty, t) {
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return;
+    const i = tileIndex(tx, ty);
+    if (this.tiles[i] === t) return;
+    this.tiles[i] = t;
+    this.groundDirty = true;
+    this.groundStamp++;
+  }
+
+  regionAtPixel(px, py) {
+    return regionAt(Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE));
+  }
+
+  isUnlocked(region) {
+    return !!this.unlocked[region];
+  }
+
+  /* ---------- Objekte ---------- */
+
+  cellIndex(px, py) {
+    const cx = Math.floor(px / CELL);
+    const cy = Math.floor(py / CELL);
+    if (cx < 0 || cy < 0 || cx >= GRID_W || cy >= GRID_H) return -1;
+    return cy * GRID_W + cx;
+  }
+
+  add(e) {
+    this.entities.push(e);
+    this.byId[e.id] = e;
+    const ci = this.cellIndex(e.x, e.y);
+    e._cell = ci;
+    if (ci >= 0) this.grid[ci].push(e);
+    syncIdCounter(e.id);
+    return e;
+  }
+
+  remove(e) {
+    const i = this.entities.indexOf(e);
+    if (i >= 0) this.entities.splice(i, 1);
+    delete this.byId[e.id];
+    // Auch fuer Verweise ausserhalb der Liste (z. B. world.logBarrier) als
+    // verschwunden markieren – der Spielstand wertet genau das aus.
+    e.gone = true;
+    if (e._cell >= 0) {
+      const arr = this.grid[e._cell];
+      const j = arr.indexOf(e);
+      if (j >= 0) arr.splice(j, 1);
+    }
+  }
+
+  /** Nach Positionsaenderung eines Objekts aufrufen. */
+  reindex(e) {
+    const ci = this.cellIndex(e.x, e.y);
+    if (ci === e._cell) return;
+    if (e._cell >= 0) {
+      const arr = this.grid[e._cell];
+      const j = arr.indexOf(e);
+      if (j >= 0) arr.splice(j, 1);
+    }
+    e._cell = ci;
+    if (ci >= 0) this.grid[ci].push(e);
+  }
+
+  /** Alle Objekte in einem Rechteck (Weltpixel). */
+  queryRect(x, y, w, h, out) {
+    const res = out || [];
+    const cx0 = Math.max(0, Math.floor(x / CELL));
+    const cy0 = Math.max(0, Math.floor(y / CELL));
+    const cx1 = Math.min(GRID_W - 1, Math.floor((x + w) / CELL));
+    const cy1 = Math.min(GRID_H - 1, Math.floor((y + h) / CELL));
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const arr = this.grid[cy * GRID_W + cx];
+        for (let i = 0; i < arr.length; i++) res.push(arr[i]);
+      }
+    }
+    return res;
+  }
+
+  queryNear(x, y, r, out) {
+    const res = this.queryRect(x - r, y - r, r * 2, r * 2, out);
+    return res;
+  }
+
+  /* ---------- Kollision ---------- */
+
+  /** Blockende Ellipse eines Objekts. */
+  blockShape(e) {
+    const def = defOf(e.kind);
+    if (!def || !def.solid || e.gone) return null;
+    if (e.kind === 'decor' && e.flat) return null;
+    const rx = e.blockR != null ? e.blockR : def.blockR || 6;
+    const ry = e.blockH != null ? e.blockH : def.blockH || Math.max(3, rx * 0.5);
+    return { x: e.x, y: e.y - 1, rx: rx, ry: ry };
+  }
+
+  /** Kann die Figur (Fussellipse) hier stehen? */
+  canStand(px, py, rx, ry) {
+    const hx = rx == null ? 4 : rx;
+    const hy = ry == null ? 3 : ry;
+    const pts = [
+      [px - hx, py], [px + hx, py], [px, py - hy], [px, py + hy],
+      [px - hx * 0.7, py - hy * 0.7], [px + hx * 0.7, py - hy * 0.7],
+      [px - hx * 0.7, py + hy * 0.7], [px + hx * 0.7, py + hy * 0.7],
+    ];
+    for (let i = 0; i < pts.length; i++) {
+      if (!isWalkable(this.tileAt(pts[i][0], pts[i][1]))) return false;
+    }
+    const near = this.queryNear(px, py, 40);
+    for (let i = 0; i < near.length; i++) {
+      const s = this.blockShape(near[i]);
+      if (!s) continue;
+      const dx = (px - s.x) / (s.rx + hx);
+      const dy = (py - s.y) / (s.ry + hy);
+      if (dx * dx + dy * dy < 1) return false;
+    }
+    return true;
+  }
+
+  /** Ist an dieser Stelle Wasser (zum Angeln)? */
+  waterAt(px, py) {
+    return isWater(this.tileAt(px, py));
+  }
+
+  /** Frisches Wasser = Fluss/Kanal, sonst Meer. */
+  waterKind(px, py) {
+    const tx = Math.floor(px / TILE_SIZE);
+    const ty = Math.floor(py / TILE_SIZE);
+    const inRiver = ty >= RIVER_Y0 - 3 && ty <= RIVER_Y1 + 3;
+    const inChannel = tx >= CHANNEL_X0 - 2 && tx <= CHANNEL_X1 + 2;
+    return inRiver || inChannel ? 'fresh' : 'sea';
+  }
+
+  /* ---------- Aufbau ---------- */
+
+  populate() {
+    const rng = makeRng(this.seed ^ 0xabcdef);
+
+    this._placeCamp();
+    this._placeBarriers();
+    this._scatterNature(rng);
+    this._placeSpirits();
+    return this;
+  }
+
+  _placeCamp() {
+    const cx = CAMP_TILE.x;
+    const cy = CAMP_TILE.y;
+    const px = function (tx) { return (tx + 0.5) * TILE_SIZE; };
+    this.campfire = this.add(makeEntity('campfire', px(cx), px(cy)));
+    this.tent = this.add(makeEntity('tent', px(cx - 5), px(cy - 2)));
+    this.workbench = this.add(makeEntity('workbench', px(cx + 5), px(cy - 1)));
+    this.stall = this.add(makeEntity('stall', px(cx + 4), px(cy + 5)));
+    this.fox = this.add(makeEntity('fox', px(cx + 4), px(cy + 7)));
+  }
+
+  _placeBarriers() {
+    const midX = (FORD_X0 + FORD_X1 + 1) / 2;
+    const midY = (RIVER_Y0 + RIVER_Y1 + 1) / 2;
+    this.logBarrier = this.add(makeEntity('log_barrier', midX * TILE_SIZE, (midY + 2.2) * TILE_SIZE));
+
+    const by = (BRIDGE_Y0 + BRIDGE_Y1 + 1) / 2;
+    this.bridgeSpot = this.add(makeEntity('bridge_spot', (CHANNEL_X0 - 1.5) * TILE_SIZE, by * TILE_SIZE));
+
+    // Geroellhalde versperrt eine Nische auf den Klippen
+    const nook = findWalkableNear(this.tiles, 86, 46, 10, REGION.CLIFFS);
+    if (nook) {
+      this.rockslide = this.add(makeEntity('rockslide', (nook.x + 0.5) * TILE_SIZE, (nook.y + 0.5) * TILE_SIZE));
+    }
+  }
+
+  _scatterNature(rng) {
+    const self = this;
+    const campCenterX = (CAMP_TILE.x + 0.5) * TILE_SIZE;
+    const campCenterY = (CAMP_TILE.y + 0.5) * TILE_SIZE;
+
+    function farFromCamp(tx, ty) {
+      const dx = (tx + 0.5) * TILE_SIZE - campCenterX;
+      const dy = (ty + 0.5) * TILE_SIZE - campCenterY;
+      return dx * dx + dy * dy > 88 * 88;
+    }
+    function nearFord(tx, ty) {
+      return tx >= FORD_X0 - 2 && tx <= FORD_X1 + 2 && ty >= RIVER_Y0 - 6 && ty <= RIVER_Y1 + 6;
+    }
+    function nearBridge(tx, ty) {
+      return tx >= CHANNEL_X0 - 5 && tx <= CHANNEL_X1 + 5 && ty >= BRIDGE_Y0 - 4 && ty <= BRIDGE_Y1 + 4;
+    }
+
+    function scatter(kinds, spots, count, spacing) {
+      let placed = 0;
+      let guard = 0;
+      while (placed < count && guard++ < count * 30 && spots.length) {
+        const s = spots[Math.floor(rng() * spots.length)];
+        if (nearFord(s.x, s.y) || nearBridge(s.x, s.y)) continue;
+        const wx = (s.x + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
+        const wy = (s.y + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
+        if (self._tooClose(wx, wy, spacing)) continue;
+        const kind = randPick(rng, kinds);
+        self.add(makeEntity(kind, wx, wy));
+        placed++;
+      }
+    }
+
+    const grassCamp = walkableTilesOf(this.tiles, REGION.CAMP, function (t, tx, ty) {
+      return t === T.GRASS && farFromCamp(tx, ty);
+    });
+    const sandCamp = walkableTilesOf(this.tiles, REGION.CAMP, function (t) { return t === T.SAND; });
+    const grassForest = walkableTilesOf(this.tiles, REGION.FOREST, function (t) { return t === T.GRASS || t === T.DIRT; });
+    const cliffLand = walkableTilesOf(this.tiles, REGION.CLIFFS, function (t) { return t === T.GRASS || t === T.ROCKFLOOR; });
+    const cliffSand = walkableTilesOf(this.tiles, REGION.CLIFFS, function (t) { return t === T.SAND; });
+
+    // Lager & Strand
+    scatter(['tree_oak', 'tree_birch', 'tree_maple'], grassCamp, 46, 20);
+    scatter(['rock_big', 'rock_small'], grassCamp, 16, 20);
+    scatter(['bush_berry', 'bush_plain'], grassCamp, 22, 16);
+    scatter(['flower_pink', 'flower_yellow', 'flower_white'], grassCamp, 30, 11);
+    scatter(['grass_tuft'], grassCamp, 34, 10);
+    scatter(['herb'], grassCamp, 12, 12);
+    scatter(['shell', 'driftwood'], sandCamp, 26, 12);
+    scatter(['reeds'], sandCamp, 18, 12);
+
+    // Wald
+    scatter(['tree_oak', 'tree_pine', 'tree_birch', 'tree_maple'], grassForest, 78, 18);
+    scatter(['bush_berry'], grassForest, 20, 15);
+    scatter(['mushroom'], grassForest, 26, 11);
+    scatter(['herb'], grassForest, 16, 12);
+    scatter(['flower_violet', 'flower_white'], grassForest, 18, 12);
+    scatter(['rock_big', 'rock_small'], grassForest, 14, 18);
+    scatter(['rock_ore'], grassForest, 4, 26);
+    scatter(['grass_tuft'], grassForest, 26, 10);
+
+    // Klippen
+    scatter(['tree_pine'], cliffLand, 26, 20);
+    scatter(['rock_big', 'rock_small'], cliffLand, 26, 16);
+    scatter(['rock_ore'], cliffLand, 12, 22);
+    scatter(['flower_violet'], cliffLand, 12, 12);
+    scatter(['herb', 'mushroom'], cliffLand, 12, 12);
+    scatter(['shell', 'driftwood'], cliffSand, 14, 12);
+    scatter(['grass_tuft'], cliffLand, 16, 10);
+  }
+
+  _tooClose(x, y, r) {
+    const near = this.queryNear(x, y, r);
+    for (let i = 0; i < near.length; i++) {
+      const e = near[i];
+      const dx = e.x - x;
+      const dy = e.y - y;
+      if (dx * dx + dy * dy < r * r) return true;
+    }
+    return false;
+  }
+
+  _placeSpirits() {
+    for (const id in SPIRIT_HOMES) {
+      const home = SPIRIT_HOMES[id];
+      const spot = findWalkableNear(this.tiles, home.tx, home.ty, 14, home.region) || home;
+      const e = makeEntity('spirit', (spot.x + 0.5) * TILE_SIZE, (spot.y + 0.5) * TILE_SIZE, {
+        spiritId: id,
+        region: home.region,
+        homeX: (spot.x + 0.5) * TILE_SIZE,
+        homeY: (spot.y + 0.5) * TILE_SIZE,
+      });
+      e.sprite = 'spirit_' + id + '_0';
+      this.add(e);
+    }
+  }
+
+  spiritEntity(id) {
+    for (let i = 0; i < this.entities.length; i++) {
+      if (this.entities[i].kind === 'spirit' && this.entities[i].spiritId === id) return this.entities[i];
+    }
+    return null;
+  }
+
+  /* ---------- Fortschritt ---------- */
+
+  unlockRegion(region) {
+    if (this.unlocked[region]) return false;
+    this.unlocked[region] = true;
+    return true;
+  }
+
+  buildBridge() {
+    if (this.bridgeBuilt) return false;
+    for (let ty = BRIDGE_Y0; ty <= BRIDGE_Y1; ty++) {
+      for (let tx = CHANNEL_X0 - 2; tx <= CHANNEL_X1 + 2; tx++) {
+        if (isWater(this.tileAtTile(tx, ty))) this.setTile(tx, ty, T.BRIDGE);
+      }
+    }
+    this.bridgeBuilt = true;
+    this.unlockRegion(REGION.CLIFFS);
+    if (this.bridgeSpot) this.remove(this.bridgeSpot);
+    return true;
+  }
+
+  /* ---------- Tageswechsel ---------- */
+
+  /**
+   * Erneuert die Insel fuer einen neuen Tag:
+   * abgebaute Objekte kehren zurueck, Grabstellen werden neu verteilt.
+   */
+  newDay(day) {
+    const rng = dailyRng(this.seed, day, 'world');
+
+    for (let i = 0; i < this.entities.length; i++) {
+      const e = this.entities[i];
+      if (!e.gone && e.kind !== 'tree_stump') {
+        const def = defOf(e.kind);
+        if (def && def.hits) e.hp = def.hits;
+        continue;
+      }
+      if (e.respawnDay && day >= e.respawnDay) {
+        if (e.origin) {
+          e.kind = e.origin;
+          e.sprite = defOf(e.origin).sprite;
+          e.origin = null;
+        }
+        e.gone = false;
+        e.respawnDay = 0;
+        const def = defOf(e.kind);
+        e.hp = def && def.hits ? def.hits : 0;
+      }
+    }
+
+    this._respawnDigspots(rng);
+    return this;
+  }
+
+  _respawnDigspots(rng) {
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      if (this.entities[i].kind === 'digspot') this.remove(this.entities[i]);
+    }
+    const regions = [REGION.CAMP, REGION.FOREST, REGION.CLIFFS];
+    for (let r = 0; r < regions.length; r++) {
+      if (!this.unlocked[regions[r]]) continue;
+      const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
+        return t === T.SAND || t === T.GRASS || t === T.DIRT;
+      });
+      const count = regions[r] === REGION.CAMP ? 9 : 7;
+      let placed = 0;
+      let guard = 0;
+      while (placed < count && guard++ < 400 && spots.length) {
+        const s = spots[Math.floor(rng() * spots.length)];
+        const wx = (s.x + 0.5) * TILE_SIZE;
+        const wy = (s.y + 0.5) * TILE_SIZE;
+        if (this._tooClose(wx, wy, 22)) continue;
+        this.add(makeEntity('digspot', wx, wy));
+        placed++;
+      }
+    }
+  }
+
+  /** Zufaellige begehbare Position in einem freigeschalteten Bereich. */
+  randomSpot(rng, region, minDistFrom) {
+    const spots = walkableTilesOf(this.tiles, region, function (t) {
+      return t !== T.BRIDGE;
+    });
+    for (let tries = 0; tries < 200; tries++) {
+      const s = spots[Math.floor(rng() * spots.length)];
+      if (!s) break;
+      const wx = (s.x + 0.5) * TILE_SIZE;
+      const wy = (s.y + 0.5) * TILE_SIZE;
+      if (this._tooClose(wx, wy, 14)) continue;
+      if (minDistFrom) {
+        const dx = wx - minDistFrom.x;
+        const dy = wy - minDistFrom.y;
+        if (dx * dx + dy * dy < minDistFrom.r * minDistFrom.r) continue;
+      }
+      return { x: wx, y: wy };
+    }
+    const fallback = findWalkableNear(this.tiles, CAMP_TILE.x, CAMP_TILE.y, 20, region);
+    return fallback
+      ? { x: (fallback.x + 0.5) * TILE_SIZE, y: (fallback.y + 0.5) * TILE_SIZE }
+      : { x: (CAMP_TILE.x + 0.5) * TILE_SIZE, y: (CAMP_TILE.y + 0.5) * TILE_SIZE };
+  }
+}
+
+export { TILE_SIZE, MAP_W, MAP_H, REGION, randInt };

@@ -1,0 +1,5 @@
+node_modules/
+.screenshots/
+__atlas.html
+.DS_Store
+*.log

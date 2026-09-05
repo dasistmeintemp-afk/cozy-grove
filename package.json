@@ -1,0 +1,20 @@
+{
+  "name": "cozy-grove-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cozy Grove – Web Edition. Ein gemuetliches Insel-Sammelspiel im Browser (Safari, Firefox, Chrome). Fan-Hommage mit eigenen, prozedural erzeugten Assets.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test tests/unit/*.test.js",
+    "test:browser": "node tests/browser/smoke.mjs",
+    "test:all": "npm run test && npm run test:browser"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

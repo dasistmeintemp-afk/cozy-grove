@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Cozy Grove – Web Edition</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="description" content="Ein gemuetliches Insel-Sammelspiel im Browser: Farbe zurueckbringen, sammeln, angeln, bauen – ganz ohne lange Dialoge.">
+<meta name="theme-color" content="#1b2430">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231b2430'/%3E%3Cpath d='M8 2 L11 8 H5 Z M8 6 L12 12 H4 Z' fill='%236fbf73'/%3E%3Crect x='7' y='11' width='2' height='4' fill='%236b4a2f'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./styles/ui.css">
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game" width="384" height="216" aria-label="Spielwelt"></canvas>
+
+  <div id="overlay">
+
+    <!-- Sprechblasen, an Weltkoordinaten verankert -->
+    <div id="bubbles" class="layer"></div>
+
+    <!-- Kopfzeile -->
+    <div id="hud-top" class="layer ui">
+      <div class="hud-group" id="hud-time">
+        <span class="hud-chip" id="chip-day" title="Tag"><span class="ico" data-ico="day"></span><b id="val-day">1</b></span>
+        <span class="hud-chip" id="chip-clock" title="Uhrzeit"><span class="ico" data-ico="clock"></span><b id="val-clock">06:00</b></span>
+      </div>
+      <div class="hud-group" id="hud-res">
+        <span class="hud-chip" id="chip-coins" title="Muenzen"><span class="ico" data-ico="coin"></span><b id="val-coins">0</b></span>
+        <span class="hud-chip" id="chip-ember" title="Glut"><span class="ico" data-ico="ember"></span><b id="val-ember">0</b></span>
+        <span class="hud-chip" id="chip-color" title="Zurueckgebrachte Farbe"><span class="ico" data-ico="color"></span><b id="val-color">0%</b></span>
+      </div>
+      <div class="hud-group" id="hud-buttons">
+        <button class="icon-btn" data-panel="quests" title="Aufgaben (Q)" aria-label="Aufgaben"><span class="ico" data-ico="quest"></span></button>
+        <button class="icon-btn" data-panel="inventory" title="Tasche (I)" aria-label="Tasche"><span class="ico" data-ico="bag"></span></button>
+        <button class="icon-btn" data-panel="craft" title="Werkbank (C)" aria-label="Werkbank"><span class="ico" data-ico="craft"></span></button>
+        <button class="icon-btn" data-panel="map" title="Karte (M)" aria-label="Karte"><span class="ico" data-ico="map"></span></button>
+        <button class="icon-btn" data-panel="settings" title="Einstellungen (Esc)" aria-label="Einstellungen"><span class="ico" data-ico="gear"></span></button>
+      </div>
+    </div>
+
+    <!-- Aufgaben-Leiste: rein ikonisch, kein Fliesstext -->
+    <div id="quest-rail" class="layer ui" aria-label="Aktive Aufgaben"></div>
+
+    <!-- Kontext-Aktion -->
+    <div id="prompt" class="layer" hidden><span class="key">E</span><span id="prompt-text"></span></div>
+
+    <!-- Werkzeuggurt -->
+    <div id="toolbelt" class="layer ui" role="toolbar" aria-label="Werkzeuge"></div>
+
+    <!-- Angel-Minispiel -->
+    <div id="fishing" class="layer" hidden>
+      <div id="fishing-bar"><div id="fishing-zone"></div><div id="fishing-marker"></div></div>
+      <div id="fishing-hint"></div>
+    </div>
+
+    <!-- Meldungen -->
+    <div id="toasts" class="layer" aria-live="polite"></div>
+
+    <!-- Touch-Steuerung -->
+    <div id="touch" class="layer" hidden>
+      <div id="stick" aria-hidden="true"><div id="stick-knob"></div></div>
+      <div id="touch-actions">
+        <button id="btn-action" class="round-btn" aria-label="Aktion">A</button>
+        <button id="btn-tool" class="round-btn small" aria-label="Werkzeug wechseln">↻</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modale Fenster -->
+  <div id="panel-root" hidden>
+    <div id="panel-backdrop"></div>
+    <section id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title">
+      <header>
+        <h2 id="panel-title"></h2>
+        <button id="panel-close" class="icon-btn" aria-label="Schliessen">✕</button>
+      </header>
+      <div id="panel-body"></div>
+    </section>
+  </div>
+
+  <!-- Startbildschirm (noetig fuer Audio-Freigabe in Safari) -->
+  <div id="boot">
+    <div id="boot-card">
+      <h1>Cozy&nbsp;Grove</h1>
+      <p class="sub">Web&nbsp;Edition</p>
+      <p class="blurb">Eine verzauberte Insel hat ihre Farben verloren.<br>Sammle, angle, baue – und bring sie Stueck fuer Stueck zurueck.</p>
+      <div id="boot-actions">
+        <button id="btn-continue" class="big-btn" hidden>Weiterspielen</button>
+        <button id="btn-new" class="big-btn primary">Neues Spiel</button>
+      </div>
+      <details id="boot-help">
+        <summary>Steuerung</summary>
+        <ul>
+          <li><b>WASD</b> / <b>Pfeiltasten</b> – laufen</li>
+          <li><b>E</b> / <b>Leertaste</b> – Werkzeug benutzen &amp; reden</li>
+          <li><b>1–5</b> – Werkzeug waehlen, <b>Tab</b> – naechstes</li>
+          <li><b>I</b> Tasche · <b>Q</b> Aufgaben · <b>C</b> Werkbank · <b>M</b> Karte</li>
+          <li><b>Esc</b> – Menue / schliessen</li>
+          <li>Am Touchscreen: Joystick links, Tasten rechts</li>
+        </ul>
+      </details>
+      <p class="legal">Unabhaengige Fan-Hommage. Alle Grafiken und Klaenge werden im Browser erzeugt.</p>
+    </div>
+  </div>
+
+  <noscript><div id="nojs">Dieses Spiel braucht JavaScript.</div></noscript>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
