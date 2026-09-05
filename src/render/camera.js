@@ -32,7 +32,7 @@ export class Camera {
 
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt * 3);
-      const s = this.shake * 2;
+      const s = this.shake * 8;
       this.shakeX = (Math.random() - 0.5) * s;
       this.shakeY = (Math.random() - 0.5) * s;
     } else {
@@ -55,13 +55,13 @@ export class Camera {
     return clamp(y, 0, this.worldH - this.viewH);
   }
 
-  /** Auf ganze Pixel gerundete Position – verhindert Flimmern in der Pixelgrafik. */
+  /** Weiche Position – die gemalte Grafik braucht kein Pixelraster mehr. */
   get ox() {
-    return Math.round(this.x + this.shakeX);
+    return this.x + this.shakeX;
   }
 
   get oy() {
-    return Math.round(this.y + this.shakeY);
+    return this.y + this.shakeY;
   }
 
   toScreen(wx, wy) {

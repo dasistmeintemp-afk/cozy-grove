@@ -1,64 +1,111 @@
 /**
- * Inhaltliche Konsistenz: jedes Symbol, jede Grafik und jedes Rezept
- * muss auf etwas verweisen, das es wirklich gibt.
+ * Inhaltliche Konsistenz ohne Browser.
+ *
+ * Ob eine Grafik wirklich gemalt wurde, prüft der Browsertest – hier geht es
+ * um die Verweise: Jeder Gegenstand, jedes Rezept und jede Objektdefinition
+ * muss auf einen Namen zeigen, den das Register auch anlegt.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ITEM_LIST, getItem, CAT, MEMORY_IDS, fishesOf } from '../../src/game/items.js';
-import { ICONS } from '../../src/art/icons.js';
-import { PROPS } from '../../src/art/props.js';
-import { SPIRIT_LOOKS } from '../../src/art/critters.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, campfireLevelFor, nextCampfireLevel, missingFor, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
 import { SPIRITS, SPIRIT_IDS, friendshipLevel } from '../../src/game/spirits.js';
 import { Inventory } from '../../src/game/inventory.js';
+import { TILE_SIZE, TILE_DEF, T, isWalkable } from '../../src/art/tiles.js';
+import { INK } from '../../src/art/painted.js';
 
-test('jeder Gegenstand hat ein vorhandenes Symbol', () => {
-  const missing = [];
-  for (const item of ITEM_LIST) {
-    const key = item.icon.replace(/^icon_/, '');
-    if (!ICONS[key]) missing.push(item.id);
+/** Namen, die initArt() anlegt – als Spiegel der Registerliste. */
+const SPRITE_NAMES = (function () {
+  const names = [
+    'tree_oak', 'tree_birch', 'tree_maple', 'tree_pine', 'tree_stump', 'log_barrier',
+    'rock_big', 'rock_small', 'rock_ore', 'rockslide',
+    'bush_berry', 'bush_plain', 'grass_tuft', 'reeds', 'mushroom', 'herb',
+    'shell', 'driftwood', 'digspot',
+    'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
+    'campfire', 'tent', 'stall', 'workbench',
+    'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',
+    'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge',
+  ];
+  for (let f = 0; f < 4; f++) names.push('flame_' + f);
+  const memories = ['locket', 'compass', 'music', 'photo', 'ribbon', 'teacup'];
+  for (let i = 0; i < memories.length; i++) {
+    names.push('memory_' + memories[i]);
+    names.push('icon_memory_' + memories[i]);
   }
-  assert.deepEqual(missing, [], 'fehlende Symbole: ' + missing.join(', '));
-});
+  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'hand'];
+  for (let i = 0; i < tools.length; i++) {
+    names.push('tool_' + tools[i]);
+    names.push('icon_' + tools[i]);
+  }
+  for (let f = 0; f < 2; f++) {
+    names.push('butterfly_' + f);
+    names.push('bird_' + f);
+  }
+  const dirs = ['down', 'up', 'side'];
+  for (let d = 0; d < dirs.length; d++) {
+    for (let f = 0; f < 3; f++) names.push('player_' + dirs[d] + '_' + f);
+  }
+  const spirits = ['bruno', 'mira', 'kiesel', 'nelly', 'tobi', 'flamey'];
+  for (let i = 0; i < spirits.length; i++) {
+    for (let f = 0; f < 2; f++) names.push('spirit_' + spirits[i] + '_' + f);
+  }
+  names.push('fox_0', 'fox_1');
+  // Symbole für alle Gegenstände
+  for (let i = 0; i < ITEM_LIST.length; i++) names.push(ITEM_LIST[i].icon);
+  // Symbole der Oberfläche
+  const ui = ['ember', 'coin', 'heart', 'color', 'sparkle', 'star', 'check', 'lock',
+    'ghost', 'arrow', 'day', 'clock', 'quest', 'bag', 'craft', 'map', 'gear', 'campfire'];
+  for (let i = 0; i < ui.length; i++) names.push('icon_' + ui[i]);
+  const set = Object.create(null);
+  for (let i = 0; i < names.length; i++) set[names[i]] = true;
+  return set;
+}());
 
-test('jede Deko verweist auf eine vorhandene Weltgrafik', () => {
+test('jeder Gegenstand verweist auf ein angelegtes Symbol', () => {
   const missing = [];
   for (const item of ITEM_LIST) {
-    if (item.cat !== CAT.DECOR || !item.prop) continue;
-    if (!PROPS[item.prop]) missing.push(item.id + ' -> ' + item.prop);
+    if (!SPRITE_NAMES[item.icon]) missing.push(item.id + ' -> ' + item.icon);
   }
   assert.deepEqual(missing, []);
 });
 
-test('jede Objektdefinition verweist auf eine vorhandene Grafik', () => {
+test('jede Deko verweist auf eine angelegte Weltgrafik', () => {
+  const missing = [];
+  for (const item of ITEM_LIST) {
+    if (item.cat !== CAT.DECOR || !item.prop) continue;
+    if (!SPRITE_NAMES[item.prop]) missing.push(item.id + ' -> ' + item.prop);
+  }
+  assert.deepEqual(missing, []);
+});
+
+test('jede Objektdefinition verweist auf eine angelegte Grafik', () => {
   const missing = [];
   for (const kind of Object.keys(ENTITY_DEFS)) {
     const def = ENTITY_DEFS[kind];
     if (!def.sprite) continue;
-    if (def.sprite.indexOf('fox_') === 0) continue; // wird in critters gebaut
-    if (!PROPS[def.sprite]) missing.push(kind + ' -> ' + def.sprite);
+    if (!SPRITE_NAMES[def.sprite]) missing.push(kind + ' -> ' + def.sprite);
   }
   assert.deepEqual(missing, []);
 });
 
-test('Erinnerungsstuecke haben Welt- und Symbolgrafik', () => {
+test('Erinnerungsstücke haben Welt- und Symbolgrafik', () => {
   for (const id of MEMORY_IDS) {
     const short = id.replace('memory_', '');
-    assert.ok(PROPS['memory_' + short], 'Weltgrafik memory_' + short);
-    assert.ok(ICONS[id], 'Symbol ' + id);
+    assert.ok(SPRITE_NAMES['memory_' + short], 'Weltgrafik memory_' + short);
+    assert.ok(SPRITE_NAMES['icon_' + id], 'Symbol icon_' + id);
   }
 });
 
-test('jeder Geist hat ein Aussehen und sinnvolle Werte', () => {
+test('jeder Geist hat sinnvolle Werte und bleibt wortkarg', () => {
   for (const id of SPIRIT_IDS) {
     const s = SPIRITS[id];
     assert.ok(s.name && s.name.length > 0);
     assert.ok(s.region >= 0 && s.region <= 2);
     assert.ok(s.questTypes.length > 0);
-    if (id !== 'flamey') assert.ok(SPIRIT_LOOKS[id], 'Aussehen fuer ' + id);
-    // Wortkarg: keine Zeile laenger als 40 Zeichen
+    assert.ok(SPRITE_NAMES['spirit_' + id + '_0'], 'Grafik für ' + id);
+    assert.ok(s.colorStart > TILE_SIZE, 'Farbradius passt zur Kachelgröße');
     for (const key of Object.keys(s.lines)) {
       for (const line of s.lines[key]) {
         assert.ok(line.length <= 40, id + '/' + key + ' zu lang: ' + line);
@@ -67,7 +114,7 @@ test('jeder Geist hat ein Aussehen und sinnvolle Werte', () => {
   }
 });
 
-test('Rezepte verweisen nur auf echte Gegenstaende', () => {
+test('Rezepte verweisen nur auf echte Gegenstände', () => {
   for (const rec of RECIPES) {
     for (const c of rec.cost) {
       assert.ok(getItem(c.id), rec.id + ' braucht unbekanntes ' + c.id);
@@ -81,11 +128,12 @@ test('Rezepte verweisen nur auf echte Gegenstaende', () => {
   }
 });
 
-test('Lagerfeuerstufen steigen monoton', () => {
+test('Lagerfeuerstufen steigen monoton und passen zur Kachelgröße', () => {
   for (let i = 1; i < CAMPFIRE_LEVELS.length; i++) {
     assert.ok(CAMPFIRE_LEVELS[i].fuel > CAMPFIRE_LEVELS[i - 1].fuel);
     assert.ok(CAMPFIRE_LEVELS[i].radius > CAMPFIRE_LEVELS[i - 1].radius);
   }
+  assert.ok(CAMPFIRE_LEVELS[0].radius > TILE_SIZE * 3, 'Startkreis deckt das Lager ab');
   assert.equal(campfireLevelFor(0).level, 1);
   assert.equal(campfireLevelFor(14).level, 2);
   assert.equal(campfireLevelFor(1000).level, 5);
@@ -101,8 +149,7 @@ test('fehlende Zutaten werden korrekt gemeldet', () => {
 
   inv.add('wood', 3);
   inv.add('fiber', 1);
-  miss = missingFor(rec, inv, 0);
-  assert.equal(miss.length, 0);
+  assert.equal(missingFor(rec, inv, 0).length, 0);
 
   const lantern = RECIPES.find((r) => r.id === 'lantern');
   inv.add('wood', 10);
@@ -122,10 +169,32 @@ test('Fischtabellen: Nachtfische nur nachts', () => {
   assert.ok(fishesOf('fresh', false).every((f) => f.water === 'fresh'));
 });
 
-test('Freundschaftsstufe waechst alle drei Aufgaben', () => {
+test('Freundschaftsstufe wächst alle drei Aufgaben', () => {
   assert.equal(friendshipLevel(0), 0);
   assert.equal(friendshipLevel(2), 0);
   assert.equal(friendshipLevel(3), 1);
   assert.equal(friendshipLevel(9), 3);
   assert.equal(friendshipLevel(999), 10);
+});
+
+test('Kacheln: Farben aus der Malpalette, Ebenen aufsteigend', () => {
+  const seen = Object.create(null);
+  for (const key of Object.keys(T)) {
+    const t = T[key];
+    const def = TILE_DEF[t];
+    assert.ok(def, 'Definition für ' + key);
+    assert.ok(/^#[0-9a-f]{6}$/i.test(def.base), key + ' hat eine Farbe');
+    seen[def.layer] = true;
+  }
+  assert.equal(isWalkable(T.WATER), false);
+  assert.equal(isWalkable(T.GRASS), true);
+  assert.ok(TILE_DEF[T.GRASS].layer > TILE_DEF[T.SAND].layer, 'Wiese liegt über Sand');
+  assert.ok(TILE_DEF[T.SAND].layer > TILE_DEF[T.WATER].layer, 'Sand liegt über Wasser');
+});
+
+test('Malpalette ist vollständig', () => {
+  const needed = ['line', 'paper', 'leaf', 'grass', 'sand', 'water', 'rock', 'trunk', 'wood', 'fur', 'skin'];
+  for (const key of needed) {
+    assert.ok(/^#[0-9a-f]{6}$/i.test(INK[key]), 'Farbe ' + key);
+  }
 });

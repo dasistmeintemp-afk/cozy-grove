@@ -107,12 +107,12 @@ export class ColorField {
     return out;
   }
 
-  /** Zeichnet die Maske (weiss = Farbe) in Bildschirmkoordinaten. */
-  drawMask(ctx, camX, camY, sources) {
+  /** Zeichnet die Maske (weiss = Farbe) in Weltkoordinaten. */
+  drawMask(ctx, sources) {
     for (let i = 0; i < sources.length; i++) {
       const s = sources[i];
-      const x = s.x - camX;
-      const y = s.y - camY;
+      const x = s.x;
+      const y = s.y;
       const grad = ctx.createRadialGradient(x, y, Math.max(1, s.r * 0.55), x, y, s.r);
       grad.addColorStop(0, 'rgba(255,255,255,1)');
       grad.addColorStop(0.7, 'rgba(255,255,255,0.72)');

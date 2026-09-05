@@ -1,153 +1,177 @@
 /**
- * Bodenschicht.
+ * Bodenschicht in Stücken.
  *
- * Der komplette Inselboden wird einmal in zwei grosse Zwischenbilder gemalt
- * (farbig und entsaettigt). Pro Bild wird daraus nur der sichtbare Ausschnitt
- * kopiert – das ist deutlich schneller als Kachel fuer Kachel zu zeichnen.
+ * Der ganze Inselboden auf einmal wäre bei dieser Auflösung zu groß für den
+ * Speicher. Stattdessen wird er in Stücke zerlegt, die erst gemalt werden,
+ * wenn sie ins Bild kommen – und mit einem Budget pro Bild, damit beim Laufen
+ * nichts ruckelt.
  */
-import { makeCanvas, ctx2d } from '../core/util.js';
-import { Pixel } from '../art/pixel.js';
-import { TILE_DEF, TILE_SIZE, paintTileTexture, isWater } from '../art/tiles.js';
-import { desaturatePixels } from '../art/palette.js';
-import { makeRng, hashString } from '../core/rng.js';
+import { paintGroundChunk, CHUNK_TILES, CHUNK_PX, CHUNK_PAD, WASH_SCALE } from '../art/painted-ground.js';
+import { INK } from '../art/painted.js';
+import { TILE_SIZE } from '../art/tiles.js';
 
-const FRINGE = 4;
+const CACHE_LIMIT = 24;
+const BUDGET_PER_FRAME = 2;
 
 export class GroundLayer {
   constructor(world) {
     this.world = world;
     this.w = world.w * TILE_SIZE;
     this.h = world.h * TILE_SIZE;
-    this.color = makeCanvas(this.w, this.h);
-    this.gray = makeCanvas(this.w, this.h);
-    this.water = makeCanvas(this.w, this.h);
-    this.cctx = ctx2d(this.color);
-    this.gctx = ctx2d(this.gray);
-    this.wctx = ctx2d(this.water);
-    this.pen = new Pixel(this.cctx);
-    this.dirty = [];
+    this.cols = Math.ceil(world.w / CHUNK_TILES);
+    this.rows = Math.ceil(world.h / CHUNK_TILES);
+    this.cache = Object.create(null);
+    this.order = [];
+    this.budget = BUDGET_PER_FRAME;
   }
 
+  /** Am Anfang jedes Bildes: Malbudget zurücksetzen. */
+  beginFrame() {
+    this.budget = BUDGET_PER_FRAME;
+  }
+
+  /**
+   * Malt alle Stücke im Blickfeld sofort fertig – ohne Budget.
+   * Wird beim Start und nach dem Schlafen aufgerufen, damit das erste Bild
+   * vollständig ist. Sonst blitzen unfertige Stücke als harte Kanten auf,
+   * weil Zeichnung und Farbe unterschiedlich weit sind.
+   */
+  prewarm(camX, camY, viewW, viewH) {
+    const cx0 = Math.floor((camX - CHUNK_PX) / CHUNK_PX);
+    const cy0 = Math.floor((camY - CHUNK_PX) / CHUNK_PX);
+    const cx1 = Math.floor((camX + viewW + CHUNK_PX) / CHUNK_PX);
+    const cy1 = Math.floor((camY + viewH + CHUNK_PX) / CHUNK_PX);
+    const saved = this.budget;
+    this.budget = 999;
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) this._get(cx, cy, true);
+    }
+    this.budget = saved;
+  }
+
+  /** Wird nach Kachelwechseln aufgerufen (Weg gelegt, Brücke gebaut). */
+  markTileDirty(tx, ty) {
+    const cx = Math.floor(tx / CHUNK_TILES);
+    const cy = Math.floor(ty / CHUNK_TILES);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) this._drop(cx + dx, cy + dy);
+    }
+  }
+
+  clear() {
+    this.cache = Object.create(null);
+    this.order.length = 0;
+  }
+
+  /** Alte Schnittstelle: ein kompletter Neuaufbau ist jetzt einfach ein Leeren. */
   buildAll() {
-    this.cctx.clearRect(0, 0, this.w, this.h);
-    this.wctx.clearRect(0, 0, this.w, this.h);
-    this._paintRegion(0, 0, this.world.w, this.world.h);
-    this._syncGray(0, 0, this.w, this.h);
-    this.dirty.length = 0;
+    this.clear();
     this.world.groundDirty = false;
   }
 
-  markTileDirty(tx, ty) {
-    this.dirty.push([tx, ty]);
-  }
-
-  /** Aenderungen nachziehen (Wege, Bruecke). */
   flush() {
-    if (!this.dirty.length) return;
-    // Zusammenfassen: pro Bereich ein 3x3-Block
-    const seen = Object.create(null);
-    const blocks = [];
-    for (let i = 0; i < this.dirty.length; i++) {
-      const tx = this.dirty[i][0];
-      const ty = this.dirty[i][1];
-      const key = tx + ',' + ty;
-      if (seen[key]) continue;
-      seen[key] = true;
-      blocks.push([tx, ty]);
-    }
-    this.dirty.length = 0;
-
-    for (let i = 0; i < blocks.length; i++) {
-      const tx = blocks[i][0];
-      const ty = blocks[i][1];
-      const x0 = (tx - 1) * TILE_SIZE;
-      const y0 = (ty - 1) * TILE_SIZE;
-      const w = TILE_SIZE * 3;
-      const h = TILE_SIZE * 3;
-      this.cctx.save();
-      this.cctx.beginPath();
-      this.cctx.rect(x0, y0, w, h);
-      this.cctx.clip();
-      this.cctx.clearRect(x0, y0, w, h);
-      this.wctx.clearRect(x0, y0, w, h);
-      this._paintRegion(tx - 2, ty - 2, 5, 5);
-      this.cctx.restore();
-      this._syncGray(x0, y0, w, h);
+    if (this.world.groundDirty) {
+      this.world.groundDirty = false;
     }
   }
 
-  _paintRegion(tx0, ty0, tw, th) {
-    const world = this.world;
-    const g = this.pen;
-    const cells = [];
-    for (let ty = ty0; ty < ty0 + th; ty++) {
-      for (let tx = tx0; tx < tx0 + tw; tx++) {
-        if (tx < 0 || ty < 0 || tx >= world.w || ty >= world.h) continue;
-        const t = world.tileAtTile(tx, ty);
-        cells.push({ tx: tx, ty: ty, t: t, layer: TILE_DEF[t].layer });
+  _key(cx, cy) {
+    return cx + '|' + cy;
+  }
+
+  _drop(cx, cy) {
+    const key = this._key(cx, cy);
+    if (!this.cache[key]) return;
+    delete this.cache[key];
+    const i = this.order.indexOf(key);
+    if (i >= 0) this.order.splice(i, 1);
+  }
+
+  _get(cx, cy, allowPaint) {
+    if (cx < 0 || cy < 0 || cx >= this.cols || cy >= this.rows) return null;
+    const key = this._key(cx, cy);
+    const hit = this.cache[key];
+    if (hit) {
+      const at = this.order.indexOf(key);
+      if (at >= 0 && at < this.order.length - 1) {
+        this.order.splice(at, 1);
+        this.order.push(key);
+      }
+      return hit;
+    }
+    if (!allowPaint || this.budget <= 0) return null;
+    this.budget--;
+
+    const chunk = paintGroundChunk(this.world, cx, cy);
+    this.cache[key] = chunk;
+    this.order.push(key);
+    while (this.order.length > CACHE_LIMIT) {
+      const old = this.order.shift();
+      delete this.cache[old];
+    }
+    return chunk;
+  }
+
+  /**
+   * Zeichnet den sichtbaren Boden – in Weltkoordinaten, die Kamera steckt
+   * bereits in der Transformation des Kontexts.
+   * @param {boolean} pale unkolorierte Fassung (Papierschleier über die Farbe)
+   */
+  draw(ctx, viewX, viewY, viewW, viewH, pale, mayPaint) {
+    // Nur der erste Durchgang darf neue Stücke malen. Sonst verbraucht die
+    // Zeichnung das Budget und der Farbdurchgang findet Löcher vor – man sähe
+    // die Stückgrenzen als harte Kanten in der Farbfläche.
+    const allowPaint = mayPaint !== false;
+    const cx0 = Math.floor(viewX / CHUNK_PX);
+    const cy0 = Math.floor(viewY / CHUNK_PX);
+    const cx1 = Math.floor((viewX + viewW) / CHUNK_PX);
+    const cy1 = Math.floor((viewY + viewH) / CHUNK_PX);
+
+    // 1 – Farbflächen
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const chunk = this._get(cx, cy, allowPaint);
+        if (chunk) {
+          // Nur den Kern zeichnen: Der Malrand enthält Nachbardaten und würde
+          // das benachbarte Stück überschreiben – das gäbe ein Rastermuster.
+          ctx.drawImage(chunk.wash,
+            CHUNK_PAD * WASH_SCALE, CHUNK_PAD * WASH_SCALE,
+            CHUNK_PX * WASH_SCALE, CHUNK_PX * WASH_SCALE,
+            cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, CHUNK_PX);
+        } else {
+          // Noch nicht gemalt: Papierton in BEIDEN Durchgängen, sonst klafft
+          // zwischen Zeichnung und Farbe eine sichtbare Kante.
+          ctx.fillStyle = INK.paper;
+          ctx.fillRect(cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, CHUNK_PX);
+        }
       }
     }
-    cells.sort(function (a, b) { return a.layer - b.layer; });
 
-    for (let i = 0; i < cells.length; i++) {
-      const c = cells[i];
-      const x = c.tx * TILE_SIZE;
-      const y = c.ty * TILE_SIZE;
-      const def = TILE_DEF[c.t];
-      const rng = makeRng(hashString(c.tx + ':' + c.ty));
+    // 2 – Papierschleier, wenn hier noch keine Farbe zurück ist
+    if (pale) {
+      ctx.save();
+      ctx.globalAlpha = 0.76;
+      ctx.fillStyle = INK.paper;
+      ctx.fillRect(viewX - 4, viewY - 4, viewW + 8, viewH + 8);
+      ctx.restore();
+    }
 
-      g.rect(x, y, TILE_SIZE, TILE_SIZE, def.base);
-      this._fringe(g, c, def);
-      paintTileTexture(g, c.t, x, y, rng);
-
-      if (isWater(c.t)) {
-        this.wctx.fillStyle = '#ffffff';
-        this.wctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+    // 3 – Tinte bleibt immer sichtbar
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const chunk = this._get(cx, cy, false);
+        if (chunk) {
+          ctx.drawImage(chunk.ink, CHUNK_PAD, CHUNK_PAD, CHUNK_PX, CHUNK_PX,
+            cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, CHUNK_PX);
+        }
       }
     }
   }
 
-  /** Ausgefranster Rand zu niedrigeren Nachbarn – weiche Uebergaenge. */
-  _fringe(g, c, def) {
-    const world = this.world;
-    const x = c.tx * TILE_SIZE;
-    const y = c.ty * TILE_SIZE;
-    const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-    for (let d = 0; d < 4; d++) {
-      const nx = c.tx + dirs[d][0];
-      const ny = c.ty + dirs[d][1];
-      const nt = world.tileAtTile(nx, ny);
-      if (TILE_DEF[nt].layer >= def.layer) continue;
-      const rng = makeRng(hashString(c.tx + '|' + c.ty + '|' + d));
-      const steps = 4;
-      const seg = TILE_SIZE / steps;
-      for (let s = 0; s < steps; s++) {
-        const depth = 1 + Math.floor(rng() * FRINGE);
-        if (d === 0) g.rect(x + s * seg, y - depth, seg, depth, def.base);
-        else if (d === 1) g.rect(x + TILE_SIZE, y + s * seg, depth, seg, def.base);
-        else if (d === 2) g.rect(x + s * seg, y + TILE_SIZE, seg, depth, def.base);
-        else g.rect(x - depth, y + s * seg, depth, seg, def.base);
-      }
-    }
-  }
-
-  _syncGray(x, y, w, h) {
-    const gx = Math.max(0, Math.floor(x));
-    const gy = Math.max(0, Math.floor(y));
-    const gw = Math.min(this.w - gx, Math.ceil(w));
-    const gh = Math.min(this.h - gy, Math.ceil(h));
-    if (gw <= 0 || gh <= 0) return;
-    this.gctx.clearRect(gx, gy, gw, gh);
-    this.gctx.drawImage(this.color, gx, gy, gw, gh, gx, gy, gw, gh);
-    let img;
-    let mask = null;
-    try {
-      img = this.gctx.getImageData(gx, gy, gw, gh);
-      mask = this.wctx.getImageData(gx, gy, gw, gh);
-    } catch (err) {
-      return;
-    }
-    desaturatePixels(img.data, mask ? mask.data : null);
-    this.gctx.putImageData(img, gx, gy);
+  /** Nur für Fortschrittsanzeigen: wie viele Stücke liegen bereit? */
+  get cachedCount() {
+    return this.order.length;
   }
 }
+
+export { CHUNK_TILES, CHUNK_PX };

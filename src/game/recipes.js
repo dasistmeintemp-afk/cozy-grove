@@ -2,11 +2,11 @@
 
 /** Lagerfeuer: Brennstoff (Holz o. Ae.) hebt die Stufe. */
 export const CAMPFIRE_LEVELS = [
-  { level: 1, fuel: 0, radius: 82, light: 74 },
-  { level: 2, fuel: 14, radius: 108, light: 92 },
-  { level: 3, fuel: 40, radius: 136, light: 110 },
-  { level: 4, fuel: 84, radius: 168, light: 128 },
-  { level: 5, fuel: 150, radius: 205, light: 150 },
+  { level: 1, fuel: 0, radius: 328, light: 296 },
+  { level: 2, fuel: 14, radius: 432, light: 368 },
+  { level: 3, fuel: 40, radius: 544, light: 440 },
+  { level: 4, fuel: 84, radius: 672, light: 512 },
+  { level: 5, fuel: 150, radius: 820, light: 600 },
 ];
 
 export function campfireLevelFor(fuel) {

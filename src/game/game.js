@@ -67,10 +67,11 @@ export class Game {
     else this._fresh();
 
     this.ground = new GroundLayer(this.world);
-    this.ground.buildAll();
     this.camera.worldW = this.world.w * TILE_SIZE;
     this.camera.worldH = this.world.h * TILE_SIZE;
+    this.syncViewport();
     this.camera.snapTo(this.player.x, this.player.y);
+    this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
 
     this.ui = new UI(this);
     this.panels = new Panels(this);
@@ -128,6 +129,21 @@ export class Game {
     this.world.unlocked = save.unlocked || [true, false, false];
     if (save.bridgeBuilt) this.world.buildBridge();
     this._applyWorldDelta(save.worldDelta);
+  }
+
+  /**
+   * Zeichenfläche an die Fenstergröße anpassen.
+   * Der Zoom hält den sichtbaren Ausschnitt weitgehend konstant, damit das
+   * Spiel auf einem großen Bildschirm nicht plötzlich weit weg wirkt.
+   */
+  syncViewport() {
+    const stage = this.canvas.parentNode || document.body;
+    const cssW = stage.clientWidth || window.innerWidth || 960;
+    const cssH = stage.clientHeight || window.innerHeight || 540;
+    const dpr = window.devicePixelRatio || 1;
+    this.renderer.resize(cssW, cssH, dpr);
+    this.camera.resize(this.renderer.viewW, this.renderer.viewH);
+    if (this.ui) this.ui.layout();
   }
 
   /* ================= Speichern ================= */
@@ -407,7 +423,7 @@ export class Game {
     const chipColor = def.category === 'rock' ? '#8d8f96'
       : def.category === 'tree' ? '#8a6242'
         : def.category === 'dig' ? '#a9855e' : '#7cb567';
-    this.particles.burst(def.category === 'dig' ? 'dust' : 'chip', e.x, e.y - 8, 5, { color: chipColor });
+    this.particles.burst(def.category === 'dig' ? 'dust' : 'chip', e.x, e.y - 32, 5, { color: chipColor });
 
     e.hp = (e.hp || 1) - 1;
     if (e.hp > 0) {
@@ -431,7 +447,7 @@ export class Game {
     if (got.length) {
       this.ui.toastItems(got);
       this.audio.play('pickup');
-      this.particles.burst('sparkle', e.x, e.y - 10, 4);
+      this.particles.burst('sparkle', e.x, e.y - 40, 4);
     }
     // Muenzbeutel oeffnet sich sofort
     for (let i = 0; i < got.length; i++) {
@@ -441,7 +457,7 @@ export class Game {
         this.inventory.remove('coin_pouch', got[i].n);
         this.state.coins += coins;
         this.ui.toast('+' + coins + ' Münzen', 'icon_coin', 'good');
-        this.particles.burst('coin', e.x, e.y - 12, 6);
+        this.particles.burst('coin', e.x, e.y - 48, 6);
         this.audio.play('coin');
       }
     }
@@ -466,7 +482,7 @@ export class Game {
 
   _unlockRegion(region, sourceEntity) {
     if (!this.world.unlockRegion(region)) return;
-    this.particles.burst('color', sourceEntity.x, sourceEntity.y - 10, 26);
+    this.particles.burst('color', sourceEntity.x, sourceEntity.y - 40, 26);
     this.audio.play('colorBurst');
     this.camera.kick(0.5);
     const names = ['Lager & Strand', 'Wald', 'Klippen'];
@@ -480,7 +496,7 @@ export class Game {
   pickHidden(e) {
     const q = e.questId ? this.quests.byId(e.questId) : null;
     this.world.remove(e);
-    this.particles.burst('sparkle', e.x, e.y - 8, 10);
+    this.particles.burst('sparkle', e.x, e.y - 32, 10);
     this.audio.play('pickup');
     if (q) {
       this.quests.notify('found', { questId: q.id }, this);
@@ -526,7 +542,8 @@ export class Game {
     this.inventory.remove('bridge_kit', 1);
     this.world.buildBridge();
     this.ground.buildAll();
-    this.particles.burst('color', entity.x + 40, entity.y, 30);
+    this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
+    this.particles.burst('color', entity.x + 160, entity.y, 30);
     this.audio.play('colorBurst');
     this.ui.toast('Brücke gebaut – die Klippen sind offen!', 'icon_bridge_kit', 'good');
     this.quests.newDay(this.day.day, this.world, this);
@@ -549,11 +566,11 @@ export class Game {
     if (open.length) {
       const q = open[0];
       const have = this.quests.progress(q, this);
-      this.ui.bubble(e.x, e.y - 34, pickLine(spirit.lines.wait), questBubbleIcons(q, have), 3.2);
+      this.ui.bubble(e.x, e.y - 190, pickLine(spirit.lines.wait), questBubbleIcons(q, have), 3.2);
       this.audio.play('ghost');
       return;
     }
-    this.ui.bubble(e.x, e.y - 34, pickLine(spirit.lines.full), [{ icon: 'icon_heart' }], 2.4);
+    this.ui.bubble(e.x, e.y - 190, pickLine(spirit.lines.full), [{ icon: 'icon_heart' }], 2.4);
     this.audio.play('ghost');
   }
 
@@ -577,21 +594,21 @@ export class Game {
     }
     this.colorField.markDirty();
 
-    this.particles.burst('color', e.x, e.y - 14, 22);
-    this.particles.burst('heart', e.x, e.y - 20, 3);
+    this.particles.burst('color', e.x, e.y - 60, 22);
+    this.particles.burst('heart', e.x, e.y - 90, 3);
     this.audio.play('questDone');
     this.audio.play('colorBurst');
     this.camera.kick(0.3);
 
     const icons = [{ icon: 'icon_coin', n: rewards.coins }, { icon: 'icon_ember', n: rewards.ember }];
-    this.ui.bubble(e.x, e.y - 34, pickLine(spirit.lines.thanks), icons, 3);
+    this.ui.bubble(e.x, e.y - 190, pickLine(spirit.lines.thanks), icons, 3);
     this.ui.toast('+' + rewards.coins + ' Münzen · +' + rewards.ember + ' Glut', 'icon_coin', 'good');
 
     const doneN = this.quests.completedBySpirit[spirit.id];
     if (doneN % 3 === 0) {
       this.ui.toast(spirit.name + ' · Freundschaft ' + friendshipLevel(doneN), 'icon_heart', 'good');
       this.audio.play('levelup');
-      this.colorField.grow(key, 18);
+      this.colorField.grow(key, 72);
     }
 
     this.ui.refreshQuests();
@@ -707,7 +724,7 @@ export class Game {
 
     this.audio.play('burn');
     if (this.world.campfire) {
-      this.particles.burst('spark', this.world.campfire.x, this.world.campfire.y - 12, 10);
+      this.particles.burst('spark', this.world.campfire.x, this.world.campfire.y - 50, 10);
     }
     this.ui.toast('+' + gain + ' Glut', 'icon_ember', 'good');
     this.quests.notify('burn', { n: take }, this);
@@ -716,7 +733,7 @@ export class Game {
       this.audio.play('levelup');
       this.ui.toast('Das Feuer wächst · Stufe ' + afterLevel, 'icon_campfire', 'good');
       if (this.world.campfire) {
-        this.particles.burst('color', this.world.campfire.x, this.world.campfire.y - 14, 24);
+        this.particles.burst('color', this.world.campfire.x, this.world.campfire.y - 56, 24);
       }
       this.camera.kick(0.35);
     }
@@ -784,7 +801,7 @@ export class Game {
     const item = getItem(itemId);
     if (!item || !item.prop) return;
     if (this.inventory.count(itemId) <= 0) return;
-    const p = this.player.facingPoint(20);
+    const p = this.player.facingPoint(88);
     this.placing = {
       itemId: itemId,
       sprite: item.prop,
@@ -799,7 +816,7 @@ export class Game {
 
   _updatePlacing() {
     if (!this.placing) return;
-    const p = this.player.facingPoint(22);
+    const p = this.player.facingPoint(96);
     this.placing.x = Math.round(p.x);
     this.placing.y = Math.round(p.y);
     this.placing.valid = this._canPlaceAt(this.placing.x, this.placing.y);
@@ -808,13 +825,13 @@ export class Game {
   _rotatePlacing() {
     // Platzhalter fuer spaetere Drehung – aktuell nur ein kleiner Versatz
     if (!this.placing) return;
-    this.placing.y += 4;
+    this.placing.y += 16;
   }
 
   _canPlaceAt(x, y) {
-    if (!this.world.canStand(x, y, 3, 2)) return false;
+    if (!this.world.canStand(x, y, 12, 8)) return false;
     if (this.world.regionAtPixel(x, y) == null) return false;
-    const near = this.world.queryNear(x, y, 18);
+    const near = this.world.queryNear(x, y, 90);
     for (let i = 0; i < near.length; i++) {
       const e = near[i];
       if (e.gone) continue;
@@ -823,12 +840,12 @@ export class Game {
       if (d.category === 'station' || d.category === 'spirit' || d.category === 'fox') {
         const dx = e.x - x;
         const dy = e.y - y;
-        if (dx * dx + dy * dy < 26 * 26) return false;
+        if (dx * dx + dy * dy < 110 * 110) return false;
       }
       if (e.kind === 'decor') {
         const dx = e.x - x;
         const dy = e.y - y;
-        if (dx * dx + dy * dy < 12 * 12) return false;
+        if (dx * dx + dy * dy < 52 * 52) return false;
       }
     }
     return true;
@@ -856,11 +873,11 @@ export class Game {
     } else {
       const e = makeEntity('decor', p.x, p.y, { itemId: p.itemId, flat: p.flat });
       e.sprite = p.sprite;
-      e.blockR = p.flat ? 0 : 7;
+      e.blockR = p.flat ? 0 : 26;
       this.world.add(e);
     }
     this.audio.play('place');
-    this.particles.burst('dust', p.x, p.y, 4);
+    this.particles.burst('dust', p.x, p.y, 5);
     this.ui.refreshQuests();
 
     if (this.inventory.count(p.itemId) <= 0) this.cancelPlacing();
@@ -912,6 +929,7 @@ export class Game {
     this.wildlife.clear();
     this._jitterSpirits(day);
     this.camera.snapTo(this.player.x, this.player.y);
+    this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
     this.ui.refreshHud();
     this.ui.refreshQuests();
     this.ui.toast('Tag ' + day, 'icon_day');
@@ -951,8 +969,8 @@ export class Game {
     this._ambientTimer = 0.35;
 
     const cam = this.camera;
-    const w = this.renderer.w;
-    const h = this.renderer.h;
+    const w = this.renderer.viewW;
+    const h = this.renderer.viewH;
     const night = this.day.isDark();
 
     if (night) {
@@ -966,15 +984,15 @@ export class Game {
       if (this.particles.count < 40 && Math.random() < 0.5) {
         this.particles.spawn('leaf',
           cam.ox + Math.random() * w,
-          cam.oy - 10 + Math.random() * 20);
+          cam.oy - 40 + Math.random() * 80);
       }
       if (Math.random() < 0.03) this.audio.play('bird');
     }
 
     if (this.world.campfire) {
       const c = this.world.campfire;
-      if (Math.abs(c.x - this.player.x) < 220 && Math.abs(c.y - this.player.y) < 160) {
-        this.particles.spawn('spark', c.x + (Math.random() - 0.5) * 6, c.y - 14);
+      if (Math.abs(c.x - this.player.x) < 900 && Math.abs(c.y - this.player.y) < 640) {
+        this.particles.spawn('spark', c.x + (Math.random() - 0.5) * 24, c.y - 56);
       }
     }
   }
@@ -985,13 +1003,13 @@ export class Game {
     const c = this.world.campfire;
     if (c) {
       const flicker = 1 + Math.sin(time * 7.3) * 0.03 + Math.sin(time * 3.1) * 0.02;
-      out.push({ x: c.x, y: c.y - 8, r: fire.light * flicker, a: 0.98 });
+      out.push({ x: c.x, y: c.y - 34, r: fire.light * flicker, a: 0.98 });
     }
-    out.push({ x: this.player.x, y: this.player.y - 10, r: 40, a: 0.6 });
+    out.push({ x: this.player.x, y: this.player.y - 42, r: 170, a: 0.6 });
 
     const near = this.world.queryRect(
-      this.camera.ox - 60, this.camera.oy - 60,
-      this.renderer.w + 120, this.renderer.h + 120
+      this.camera.ox - 200, this.camera.oy - 200,
+      this.renderer.viewW + 400, this.renderer.viewH + 400
     );
     for (let i = 0; i < near.length; i++) {
       const e = near[i];
@@ -999,12 +1017,12 @@ export class Game {
       if (e.kind === 'decor' && e.itemId) {
         const item = getItem(e.itemId);
         if (item && item.light) {
-          out.push({ x: e.x, y: e.y - 14, r: item.light * (1 + Math.sin(time * 5 + e.phase) * 0.02), a: 0.9 });
+          out.push({ x: e.x, y: e.y - 58, r: item.light * (1 + Math.sin(time * 5 + e.phase) * 0.02), a: 0.9 });
         }
       } else if (e.kind === 'spirit') {
-        out.push({ x: e.x, y: e.y - 14, r: 30, a: 0.5 });
+        out.push({ x: e.x, y: e.y - 58, r: 128, a: 0.5 });
       } else if (e.kind === 'hidden') {
-        out.push({ x: e.x, y: e.y - 6, r: 22, a: 0.7 });
+        out.push({ x: e.x, y: e.y - 26, r: 96, a: 0.7 });
       }
     }
     return out;

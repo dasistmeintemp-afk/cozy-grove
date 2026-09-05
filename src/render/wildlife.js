@@ -29,15 +29,15 @@ export class Wildlife {
 
       if (c.type === 'butterfly') {
         c.x += Math.cos(c.dir) * c.speed * dt;
-        c.y += Math.sin(c.dir) * c.speed * dt + Math.sin(c.t * 4) * 6 * dt;
+        c.y += Math.sin(c.dir) * c.speed * dt + Math.sin(c.t * 4) * 24 * dt;
         c.dir += Math.sin(c.t * 0.9 + c.phase) * 1.4 * dt;
         if (!isWalkable(world.tileAt(c.x, c.y))) c.dir += Math.PI * 0.6;
       } else {
         c.x += Math.cos(c.dir) * c.speed * dt;
-        c.y += Math.sin(c.dir) * c.speed * dt + Math.sin(c.t * 2.2) * 10 * dt;
+        c.y += Math.sin(c.dir) * c.speed * dt + Math.sin(c.t * 2.2) * 40 * dt;
       }
 
-      const margin = 90;
+      const margin = 260;
       const off = c.x < camera.ox - margin || c.x > camera.ox + viewW + margin ||
         c.y < camera.oy - margin || c.y > camera.oy + viewH + margin;
       if (c.life <= 0 || off) this.list.splice(i, 1);
@@ -55,18 +55,18 @@ export class Wildlife {
   _spawnButterfly(camera, world, viewW, viewH) {
     const rng = this.rng;
     for (let tries = 0; tries < 12; tries++) {
-      const x = camera.ox + randRange(rng, 10, viewW - 10);
-      const y = camera.oy + randRange(rng, 10, viewH - 10);
+      const x = camera.ox + randRange(rng, 40, viewW - 40);
+      const y = camera.oy + randRange(rng, 40, viewH - 40);
       if (!isWalkable(world.tileAt(x, y))) continue;
       this.list.push({
         type: 'butterfly',
         x: x, y: y,
         dir: randRange(rng, 0, Math.PI * 2),
-        speed: randRange(rng, 9, 17),
+        speed: randRange(rng, 34, 66),
         life: randRange(rng, 9, 20),
         t: 0,
         phase: randRange(rng, 0, 6.28),
-        z: randRange(rng, 8, 18),
+        z: randRange(rng, 30, 70),
       });
       return;
     }
@@ -77,14 +77,14 @@ export class Wildlife {
     const fromLeft = rng() < 0.5;
     this.list.push({
       type: 'bird',
-      x: camera.ox + (fromLeft ? -40 : viewW + 40),
-      y: camera.oy + randRange(rng, 14, viewH * 0.55),
+      x: camera.ox + (fromLeft ? -150 : viewW + 150),
+      y: camera.oy + randRange(rng, 40, viewH * 0.55),
       dir: fromLeft ? randRange(rng, -0.2, 0.2) : Math.PI + randRange(rng, -0.2, 0.2),
-      speed: randRange(rng, 34, 58),
+      speed: randRange(rng, 130, 220),
       life: 18,
       t: 0,
       phase: 0,
-      z: randRange(rng, 22, 38),
+      z: randRange(rng, 84, 150),
     });
   }
 
@@ -99,7 +99,7 @@ export class Wildlife {
       ctx.globalAlpha = 0.16;
       ctx.fillStyle = '#101a14';
       ctx.beginPath();
-      ctx.ellipse(Math.round(c.x - camX), Math.round(c.y - camY), 3, 1.4, 0, 0, Math.PI * 2);
+      ctx.ellipse(c.x - camX, c.y - camY, 11, 5, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
       drawSprite(ctx, name, c.x - camX, c.y - camY - c.z, false, { flip: flip });

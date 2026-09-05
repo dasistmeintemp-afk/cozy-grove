@@ -82,9 +82,16 @@ async function run() {
     check('Startbildschirm sichtbar', true);
     await page.screenshot({ path: join(SHOT_DIR, '01-start.png') });
 
+    // Die Grafik wird erst beim Start gemalt – das braucht einen Moment
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.ready), 60000, 'Grafik gemalt');
+    check('Grafik erzeugt', true);
+
+    const artNames = await page.evaluate(() => window.CozyGrove.art.names().length);
+    check('Sprite-Register gefuellt (' + artNames + ')', artNames > 100, String(artNames));
+
     await page.click('#btn-new');
-    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.game), 10000, 'Spielstart');
-    await page.waitForTimeout(900);
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.game), 20000, 'Spielstart');
+    await page.waitForTimeout(1500);
 
     const info = await page.evaluate(() => {
       const g = window.CozyGrove.game;
@@ -107,8 +114,24 @@ async function run() {
     check('Welt bevoelkert (' + info.entities + ' Objekte)', info.entities > 300);
     check('Sechs Geister platziert', info.kinds.spirit === 6, JSON.stringify(info.kinds.spirit));
     check('Tagesaufgaben vergeben (' + info.quests + ')', info.quests > 0);
-    check('Bodenschicht gebaut (' + info.groundW + 'px)', info.groundW > 1000);
+    check('Bodenschicht angelegt (' + info.groundW + 'px)', info.groundW > 4000);
     check('Lagerfeuer faerbt den Startbereich', info.colorSources >= 1 && info.coverage > 0);
+
+    const artMissing = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      const has = window.CozyGrove.art.has;
+      const missing = [];
+      for (const e of g.world.entities) {
+        const name = e.sprite;
+        if (name && !has(name)) missing.push(e.kind + ' -> ' + name);
+      }
+      // Auch jede Aufgabenkarte und jeder Werkzeugknopf braucht sein Symbol
+      for (const q of g.quests.active()) {
+        if (q.itemId && !has('icon_' + q.itemId)) missing.push('quest -> icon_' + q.itemId);
+      }
+      return missing.slice(0, 8);
+    });
+    check('Alle Weltobjekte haben eine Grafik', artMissing.length === 0, artMissing.join(', '));
 
     await page.screenshot({ path: join(SHOT_DIR, '02-spielstart.png') });
 
@@ -136,7 +159,7 @@ async function run() {
       const tree = g.world.entities.find((e) => e.kind === 'tree_oak' && !e.gone);
       if (!tree) return { ok: false, why: 'kein Baum' };
       g.player.x = tree.x;
-      g.player.y = tree.y + 14;
+      g.player.y = tree.y + 56;
       g.player.dir = 'up';
       g.player.selectTool(1);
       const woodBefore = g.inventory.count('wood');
@@ -161,7 +184,7 @@ async function run() {
       const bush = g.world.entities.find((e) => e.kind === 'bush_berry' && !e.gone);
       if (!bush) return { ok: false };
       g.player.x = bush.x;
-      g.player.y = bush.y + 12;
+      g.player.y = bush.y + 48;
       g.player.dir = 'up';
       g.player.selectTool(0);
       g.target = g.player.findTarget(g.world);
@@ -216,7 +239,7 @@ async function run() {
       const wasValid = g.placing && g.placing.valid;
       let tries = 0;
       while (g.placing && !g.placing.valid && tries++ < 40) {
-        g.player.x += 6;
+        g.player.x += 24;
         g._updatePlacing();
       }
       const before = g.world.entities.filter((e) => e.kind === 'decor').length;
@@ -236,15 +259,15 @@ async function run() {
       let target = null;
       for (let ty = 2; ty < g.world.h - 2 && !target; ty++) {
         for (let tx = 2; tx < g.world.w - 2; tx++) {
-          if (!g.world.waterAt(tx * 16 + 8, ty * 16 + 8)) continue;
-          if (!g.world.canStand(tx * 16 + 8, (ty + 2) * 16 + 8)) continue;
+          if (!g.world.waterAt(tx * 64 + 32, ty * 64 + 32)) continue;
+          if (!g.world.canStand(tx * 64 + 32, (ty + 2) * 64 + 32)) continue;
           target = { tx, ty };
           break;
         }
       }
       if (!target) return { ok: false, why: 'kein Ufer' };
-      g.player.x = target.tx * 16 + 8;
-      g.player.y = (target.ty + 2) * 16 + 8;
+      g.player.x = target.tx * 64 + 32;
+      g.player.y = (target.ty + 2) * 64 + 32;
       g.player.dir = 'up';
       g.player.selectTool(4);
       g.target = null;
@@ -303,7 +326,7 @@ async function run() {
       g.player.levels.axe = 2;
       const bar = g.world.logBarrier;
       g.player.x = bar.x;
-      g.player.y = bar.y + 12;
+      g.player.y = bar.y + 46;
       g.player.dir = 'up';
       g.player.selectTool(1);
       let hits = 0;
@@ -340,7 +363,7 @@ async function run() {
       const g = window.CozyGrove.game;
       const dayBefore = g.day.day;
       g.sleep(false);
-      await new Promise((r) => setTimeout(r, 1800));
+      await new Promise((r) => setTimeout(r, 2800));
       return { dayBefore, dayAfter: g.day.day, sleeping: g.sleeping, quests: g.quests.active().length };
     });
     check('Schlafen startet den naechsten Tag', slept.dayAfter === slept.dayBefore + 1 && !slept.sleeping,
@@ -354,10 +377,11 @@ async function run() {
       return { coins: g.state.coins, day: g.day.day, decor: g.world.entities.filter((e) => e.kind === 'decor').length };
     });
     await page.reload({ waitUntil: 'load' });
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.ready), 60000, 'Grafik nach Neuladen');
     await page.waitForSelector('#btn-continue', { state: 'visible' });
     await page.click('#btn-continue');
-    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.game), 10000, 'Weiterspielen');
-    await page.waitForTimeout(600);
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.game), 20000, 'Weiterspielen');
+    await page.waitForTimeout(1200);
     const restored = await page.evaluate(() => {
       const g = window.CozyGrove.game;
       return {

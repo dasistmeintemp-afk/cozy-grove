@@ -95,7 +95,7 @@ export class QuestBook {
       const spiritEnt = world.spiritEntity(spiritId);
       for (let i = 0; i < count; i++) {
         const spot = world.randomSpot(rng, spirit.region, spiritEnt
-          ? { x: spiritEnt.x, y: spiritEnt.y, r: 60 }
+          ? { x: spiritEnt.x, y: spiritEnt.y, r: 240 }
           : null);
         const e = makeEntity('hidden', spot.x, spot.y, {
           questId: q.id,
@@ -254,13 +254,13 @@ export class QuestBook {
 function countDecorNear(world, spiritId) {
   const e = world.spiritEntity(spiritId);
   if (!e) return 0;
-  const near = world.queryNear(e.x, e.y, 140);
+  const near = world.queryNear(e.x, e.y, 520);
   let n = 0;
   for (let i = 0; i < near.length; i++) {
     if (near[i].kind !== 'decor') continue;
     const dx = near[i].x - e.x;
     const dy = near[i].y - e.y;
-    if (dx * dx + dy * dy <= 140 * 140) n++;
+    if (dx * dx + dy * dy <= 520 * 520) n++;
   }
   return n;
 }
