@@ -2,7 +2,7 @@
 import { clamp } from '../core/util.js';
 import { defOf, TOOL } from '../world/entities.js';
 
-export const WALK_SPEED = 62;
+export const WALK_SPEED = 248;
 
 export const TOOLS = [
   { id: TOOL.HAND, name: 'Hand', icon: 'icon_hand', sprite: 'tool_hand', key: '1' },
@@ -78,8 +78,8 @@ export class Player {
       this.stepTimer = 0;
     }
 
-    this.x = clamp(this.x, 8, world.w * 16 - 8);
-    this.y = clamp(this.y, 8, world.h * 16 - 8);
+    this.x = clamp(this.x, 32, world.w * 64 - 32);
+    this.y = clamp(this.y, 32, world.h * 64 - 32);
   }
 
   /** Soll ein Schrittgeraeusch gespielt werden? */
@@ -101,12 +101,12 @@ export class Player {
 
   /** Punkt kurz vor der Figur – fuer Angel und Werkzeugeinsatz. */
   facingPoint(dist) {
-    const d = dist == null ? 16 : dist;
+    const d = dist == null ? 64 : dist;
     switch (this.dir) {
       case 'up': return { x: this.x, y: this.y - d };
       case 'down': return { x: this.x, y: this.y + d };
-      case 'left': return { x: this.x - d, y: this.y - 4 };
-      default: return { x: this.x + d, y: this.y - 4 };
+      case 'left': return { x: this.x - d, y: this.y - 16 };
+      default: return { x: this.x + d, y: this.y - 16 };
     }
   }
 
@@ -121,8 +121,8 @@ export class Player {
    */
   findTarget(world) {
     const toolId = this.tool.id;
-    const near = world.queryNear(this.x, this.y, 44);
-    const fp = this.facingPoint(11);
+    const near = world.queryNear(this.x, this.y, 176);
+    const fp = this.facingPoint(44);
     let best = null;
     let bestScore = -Infinity;
 
@@ -131,9 +131,9 @@ export class Player {
       if (e.gone) continue;
       const def = defOf(e.kind);
       if (!def) continue;
-      const reach = def.reachR || 18;
+      const reach = def.reachR || 72;
       const dx = e.x - this.x;
-      const dy = (e.y - 4) - this.y;
+      const dy = (e.y - 16) - this.y;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d > reach) continue;
 
@@ -144,7 +144,7 @@ export class Player {
 
       // Naehe zum Punkt vor der Figur
       const fdx = e.x - fp.x;
-      const fdy = (e.y - 4) - fp.y;
+      const fdy = (e.y - 16) - fp.y;
       const facing = Math.sqrt(fdx * fdx + fdy * fdy);
 
       let score = 100 - facing;

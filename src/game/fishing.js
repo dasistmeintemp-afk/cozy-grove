@@ -37,7 +37,7 @@ export class Fishing {
   /** Wirft aus. Gibt false zurueck, wenn dort kein Wasser ist. */
   cast(world, player, rng, night, rodLevel) {
     if (this.active) return false;
-    const p = player.facingPoint(26);
+    const p = player.facingPoint(104);
     if (!world.waterAt(p.x, p.y)) return false;
 
     const kind = world.waterKind(p.x, p.y);

@@ -209,10 +209,11 @@ function modulateAlpha(canvas, seed) {
 export function inkLine(ctx, x0, y0, x1, y1, opts) {
   const o = opts || {};
   const bend = o.bend == null ? 0.12 : o.bend;
-  const steps = 9;
   const dx = x1 - x0;
   const dy = y1 - y0;
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  // Stützpunkte nach Länge: kurze Striche brauchen keine neun Teilstücke
+  const steps = o.steps || Math.max(3, Math.min(9, Math.round(len / 14)));
   const nx = -dy / len;
   const ny = dx / len;
   const pts = [];
@@ -420,38 +421,51 @@ export function paintLayered(w, h, paintWash, paintInk, opts) {
  *   2. Silhouette getrennt füllen, daraus eine einzige Außenkontur bauen
  *   3. Innenlinien und Details scharf darüber
  *
+ * Liefert beide Fassungen auf einmal: koloriert und als blasse Zeichnung.
+ * Die aufwendigen Teile (Weichzeichnen, Kontur) werden dabei nur einmal
+ * berechnet.
+ *
  * @param {number} w
  * @param {number} h
- * @param {object} o  shadow, wash, shape, ink (je eine Zeichenfunktion),
- *                    outline (Strichstärke), blur, mode: 'color' | 'line'
+ * @param {object} o shadow, wash, shape, ink (Zeichenfunktionen),
+ *                   outline (Strichstärke), blur, seed
+ * @returns {{color: HTMLCanvasElement, line: HTMLCanvasElement}}
  */
 export function paintObject(w, h, o) {
-  const out = makeCanvas(w, h);
-  const octx = ctx2d(out);
-  octx.imageSmoothingEnabled = true;
-
   const washLayer = makeCanvas(w, h);
   const wctx = ctx2d(washLayer);
   wctx.imageSmoothingEnabled = true;
   if (o.shadow) o.shadow(wctx);
   if (o.wash) o.wash(wctx);
   blurCanvas(washLayer, o.blur == null ? 3 : o.blur, o.blurPasses || 2);
-  if (o.mode === 'line') toPaleGrey(washLayer);
-  octx.drawImage(washLayer, 0, 0);
 
+  const paleWash = makeCanvas(w, h);
+  const pctx = ctx2d(paleWash);
+  pctx.drawImage(washLayer, 0, 0);
+  toPaleGrey(paleWash);
+
+  let ring = null;
   if (o.shape) {
     const shapeLayer = makeCanvas(w, h);
     const sctx = ctx2d(shapeLayer);
     sctx.imageSmoothingEnabled = true;
     sctx.fillStyle = '#000000';
     o.shape(sctx);
-    const ring = unionOutline(shapeLayer, o.outline == null ? 2.6 : o.outline,
-      o.outlineColor || '#4c4237', o.seed || 5);
-    octx.drawImage(ring, 0, 0);
+    ring = unionOutline(shapeLayer, o.outline == null ? 2.6 : o.outline,
+      o.outlineColor || '#4a4038', o.seed || 5);
   }
 
-  if (o.ink) o.ink(octx);
-  return out;
+  function compose(washSource) {
+    const out = makeCanvas(w, h);
+    const ctx = ctx2d(out);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(washSource, 0, 0);
+    if (ring) ctx.drawImage(ring, 0, 0);
+    if (o.ink) o.ink(ctx);
+    return out;
+  }
+
+  return { color: compose(washLayer), line: compose(paleWash) };
 }
 
 /**

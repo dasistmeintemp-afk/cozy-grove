@@ -27,7 +27,7 @@ function drop(id, min, max) {
  */
 export const ENTITY_DEFS = {
   tree_oak: {
-    sprite: 'tree_oak', solid: true, blockR: 6, reachR: 22, tool: TOOL.AXE, hits: 3,
+    sprite: 'tree_oak', solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 3,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
       if (level >= 2 && rng() < 0.35) out.push({ id: 'hardwood', n: 1 });
@@ -37,7 +37,7 @@ export const ENTITY_DEFS = {
     becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
   tree_birch: {
-    sprite: 'tree_birch', solid: true, blockR: 5, reachR: 22, tool: TOOL.AXE, hits: 3,
+    sprite: 'tree_birch', solid: true, blockR: 20, reachR: 88, tool: TOOL.AXE, hits: 3,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
       if (rng() < 0.3) out.push({ id: 'fiber', n: randInt(rng, 1, 2) });
@@ -46,7 +46,7 @@ export const ENTITY_DEFS = {
     becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
   tree_maple: {
-    sprite: 'tree_maple', solid: true, blockR: 6, reachR: 22, tool: TOOL.AXE, hits: 3,
+    sprite: 'tree_maple', solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 3,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
       if (rng() < 0.45) out.push({ id: 'resin', n: 1 });
@@ -55,7 +55,7 @@ export const ENTITY_DEFS = {
     becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
   tree_pine: {
-    sprite: 'tree_pine', solid: true, blockR: 6, reachR: 22, tool: TOOL.AXE, hits: 4,
+    sprite: 'tree_pine', solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 4,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 3, 4) + level }];
       if (level >= 2 && rng() < 0.5) out.push({ id: 'hardwood', n: randInt(rng, 1, 2) });
@@ -64,11 +64,11 @@ export const ENTITY_DEFS = {
     becomes: 'tree_stump', respawn: 4, sway: true, category: 'tree',
   },
   tree_stump: {
-    sprite: 'tree_stump', solid: true, blockR: 5, reachR: 18, tool: null, category: 'stump',
+    sprite: 'tree_stump', solid: true, blockR: 20, reachR: 72, tool: null, category: 'stump',
   },
 
   rock_big: {
-    sprite: 'rock_big', solid: true, blockR: 7, reachR: 20, tool: TOOL.PICK, hits: 3,
+    sprite: 'rock_big', solid: true, blockR: 28, reachR: 80, tool: TOOL.PICK, hits: 3,
     yield: function (level, rng) {
       const out = [{ id: 'stone', n: randInt(rng, 2, 3) + level }];
       if (rng() < 0.3) out.push({ id: 'clay', n: 1 });
@@ -77,11 +77,11 @@ export const ENTITY_DEFS = {
     respawn: 2, category: 'rock',
   },
   rock_small: {
-    sprite: 'rock_small', solid: true, blockR: 5, reachR: 18, tool: TOOL.PICK, hits: 1,
+    sprite: 'rock_small', solid: true, blockR: 20, reachR: 72, tool: TOOL.PICK, hits: 1,
     yield: drop('stone', 1, 2), respawn: 1, category: 'rock',
   },
   rock_ore: {
-    sprite: 'rock_ore', solid: true, blockR: 7, reachR: 20, tool: TOOL.PICK, minLevel: 2, hits: 4,
+    sprite: 'rock_ore', solid: true, blockR: 28, reachR: 80, tool: TOOL.PICK, minLevel: 2, hits: 4,
     yield: function (level, rng) {
       const out = [{ id: 'copper_ore', n: randInt(rng, 1, 2) + (level >= 3 ? 1 : 0) }, { id: 'stone', n: randInt(rng, 1, 2) }];
       if (rng() < 0.12) out.push({ id: 'gem', n: 1 });
@@ -91,42 +91,42 @@ export const ENTITY_DEFS = {
   },
 
   bush_berry: {
-    sprite: 'bush_berry', solid: true, blockR: 6, reachR: 18, tool: TOOL.HAND, hits: 1,
+    sprite: 'bush_berry', solid: true, blockR: 24, reachR: 72, tool: TOOL.HAND, hits: 1,
     yield: drop('berry', 1, 2), becomes: 'bush_plain', respawn: 1, sway: true, category: 'forage',
   },
-  bush_plain: { sprite: 'bush_plain', solid: true, blockR: 6, reachR: 16, tool: null, sway: true, category: 'bush' },
+  bush_plain: { sprite: 'bush_plain', solid: true, blockR: 24, reachR: 64, tool: null, sway: true, category: 'bush' },
 
   reeds: {
-    sprite: 'reeds', solid: false, reachR: 16, tool: TOOL.HAND, hits: 1,
+    sprite: 'reeds', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
     yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
   },
   grass_tuft: {
-    sprite: 'grass_tuft', solid: false, reachR: 14, tool: TOOL.HAND, hits: 1,
+    sprite: 'grass_tuft', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('fiber', 1, 1), respawn: 1, sway: true, category: 'forage',
   },
   mushroom: {
-    sprite: 'mushroom', solid: false, reachR: 14, tool: TOOL.HAND, hits: 1,
+    sprite: 'mushroom', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('mushroom', 1, 1), respawn: 1, category: 'forage',
   },
   herb: {
-    sprite: 'herb', solid: false, reachR: 14, tool: TOOL.HAND, hits: 1,
+    sprite: 'herb', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('herb', 1, 1), respawn: 1, sway: true, category: 'forage',
   },
   shell: {
-    sprite: 'shell', solid: false, reachR: 14, tool: TOOL.HAND, hits: 1,
+    sprite: 'shell', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('shell', 1, 1), respawn: 1, category: 'forage',
   },
   driftwood: {
-    sprite: 'driftwood', solid: false, reachR: 16, tool: TOOL.HAND, hits: 1,
+    sprite: 'driftwood', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
     yield: drop('driftwood', 1, 1), respawn: 1, category: 'forage',
   },
-  flower_pink: { sprite: 'flower_pink', solid: false, reachR: 14, tool: TOOL.HAND, hits: 1, yield: drop('flower_pink', 1, 1), respawn: 1, sway: true, category: 'forage' },
-  flower_yellow: { sprite: 'flower_yellow', solid: false, reachR: 14, tool: TOOL.HAND, hits: 1, yield: drop('flower_yellow', 1, 1), respawn: 1, sway: true, category: 'forage' },
-  flower_violet: { sprite: 'flower_violet', solid: false, reachR: 14, tool: TOOL.HAND, hits: 1, yield: drop('flower_violet', 1, 1), respawn: 1, sway: true, category: 'forage' },
-  flower_white: { sprite: 'flower_white', solid: false, reachR: 14, tool: TOOL.HAND, hits: 1, yield: drop('flower_white', 1, 1), respawn: 1, sway: true, category: 'forage' },
+  flower_pink: { sprite: 'flower_pink', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_pink', 1, 1), respawn: 1, sway: true, category: 'forage' },
+  flower_yellow: { sprite: 'flower_yellow', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_yellow', 1, 1), respawn: 1, sway: true, category: 'forage' },
+  flower_violet: { sprite: 'flower_violet', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_violet', 1, 1), respawn: 1, sway: true, category: 'forage' },
+  flower_white: { sprite: 'flower_white', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_white', 1, 1), respawn: 1, sway: true, category: 'forage' },
 
   digspot: {
-    sprite: 'digspot', solid: false, reachR: 16, tool: TOOL.SHOVEL, hits: 1,
+    sprite: 'digspot', solid: false, reachR: 64, tool: TOOL.SHOVEL, hits: 1,
     yield: function (level, rng) {
       const roll = rng();
       if (roll < 0.3) return [{ id: 'clay', n: randInt(rng, 1, 2) }];
@@ -142,34 +142,34 @@ export const ENTITY_DEFS = {
 
   // Hindernisse
   log_barrier: {
-    sprite: 'log_barrier', solid: true, blockR: 17, blockH: 8, reachR: 26,
+    sprite: 'log_barrier', solid: true, blockR: 68, blockH: 32, reachR: 104,
     tool: TOOL.AXE, minLevel: 2, hits: 6,
     yield: function (level, rng) { return [{ id: 'wood', n: randInt(rng, 4, 6) }, { id: 'hardwood', n: 2 }]; },
     unlocks: 1, category: 'barrier',
   },
   rockslide: {
-    sprite: 'rockslide', solid: true, blockR: 18, blockH: 9, reachR: 26,
+    sprite: 'rockslide', solid: true, blockR: 72, blockH: 36, reachR: 104,
     tool: TOOL.PICK, minLevel: 3, hits: 6,
     yield: function (level, rng) { return [{ id: 'stone', n: randInt(rng, 5, 8) }, { id: 'copper_ore', n: 2 }, { id: 'gem', n: 1 }]; },
     category: 'barrier',
   },
 
   // Bauten
-  campfire: { sprite: 'campfire', solid: true, blockR: 10, reachR: 30, category: 'station', station: 'campfire' },
-  tent: { sprite: 'tent', solid: true, blockR: 18, blockH: 10, reachR: 28, category: 'station', station: 'tent' },
-  workbench: { sprite: 'workbench', solid: true, blockR: 14, blockH: 7, reachR: 26, category: 'station', station: 'craft' },
-  stall: { sprite: 'stall', solid: true, blockR: 20, blockH: 10, reachR: 30, category: 'station', station: 'shop' },
-  bridge_spot: { sprite: 'signpost', solid: false, reachR: 30, category: 'station', station: 'bridge' },
+  campfire: { sprite: 'campfire', solid: true, blockR: 40, reachR: 120, category: 'station', station: 'campfire' },
+  tent: { sprite: 'tent', solid: true, blockR: 72, blockH: 40, reachR: 112, category: 'station', station: 'tent' },
+  workbench: { sprite: 'workbench', solid: true, blockR: 56, blockH: 28, reachR: 104, category: 'station', station: 'craft' },
+  stall: { sprite: 'stall', solid: true, blockR: 80, blockH: 40, reachR: 120, category: 'station', station: 'shop' },
+  bridge_spot: { sprite: 'signpost', solid: false, reachR: 120, category: 'station', station: 'bridge' },
 
   // Lebewesen
-  spirit: { solid: false, reachR: 30, category: 'spirit' },
-  fox: { sprite: 'fox_0', solid: false, reachR: 28, category: 'fox' },
+  spirit: { solid: false, reachR: 120, category: 'spirit' },
+  fox: { sprite: 'fox_0', solid: false, reachR: 112, category: 'fox' },
 
   // Aufgabengegenstaende
-  hidden: { solid: false, reachR: 20, tool: TOOL.HAND, hits: 1, category: 'hidden' },
+  hidden: { solid: false, reachR: 80, tool: TOOL.HAND, hits: 1, category: 'hidden' },
 
   // Vom Spieler aufgestellte Deko
-  decor: { solid: true, blockR: 7, reachR: 20, category: 'decor' },
+  decor: { solid: true, blockR: 28, reachR: 80, category: 'decor' },
 };
 
 export function defOf(kind) {

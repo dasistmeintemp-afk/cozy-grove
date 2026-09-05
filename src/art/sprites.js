@@ -1,53 +1,74 @@
 /**
  * Sprite-Register.
- * Jede Grafik wird beim Start in einen eigenen Canvas gemalt – einmal in Farbe,
- * einmal entsaettigt. Die entsaettigte Fassung ist die Standardansicht der Insel;
- * Farbe kommt erst zurueck, wenn Geister zufrieden sind.
+ *
+ * Jede Grafik wird beim Start gemalt – einmal koloriert, einmal als blasse
+ * Zeichnung. Die Zeichnung ist der Ausgangszustand der Insel; Farbe kommt
+ * erst zurück, wenn Geister zufrieden sind.
  */
 import { makeCanvas, ctx2d } from '../core/util.js';
-import { Pixel } from './pixel.js';
-import { desaturatePixels } from './palette.js';
-import { PROPS } from './props.js';
-import { ICONS } from './icons.js';
-import { buildCritters } from './critters.js';
+import { INK } from './painted.js';
+import {
+  paintTree, paintPine, paintStump, paintLogBarrier,
+  paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft,
+  paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot,
+} from './painted.js';
+import {
+  paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench,
+  paintLantern, paintBench, paintFence, paintFlowerbed, paintBirdhouse,
+  paintWindchime, paintRug, paintSignpost, paintCrate, paintChest,
+  paintMemory, paintTool, paintButterfly, paintBird,
+  paintScout, paintSpirit, paintFlameSpirit, paintFox,
+} from './painted-camp.js';
+import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
+import { paintGroundDecal } from './painted-ground.js';
+
+/**
+ * Die Maler arbeiten in bequemen Maßen; beim Ablegen wird alles einmal
+ * herunterskaliert. Dadurch stimmen die Größenverhältnisse zur Kachel und
+ * die Tuschelinien werden zugleich feiner.
+ */
+export const ART_SCALE = 1;
 
 const registry = Object.create(null);
 const iconUrlCache = Object.create(null);
 let ready = false;
 
-/**
- * Legt ein Sprite an.
- * @param {string} name
- * @param {number} w Breite in Pixeln
- * @param {number} h Hoehe in Pixeln
- * @param {number} ax Ankerpunkt X (meist Mitte)
- * @param {number} ay Ankerpunkt Y (meist Fussende)
- * @param {(g: Pixel, ctx: CanvasRenderingContext2D) => void} painter
- */
-export function define(name, w, h, ax, ay, painter) {
-  const canvas = makeCanvas(w, h);
-  const ctx = ctx2d(canvas);
-  const g = new Pixel(ctx);
-  painter(g, ctx);
-  const entry = { name: name, c: canvas, g: makeGray(canvas), w: w, h: h, ax: ax, ay: ay };
+/** Aussehen der Geister – wenige, dafür klar unterscheidbar. */
+export const SPIRIT_LOOKS = {
+  bruno: { fur: '#d9c9a8', furShade: '#b8a37c', accent: '#c25a4a', ears: 'round', hat: 'scarf', blink: true },
+  mira: { fur: '#cfdcb4', furShade: '#a8bd88', accent: '#e08aa0', ears: 'long', hat: 'flowers', blink: true },
+  kiesel: { fur: '#d5dbdc', furShade: '#adb8ba', accent: '#4f86a8', ears: 'round', hat: 'cap', blink: false },
+  nelly: { fur: '#ded2e6', furShade: '#b9a9c6', accent: '#e8c34c', ears: 'long', hat: 'bow', blink: true },
+  tobi: { fur: '#ecdcb8', furShade: '#c8b48c', accent: '#5b8c9a', ears: 'pointed', hat: 'glasses', blink: true },
+};
+
+/** Legt eine gemalte Grafik ab und skaliert sie auf Spielgröße. */
+export function addArt(name, art, scale) {
+  const s = scale == null ? ART_SCALE : scale;
+  const w = Math.max(1, Math.round(art.w * s));
+  const h = Math.max(1, Math.round(art.h * s));
+
+  function shrink(src) {
+    if (s === 1) return src;
+    const c = makeCanvas(w, h);
+    const ctx = ctx2d(c);
+    ctx.imageSmoothingEnabled = true;
+    if (ctx.imageSmoothingQuality) ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(src, 0, 0, w, h);
+    return c;
+  }
+
+  const entry = {
+    name: name,
+    c: shrink(art.color),
+    g: shrink(art.line),
+    w: w,
+    h: h,
+    ax: art.ax * s,
+    ay: art.ay * s,
+  };
   registry[name] = entry;
   return entry;
-}
-
-/** Entsaettigt eine Kopie und zieht sie leicht ins Kuehle. */
-function makeGray(source) {
-  const out = makeCanvas(source.width, source.height);
-  const ctx = ctx2d(out);
-  ctx.drawImage(source, 0, 0);
-  let img;
-  try {
-    img = ctx.getImageData(0, 0, out.width, out.height);
-  } catch (err) {
-    return out; // sollte nie passieren (alles selbst gemalt, kein Fremd-Bild)
-  }
-  desaturatePixels(img.data, null);
-  ctx.putImageData(img, 0, 0);
-  return out;
 }
 
 export function spr(name) {
@@ -67,17 +88,21 @@ export function hasSprite(name) {
   return !!registry[name];
 }
 
+export function spriteNames() {
+  return Object.keys(registry);
+}
+
 /**
- * Zeichnet ein Sprite an Weltposition (Ankerpunkt).
- * @param {boolean} gray entsaettigte Fassung verwenden
+ * Zeichnet ein Sprite an Weltposition (Fußpunkt).
+ * @param {boolean} line blasse Zeichnung statt kolorierter Fassung
  */
-export function drawSprite(ctx, name, x, y, gray, opts) {
+export function drawSprite(ctx, name, x, y, line, opts) {
   const s = registry[name];
   if (!s) return;
   const o = opts || {};
-  const img = gray ? s.g : s.c;
-  const px = Math.round(x - s.ax);
-  const py = Math.round(y - s.ay);
+  const img = line ? s.g : s.c;
+  const px = x - s.ax;
+  const py = y - s.ay;
 
   if (!o.flip && !o.rotate && o.alpha == null && !o.scale) {
     ctx.drawImage(img, px, py);
@@ -86,12 +111,12 @@ export function drawSprite(ctx, name, x, y, gray, opts) {
   ctx.save();
   if (o.alpha != null) ctx.globalAlpha = o.alpha;
   if (o.rotate) {
-    ctx.translate(Math.round(x), Math.round(y));
+    ctx.translate(x, y);
     ctx.rotate(o.rotate);
     ctx.scale(o.flip ? -1 : 1, 1);
     ctx.drawImage(img, -s.ax, -s.ay);
   } else if (o.flip) {
-    ctx.translate(Math.round(x), py);
+    ctx.translate(x, py);
     ctx.scale(-1, 1);
     ctx.drawImage(img, -(s.w - s.ax), 0);
   } else {
@@ -101,9 +126,9 @@ export function drawSprite(ctx, name, x, y, gray, opts) {
   ctx.restore();
 }
 
-/** data-URL fuer DOM-Symbole (HUD, Panels). */
+/** data-URL für DOM-Symbole (HUD, Fenster). */
 export function iconUrl(name) {
-  if (iconUrlCache[name]) return iconUrlCache[name];
+  if (iconUrlCache[name] != null) return iconUrlCache[name];
   const s = registry[name];
   if (!s) return '';
   let url = '';
@@ -116,7 +141,6 @@ export function iconUrl(name) {
   return url;
 }
 
-/** Setzt ein DOM-Element als Symbol (background-image). */
 export function applyIcon(el, name) {
   const url = iconUrl(name);
   if (url) el.style.backgroundImage = 'url(' + url + ')';
@@ -126,16 +150,152 @@ export function isArtReady() {
   return ready;
 }
 
+/* ------------------------------------------------------------------ Aufbau */
+
+const FISH_COLORS = {
+  fish_sardine: ['#b6c4cf', '#eef3f6', '#93a5b2'],
+  fish_mackerel: ['#6e9cb4', '#dcecf2', '#4d7b93'],
+  fish_cod: ['#bda986', '#f0e6cd', '#98866a'],
+  fish_moonfish: ['#c3b4e6', '#f2ecff', '#9a89c8'],
+  fish_roach: ['#a3b884', '#e8eed4', '#7d9463'],
+  fish_trout: ['#8fae76', '#eee6cb', '#d1873c'],
+  fish_catfish: ['#7d7263', '#cfc4ab', '#5b5347'],
+  fish_goldcarp: ['#e8b155', '#f9e6b4', '#cf8b38'],
+};
+
+const MEMORY_KINDS = ['locket', 'compass', 'music', 'photo', 'ribbon', 'teacup'];
+
 /** Baut das komplette Bildmaterial. Wird einmal beim Start aufgerufen. */
 export function initArt() {
   if (ready) return;
-  for (const key in PROPS) {
-    const def = PROPS[key];
-    define(key, def.w, def.h, def.ax, def.ay, def.paint);
+
+  /* --- Bäume und Gehölz --- */
+  addArt('tree_oak', paintTree({ seed: 21 }));
+  addArt('tree_birch', paintTree({
+    seed: 34, leaf: INK.birchLeaf, leafLight: INK.birchLight, leafDark: INK.birchDark,
+    trunk: INK.birchBark, trunkShade: INK.birchShade, birchMarks: true,
+  }));
+  addArt('tree_maple', paintTree({
+    seed: 47, leaf: INK.autumn, leafLight: INK.autumnLight, leafDark: INK.autumnDark, fruit: INK.berry,
+  }));
+  addArt('tree_pine', paintPine({ seed: 55 }));
+  addArt('tree_stump', paintStump({ seed: 137 }));
+  addArt('log_barrier', paintLogBarrier({ seed: 151 }));
+
+  /* --- Steine --- */
+  addArt('rock_big', paintRock({ seed: 77 }));
+  addArt('rock_small', paintRock({ seed: 83, scale: 0.66, moss: false }));
+  addArt('rock_ore', paintRock({ seed: 88, ore: true }));
+  addArt('rockslide', paintRockslide({ seed: 181 }));
+
+  /* --- Kleinpflanzen --- */
+  addArt('bush_berry', paintBush({ seed: 91, berries: true }));
+  addArt('bush_plain', paintBush({ seed: 96 }));
+  addArt('grass_tuft', paintGrassTuft({ seed: 171 }));
+  addArt('reeds', paintReeds({ seed: 191 }));
+  addArt('mushroom', paintMushroom({ seed: 221 }));
+  addArt('herb', paintHerb({ seed: 241 }));
+  addArt('shell', paintShell({ seed: 261 }));
+  addArt('driftwood', paintDriftwood({ seed: 281 }));
+  addArt('digspot', paintDigspot({ seed: 301 }));
+  addArt('flower_pink', paintFlower({ seed: 131, petal: INK.petalPink }));
+  addArt('flower_yellow', paintFlower({ seed: 137, petal: INK.petalYellow }));
+  addArt('flower_violet', paintFlower({ seed: 141, petal: INK.petalViolet }));
+  addArt('flower_white', paintFlower({ seed: 147, petal: INK.petalWhite }));
+
+  /* --- Lager --- */
+  addArt('campfire', paintCampfire({ seed: 211 }));
+  for (let f = 0; f < 4; f++) addArt('flame_' + f, paintFlame(f));
+  addArt('tent', paintTent({ seed: 331 }));
+  addArt('stall', paintStall({ seed: 351 }));
+  addArt('workbench', paintWorkbench({ seed: 371 }));
+
+  /* --- Deko --- */
+  addArt('lantern', paintLantern({ seed: 391 }));
+  addArt('bench', paintBench({ seed: 411 }));
+  addArt('fence', paintFence({ seed: 431 }));
+  addArt('flowerbed', paintFlowerbed({ seed: 451 }));
+  addArt('birdhouse', paintBirdhouse({ seed: 471 }));
+  addArt('windchime', paintWindchime({ seed: 491 }));
+  addArt('rug', paintRug({ seed: 511 }));
+  addArt('signpost', paintSignpost({ seed: 531 }));
+  addArt('crate', paintCrate({ seed: 551 }));
+  addArt('chest', paintChest({ seed: 571 }));
+  addArt('path_tile', paintGroundDecal('path', 591), 1);
+  addArt('bridge', paintGroundDecal('bridge', 593), 1);
+
+  /* --- Erinnerungsstücke --- */
+  for (let i = 0; i < MEMORY_KINDS.length; i++) {
+    addArt('memory_' + MEMORY_KINDS[i], paintMemory(MEMORY_KINDS[i], { seed: 601 + i * 17 }));
   }
-  for (const key in ICONS) {
-    define('icon_' + key, 16, 16, 8, 16, ICONS[key]);
+
+  /* --- Werkzeuge --- */
+  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'hand'];
+  for (let i = 0; i < tools.length; i++) {
+    addArt('tool_' + tools[i], paintTool(tools[i], { seed: 651 + i * 13 }));
   }
-  buildCritters(define);
+
+  /* --- Kleintiere --- */
+  for (let f = 0; f < 2; f++) {
+    addArt('butterfly_' + f, paintButterfly(f, { color: INK.warm }));
+    addArt('bird_' + f, paintBird(f));
+  }
+
+  /* --- Figuren --- */
+  const dirs = ['down', 'up', 'side'];
+  for (let d = 0; d < dirs.length; d++) {
+    for (let f = 0; f < 3; f++) addArt('player_' + dirs[d] + '_' + f, paintScout(dirs[d], f));
+  }
+  for (const id in SPIRIT_LOOKS) {
+    for (let f = 0; f < 2; f++) {
+      addArt('spirit_' + id + '_' + f, paintSpirit(SPIRIT_LOOKS[id], f, { seed: 401 + id.charCodeAt(0) }));
+    }
+  }
+  addArt('spirit_flamey_0', paintFlameSpirit(0));
+  addArt('spirit_flamey_1', paintFlameSpirit(1));
+  addArt('fox_0', paintFox(0));
+  addArt('fox_1', paintFox(1));
+
+  buildIcons();
   ready = true;
+}
+
+function buildIcons() {
+  for (const key in ICON_PAINTERS) {
+    addArt('icon_' + key, ICON_PAINTERS[key](), 1);
+  }
+  for (const id in FISH_COLORS) {
+    const c = FISH_COLORS[id];
+    addArt('icon_' + id, paintFishIcon(c[0], c[1], c[2], 900 + id.length * 7), 1);
+  }
+  // Symbole, die sich ihre Weltgrafik ausborgen
+  const reuse = [
+    ['flower_pink', 'flower_pink'], ['flower_yellow', 'flower_yellow'],
+    ['flower_violet', 'flower_violet'], ['flower_white', 'flower_white'],
+    ['lantern', 'lantern'], ['bench', 'bench'], ['fence', 'fence'],
+    ['flowerbed', 'flowerbed'], ['birdhouse', 'birdhouse'], ['windchime', 'windchime'],
+    ['rug', 'rug'], ['signpost', 'signpost'], ['path_tile', 'path_tile'],
+    ['bridge_kit', 'bridge'],
+  ];
+  for (let i = 0; i < reuse.length; i++) {
+    const target = registry[reuse[i][1]];
+    if (target) {
+      addArt('icon_' + reuse[i][0], iconFromArt({
+        color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
+      }), 1);
+    }
+  }
+  for (let i = 0; i < MEMORY_KINDS.length; i++) {
+    const target = registry['memory_' + MEMORY_KINDS[i]];
+    addArt('icon_memory_' + MEMORY_KINDS[i], iconFromArt({
+      color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
+    }), 1);
+  }
+  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'hand'];
+  for (let i = 0; i < tools.length; i++) {
+    const target = registry['tool_' + tools[i]];
+    addArt('icon_' + tools[i], iconFromArt({
+      color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
+    }, { pad: 2 }), 1);
+  }
 }

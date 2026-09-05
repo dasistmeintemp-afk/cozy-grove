@@ -10,7 +10,7 @@ import { makeEntity, defOf } from './entities.js';
 import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
 import { syncIdCounter } from '../core/util.js';
 
-const CELL = 48;
+const CELL = 160;
 const GRID_W = Math.ceil((MAP_W * TILE_SIZE) / CELL);
 const GRID_H = Math.ceil((MAP_H * TILE_SIZE) / CELL);
 
@@ -147,13 +147,13 @@ export class World {
     if (e.kind === 'decor' && e.flat) return null;
     const rx = e.blockR != null ? e.blockR : def.blockR || 6;
     const ry = e.blockH != null ? e.blockH : def.blockH || Math.max(3, rx * 0.5);
-    return { x: e.x, y: e.y - 1, rx: rx, ry: ry };
+    return { x: e.x, y: e.y - 4, rx: rx, ry: ry };
   }
 
   /** Kann die Figur (Fussellipse) hier stehen? */
   canStand(px, py, rx, ry) {
-    const hx = rx == null ? 4 : rx;
-    const hy = ry == null ? 3 : ry;
+    const hx = rx == null ? 15 : rx;
+    const hy = ry == null ? 11 : ry;
     const pts = [
       [px - hx, py], [px + hx, py], [px, py - hy], [px, py + hy],
       [px - hx * 0.7, py - hy * 0.7], [px + hx * 0.7, py - hy * 0.7],
@@ -162,7 +162,7 @@ export class World {
     for (let i = 0; i < pts.length; i++) {
       if (!isWalkable(this.tileAt(pts[i][0], pts[i][1]))) return false;
     }
-    const near = this.queryNear(px, py, 40);
+    const near = this.queryNear(px, py, 170);
     for (let i = 0; i < near.length; i++) {
       const s = this.blockShape(near[i]);
       if (!s) continue;
@@ -233,7 +233,7 @@ export class World {
     function farFromCamp(tx, ty) {
       const dx = (tx + 0.5) * TILE_SIZE - campCenterX;
       const dy = (ty + 0.5) * TILE_SIZE - campCenterY;
-      return dx * dx + dy * dy > 88 * 88;
+      return dx * dx + dy * dy > 352 * 352;
     }
     function nearFord(tx, ty) {
       return tx >= FORD_X0 - 2 && tx <= FORD_X1 + 2 && ty >= RIVER_Y0 - 6 && ty <= RIVER_Y1 + 6;
@@ -266,33 +266,33 @@ export class World {
     const cliffSand = walkableTilesOf(this.tiles, REGION.CLIFFS, function (t) { return t === T.SAND; });
 
     // Lager & Strand
-    scatter(['tree_oak', 'tree_birch', 'tree_maple'], grassCamp, 46, 20);
-    scatter(['rock_big', 'rock_small'], grassCamp, 16, 20);
-    scatter(['bush_berry', 'bush_plain'], grassCamp, 22, 16);
-    scatter(['flower_pink', 'flower_yellow', 'flower_white'], grassCamp, 30, 11);
-    scatter(['grass_tuft'], grassCamp, 34, 10);
-    scatter(['herb'], grassCamp, 12, 12);
-    scatter(['shell', 'driftwood'], sandCamp, 26, 12);
-    scatter(['reeds'], sandCamp, 18, 12);
+    scatter(['tree_oak', 'tree_birch', 'tree_maple'], grassCamp, 46, 80);
+    scatter(['rock_big', 'rock_small'], grassCamp, 16, 80);
+    scatter(['bush_berry', 'bush_plain'], grassCamp, 22, 64);
+    scatter(['flower_pink', 'flower_yellow', 'flower_white'], grassCamp, 30, 44);
+    scatter(['grass_tuft'], grassCamp, 34, 40);
+    scatter(['herb'], grassCamp, 12, 48);
+    scatter(['shell', 'driftwood'], sandCamp, 26, 48);
+    scatter(['reeds'], sandCamp, 18, 48);
 
     // Wald
-    scatter(['tree_oak', 'tree_pine', 'tree_birch', 'tree_maple'], grassForest, 78, 18);
-    scatter(['bush_berry'], grassForest, 20, 15);
-    scatter(['mushroom'], grassForest, 26, 11);
-    scatter(['herb'], grassForest, 16, 12);
-    scatter(['flower_violet', 'flower_white'], grassForest, 18, 12);
-    scatter(['rock_big', 'rock_small'], grassForest, 14, 18);
-    scatter(['rock_ore'], grassForest, 4, 26);
-    scatter(['grass_tuft'], grassForest, 26, 10);
+    scatter(['tree_oak', 'tree_pine', 'tree_birch', 'tree_maple'], grassForest, 78, 72);
+    scatter(['bush_berry'], grassForest, 20, 60);
+    scatter(['mushroom'], grassForest, 26, 44);
+    scatter(['herb'], grassForest, 16, 48);
+    scatter(['flower_violet', 'flower_white'], grassForest, 18, 48);
+    scatter(['rock_big', 'rock_small'], grassForest, 14, 72);
+    scatter(['rock_ore'], grassForest, 4, 104);
+    scatter(['grass_tuft'], grassForest, 26, 40);
 
     // Klippen
-    scatter(['tree_pine'], cliffLand, 26, 20);
-    scatter(['rock_big', 'rock_small'], cliffLand, 26, 16);
-    scatter(['rock_ore'], cliffLand, 12, 22);
-    scatter(['flower_violet'], cliffLand, 12, 12);
-    scatter(['herb', 'mushroom'], cliffLand, 12, 12);
-    scatter(['shell', 'driftwood'], cliffSand, 14, 12);
-    scatter(['grass_tuft'], cliffLand, 16, 10);
+    scatter(['tree_pine'], cliffLand, 26, 80);
+    scatter(['rock_big', 'rock_small'], cliffLand, 26, 64);
+    scatter(['rock_ore'], cliffLand, 12, 88);
+    scatter(['flower_violet'], cliffLand, 12, 48);
+    scatter(['herb', 'mushroom'], cliffLand, 12, 48);
+    scatter(['shell', 'driftwood'], cliffSand, 14, 48);
+    scatter(['grass_tuft'], cliffLand, 16, 40);
   }
 
   _tooClose(x, y, r) {
@@ -399,7 +399,7 @@ export class World {
         const s = spots[Math.floor(rng() * spots.length)];
         const wx = (s.x + 0.5) * TILE_SIZE;
         const wy = (s.y + 0.5) * TILE_SIZE;
-        if (this._tooClose(wx, wy, 22)) continue;
+        if (this._tooClose(wx, wy, 90)) continue;
         this.add(makeEntity('digspot', wx, wy));
         placed++;
       }
@@ -416,7 +416,7 @@ export class World {
       if (!s) break;
       const wx = (s.x + 0.5) * TILE_SIZE;
       const wy = (s.y + 0.5) * TILE_SIZE;
-      if (this._tooClose(wx, wy, 14)) continue;
+      if (this._tooClose(wx, wy, 56)) continue;
       if (minDistFrom) {
         const dx = wx - minDistFrom.x;
         const dy = wy - minDistFrom.y;

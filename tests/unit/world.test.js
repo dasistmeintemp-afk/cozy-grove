@@ -148,7 +148,7 @@ test('Kollision: Wasser blockiert, freie Wiese nicht', () => {
   const start = startPosition(world.tiles);
   assert.ok(world.canStand(start.x, start.y));
   // Weit draussen im Meer
-  assert.equal(world.canStand(4, 4), false);
+  assert.equal(world.canStand(20, 20), false);
 });
 
 test('Tageswechsel bringt Grabstellen zurueck', () => {

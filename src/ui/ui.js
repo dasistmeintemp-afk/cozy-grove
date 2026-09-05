@@ -96,7 +96,9 @@ export class UI {
     const rect = this.el.canvas.getBoundingClientRect();
     this.view.left = rect.left - stage.left;
     this.view.top = rect.top - stage.top;
-    this.view.scale = rect.width / this.el.canvas.width;
+    // CSS-Pixel je Gerätepixel mal Zoom = Weltpixel -> Bildschirm
+    const perDevice = this.el.canvas.width ? rect.width / this.el.canvas.width : 1;
+    this.view.scale = perDevice * (this.game.renderer ? this.game.renderer.zoom : 1);
   }
 
   worldToScreen(wx, wy) {
