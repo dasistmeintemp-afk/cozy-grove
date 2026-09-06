@@ -731,28 +731,46 @@ export function paintShell(opts) {
 
 export function paintDriftwood(opts) {
   const o = opts || {};
-  const w = 104;
-  const h = 54;
+  const w = 116;
+  const h = 62;
   const seed = o.seed || 281;
   const cx = w / 2;
   const baseY = h - 10;
-  const body = smoothClosed([
-    [12, baseY - 4], [18, baseY - 18], [46, baseY - 22],
-    [70, baseY - 14], [92, baseY - 18], [96, baseY - 6], [66, baseY - 2], [30, baseY],
+
+  // Ein Ast, kein Kiesel: zum Ende hin duenner, mit einer Gabel und einem
+  // abgebrochenen Stumpf. Die vorige Fassung war eine glatte Blase und im
+  // Spiel nicht als Treibholz zu erkennen.
+  const stem = smoothClosed([
+    [10, baseY - 6], [16, baseY - 15], [42, baseY - 19],
+    [70, baseY - 15], [92, baseY - 20], [106, baseY - 16],
+    [105, baseY - 10], [88, baseY - 12], [68, baseY - 8],
+    [40, baseY - 10], [16, baseY - 1],
   ], 6);
+  const fork = smoothClosed([
+    [64, baseY - 14], [78, baseY - 30], [86, baseY - 33],
+    [84, baseY - 27], [72, baseY - 12],
+  ], 6);
+  const knot = smoothClosed(blob(30, baseY - 13, 7, 5.5, seed + 5, 0.08, 12), 5);
+
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
+    blur: 2.2,
     outline: 2.4,
-    shadow: function (g) { groundShadow(g, cx, baseY - 1, 40, 7, seed, 0.13); },
+    shadow: function (g) { groundShadow(g, cx, baseY - 1, 44, 7, seed, 0.13); },
     wash: function (g) {
-      wash(g, body, '#ddd0b8', { seed: seed + 2, scale: 1.04 });
-      wash(g, offsetShape(body, 4, 6, 0.75), '#bfae92', { seed: seed + 3, alpha: 0.6 });
+      wash(g, stem, '#e2d7c1', { seed: seed + 2, scale: 1.03 });
+      wash(g, fork, '#ddd0b8', { seed: seed + 4, scale: 1.03 });
+      wash(g, knot, '#cbbb9d', { seed: seed + 6 });
+      wash(g, offsetShape(stem, 3, 5, 0.8), '#b8a68a', { seed: seed + 3, alpha: 0.6 });
     },
-    shape: function (g) { fill(g, body); },
+    shape: function (g) { fill(g, stem); fill(g, fork); fill(g, knot); },
     ink: function (g) {
-      inkLine(g, 24, baseY - 12, 88, baseY - 12, { width: 1.4, bend: 0.05, seed: seed + 10, alpha: 0.45 });
-      inkLine(g, 40, baseY - 18, 62, baseY - 6, { width: 1.2, bend: 0.1, seed: seed + 11, alpha: 0.35 });
+      // Maserung laeuft mit dem Ast, nicht quer darueber
+      inkLine(g, 22, baseY - 11, 96, baseY - 15, { width: 1.5, bend: 0.04, seed: seed + 10, alpha: 0.5 });
+      inkLine(g, 34, baseY - 8, 86, baseY - 12, { width: 1.2, bend: 0.03, seed: seed + 11, alpha: 0.35 });
+      inkStroke(g, knot, { width: 1.3, vary: 0.25, seed: seed + 12, color: ink.line, alpha: 0.45 });
+      // Bruchkante am dicken Ende
+      inkLine(g, 12, baseY - 14, 14, baseY - 2, { width: 1.6, bend: 0.12, seed: seed + 13, alpha: 0.55 });
     },
   });
   return made(res, w, h, cx, baseY);

@@ -182,14 +182,26 @@ export const ICON_PAINTERS = {
       function (g) { inkLine(g, C - 6, C + 24, C + 6, C - 22, { width: 2.0, bend: 0.06, seed: 94 }); });
   },
   driftwood: function () {
-    const body = smoothClosed([[C - 24, C + 6], [C - 18, C - 8], [C + 2, C - 12], [C + 24, C - 4], [C + 22, C + 8], [C - 6, C + 12]], 6);
+    // Schraeg gestellter Ast mit Gabel – als Blase war er nicht von einem
+    // Kiesel zu unterscheiden.
+    const body = smoothClosed([
+      [C - 24, C + 14], [C - 18, C + 6], [C + 6, C - 6], [C + 24, C - 16],
+      [C + 26, C - 9], [C + 10, C + 1], [C - 14, C + 20],
+    ], 6);
+    const fork = smoothClosed([
+      [C + 2, C - 1], [C + 12, C - 20], [C + 18, C - 22],
+      [C + 15, C - 15], [C + 8, C + 3],
+    ], 6);
     return icon(101,
       function (g) {
-        wash(g, body, '#ddd0b8', { seed: 102, scale: 1.05 });
-        wash(g, offsetShape(body, 4, 6, 0.7), '#bfae92', { seed: 103, alpha: 0.6 });
+        wash(g, body, '#e2d7c1', { seed: 102, scale: 1.05 });
+        wash(g, fork, '#ddd0b8', { seed: 105, scale: 1.04 });
+        wash(g, offsetShape(body, 4, 5, 0.75), '#b8a68a', { seed: 103, alpha: 0.6 });
       },
-      function (g) { fill(g, body); },
-      function (g) { inkLine(g, C - 16, C, C + 18, C - 2, { width: 1.4, bend: 0.06, seed: 104, alpha: 0.5 }); });
+      function (g) { fill(g, body); fill(g, fork); },
+      function (g) {
+        inkLine(g, C - 18, C + 10, C + 20, C - 12, { width: 1.4, bend: 0.05, seed: 104, alpha: 0.5 });
+      });
   },
 
   /* ------------------------------------------------------------ Sammelgut */
