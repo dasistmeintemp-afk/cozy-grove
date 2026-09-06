@@ -303,6 +303,7 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
   const scratches = [];
   const pebbles = [];
   const fronds = [];
+  const swell = [];
 
   for (let ty = ty0 - 1; ty < ty0 + CHUNK_TILES + 1; ty++) {
     for (let tx = tx0 - 1; tx < tx0 + CHUNK_TILES + 1; tx++) {
@@ -336,7 +337,17 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
           scratches.push([(tx + 0.05) * TILE_SIZE, y, (tx + 0.85) * TILE_SIZE, y + (rng() - 0.5) * 9]);
         }
       } else if (isWater(t)) {
-        if (rng() < 0.35) waves.push([bx, by, 8 + rng() * 14, 0.5 + rng(), 3.2 + rng()]);
+        // Nah am Ufer kräuselt es, draußen ist die See ruhig – gleichmäßig
+        // verteilte Kringel überall sahen aus wie ein Muster, nicht wie Wasser.
+        const near = landDistance(world, tx, ty, 5) <= 4;
+        if (rng() < (near ? 0.42 : 0.14)) {
+          waves.push([bx, by, 8 + rng() * 14, 0.5 + rng(), 3.2 + rng()]);
+        }
+        // Lange, flache Züge parallel zum Ufer
+        if (near && rng() < 0.3) {
+          const y = (ty + rng()) * TILE_SIZE;
+          swell.push([(tx - 0.3) * TILE_SIZE, y, (tx + 1.3) * TILE_SIZE, y + (rng() - 0.5) * 14]);
+        }
       } else if (t === T.ROCKFLOOR) {
         if (rng() < 0.45) scratches.push([bx - 9, by, bx + 10, by - 4]);
         if (rng() < 0.3) pebbles.push([bx + 6, by + 12, 3 + rng() * 2]);
@@ -397,6 +408,19 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
       const b = scratches[i];
       g.moveTo(b[0], b[1]);
       g.quadraticCurveTo((b[0] + b[2]) / 2, (b[1] + b[3]) / 2 + 4, b[2], b[3]);
+    }
+    g.stroke();
+  }
+
+  if (swell.length) {
+    g.strokeStyle = '#ffffff';
+    g.globalAlpha = 0.22;
+    g.lineWidth = 3.2;
+    g.beginPath();
+    for (let i = 0; i < swell.length; i++) {
+      const s = swell[i];
+      g.moveTo(s[0], s[1]);
+      g.quadraticCurveTo((s[0] + s[2]) / 2, (s[1] + s[3]) / 2 - 7, s[2], s[3]);
     }
     g.stroke();
   }
