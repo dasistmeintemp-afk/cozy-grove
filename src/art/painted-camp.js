@@ -5,7 +5,7 @@
  */
 import {
   blob, teardrop, smoothClosed, offsetShape, pathFrom,
-  inkStroke, inkLine, wash, paintObject, groundShadow,
+  inkStroke, inkLine, wash, paintObject, groundShadow, LIGHT,
 } from './brush.js';
 import { INK as ink, fill, made, dot } from './painted.js';
 import { makeRng } from '../core/rng.js';
@@ -1278,12 +1278,27 @@ export function paintSpirit(look, frame, opts) {
     blur: 3,
     outline: 3.1,
     wash: function (g) {
+      // Geisterschimmer: eine helle Aura hinter der Figur. Sie macht aus dem
+      // Fellknaeuel etwas, das nicht ganz da ist.
+      g.save();
+      g.globalAlpha = 0.3;
+      g.fillStyle = '#ffffff';
+      fill(g, smoothClosed(blob(cx, baseY - 74 + bob, 58, 62, seed + 60, 0.09, 18), 6));
+      g.restore();
+
       wash(g, tail, fur, { seed: seed + 10, alpha: 0.68 });
       wash(g, body, fur, { seed: seed + 11, scale: 1.05 });
-      wash(g, offsetShape(body, 15, 9, 0.6), furShade, { seed: seed + 12, alpha: 0.55 });
+      wash(g, offsetShape(body, -LIGHT.x * 22, -LIGHT.y * 13, 0.62), furShade,
+        { seed: seed + 12, alpha: 0.6 });
       for (let i = 0; i < ears.length; i++) wash(g, ears[i], furShade, { seed: seed + 13 + i });
       wash(g, head, fur, { seed: seed + 15, scale: 1.05 });
-      wash(g, offsetShape(head, 15, 10, 0.58), furShade, { seed: seed + 16, alpha: 0.42 });
+      wash(g, offsetShape(head, -LIGHT.x * 22, -LIGHT.y * 14, 0.6), furShade,
+        { seed: seed + 16, alpha: 0.48 });
+      // Lichtseite oben links – dieselbe Sonne wie ueberall sonst
+      wash(g, offsetShape(head, LIGHT.x * 17, LIGHT.y * 15, 0.5), '#fffdf6',
+        { seed: seed + 18, alpha: 0.4 });
+      wash(g, offsetShape(body, LIGHT.x * 18, LIGHT.y * 12, 0.45), '#fffdf6',
+        { seed: seed + 19, alpha: 0.3 });
       wash(g, muzzle, '#faf4e6', { seed: seed + 17 });
 
       if (look.hat === 'scarf') {

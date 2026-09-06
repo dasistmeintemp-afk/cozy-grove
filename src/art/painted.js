@@ -550,8 +550,16 @@ export function paintBush(opts) {
     shadow: function (g) { groundShadow(g, cx + 3, baseY - 3, 44, 11, seed + 4, 0.14); },
     wash: function (g) {
       for (let i = 0; i < lobes.length; i++) wash(g, lobes[i], ink.leaf, { seed: seed + 10 + i, scale: 1.05 });
-      wash(g, offsetShape(lobes[0], -13, -11, 0.58), ink.leafLight, { seed: seed + 20, alpha: 0.8 });
-      wash(g, offsetShape(lobes[0], 12, 11, 0.68), ink.leafDark, { seed: seed + 21, alpha: 0.45 });
+      // Wie bei den Kronen: jeder Lappen bekommt seine Schattenhaelfte, damit
+      // aus der flachen Amoebe ein Busch mit Volumen wird.
+      for (let i = 0; i < lobes.length; i++) {
+        wash(g, offsetShape(lobes[i], -LIGHT.x * 12, -LIGHT.y * 11, 0.8), ink.leafDark,
+          { seed: seed + 21 + i, alpha: 0.36 });
+      }
+      wash(g, offsetShape(lobes[0], -LIGHT.x * 18, -LIGHT.y * 15, 0.55), ink.leafDeep,
+        { seed: seed + 26, alpha: 0.26 });
+      wash(g, offsetShape(lobes[0], LIGHT.x * 15, LIGHT.y * 13, 0.55), ink.leafLight,
+        { seed: seed + 20, alpha: 0.9 });
       if (o.berries) {
         for (let i = 0; i < berries.length; i++) dot(g, null, berries[i][0], berries[i][1], 6, ink.berry, seed + 40 + i);
       }
@@ -560,6 +568,15 @@ export function paintBush(opts) {
     ink: function (g) {
       inkLine(g, cx - 30, baseY - 30, cx - 6, baseY - 40, { width: 1.8, bend: 0.28, seed: seed + 30, alpha: 0.55 });
       inkLine(g, cx + 31, baseY - 31, cx + 8, baseY - 41, { width: 1.8, bend: -0.28, seed: seed + 31, alpha: 0.5 });
+      // Ein paar Blattspitzen am oberen Rand – ohne sie bleibt der Umriss glatt
+      const rngLeaf = makeRng(seed + 700);
+      for (let i = 0; i < 6; i++) {
+        const a = -0.4 - rngLeaf() * 2.4;
+        const x = cx + Math.cos(a) * 34;
+        const y = baseY - 34 + Math.sin(a) * 24;
+        inkLine(g, x, y, x + (rngLeaf() - 0.5) * 12, y - 7 - rngLeaf() * 6,
+          { width: 1.3, bend: 0.3, seed: seed + 50 + i, color: ink.lineSoft, alpha: 0.45 });
+      }
       if (o.berries) {
         for (let i = 0; i < berries.length; i++) dot(null, g, berries[i][0], berries[i][1], 6, ink.berry, seed + 40 + i);
       }
