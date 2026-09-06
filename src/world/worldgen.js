@@ -1,12 +1,12 @@
 /**
  * Inselgenerierung.
  *
- * Die Insel besteht aus drei Bereichen, die durch natuerliche Hindernisse
+ * Die Insel besteht aus drei Bereichen, die durch natürliche Hindernisse
  * getrennt sind – das ergibt den Fortschritt, ohne dass irgendwo eine
  * unsichtbare Wand steht:
  *   0 Lager & Strand  (Start)
- *   1 Wald            (hinter dem Fluss, umgestuerzter Baumstamm blockiert)
- *   2 Klippen         (hinter dem Kanal, Bruecke noetig)
+ *   1 Wald            (hinter dem Fluss, umgestürzter Baumstamm blockiert)
+ *   2 Klippen         (hinter dem Kanal, Brücke nötig)
  */
 import { makeRng, makeNoise2D, fbm, hashString, randInt, randRange } from '../core/rng.js';
 import { T, TILE_SIZE, isWalkable } from '../art/tiles.js';
@@ -43,11 +43,11 @@ export function tileIndex(tx, ty) {
 }
 
 /**
- * Domaenenverzerrung: der Abtastpunkt wird selbst per Rauschen verschoben.
+ * Domänenverzerrung: der Abtastpunkt wird selbst per Rauschen verschoben.
  *
- * Ohne das laufen die Grenzen zwischen Wiese, Felsboden und Wasser ueber viele
+ * Ohne das laufen die Grenzen zwischen Wiese, Felsboden und Wasser über viele
  * Kacheln hinweg fast gerade – im Bild sieht man dann Rechtecke statt
- * gewachsener Raender. Mit der Verzerrung maeandern sie.
+ * gewachsener Ränder. Mit der Verzerrung mäandern sie.
  */
 function warp(n, x, y, amount) {
   const wx = fbm(n, x + 11.3, y + 4.7, 2, 2.0, 0.5) - 0.5;
@@ -69,7 +69,7 @@ export function generateTiles(seed) {
 
   for (let ty = 0; ty < MAP_H; ty++) {
     for (let tx = 0; tx < MAP_W; tx++) {
-      // Hoehenfeld: Abstand zu den drei Inselkernen, weich ueberlagert
+      // Höhenfeld: Abstand zu den drei Inselkernen, weich überlagert
       let land = -1;
       for (let i = 0; i < LOBES.length; i++) {
         const L = LOBES[i];
@@ -146,7 +146,7 @@ function carveChannel(tiles, detail) {
       }
     }
   }
-  // Bruecken-Anlandungen: links und rechts vom Kanal fester Boden
+  // Brücken-Anlandungen: links und rechts vom Kanal fester Boden
   for (let ty = BRIDGE_Y0; ty <= BRIDGE_Y1; ty++) {
     for (let tx = CHANNEL_X0 - 3; tx < CHANNEL_X0; tx++) setLand(tiles, tx, ty, T.SAND);
     for (let tx = CHANNEL_X1 + 1; tx <= CHANNEL_X1 + 3; tx++) setLand(tiles, tx, ty, T.SAND);
@@ -186,7 +186,7 @@ function flattenCamp(tiles) {
   }
 }
 
-/** Wo Gras direkt ans Wasser stoesst, kommt ein Sandstreifen dazwischen. */
+/** Wo Gras direkt ans Wasser stößt, kommt ein Sandstreifen dazwischen. */
 function addBeachRim(tiles) {
   const copy = tiles.slice();
   for (let ty = 0; ty < MAP_H; ty++) {
@@ -206,7 +206,7 @@ function addBeachRim(tiles) {
       if (nearWater) tiles[i] = T.SAND;
     }
   }
-  // Tiefes Wasser weiter draussen
+  // Tiefes Wasser weiter draußen
   for (let ty = 0; ty < MAP_H; ty++) {
     for (let tx = 0; tx < MAP_W; tx++) {
       const i = tileIndex(tx, ty);
@@ -243,7 +243,7 @@ export function findWalkableNear(tiles, tx, ty, maxR, region) {
   return null;
 }
 
-/** Alle begehbaren Kacheln eines Bereichs (fuer zufaellige Platzierungen). */
+/** Alle begehbaren Kacheln eines Bereichs (für zufällige Platzierungen). */
 export function walkableTilesOf(tiles, region, filterFn) {
   const out = [];
   for (let ty = 2; ty < MAP_H - 2; ty++) {

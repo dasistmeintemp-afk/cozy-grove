@@ -2,7 +2,7 @@
  * Die Geister der Insel.
  *
  * Bewusst wortkarg: jede Figur hat nur eine Handvoll sehr kurzer Zeilen.
- * Was sie wollen, sagen Symbole – nicht Absaetze.
+ * Was sie wollen, sagen Symbole – nicht Absätze.
  */
 
 export const SPIRITS = {
@@ -126,9 +126,9 @@ export function friendshipLevel(done) {
 /**
  * Was ein Geist zu einer neuen Freundschaftsstufe schenkt.
  *
- * Jeder Geist gibt, was zu ihm passt – Flaemmchen Glut, Kaeptn Kiesel etwas
- * vom Strand. Ab Stufe 5 kommt ein Erinnerungsstueck dazu, denn ab da hat man
- * sich wirklich Muehe gegeben. Ohne das war die Freundschaftsstufe eine Zahl,
+ * Jeder Geist gibt, was zu ihm passt – Flämmchen Glut, Käptn Kiesel etwas
+ * vom Strand. Ab Stufe 5 kommt ein Erinnerungsstück dazu, denn ab da hat man
+ * sich wirklich Mühe gegeben. Ohne das war die Freundschaftsstufe eine Zahl,
  * die nichts bewirkte.
  */
 export function friendshipGift(spiritId, level) {

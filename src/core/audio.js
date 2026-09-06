@@ -66,7 +66,7 @@ export class AudioEngine {
     this.musicBus.connect(musicFilter);
     musicFilter.connect(this.master);
 
-    // Rauschpuffer fuer Schaufel, Wasser, Blaetter
+    // Rauschpuffer für Schaufel, Wasser, Blätter
     const len = Math.floor(ctx.sampleRate * 1.2);
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = buf.getChannelData(0);
@@ -82,11 +82,11 @@ export class AudioEngine {
    * Umgebungsklang: drei Dauerschichten aus gefiltertem Rauschen.
    *
    *   surf  – Brandung, tief und langsam an- und abschwellend
-   *   wind  – Wind in den Blaettern, hoeher und gleichmaessiger
+   *   wind  – Wind in den Blättern, höher und gleichmäßiger
    *   night – Grillen, ein schmales Band weit oben
    *
-   * Sie laufen durchgehend; das Spiel regelt nur ihre Lautstaerke nach Ort
-   * und Uhrzeit. Ein Klangbett traegt die Stimmung mehr als jeder Einzelton –
+   * Sie laufen durchgehend; das Spiel regelt nur ihre Lautstärke nach Ort
+   * und Uhrzeit. Ein Klangbett trägt die Stimmung mehr als jeder Einzelton –
    * und kostet, weil es Rauschen ist, keine einzige Audiodatei.
    */
   _startAmbience() {
@@ -121,9 +121,9 @@ export class AudioEngine {
       rain: mk('highpass', 1400, 0.6, 0.11),
     };
 
-    // Die Brandung atmet. Der Schwinger haengt an einem EIGENEN Regler hinter
-    // der Lautstaerke, nicht an ihr selbst: sonst addierte er sich auf denselben
-    // Parameter, den die Mischung setzt, und zoege ihn ins Negative.
+    // Die Brandung atmet. Der Schwinger hängt an einem EIGENEN Regler hinter
+    // der Lautstärke, nicht an ihr selbst: sonst addierte er sich auf denselben
+    // Parameter, den die Mischung setzt, und zöge ihn ins Negative.
     const breath = ctx.createGain();
     breath.gain.value = 0.75;
     this._amb.surf.gain.disconnect();
@@ -147,9 +147,9 @@ export class AudioEngine {
   }
 
   /**
-   * Wie nah am Wasser, wie viel Blattwerk, wie spaet.
-   * @param {number} water 0..1 Anteil Wasser in Hoerweite
-   * @param {number} leaves 0..1 Anteil Baeume in Hoerweite
+   * Wie nah am Wasser, wie viel Blattwerk, wie spät.
+   * @param {number} water 0..1 Anteil Wasser in Hörweite
+   * @param {number} leaves 0..1 Anteil Bäume in Hörweite
    * @param {number} night 0..1 Nachtanteil
    */
   setAmbienceMix(water, leaves, night, rain) {
@@ -160,7 +160,7 @@ export class AudioEngine {
     if (!this._amb || !this.ctx) return;
     const t = this.ctx.currentTime;
     const a = this._amb;
-    // Traege Uebergaenge, sonst pumpt es beim Laufen
+    // Träge Übergänge, sonst pumpt es beim Laufen
     a.surf.gain.gain.setTargetAtTime(a.surf.peak * water, t, 1.2);
     a.wind.gain.gain.setTargetAtTime(a.wind.peak * (0.35 + leaves * 0.65), t, 1.2);
     a.night.gain.gain.setTargetAtTime(a.night.peak * night, t, 2.0);

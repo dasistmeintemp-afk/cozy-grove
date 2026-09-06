@@ -46,7 +46,7 @@ test('Kachelkarte hat Land, Wasser und ist reproduzierbar', () => {
     if (isWalkable(a[i])) land++;
     else if (isWater(a[i])) water++;
   }
-  assert.ok(land > 1200, 'genug begehbare Flaeche, war ' + land);
+  assert.ok(land > 1200, 'genug begehbare Fläche, war ' + land);
   assert.ok(water > 1500, 'genug Wasser, war ' + water);
 });
 
@@ -62,7 +62,7 @@ test('Lager liegt auf begehbarem Boden', () => {
 
 test('Fluss trennt Lager und Wald, die Furt verbindet sie', () => {
   const tiles = generateTiles(SEED);
-  // Auf Hoehe des Flusses ausserhalb der Furt ist Wasser
+  // Auf Höhe des Flusses ausserhalb der Furt ist Wasser
   let waterOutsideFord = 0;
   let checked = 0;
   for (let tx = 20; tx < 60; tx++) {
@@ -80,7 +80,7 @@ test('Fluss trennt Lager und Wald, die Furt verbindet sie', () => {
     }
   }
 
-  // Vom Lager aus ist der Wald erreichbar (ueber die Furt)
+  // Vom Lager aus ist der Wald erreichbar (über die Furt)
   const { seen } = floodFrom(tiles, CAMP_TILE.x, CAMP_TILE.y);
   let forestReached = 0;
   for (let ty = 5; ty < RIVER_Y0 - 2; ty++) {
@@ -88,10 +88,10 @@ test('Fluss trennt Lager und Wald, die Furt verbindet sie', () => {
       if (seen[tileIndex(tx, ty)]) forestReached++;
     }
   }
-  assert.ok(forestReached > 150, 'Wald ist ueber die Furt erreichbar, Kacheln: ' + forestReached);
+  assert.ok(forestReached > 150, 'Wald ist über die Furt erreichbar, Kacheln: ' + forestReached);
 });
 
-test('Klippen sind ohne Bruecke nicht erreichbar, mit Bruecke schon', () => {
+test('Klippen sind ohne Brücke nicht erreichbar, mit Brücke schon', () => {
   const world = new World(SEED);
   const { seen } = floodFrom(world.tiles, CAMP_TILE.x, CAMP_TILE.y);
   let cliffReached = 0;
@@ -100,7 +100,7 @@ test('Klippen sind ohne Bruecke nicht erreichbar, mit Bruecke schon', () => {
       if (seen[tileIndex(tx, ty)]) cliffReached++;
     }
   }
-  assert.equal(cliffReached, 0, 'ohne Bruecke keine Klippen');
+  assert.equal(cliffReached, 0, 'ohne Brücke keine Klippen');
 
   world.buildBridge();
   const after = floodFrom(world.tiles, CAMP_TILE.x, CAMP_TILE.y);
@@ -110,17 +110,17 @@ test('Klippen sind ohne Bruecke nicht erreichbar, mit Bruecke schon', () => {
       if (after.seen[tileIndex(tx, ty)]) cliffAfter++;
     }
   }
-  assert.ok(cliffAfter > 100, 'mit Bruecke erreichbar, Kacheln: ' + cliffAfter);
+  assert.ok(cliffAfter > 100, 'mit Brücke erreichbar, Kacheln: ' + cliffAfter);
   assert.ok(world.isUnlocked(REGION.CLIFFS));
 });
 
-test('Insel wird bevoelkert: Baeume, Geister, Lager', () => {
+test('Insel wird bevölkert: Bäume, Geister, Lager', () => {
   const world = new World(SEED).populate();
   const kinds = Object.create(null);
   for (const e of world.entities) kinds[e.kind] = (kinds[e.kind] || 0) + 1;
 
   assert.ok(world.entities.length > 300, 'genug Objekte, waren ' + world.entities.length);
-  assert.ok((kinds.tree_oak || 0) + (kinds.tree_pine || 0) + (kinds.tree_birch || 0) > 80, 'Baeume');
+  assert.ok((kinds.tree_oak || 0) + (kinds.tree_pine || 0) + (kinds.tree_birch || 0) > 80, 'Bäume');
   assert.equal(kinds.spirit, 6, 'sechs Geister');
   assert.equal(kinds.campfire, 1);
   assert.equal(kinds.tent, 1);
@@ -147,24 +147,24 @@ test('Kollision: Wasser blockiert, freie Wiese nicht', () => {
   const world = new World(SEED).populate();
   const start = startPosition(world.tiles);
   assert.ok(world.canStand(start.x, start.y));
-  // Weit draussen im Meer
+  // Weit draußen im Meer
   assert.equal(world.canStand(20, 20), false);
 });
 
-test('Tageswechsel bringt Grabstellen zurueck', () => {
+test('Tageswechsel bringt Grabstellen zurück', () => {
   const world = new World(SEED).populate();
   world.newDay(1);
   const digs = world.entities.filter((e) => e.kind === 'digspot').length;
   assert.ok(digs >= 5, 'Grabstellen am Tag 1: ' + digs);
 
-  // Grabstellen entfernen und naechsten Tag pruefen
+  // Grabstellen entfernen und nächsten Tag prüfen
   for (const e of world.entities.filter((e2) => e2.kind === 'digspot')) world.remove(e);
   assert.equal(world.entities.filter((e) => e.kind === 'digspot').length, 0);
   world.newDay(2);
   assert.ok(world.entities.filter((e) => e.kind === 'digspot').length >= 5);
 });
 
-test('Abgebaute Baeume kehren nach der Wartezeit zurueck', () => {
+test('Abgebaute Bäume kehren nach der Wartezeit zurück', () => {
   const world = new World(SEED).populate();
   const tree = world.entities.find((e) => e.kind === 'tree_oak');
   tree.origin = 'tree_oak';
@@ -185,14 +185,14 @@ test('Regionszuordnung passt zur Karte', () => {
   assert.equal(regionAt(CHANNEL_X1 + 5, 50), REGION.CLIFFS);
 });
 
-test('Wasserart: Fluss ist Suesswasser, offenes Meer nicht', () => {
+test('Wasserart: Fluss ist Süßwasser, offenes Meer nicht', () => {
   const world = new World(SEED);
   const riverY = ((RIVER_Y0 + RIVER_Y1) / 2 + 0.5) * TILE_SIZE;
   assert.equal(world.waterKind(20 * TILE_SIZE, riverY), 'fresh');
   assert.equal(world.waterKind(30 * TILE_SIZE, 88 * TILE_SIZE), 'sea');
 });
 
-test('Kacheltypen sind vollstaendig definiert', () => {
+test('Kacheltypen sind vollständig definiert', () => {
   for (const key of Object.keys(T)) {
     const v = T[key];
     assert.ok(typeof v === 'number');

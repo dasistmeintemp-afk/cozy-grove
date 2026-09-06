@@ -34,7 +34,7 @@ export class Fishing {
     return this.state !== FISH_STATE.IDLE;
   }
 
-  /** Wirft aus. Gibt false zurueck, wenn dort kein Wasser ist. */
+  /** Wirft aus. Gibt false zurück, wenn dort kein Wasser ist. */
   cast(world, player, rng, night, rodLevel) {
     if (this.active) return false;
     const p = player.facingPoint(104);

@@ -15,12 +15,12 @@ function quad(a, b, c, d, smooth) {
 }
 
 /**
- * Rechteckige Flaeche, die rechteckig bleibt.
+ * Rechteckige Fläche, die rechteckig bleibt.
  *
- * Vier Punkte durch eine Catmull-Rom-Kurve ergeben immer einen Laib – fuer
- * Bretter, Theken und Pfosten ist das falsch. Mit Stuetzpunkten auf den Kanten
+ * Vier Punkte durch eine Catmull-Rom-Kurve ergeben immer einen Laib – für
+ * Bretter, Theken und Pfosten ist das falsch. Mit Stützpunkten auf den Kanten
  * bleibt die Kurve dicht an der Geraden, und nur die Ecken werden weich. Ein
- * kleiner Versatz je Punkt haelt das Ganze handgemalt statt technisch.
+ * kleiner Versatz je Punkt hält das Ganze handgemalt statt technisch.
  */
 function slab(x0, y0, x1, y1, seed, wob) {
   const rng = makeRng((seed || 1) >>> 0);
@@ -217,7 +217,7 @@ export function paintStall(opts) {
   const cx = w / 2;
   const baseY = h - 14;
 
-  // Theke aus zwei Flaechen: eine Platte, auf die man von schraeg oben sieht,
+  // Theke aus zwei Flächen: eine Platte, auf die man von schräg oben sieht,
   // und die Front darunter. Als einzelner abgerundeter Kasten las sich das
   // Ganze wie ein Brotlaib.
   const topY = baseY - 66;
@@ -230,8 +230,8 @@ export function paintStall(opts) {
   const counter = slab(cx - 126, frontY - 2, cx + 126, baseY - 8, seed + 90, 2.2);
   const postL = slab(cx - 132, frontY, cx - 114, 84, seed + 91, 1.4);
   const postR = slab(cx + 114, frontY, cx + 132, 84, seed + 92, 1.4);
-  // Gewoelbtes Dach statt einer duennen Linse: oben in der Mitte am hoechsten,
-  // die Unterkante haengt leicht durch – so liest es sich als Markise, und die
+  // Gewölbtes Dach statt einer dünnen Linse: oben in der Mitte am höchsten,
+  // die Unterkante hängt leicht durch – so liest es sich als Markise, und die
   // Streifen haben Platz.
   const roof = smoothClosed([
     [cx - 156, 94], [cx - 148, 54], [cx - 70, 40], [cx, 36], [cx + 70, 40],
@@ -311,7 +311,7 @@ export function paintStall(opts) {
         inkStroke(g, scallops[i], { width: 1.8, vary: 0.3, seed: seed + 70 + i, color: ink.line, alpha: 0.5 });
       }
       inkLine(g, cx - 152, 88, cx + 152, 88, { width: 2.4, bend: -0.03, seed: seed + 78, alpha: 0.75 });
-      // Vorderkante der Platte – die Linie macht aus zwei Flaechen eine Theke
+      // Vorderkante der Platte – die Linie macht aus zwei Flächen eine Theke
       inkLine(g, cx - 126, frontY + 2, cx + 126, frontY + 2,
         { width: 2.4, bend: 0.01, seed: seed + 80, alpha: 0.7 });
       // Bretter der Front
@@ -338,9 +338,9 @@ export function paintWorkbench(opts) {
   const cx = w / 2;
   const baseY = h - 12;
 
-  // Platte in zwei Flaechen: die Oberseite, auf die man schaut, und die
-  // Vorderkante darunter. Als eine gewoelbte Flaeche sah der Tisch aus wie ein
-  // Brett auf zwei Wuersten.
+  // Platte in zwei Flächen: die Oberseite, auf die man schaut, und die
+  // Vorderkante darunter. Als eine gewölbte Fläche sah der Tisch aus wie ein
+  // Brett auf zwei Würsten.
   const plateY = baseY - 82;
   const edgeY = baseY - 62;
   const plate = smoothClosed([
@@ -1099,7 +1099,7 @@ export function paintSeli(dir, frame, opts) {
   const hairBack = back
     // Von hinten derselbe Bob wie von vorn: bis knapp unter die Schultern,
     // unten in drei weichen Spitzen. Vorher stand hier eine blonde Platte,
-    // die den halben Ruecken verdeckte.
+    // die den halben Rücken verdeckte.
     ? smoothClosed([
       [cx - 30, headY - 20 + bob], [cx + 30, headY - 20 + bob],
       [cx + 33, headY + 6 + bob], [cx + 28, headY + 24 + bob],
@@ -1119,7 +1119,7 @@ export function paintSeli(dir, frame, opts) {
 
   const brim = smoothClosed(blob(cx, headY - 23 + bob, 43, 11, seed + 5, 0.07, 18), 6);
   const crown = smoothClosed(blob(cx, headY - 34 + bob, 21, 14, seed + 6, 0.07, 14), 5);
-  // Rucksack auf dem unteren Ruecken, unter den Haarspitzen. Eigene Farbe:
+  // Rucksack auf dem unteren Rücken, unter den Haarspitzen. Eigene Farbe:
   // im selben Braun wie der Hut sah er aus wie ein zweiter Hut.
   const pack = smoothClosed(blob(cx, baseY - 54 + bob, 15, 14, seed + 7, 0.07, 16), 5);
   // Halstuch: kleines Dreieck unterhalb des Kinns, kein Lätzchen vor dem Mund
@@ -1196,7 +1196,7 @@ export function paintSeli(dir, frame, opts) {
 
       if (back) {
         inkStroke(g, pack, { width: 2.2, vary: 0.3, seed: seed + 52, color: ink.line, alpha: 0.8 });
-        // Deckelnaht und die beiden Traeger, die unter dem Haar verschwinden
+        // Deckelnaht und die beiden Träger, die unter dem Haar verschwinden
         inkLine(g, cx - 13, baseY - 58 + bob, cx + 13, baseY - 59 + bob,
           { width: 1.6, bend: 0.14, seed: seed + 54, color: SELI.packShade, alpha: 0.8 });
         inkLine(g, cx - 11, baseY - 70 + bob, cx - 8, baseY - 60 + bob,
@@ -1306,7 +1306,7 @@ export function paintSpirit(look, frame, opts) {
     worn.push(smoothClosed([[cx, headY - 36 + bob], [cx - 26, headY - 48 + bob], [cx - 26, headY - 26 + bob]], 5));
     worn.push(smoothClosed([[cx, headY - 36 + bob], [cx + 26, headY - 48 + bob], [cx + 26, headY - 26 + bob]], 5));
   }
-  // Sitzt am Hals unter der Schnauze, nicht quer darueber, und haengt in der
+  // Sitzt am Hals unter der Schnauze, nicht quer darüber, und hängt in der
   // Mitte durch – ein gerader Streifen sah aus wie ein Balken.
   const scarf = look.hat === 'scarf' ? smoothClosed([
     [cx - 42, baseY - 78 + bob], [cx - 20, baseY - 70 + bob], [cx, baseY - 65 + bob],
@@ -1325,7 +1325,7 @@ export function paintSpirit(look, frame, opts) {
     outline: 2.0,
     wash: function (g) {
       // Geisterschimmer: eine helle Aura hinter der Figur. Sie macht aus dem
-      // Fellknaeuel etwas, das nicht ganz da ist.
+      // Fellknäuel etwas, das nicht ganz da ist.
       g.save();
       g.globalAlpha = 0.3;
       g.fillStyle = '#ffffff';
@@ -1340,7 +1340,7 @@ export function paintSpirit(look, frame, opts) {
       wash(g, head, fur, { seed: seed + 15, scale: 1.05 });
       wash(g, offsetShape(head, -LIGHT.x * 22, -LIGHT.y * 14, 0.6), furShade,
         { seed: seed + 16, alpha: 0.48 });
-      // Lichtseite oben links – dieselbe Sonne wie ueberall sonst
+      // Lichtseite oben links – dieselbe Sonne wie überall sonst
       wash(g, offsetShape(head, LIGHT.x * 17, LIGHT.y * 15, 0.5), '#fffdf6',
         { seed: seed + 18, alpha: 0.4 });
       wash(g, offsetShape(body, LIGHT.x * 18, LIGHT.y * 12, 0.45), '#fffdf6',
@@ -1381,7 +1381,7 @@ export function paintSpirit(look, frame, opts) {
       } else {
         fill(g, smoothClosed(blob(cx - 16, headY - 3 + bob, 4.6, 5.8, seed + 40, 0.08, 10), 4));
         fill(g, smoothClosed(blob(cx + 16, headY - 3 + bob, 4.6, 5.8, seed + 41, 0.08, 10), 4));
-        // Lichtpunkt im Auge, oben links wie ueberall. Ohne ihn bleibt der
+        // Lichtpunkt im Auge, oben links wie überall. Ohne ihn bleibt der
         // Blick ein schwarzer Fleck; mit ihm schaut die Figur.
         g.fillStyle = '#fffdf6';
         g.beginPath();
@@ -1508,8 +1508,8 @@ export function paintFox(frame, opts) {
       wash(g, legR, furDark, { seed: seed + 13 });
       wash(g, body, fur, { seed: seed + 14, scale: 1.05 });
       wash(g, offsetShape(body, 0, 12, 0.72), light, { seed: seed + 15, alpha: 0.8 });
-      // Weste auf den Koerper beschnitten – die Lasur liegt versetzt und stand
-      // sonst seitlich ueber das Fell hinaus
+      // Weste auf den Körper beschnitten – die Lasur liegt versetzt und stand
+      // sonst seitlich über das Fell hinaus
       clipTo(g, [body]);
       wash(g, vest, ink.cloth, { seed: seed + 16 });
       g.restore();

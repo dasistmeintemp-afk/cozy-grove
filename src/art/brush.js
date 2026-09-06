@@ -213,7 +213,7 @@ function modulateAlpha(canvas, seed) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4 + 3;
       if (!d[i]) continue;
-      // Die Staerke wandert, aber die Linie bleibt eine Linie. Vorher fiel sie
+      // Die Stärke wandert, aber die Linie bleibt eine Linie. Vorher fiel sie
       // stellenweise auf 44 Prozent und wirkte dadurch weich statt gezeichnet.
       const m = 0.93
         + 0.13 * Math.sin(x * f1 + y * f2 * 1.7 + p1)
@@ -262,7 +262,7 @@ export function inkLine(ctx, x0, y0, x1, y1, opts) {
  * Kann der Browser selbst weichzeichnen?
  *
  * `ctx.filter` gibt es in Chrome und Firefox seit Langem, in Safari erst seit
- * Version 17. Die blosse Anwesenheit der Eigenschaft genuegt daher nicht – es
+ * Version 17. Die blosse Anwesenheit der Eigenschaft genügt daher nicht – es
  * wird einmal wirklich ausprobiert: ein deckender Fleck, weichgezeichnet, und
  * danach ein Blick auf eine Ecke. Ist sie noch leer, hat der Browser den Filter
  * ignoriert, und wir rechnen weiter selbst.
@@ -280,7 +280,7 @@ function canBlurNatively() {
     g.fillStyle = '#000000';
     g.fillRect(8, 8, 16, 16);
     g.filter = 'none';
-    // Ohne Filter waere diese Stelle unberuehrt und damit vollstaendig leer
+    // Ohne Filter wäre diese Stelle unberührt und damit vollständig leer
     const a = g.getImageData(5, 16, 1, 1).data[3];
     nativeBlur = a > 4;
   } catch (err) {
@@ -295,11 +295,11 @@ export function blurCanvas(canvas, radius, passes) {
   const h = canvas.height;
   if (w < 3 || h < 3) return;
 
-  // Der eigene Kastenweichzeichner war die Haelfte der Kosten eines
-  // Bodenstuecks. Kann der Browser es selbst, ist es ein Bruchteil davon.
+  // Der eigene Kastenweichzeichner war die Hälfte der Kosten eines
+  // Bodenstücks. Kann der Browser es selbst, ist es ein Bruchteil davon.
   if (canBlurNatively()) {
     const rounds = passes || 2;
-    // Mehrere Kastendurchgaenge naehern eine Glocke; sigma entsprechend
+    // Mehrere Kastendurchgänge nähern eine Glocke; sigma entsprechend
     const sigma = r * Math.sqrt(rounds * 2) * 0.5;
     try {
       const tmp = makeCanvas(w, h);
@@ -357,10 +357,10 @@ export function blurCanvas(canvas, radius, passes) {
  * Ein Kastendurchgang des Weichzeichners.
  *
  * Ausserhalb des Bildes wird mit „nichts“ gerechnet, nicht mit dem Randpixel.
- * Wuerde der Rand fortgesetzt, bekaeme jede Grafik, deren Farbe bis an den
+ * Würde der Rand fortgesetzt, bekäme jede Grafik, deren Farbe bis an den
  * Rand ihrer Leinwand reicht, einen blassen Streifen ringsherum – im Spiel
- * standen dort rechteckige Schleier im Boden, wo sich Baeume ueberlagerten.
- * Beim Boden ist das unkritisch: Dort liegt ein Malrand um jedes Stueck, und
+ * standen dort rechteckige Schleier im Boden, wo sich Bäume überlagerten.
+ * Beim Boden ist das unkritisch: Dort liegt ein Malrand um jedes Stück, und
  * gezeichnet wird nur der Kern.
  */
 function boxPass(src, dst, w, h, r, horizontal) {
@@ -576,13 +576,13 @@ export function paintObject(w, h, o) {
   const wctx = wl[1];
   if (o.shadow) o.shadow(wctx);
   if (o.wash) o.wash(wctx);
-  // Wenig Weichzeichnung: die Vorlage hat Farbflaechen mit erkennbarer Kante,
+  // Wenig Weichzeichnung: die Vorlage hat Farbflächen mit erkennbarer Kante,
   // keinen Airbrush. Zu viel Weichzeichner nimmt der Zeichnung den Strich.
   blurCanvas(washLayer, o.blur == null ? 1.6 : o.blur, o.blurPasses || 2);
 
   // Farbige Feinheiten liegen hinter dem Weichzeichner, aber vor dem
-  // Entfaerben: in der kolorierten Fassung ein scharfer Strich, im Malbuch
-  // blasses Grau. Farbe in `ink` wuerde dagegen als Farbfleck stehenbleiben.
+  // Entfärben: in der kolorierten Fassung ein scharfer Strich, im Malbuch
+  // blasses Grau. Farbe in `ink` würde dagegen als Farbfleck stehenbleiben.
   if (o.detail) {
     wctx.save();
     o.detail(wctx);

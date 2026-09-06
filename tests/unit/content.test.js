@@ -29,8 +29,8 @@ const SPRITE_NAMES = (function () {
     'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',
     'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge', 'moonlamp',
   ];
-  // Baeume liegen in drei Fassungen vor; die Objektdefinition nennt nur den
-  // Rumpf, makeEntity haengt die Nummer an.
+  // Bäume liegen in drei Fassungen vor; die Objektdefinition nennt nur den
+  // Rumpf, makeEntity hängt die Nummer an.
   const trees = ['tree_oak', 'tree_birch', 'tree_maple', 'tree_pine'];
   for (let i = 0; i < trees.length; i++) {
     for (let v = 0; v < 3; v++) names.push(trees[i] + '_' + v);

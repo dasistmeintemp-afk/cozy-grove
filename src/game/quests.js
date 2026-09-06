@@ -36,9 +36,9 @@ const POOLS = {
 const CRAFTABLE_ASKS = ['fence', 'path_tile', 'lantern', 'flowerbed', 'bench', 'birdhouse'];
 
 /**
- * Wie viele Auftraege ein Geist gleichzeitig offen hat.
+ * Wie viele Aufträge ein Geist gleichzeitig offen hat.
  *
- * Bei zwei standen am ersten Tag nur drei Auftraege zur Wahl – wer laenger
+ * Bei zwei standen am ersten Tag nur drei Aufträge zur Wahl – wer länger
  * spielen wollte, hatte nach wenigen Minuten nichts mehr zu tun und musste
  * schlafen. Drei geben einer Sitzung genug Stoff, ohne die Liste zu fluten.
  */
@@ -72,8 +72,8 @@ export class QuestBook {
   }
 
   /**
-   * Neue Tagesauftraege verteilen.
-   * Offene Auftraege bleiben bestehen – niemand wird bestraft, wenn er
+   * Neue Tagesaufträge verteilen.
+   * Offene Aufträge bleiben bestehen – niemand wird bestraft, wenn er
    * einen Tag nicht dazu kommt.
    */
   newDay(day, world, state) {
@@ -84,9 +84,9 @@ export class QuestBook {
       if (!world.isUnlocked(spirit.region)) continue;
       const open = this.openForSpirit(sid);
       let slots = MAX_ACTIVE_PER_SPIRIT - open.length;
-      // Am ersten Tag etwas weniger – ruhiger Einstieg, aber genug fuer eine
+      // Am ersten Tag etwas weniger – ruhiger Einstieg, aber genug für eine
       // ganze Sitzung. Mit nur einer Aufgabe je Geist war nach drei Minuten
-      // Schluss, und das Spiel fuehlte sich an, als muesste man warten.
+      // Schluss, und das Spiel fühlte sich an, als müsste man warten.
       if (day <= 1) slots = Math.min(slots, 2);
       while (slots-- > 0) {
         const q = this.generate(sid, day, world, state, rng);
@@ -221,7 +221,7 @@ export class QuestBook {
     return !q.turnedIn && this.progress(q, ctx) >= q.need;
   }
 
-  /** Meldet ein Ereignis an alle passenden Auftraege. */
+  /** Meldet ein Ereignis an alle passenden Aufträge. */
   notify(event, payload, ctx) {
     let changed = false;
     for (let i = 0; i < this.quests.length; i++) {
@@ -250,7 +250,7 @@ export class QuestBook {
     return changed;
   }
 
-  /** Erledigt einen Auftrag und liefert die Belohnung zurueck. */
+  /** Erledigt einen Auftrag und liefert die Belohnung zurück. */
   turnIn(q, ctx) {
     if (q.turnedIn) return null;
     if (!this.isReady(q, ctx)) return null;
@@ -267,7 +267,7 @@ export class QuestBook {
     return q.rewards;
   }
 
-  /** Aufraeumen: versteckte Gegenstaende eines Auftrags entfernen. */
+  /** Aufräumen: versteckte Gegenstände eines Auftrags entfernen. */
   dropHidden(q, world) {
     if (!q.hiddenIds) return;
     for (let i = 0; i < q.hiddenIds.length; i++) {
@@ -331,7 +331,7 @@ function rewardFor(type, count, scale, rng, item) {
   return { coins: coins, ember: ember, items: items };
 }
 
-/** Kurzbeschreibung fuer die Oberflaeche – Symbol + Zahl, kein Fliesstext. */
+/** Kurzbeschreibung für die Oberfläche – Symbol + Zahl, kein Fließtext. */
 export function questIcon(q) {
   switch (q.type) {
     case QTYPE.FIND: return 'icon_' + q.itemId;

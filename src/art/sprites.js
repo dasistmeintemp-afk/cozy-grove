@@ -75,7 +75,7 @@ export function addArt(name, art, scale) {
 export function spr(name) {
   let s = registry[name];
   // Ein Name ohne Fassungsnummer trifft die erste Fassung. Damit laufen
-  // aeltere Spielstaende weiter, in denen Baeume noch nur einen Namen hatten.
+  // ältere Spielstände weiter, in denen Bäume noch nur einen Namen hatten.
   if (!s && name) s = registry[name + '_0'];
   if (!s) {
     if (!spr._warned) spr._warned = Object.create(null);
@@ -317,7 +317,7 @@ function buildIcons() {
       color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
     });
     addArt('icon_memory_' + MEMORY_KINDS[i], art, 1);
-    // Das Andenken am Ende einer Erinnerungskette traegt dasselbe Bild
+    // Das Andenken am Ende einer Erinnerungskette trägt dasselbe Bild
     addArt('icon_keepsake_' + MEMORY_KINDS[i], art, 1);
   }
   const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'hand'];

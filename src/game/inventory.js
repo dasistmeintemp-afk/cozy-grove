@@ -7,9 +7,9 @@ export class Inventory {
     this.slots = [];
     /**
      * Fundbuch: was schon einmal in der Tasche lag, und wie viel davon
-     * insgesamt. Es haengt hier und nicht am Spielstand, weil add() der
+     * insgesamt. Es hängt hier und nicht am Spielstand, weil add() der
      * einzige Weg ist, auf dem etwas hereinkommt – gefunden, gekauft,
-     * gefischt oder gebaut, alles laeuft hier durch.
+     * gefischt oder gebaut, alles läuft hier durch.
      */
     this.found = Object.create(null);
   }
@@ -46,7 +46,7 @@ export class Inventory {
     return Math.max(0, this.capacity - this.slots.length);
   }
 
-  /** Legt Gegenstaende ab. Gibt zurueck, wie viele wirklich Platz hatten. */
+  /** Legt Gegenstände ab. Gibt zurück, wie viele wirklich Platz hatten. */
   add(id, n) {
     const item = getItem(id);
     if (!item) return 0;
@@ -72,7 +72,7 @@ export class Inventory {
     return added;
   }
 
-  /** Entfernt bis zu n Stueck. Gibt zurueck, wie viele entfernt wurden. */
+  /** Entfernt bis zu n Stück. Gibt zurück, wie viele entfernt wurden. */
   remove(id, n) {
     let left = n == null ? 1 : n;
     let removed = 0;
@@ -139,7 +139,7 @@ export class Inventory {
         if (getItem(id)) inv.found[id] = data.found[id];
       }
     } else if (data && data.slots) {
-      // Aeltere Spielstaende kannten das Fundbuch noch nicht: was in der
+      // Aeltere Spielstände kannten das Fundbuch noch nicht: was in der
       // Tasche liegt, gilt als gefunden.
       for (let i = 0; i < inv.slots.length; i++) {
         inv.found[inv.slots[i].id] = inv.slots[i].n;

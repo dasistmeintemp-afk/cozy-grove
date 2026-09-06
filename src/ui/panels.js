@@ -209,9 +209,9 @@ export class Panels {
   _stories() {
     const g = this.game;
     const book = g.stories;
-    // Kurz halten: das Spiel erklaert sich sonst zu Tode
+    // Kurz halten: das Spiel erklärt sich sonst zu Tode
     let html = '<p class="empty-note" style="padding-bottom:10px">' +
-      'Vier Fundstuecke je Geist. Hilf ihm, dann taucht das naechste auf.</p>';
+      'Vier Fundstücke je Geist. Hilf ihm, dann taucht das nächste auf.</p>';
 
     html += '<div class="rows">';
     for (const id in SPIRITS) {
@@ -233,7 +233,7 @@ export class Panels {
       html += '</div>';
       if (known && book.placed[id] >= 0) {
         html += '<div class="row"><span style="width:34px"></span>' + ico('icon_sparkle', 'lg') +
-          '<div class="grow"><div class="meta"><span>Ein Stueck wartet · ' +
+          '<div class="grow"><div class="meta"><span>Ein Stück wartet · ' +
           escapeHtml(REGION_NAMES[s.region]) + '</span></div></div></div>';
       }
       if (done) {
@@ -249,7 +249,7 @@ export class Panels {
 
     html += '<p class="empty-note" style="padding-top:14px">' +
       book.completeCount() + ' von ' + Object.keys(SPIRITS).length +
-      ' Geschichten vollstaendig</p>';
+      ' Geschichten vollständig</p>';
     return html;
   }
 
@@ -546,11 +546,11 @@ export class Panels {
   _map() {
     return '<canvas id="map-canvas" width="192" height="192"></canvas>' +
       '<div class="legend">' +
-      '<span><i style="background:#e8a44c"></i>Du</span>' +
-      '<span><i style="background:#cfe3ef"></i>Geist</span>' +
+      '<span><i style="background:#d9662e"></i>Du</span>' +
+      '<span><i style="background:#5f86b0"></i>Geist</span>' +
       '<span><i style="background:#ff9a3c"></i>Lager</span>' +
-      '<span><i style="background:#4a5560"></i>noch grau</span>' +
-      '<span><i style="background:#e8574c"></i>Ziel</span>' +
+      '<span><i style="background:#d6cdb8"></i>noch blass</span>' +
+      '<span><i style="background:#cf4a3c"></i>Ziel</span>' +
       '</div>';
   }
 
@@ -580,10 +580,14 @@ export class Panels {
           if (colored) {
             img.data[i] = r; img.data[i + 1] = gg; img.data[i + 2] = b;
           } else {
-            const lum = 0.299 * r + 0.587 * gg + 0.114 * b;
-            img.data[i] = lum * 0.75 + 20;
-            img.data[i + 1] = lum * 0.78 + 24;
-            img.data[i + 2] = lum * 0.82 + 30;
+            // Aufhellen, nicht abdunkeln: die Karte ist Papier, und unkoloriert
+            // liegt die Insel hier so blass da wie im Spiel. Wichtig ist, den
+            // Farbton mitzunehmen statt auf Grauwert zu gehen – sonst haben
+            // Wasser und Wiese am ersten Tag denselben Wert und die Insel
+            // verschwindet im Papier.
+            img.data[i] = 238 - (238 - r) * 0.38;
+            img.data[i + 1] = 231 - (231 - gg) * 0.38;
+            img.data[i + 2] = 213 - (213 - b) * 0.38;
           }
           img.data[i + 3] = 255;
         }
@@ -607,10 +611,10 @@ export class Panels {
     if (g.world.campfire) dot(g.world.campfire.x, g.world.campfire.y, '#ff9a3c', 5);
     for (let i = 0; i < g.world.entities.length; i++) {
       const e = g.world.entities[i];
-      if (e.kind === 'spirit' && g.world.isUnlocked(e.region)) dot(e.x, e.y, '#cfe3ef', 4);
-      if (e.kind === 'hidden') dot(e.x, e.y, '#f0d264', 3);
+      if (e.kind === 'spirit' && g.world.isUnlocked(e.region)) dot(e.x, e.y, '#5f86b0', 4);
+      if (e.kind === 'hidden') dot(e.x, e.y, '#c2941f', 3);
     }
-    // Ziele offener „Hingehen"-Auftraege als Kreuz. Ohne Marke waere die
+    // Ziele offener „Hingehen"-Aufträge als Kreuz. Ohne Marke wäre die
     // Aufgabe auf 96 mal 96 Kacheln reines Raten.
     const offen = g.quests.active();
     for (let i = 0; i < offen.length; i++) {
@@ -618,15 +622,15 @@ export class Panels {
       if (q.type !== QTYPE.VISIT || q.turnedIn || !q.spot) continue;
       const px = Math.round((q.spot.x / TILE_SIZE) * s);
       const py = Math.round((q.spot.y / TILE_SIZE) * s);
-      ctx.strokeStyle = '#e8574c';
+      ctx.strokeStyle = '#cf4a3c';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(px - 4, py - 4); ctx.lineTo(px + 4, py + 4);
       ctx.moveTo(px + 4, py - 4); ctx.lineTo(px - 4, py + 4);
       ctx.stroke();
     }
-    dot(g.player.x, g.player.y, '#e8a44c', 5);
-    ctx.strokeStyle = 'rgba(20,26,20,0.6)';
+    dot(g.player.x, g.player.y, '#d9662e', 5);
+    ctx.strokeStyle = 'rgba(74,64,56,0.5)';
     ctx.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
   }
 
@@ -650,7 +654,7 @@ export class Panels {
     html += '<div class="setting"><div class="grow"><label>Musik</label></div>' +
       seg('music', [[true, 'An'], [false, 'Aus']], s.music) + '</div>';
     html += '<div class="setting"><div class="grow"><label>Umgebung</label>' +
-      '<span class="hint">Brandung, Wind, Grillen</span></div>' +
+      '<div class="hint">Brandung, Wind, Grillen</div></div>' +
       seg('ambience', [[true, 'An'], [false, 'Aus']], s.ambience !== false) + '</div>';
     html += '<div class="setting"><div class="grow"><label>Lautstärke</label></div>' +
       seg('volume', [[0.3, 'Leise'], [0.7, 'Mittel'], [1, 'Laut']], s.volume) + '</div>';

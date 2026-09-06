@@ -1,4 +1,4 @@
-/** Alles, was auf der Insel steht: Baeume, Steine, Sammelgut, Bauten, Geister. */
+/** Alles, was auf der Insel steht: Bäume, Steine, Sammelgut, Bauten, Geister. */
 import { randInt } from '../core/rng.js';
 import { nextId } from '../core/util.js';
 
@@ -16,13 +16,13 @@ function drop(id, min, max) {
  *  sprite      Grafikname
  *  solid       blockiert Bewegung
  *  blockR      Kollisionsradius (Pixel)
- *  reachR      Reichweite fuer Interaktion (Pixel)
- *  tool        benoetigtes Werkzeug
- *  minLevel    benoetigte Werkzeugstufe
- *  hits        Schlaege bis erschoepft
+ *  reachR      Reichweite für Interaktion (Pixel)
+ *  tool        benötigtes Werkzeug
+ *  minLevel    benötigte Werkzeugstufe
+ *  hits        Schläge bis erschöpft
  *  yield       (level, rng) => [{id, n}]
  *  becomes     Folgezustand nach Abbau (kind) – sonst verschwindet das Objekt
- *  respawn     Tage bis zur Rueckkehr
+ *  respawn     Tage bis zur Rückkehr
  *  sway        wackelt im Wind
  */
 export const ENTITY_DEFS = {
@@ -180,7 +180,7 @@ export const ENTITY_DEFS = {
   spirit: { solid: false, reachR: 120, category: 'spirit' },
   fox: { sprite: 'fox_0', solid: false, reachR: 112, category: 'fox' },
 
-  // Aufgabengegenstaende
+  // Aufgabengegenstände
   hidden: { solid: false, reachR: 80, tool: TOOL.HAND, hits: 1, category: 'hidden' },
 
   // Vom Spieler aufgestellte Deko
@@ -191,10 +191,10 @@ export function defOf(kind) {
   return ENTITY_DEFS[kind] || null;
 }
 
-/** Erzeugt eine Weltinstanz. x/y sind Weltpixel (Fusspunkt). */
+/** Erzeugt eine Weltinstanz. x/y sind Weltpixel (Fußpunkt). */
 /**
  * Welche Fassung einer Grafik dieses Objekt bekommt.
- * Haengt nur am Ort, damit derselbe Baum nach dem Laden wieder gleich aussieht.
+ * Hängt nur am Ort, damit derselbe Baum nach dem Laden wieder gleich aussieht.
  */
 function variantAt(x, y, count) {
   const h = (Math.round(x) * 73856093) ^ (Math.round(y) * 19349663);
@@ -220,7 +220,7 @@ export function makeEntity(kind, x, y, extra) {
   return e;
 }
 
-/** Sortierschluessel fuer die Tiefenstaffelung. */
+/** Sortierschlüssel für die Tiefenstaffelung. */
 export function sortKey(e) {
   return e.y + (e.zBias || 0);
 }

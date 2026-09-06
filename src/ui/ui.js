@@ -1,6 +1,6 @@
 /**
- * Oberflaeche: HUD, Werkzeuggurt, Aufgabenkarten, Meldungen, Sprechblasen.
- * Alles als DOM ueber dem Canvas – scharfe Schrift, bedienbar per Tastatur.
+ * Oberfläche: HUD, Werkzeuggurt, Aufgabenkarten, Meldungen, Sprechblasen.
+ * Alles als DOM über dem Canvas – scharfe Schrift, bedienbar per Tastatur.
  */
 import { applyIcon, iconUrl } from '../art/sprites.js';
 import { num, clamp } from '../core/util.js';
@@ -90,7 +90,7 @@ export class UI {
     }
   }
 
-  /** Wird bei Groessenaenderung aufgerufen. */
+  /** Wird bei Größenänderung aufgerufen. */
   layout() {
     const stage = this.el.stage.getBoundingClientRect();
     const rect = this.el.canvas.getBoundingClientRect();
@@ -190,7 +190,7 @@ export class UI {
     }, 2200);
   }
 
-  /** Sammelmeldung fuer Gegenstaende. */
+  /** Sammelmeldung für Gegenstände. */
   toastItems(items) {
     for (let i = 0; i < items.length; i++) {
       const it = getItem(items[i].id);
@@ -202,8 +202,8 @@ export class UI {
   /* ---------- Sprechblasen ---------- */
 
   /**
-   * Kurze Blase ueber einer Weltposition.
-   * Absichtlich knapp: ein paar Woerter oder nur Symbole.
+   * Kurze Blase über einer Weltposition.
+   * Absichtlich knapp: ein paar Wörter oder nur Symbole.
    */
   bubble(x, y, text, icons, duration) {
     if (this.game.settings.talk === 'off' && !icons) return null;

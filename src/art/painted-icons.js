@@ -182,7 +182,7 @@ export const ICON_PAINTERS = {
       function (g) { inkLine(g, C - 6, C + 24, C + 6, C - 22, { width: 2.0, bend: 0.06, seed: 94 }); });
   },
   driftwood: function () {
-    // Schraeg gestellter Ast mit Gabel – als Blase war er nicht von einem
+    // Schräg gestellter Ast mit Gabel – als Blase war er nicht von einem
     // Kiesel zu unterscheiden.
     const body = smoothClosed([
       [C - 24, C + 14], [C - 18, C + 6], [C + 6, C - 6], [C + 24, C - 16],

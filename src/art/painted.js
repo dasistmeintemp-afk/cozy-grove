@@ -133,10 +133,10 @@ export function dot(gWash, gInk, x, y, r, color, seed) {
 }
 
 /**
- * Blattbuescheln: kleine Boegen ueber eine Krone verteilt.
+ * Blattbüscheln: kleine Bögen über eine Krone verteilt.
  *
  * In der Vorlage steckt in jeder Baumkrone ein Dutzend solcher Zeichen. Sie
- * machen aus einer gefaerbten Flaeche eine gezeichnete Krone. Auf der
+ * machen aus einer gefärbten Fläche eine gezeichnete Krone. Auf der
  * Schattenseite stehen sie dichter, weil dort ohnehin mehr Struktur sitzt.
  */
 export function leafClumps(g, cx, cy, rx, ry, seed, color) {
@@ -147,12 +147,12 @@ export function leafClumps(g, cx, cy, rx, ry, seed, color) {
   g.lineJoin = 'round';
   g.strokeStyle = color || ink.leafDeep;
   for (let i = 0; i < n; i++) {
-    // Gleichmaessig ueber die Flaeche, nicht geballt in der Mitte
+    // Gleichmäßig über die Fläche, nicht geballt in der Mitte
     const a = rng() * Math.PI * 2;
     const r = Math.sqrt(rng()) * 0.88;
     const x = cx + Math.cos(a) * rx * r;
     const y = cy + Math.sin(a) * ry * r;
-    // Zum Licht hin blasser, vom Licht weg kraeftiger
+    // Zum Licht hin blasser, vom Licht weg kräftiger
     const lit = (Math.cos(a) * LIGHT.x + Math.sin(a) * LIGHT.y) * r;
     g.globalAlpha = 0.34 + Math.max(0, -lit) * 0.4 + rng() * 0.12;
     const wdt = rx * (0.15 + rng() * 0.11);
@@ -166,7 +166,7 @@ export function leafClumps(g, cx, cy, rx, ry, seed, color) {
 }
 
 /**
- * Nadelsaum: kurze Striche, die von einer Etagenkante nach unten aussen
+ * Nadelsaum: kurze Striche, die von einer Etagenkante nach unten außen
  * ausfransen. Ohne sie bleibt ein Nadelbaum ein gestapelter, glatter Kegel;
  * mit ihnen bekommt er die zerfaserte Kante des Vorbilds.
  */
@@ -204,7 +204,7 @@ export function paintTree(opts) {
   const o = opts || {};
   // `spread` breitet die Krone aus, `lift` streckt sie nach oben. Damit wird
   // aus demselben Maler eine breite und eine schlanke Silhouette – im dichten
-  // Wald faellt sonst auf, dass alle Baeume dieselbe Form haben.
+  // Wald fällt sonst auf, dass alle Bäume dieselbe Form haben.
   const spread = o.spread == null ? 1 : o.spread;
   const lift = o.lift == null ? 1 : o.lift;
   const w = Math.round(180 * Math.max(1, spread));
@@ -259,10 +259,10 @@ export function paintTree(opts) {
       for (let i = 0; i < lobes.length; i++) {
         wash(g, lobes[i], leafMid, { seed: seed + 20 + i, scale: 1.05 });
       }
-      // Schattenseite: JEDER Lappen bekommt seine dunkle Haelfte, vom Licht weg
-      // versetzt. Die Ueberlappungen bauen sich zu einer zusammenhaengenden
+      // Schattenseite: JEDER Lappen bekommt seine dunkle Hälfte, vom Licht weg
+      // versetzt. Die Überlappungen bauen sich zu einer zusammenhängenden
       // Schattenseite auf – vorher lag nur an zwei Lappen etwas Dunkles, und
-      // die Krone blieb eine flache Flaeche.
+      // die Krone blieb eine flache Fläche.
       const shx = -LIGHT.x * 15;
       const shy = -LIGHT.y * 15;
       const schatten = [];
@@ -271,8 +271,8 @@ export function paintTree(opts) {
         schatten.push(offsetShape(lobes[i], shx, shy, 0.84));
         tief.push(offsetShape(lobes[i], shx * 1.9, shy * 1.8, 0.6));
       }
-      // Als Gruppe, nicht einzeln: sonst addieren sich die Ueberlappungen und
-      // die Schattenseite wird ein Verlauf statt einer Flaeche mit Kante.
+      // Als Gruppe, nicht einzeln: sonst addieren sich die Überlappungen und
+      // die Schattenseite wird ein Verlauf statt einer Fläche mit Kante.
       washGroup(g, schatten, leafDark, { alpha: 0.62 });
       washGroup(g, tief, o.leafDeep || ink.leafDeep, { alpha: 0.4 });
       // Lichtseite zuletzt, damit sie oben liegt
@@ -288,10 +288,10 @@ export function paintTree(opts) {
       fill(g, trunk);
       for (let i = 0; i < lobes.length; i++) fill(g, lobes[i]);
     },
-    // Blattbuescheln: viele kleine Boegen quer durch die Krone. Das ist der
-    // Unterschied zwischen einer gefaerbten Flaeche und einer Zeichnung –
+    // Blattbüscheln: viele kleine Bögen quer durch die Krone. Das ist der
+    // Unterschied zwischen einer gefärbten Fläche und einer Zeichnung –
     // vorher standen hier neun verlorene Striche. Sie liegen in `detail`,
-    // nicht in `ink`: gruene Tinte bliebe sonst auch im Malbuch gruen.
+    // nicht in `ink`: grüne Tinte bliebe sonst auch im Malbuch grün.
     detail: function (g) {
       leafClumps(g, cx, canopyY + 10, 58 * sx, 50, seed + 500, o.leafDeep || ink.leafDeep);
     },
@@ -358,13 +358,13 @@ export function paintPine(opts) {
       wash(g, trunk, ink.trunk, { seed: seed + 3, dx: -1, dy: 2 });
       wash(g, offsetShape(trunk, 7, 2, 0.66), ink.trunkShade, { seed: seed + 4, alpha: 0.8 });
       // Dieselbe Sonne wie beim Laubbaum: hell nach oben links, dunkel nach
-      // unten rechts. Dazu liegt jede Etage im Schatten der darueber – das
+      // unten rechts. Dazu liegt jede Etage im Schatten der darüber – das
       // macht aus dem gestapelten Kegel einen Baum mit Tiefe.
       for (let i = 0; i < tiers.length; i++) {
         wash(g, tiers[i], ink.pine, { seed: seed + 12 + i, scale: 1.05 });
       }
-      // Schatten- und Lichtseite je als EINE Flaeche, sonst addieren sich die
-      // Etagenueberlappungen zu einem Verlauf.
+      // Schatten- und Lichtseite je als EINE Fläche, sonst addieren sich die
+      // Etagenüberlappungen zu einem Verlauf.
       const dunkel = [];
       const hell = [];
       for (let i = 0; i < tiers.length; i++) {
@@ -497,7 +497,7 @@ export function paintRock(opts) {
   const moss = smoothClosed(blob(cx - 11 * scale, baseY - 52 * scale, 21 * scale, 9 * scale, seed + 5, 0.28, 12), 4);
 
   /**
-   * Deckflaeche. Ein Stein aus einer einzigen Blase bleibt ein Kiesel; erst
+   * Deckfläche. Ein Stein aus einer einzigen Blase bleibt ein Kiesel; erst
    * eine eigene, zum Licht geneigte Oberseite mit sichtbarer Bruchkante macht
    * daraus einen Felsen.
    */
@@ -519,16 +519,16 @@ export function paintRock(opts) {
     shadow: function (g) { groundShadow(g, cx + 4, baseY - 3, 42 * scale, 11 * scale, seed + 1, 0.15); },
     wash: function (g) {
       wash(g, body, ink.rock, { seed: seed + 2, scale: 1.05 });
-      // Vorderseite liegt im Schatten, Deckflaeche faengt das Licht
+      // Vorderseite liegt im Schatten, Deckfläche fängt das Licht
       wash(g, offsetShape(body, -LIGHT.x * 16 * scale, -LIGHT.y * 13 * scale, 0.78),
         ink.rockShade, { seed: seed + 3, alpha: 0.8 });
       wash(g, offsetShape(body, -LIGHT.x * 24 * scale, -LIGHT.y * 17 * scale, 0.5),
         ink.rockDeep, { seed: seed + 4, alpha: 0.4 });
       wash(g, top, '#efece0', { seed: seed + 30, alpha: 0.72, scale: 1.02 });
       if (o.moss !== false) {
-        // Moos gehoert auf den Stein, nicht daneben: die Lasuren liegen
-        // absichtlich versetzt, und ohne Beschnitt schwebte das Gruen frei
-        // ueber der Kante.
+        // Moos gehört auf den Stein, nicht daneben: die Lasuren liegen
+        // absichtlich versetzt, und ohne Beschnitt schwebte das Grün frei
+        // über der Kante.
         clipTo(g, [body]);
         wash(g, moss, ink.moss, { seed: seed + 6, alpha: 0.7 });
         g.restore();
@@ -540,7 +540,7 @@ export function paintRock(opts) {
     },
     shape: function (g) { fill(g, body); },
     ink: function (g) {
-      // Bruchkante zwischen Deckflaeche und Vorderseite
+      // Bruchkante zwischen Deckfläche und Vorderseite
       inkStroke(g, top, { width: 1.7 * Math.min(1.2, scale), vary: 0.35,
         seed: seed + 31, color: ink.lineSoft, alpha: 0.5 });
       inkLine(g, cx - 7 * scale, baseY - 55 * scale, cx + 2, baseY - 26 * scale,
@@ -635,8 +635,8 @@ export function paintBush(opts) {
     shadow: function (g) { groundShadow(g, cx + 3, baseY - 3, 44, 11, seed + 4, 0.14); },
     wash: function (g) {
       for (let i = 0; i < lobes.length; i++) wash(g, lobes[i], ink.leaf, { seed: seed + 10 + i, scale: 1.05 });
-      // Wie bei den Kronen: jeder Lappen bekommt seine Schattenhaelfte, damit
-      // aus der flachen Amoebe ein Busch mit Volumen wird.
+      // Wie bei den Kronen: jeder Lappen bekommt seine Schattenhälfte, damit
+      // aus der flachen Amöbe ein Busch mit Volumen wird.
       const dunkel = [];
       for (let i = 0; i < lobes.length; i++) {
         dunkel.push(offsetShape(lobes[i], -LIGHT.x * 12, -LIGHT.y * 11, 0.82));
@@ -675,8 +675,8 @@ export function paintBush(opts) {
 }
 
 /**
- * Mondblume: nachts auf der Wiese. Ein heller Schimmer hinter der Bluete macht
- * sie im Dunkeln auffindbar, ohne dass sie eine Lichtquelle sein muesste.
+ * Mondblume: nachts auf der Wiese. Ein heller Schimmer hinter der Blüte macht
+ * sie im Dunkeln auffindbar, ohne dass sie eine Lichtquelle sein müsste.
  */
 export function paintMoonflower(opts) {
   const o = opts || {};
@@ -831,7 +831,7 @@ export function paintFogcrystal(opts) {
       for (let i = 0; i < shards.length; i++) {
         inkStroke(g, shards[i], { width: 1.8, vary: 0.3, seed: seed + 30 + i, color: ink.line, alpha: 0.6 });
       }
-      // Innenkante je Kristall – laesst sie geschliffen wirken
+      // Innenkante je Kristall – lässt sie geschliffen wirken
       inkLine(g, cx - 2, baseY - 58, cx - 1, baseY - 8, { width: 1.4, bend: 0.02, seed: seed + 50, alpha: 0.4 });
       inkLine(g, cx + 18, baseY - 40, cx + 16, baseY - 8, { width: 1.3, bend: 0.02, seed: seed + 51, alpha: 0.35 });
     },
@@ -1055,7 +1055,7 @@ export function paintDriftwood(opts) {
   const cx = w / 2;
   const baseY = h - 10;
 
-  // Ein Ast, kein Kiesel: zum Ende hin duenner, mit einer Gabel und einem
+  // Ein Ast, kein Kiesel: zum Ende hin dünner, mit einer Gabel und einem
   // abgebrochenen Stumpf. Die vorige Fassung war eine glatte Blase und im
   // Spiel nicht als Treibholz zu erkennen.
   const stem = smoothClosed([
@@ -1083,7 +1083,7 @@ export function paintDriftwood(opts) {
     },
     shape: function (g) { fill(g, stem); fill(g, fork); fill(g, knot); },
     ink: function (g) {
-      // Maserung laeuft mit dem Ast, nicht quer darueber
+      // Maserung läuft mit dem Ast, nicht quer darüber
       inkLine(g, 22, baseY - 11, 96, baseY - 15, { width: 1.5, bend: 0.04, seed: seed + 10, alpha: 0.5 });
       inkLine(g, 34, baseY - 8, 86, baseY - 12, { width: 1.2, bend: 0.03, seed: seed + 11, alpha: 0.35 });
       inkStroke(g, knot, { width: 1.3, vary: 0.25, seed: seed + 12, color: ink.line, alpha: 0.45 });

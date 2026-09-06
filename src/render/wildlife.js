@@ -1,11 +1,11 @@
 /**
  * Kleintiere am Rand des Geschehens.
  *
- *   Tag    Schmetterlinge ueber der Wiese, Voegel, die durchs Bild ziehen
- *   Nacht  Motten, die zum naechsten Licht streben
+ *   Tag    Schmetterlinge über der Wiese, Vögel, die durchs Bild ziehen
+ *   Nacht  Motten, die zum nächsten Licht streben
  *   immer  Fische, die im Wasser hochspringen
  *
- * Rein schmueckend – sie greifen nicht ins Spiel ein, machen die Insel aber
+ * Rein schmückend – sie greifen nicht ins Spiel ein, machen die Insel aber
  * deutlich lebendiger. Nachts war hier vorher gar nichts.
  */
 import { drawSprite } from '../art/sprites.js';
@@ -19,7 +19,7 @@ export class Wildlife {
     this.rng = rng || Math.random;
     this.list = [];
     this._spawnTimer = 0;
-    /** Wird beim Fischsprung gerufen – das Spiel haengt dort den Klang an. */
+    /** Wird beim Fischsprung gerufen – das Spiel hängt dort den Klang an. */
     this.onJump = null;
   }
 
@@ -43,7 +43,7 @@ export class Wildlife {
         c.dir += Math.sin(c.t * 0.9 + c.phase) * 1.4 * dt;
         if (!isWalkable(world.tileAt(c.x, c.y))) c.dir += Math.PI * 0.6;
       } else if (c.type === 'moth') {
-        // Motten taumeln, ziehen aber zum naechsten Licht
+        // Motten taumeln, ziehen aber zum nächsten Licht
         const target = nearestLight(lights, c.x, c.y);
         if (target) {
           const want = Math.atan2(target.y - c.y, target.x - c.x);
@@ -76,7 +76,7 @@ export class Wildlife {
     if (this._spawnTimer > 0 || this.list.length >= MAX) return;
     this._spawnTimer = randRange(rng, 1.4, 4.5);
 
-    // Ein Fischsprung ist zu jeder Tageszeit moeglich
+    // Ein Fischsprung ist zu jeder Tageszeit möglich
     if (rng() < 0.3 && this._spawnJump(camera, world, viewW, viewH)) return;
 
     if (!isDay) {
@@ -107,7 +107,7 @@ export class Wildlife {
     }
   }
 
-  /** Sucht offenes Wasser im Bild und laesst dort einen Fisch springen. */
+  /** Sucht offenes Wasser im Bild und lässt dort einen Fisch springen. */
   _spawnJump(camera, world, viewW, viewH) {
     const rng = this.rng;
     for (let tries = 0; tries < 14; tries++) {
@@ -193,8 +193,8 @@ export class Wildlife {
 
       if (c.type === 'moth') {
         // Dieselbe Grafik, nur die blasse Fassung: nachts liest sie sich als
-        // Motte, ohne dass eine zweite Grafik noetig waere. Additives Mischen
-        // liess sie zu weissen Klecksen ausbrennen.
+        // Motte, ohne dass eine zweite Grafik nötig wäre. Additives Mischen
+        // liess sie zu weißen Klecksen ausbrennen.
         ctx.save();
         ctx.globalAlpha = 0.8;
         drawSprite(ctx, name, x, y - c.z, true, { flip: flip });
@@ -205,7 +205,7 @@ export class Wildlife {
     }
   }
 
-  /** Fischsprung: ein Koerper mit Schwanzflosse und ein Ring auf dem Wasser. */
+  /** Fischsprung: ein Körper mit Schwanzflosse und ein Ring auf dem Wasser. */
   _drawJump(ctx, c, x, y) {
     const t = 1 - c.life / c.maxLife;
     const left = Math.cos(c.dir) < 0;
@@ -230,7 +230,7 @@ export class Wildlife {
       const fy = y - c.z;
       const tilt = left ? 0.55 : -0.55;
       const dir = left ? -1 : 1;
-      // Schwanzflosse zuerst, damit der Koerper davor liegt
+      // Schwanzflosse zuerst, damit der Körper davor liegt
       ctx.globalAlpha = 0.95;
       ctx.fillStyle = '#8fd0cd';
       ctx.beginPath();
@@ -260,7 +260,7 @@ export class Wildlife {
   }
 }
 
-/** Naechstgelegene Lichtquelle in Reichweite, sonst null. */
+/** Nächstgelegene Lichtquelle in Reichweite, sonst null. */
 function nearestLight(lights, x, y) {
   if (!lights || !lights.length) return null;
   let best = null;

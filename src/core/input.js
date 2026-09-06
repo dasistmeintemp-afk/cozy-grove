@@ -1,6 +1,6 @@
 /**
  * Eingabe: Tastatur, Maus/Zeiger und Touch-Joystick.
- * Liefert kantengetriggerte Aktionen ("gerade gedrueckt") und Dauerzustaende.
+ * Liefert kantengetriggerte Aktionen ("gerade gedrückt") und Dauerzustände.
  */
 import { clamp } from './util.js';
 
@@ -52,7 +52,7 @@ export class Input {
     this._on(window, 'keydown', function (e) {
       const action = KEYMAP[e.code];
       // Tab bleibt der Tastaturbedienung vorbehalten, sobald ein Bedienelement
-      // den Fokus hat – sonst kaeme man in den Fenstern nicht mehr weiter.
+      // den Fokus hat – sonst käme man in den Fenstern nicht mehr weiter.
       const ae = document.activeElement;
       const uiFocused = !!(ae && ae !== document.body && ae !== self.target);
       const tabForUi = e.code === 'Tab' && uiFocused;
@@ -70,7 +70,7 @@ export class Input {
       self.justReleased[action] = true;
     });
 
-    // Beim Fensterwechsel alle Tasten loesen, sonst "klemmt" die Figur.
+    // Beim Fensterwechsel alle Tasten lösen, sonst "klemmt" die Figur.
     this._on(window, 'blur', function () { self.releaseAll(); });
     this._on(document, 'visibilitychange', function () {
       if (document.hidden) self.releaseAll();
@@ -118,7 +118,7 @@ export class Input {
       }, { passive: true });
     }
 
-    // Kontextmenue im Spielfeld stoert nur.
+    // Kontextmenü im Spielfeld stört nur.
     this._on(el, 'contextmenu', function (e) { e.preventDefault(); });
   }
 
@@ -204,7 +204,7 @@ export class Input {
     }
   }
 
-  /** Verknuepft eine DOM-Taste mit einer virtuellen Aktion (Touch-Bedienung). */
+  /** Verknüpft eine DOM-Taste mit einer virtuellen Aktion (Touch-Bedienung). */
   attachButton(el, action) {
     const self = this;
     const press = function (e) {
@@ -230,7 +230,7 @@ export class Input {
     }
   }
 
-  /** Virtuelle Aktion aus Code ausloesen (z. B. Menuetaste). */
+  /** Virtuelle Aktion aus Code auslösen (z. B. Menütaste). */
   trigger(action) {
     this.justPressed[action] = true;
   }

@@ -1,5 +1,5 @@
 /**
- * Spielkern: haelt alles zusammen und verbindet Eingabe, Welt und Oberflaeche.
+ * Spielkern: hält alles zusammen und verbindet Eingabe, Welt und Oberfläche.
  */
 import { World, TILE_SIZE, REGION } from '../world/world.js';
 import { isWater } from '../art/tiles.js';
@@ -123,7 +123,7 @@ export class Game {
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
     this.world.newDay(this.day.day);
-    // Startausruestung, damit sofort etwas geht
+    // Startausrüstung, damit sofort etwas geht
     this.inventory.add('wood', 5);
     this.inventory.add('fiber', 4);
   }
@@ -187,7 +187,7 @@ export class Game {
 
   /**
    * Nur die Abweichungen zur frisch erzeugten Welt sichern:
-   * abgebaute Objekte, aufgestellte Deko, versteckte Aufgabenstuecke, Wege.
+   * abgebaute Objekte, aufgestellte Deko, versteckte Aufgabenstücke, Wege.
    */
   _worldDelta() {
     const removed = [];
@@ -478,7 +478,7 @@ export class Game {
       this.audio.play('pickup');
       this.particles.burst('sparkle', e.x, e.y - 40, 4);
     }
-    // Muenzbeutel oeffnet sich sofort
+    // Münzbeutel öffnet sich sofort
     for (let i = 0; i < got.length; i++) {
       if (got[i].id === 'coin_pouch') {
         const item = getItem('coin_pouch');
@@ -539,10 +539,10 @@ export class Game {
   }
 
   /**
-   * Ein Stueck einer Erinnerungskette aufheben.
+   * Ein Stück einer Erinnerungskette aufheben.
    *
    * Es geht bewusst NICHT in die Tasche: Erinnerungen soll man nicht mit sich
-   * herumtragen oder gar verbrennen koennen. Aufheben schaltet die Stufe
+   * herumtragen oder gar verbrennen können. Aufheben schaltet die Stufe
    * direkt weiter.
    */
   _pickStoryPiece(e) {
@@ -557,7 +557,7 @@ export class Game {
     const spirit = SPIRITS[spiritId];
     this.ui.toast(spirit.name + ' · Erinnerung ' + n + '/' + STAGES, 'icon_sparkle', 'good');
 
-    // Farbe blueht um den Geist auf, auch ohne Aufgabe
+    // Farbe blüht um den Geist auf, auch ohne Aufgabe
     const key = 'spirit_' + spiritId;
     const ent = this.world.spiritEntity(spiritId);
     if (ent) {
@@ -571,7 +571,7 @@ export class Game {
     this.save();
   }
 
-  /** Kette vollstaendig: das Andenken wird ueberreicht. */
+  /** Kette vollständig: das Andenken wird überreicht. */
   _finishStory(spiritId, ent) {
     const spirit = SPIRITS[spiritId];
     const keep = keepsakeOf(spiritId);
@@ -590,10 +590,10 @@ export class Game {
   }
 
   /**
-   * Meldet den Standort an offene „Hingehen"-Auftraege.
+   * Meldet den Standort an offene „Hingehen"-Aufträge.
    *
-   * Nur viermal je Sekunde: Die Pruefung laeuft ueber alle offenen Auftraege,
-   * und ein Ort aendert sich zwischen zwei Bildern nicht nennenswert.
+   * Nur viermal je Sekunde: Die Prüfung läuft über alle offenen Aufträge,
+   * und ein Ort ändert sich zwischen zwei Bildern nicht nennenswert.
    */
   _checkVisits(dt) {
     this._visitTimer = (this._visitTimer || 0) - dt;
@@ -619,9 +619,9 @@ export class Game {
   /**
    * Mondblumen, Regenpilze, Nebelkristalle setzen und wieder einsammeln.
    *
-   * Nur alle paar Sekunden pruefen: Der Zustand aendert sich hoechstens beim
+   * Nur alle paar Sekunden prüfen: Der Zustand ändert sich höchstens beim
    * Wetterwechsel oder bei Einbruch der Dunkelheit, und die Suche nach freien
-   * Plaetzen laeuft ueber die ganze Kachelkarte.
+   * Plätzen läuft über die ganze Kachelkarte.
    */
   _syncConditionalSpawns() {
     this._condTimer = (this._condTimer || 0) - 1;
@@ -642,10 +642,10 @@ export class Game {
   }
 
   /**
-   * Legt faellige Geschichtsstuecke in die Welt.
+   * Legt fällige Geschichtsstücke in die Welt.
    *
-   * Immer nur eines je Geist, und erst wenn genug Aufgaben fuer ihn erledigt
-   * sind. So zieht sich eine Kette ueber viele Tage, statt an einem Abend
+   * Immer nur eines je Geist, und erst wenn genug Aufgaben für ihn erledigt
+   * sind. So zieht sich eine Kette über viele Tage, statt an einem Abend
    * abgehakt zu sein.
    */
   _placeStoryPieces(day) {
@@ -670,7 +670,7 @@ export class Game {
       placed.push(spirit);
     }
     // Ein Hinweis, aber kein Wegweiser: die Insel hat 96 mal 96 Kacheln, ohne
-    // den Bereich waere das Suchen Zufall statt Erkundung.
+    // den Bereich wäre das Suchen Zufall statt Erkundung.
     if (placed.length && this.ui) {
       const self = this;
       const list = placed.slice();
@@ -760,7 +760,7 @@ export class Game {
     }
     if (q.hiddenIds) this.quests.dropHidden(q, this.world);
 
-    // Farbe waechst um den Geist
+    // Farbe wächst um den Geist
     const key = 'spirit_' + spirit.id;
     if (!this.colorField.find(key)) {
       this.colorField.addSource(e.x, e.y, spirit.colorStart, key);
@@ -798,8 +798,8 @@ export class Game {
    * Ist nichts mehr offen, sagen wir es – und dass man jederzeit schlafen darf.
    *
    * Das Spiel wartet an keiner Stelle auf die echte Uhr. Wer weiterspielen
-   * will, legt sich hin und hat einen neuen Tag. Ohne diesen Hinweis koennte
-   * es sich anfuehlen, als sei man ausgebremst.
+   * will, legt sich hin und hat einen neuen Tag. Ohne diesen Hinweis könnte
+   * es sich anfühlen, als sei man ausgebremst.
    */
   _hintIfIdle() {
     if (this.quests.active().length) return;
@@ -1037,7 +1037,7 @@ export class Game {
   }
 
   _rotatePlacing() {
-    // Platzhalter fuer spaetere Drehung – aktuell nur ein kleiner Versatz
+    // Platzhalter für spätere Drehung – aktuell nur ein kleiner Versatz
     if (!this.placing) return;
     this.placing.y += 16;
   }
@@ -1152,7 +1152,7 @@ export class Game {
     if (this.weather.strength > 0) {
       const self = this;
       setTimeout(function () {
-        self.ui.toast(self.weather.kind === 'rain' ? 'Es regnet' : 'Nebel liegt ueber der Insel',
+        self.ui.toast(self.weather.kind === 'rain' ? 'Es regnet' : 'Nebel liegt über der Insel',
           self.weather.kind === 'rain' ? 'icon_bottle' : 'icon_ghost');
       }, 1400);
     }
@@ -1224,12 +1224,12 @@ export class Game {
 
   /**
    * Was rundherum liegt, bestimmt das Klangbett: am Strand die Brandung,
-   * im Wald der Wind in den Blaettern, nachts die Grillen.
+   * im Wald der Wind in den Blättern, nachts die Grillen.
    */
   _ambienceMix(night) {
     const px = this.player.x;
     const py = this.player.y;
-    const R = 9; // Hoerweite in Kacheln
+    const R = 9; // Hörweite in Kacheln
     let water = 0;
     let land = 0;
     const tx0 = Math.floor(px / TILE_SIZE);
@@ -1242,7 +1242,7 @@ export class Game {
     }
     const waterShare = land ? water / land : 0;
 
-    // Blattwerk aus den Baeumen in der Naehe – der Wald rauscht, die Wiese nicht
+    // Blattwerk aus den Bäumen in der Nähe – der Wald rauscht, die Wiese nicht
     let trees = 0;
     const near = [];
     this.world.queryRect(px - 560, py - 400, 1120, 800, near);

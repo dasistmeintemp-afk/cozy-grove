@@ -10,7 +10,7 @@ export function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
-/** Rahmenratenunabhaengiges Nachziehen: t = 1 - exp(-rate * dt) */
+/** Rahmenratenunabhängiges Nachziehen: t = 1 - exp(-rate * dt) */
 export function damp(a, b, rate, dt) {
   return lerp(a, b, 1 - Math.exp(-rate * dt));
 }
@@ -29,7 +29,7 @@ export function rectsOverlap(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-/** Deutsche Zahl mit Tausenderpunkt, ohne Intl-Abhaengigkeit. */
+/** Deutsche Zahl mit Tausenderpunkt, ohne Intl-Abhängigkeit. */
 export function num(n) {
   const s = String(Math.round(n));
   return s.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -61,7 +61,7 @@ export function shuffled(list, rand) {
   return out;
 }
 
-/** Erzeugt eine Canvas-Zeichenflaeche im Speicher. */
+/** Erzeugt eine Canvas-Zeichenfläche im Speicher. */
 export function makeCanvas(w, h) {
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.round(w));
@@ -75,7 +75,7 @@ export function ctx2d(canvas, opts) {
   return c;
 }
 
-/** Abgerundetes Rechteck – ctx.roundRect gibt es in aelteren Safari-Versionen nicht. */
+/** Abgerundetes Rechteck – ctx.roundRect gibt es in älteren Safari-Versionen nicht. */
 export function roundRectPath(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();

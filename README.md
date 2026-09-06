@@ -112,7 +112,7 @@ noch blass ist.
 
 ```
 index.html            Gerüst und Startbildschirm
-styles/ui.css         Oberfläche
+styles/ui.css         Oberfläche – Papier und Tinte, dieselbe Palette wie die Welt
 src/core/             Zufall, Speichern, Eingabe, Klang, Hilfsfunktionen
 src/art/              Mal-Werkzeugkasten und alle Grafiken (im Code gemalt)
   brush.js              Formen, Tuschelinie, Silhouetten-Kontur, Weichzeichner
@@ -149,6 +149,23 @@ Um jede Zeichenfläche liegt ein Rand. Ohne ihn schneidet die Leinwand die
 Malerei ab – am einzelnen Baum kaum zu sehen, aber wo sich viele überlagern,
 addieren sich die geraden Schnittkanten zu Rechtecken im Boden.
 
+**Die Oberfläche ist aus demselben Material wie die Welt.** Statt dunklem Glas
+liegen Karten aus Büttenpapier auf der Insel, mit derselben Tuschekante, die
+auch jeder Baum bekommt – die Farbwerte in `styles/ui.css` sind wörtlich die
+aus `INK` in `src/art/painted.js`. Von Hand gezeichnet ist nichts exakt rund:
+jede Ecke hat vier verschiedene Radien. Unter jeder Karte liegt ein harter
+Versatz statt eines weichen Schlagschattens, wie bei einem Aufkleber.
+
+Die Schrift ist rund und freundlich statt Systemgrau: `ui-rounded` gibt in
+Safari SF Pro Rounded, danach folgt das Wärmste, was ein System von Haus aus
+mitbringt (Avenir Next auf macOS, Candara auf Windows, Roboto auf Android).
+Nachgeladen wird nichts – das Spiel läuft weiter ohne Netz.
+
+Der Schleier hinter einem Fenster ist eine schlichte warme Fläche, kein
+`backdrop-filter`. Der kostet jedes Bild einen bildschirmfüllenden Durchgang,
+und ohne Grafikkarte liefert er statt der Insel eine schwarze Fläche – im
+Testbrowser gemessen. Das Vorbild dimmt seine Szene ohnehin nur ab.
+
 **Die Küste** trägt den Saum des Vorbilds: Wasser dicht am Land wird fast weiß,
 eine Kachel weiter hell türkis, danach erst die Tiefe. Daneben läuft eine breite
 weiße Linie um die Insel – die Brandung.
@@ -184,6 +201,8 @@ node tools/look.mjs                    # die Welt an vier Orten, in voller Farbe
 node tools/look.mjs --pale --hour=22   # unkoloriert, nachts
 node tools/look.mjs --weather=rain     # bei Regen (oder fog)
 node tools/edges.mjs                   # findet abgeschnittene Grafiken
+node tools/panels.mjs                  # jedes Fenster der Oberfläche
+node tools/panels.mjs --pale --only=map
 ```
 
 `--line` beim Atlas zeigt die unkolorierte Fassung. `tools/edges.mjs` endet mit

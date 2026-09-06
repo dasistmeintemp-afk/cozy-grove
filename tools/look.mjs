@@ -60,7 +60,7 @@ async function run() {
   await page.evaluate(() => window.CozyGrove.start(null));
   await page.waitForTimeout(1200);
 
-  // Ganze Insel einfaerben, damit man die Farbfassung beurteilen kann
+  // Ganze Insel einfärben, damit man die Farbfassung beurteilen kann
   if (!PALE) {
     await page.evaluate(() => {
       const g = window.CozyGrove.game;

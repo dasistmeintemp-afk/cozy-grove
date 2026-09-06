@@ -44,7 +44,7 @@ async function run() {
 
   const bad = await page.evaluate(async (max) => {
     const m = await import('/src/art/sprites.js');
-    // Bodenstuecke fuellen ihre Kachel absichtlich randlos aus
+    // Bodenstücke füllen ihre Kachel absichtlich randlos aus
     const skip = { bridge: 1, path: 1 };
     const names = m.spriteNames().sort().filter((n) => !skip[n]);
     const probe = document.createElement('canvas');

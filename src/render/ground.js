@@ -22,11 +22,11 @@ const MIN_CACHE = 24;
 const MAX_CACHE = 84;
 
 /**
- * Wie viele Stuecke ein Bild hoechstens malen darf.
+ * Wie viele Stücke ein Bild höchstens malen darf.
  *
- * Ein Stueck kostet rund 14 ms. Bei zwei pro Bild ergab das Bildzeiten bis
+ * Ein Stück kostet rund 14 ms. Bei zwei pro Bild ergab das Bildzeiten bis
  * 44 ms – einen sichtbaren Ruckler, genau die Sorte, die Spieler an solchen
- * Spielen stoert. Mit einem pro Bild wird aus einem langen Bild eine Handvoll
+ * Spielen stört. Mit einem pro Bild wird aus einem langen Bild eine Handvoll
  * knapper, und `paintAhead()` erledigt den Rest schon vorher.
  */
 const BUDGET_PER_FRAME = 1;
@@ -78,10 +78,10 @@ export class GroundLayer {
   }
 
   /**
-   * Malt EIN Stueck, das bald gebraucht wird, aber noch nicht sichtbar ist.
+   * Malt EIN Stück, das bald gebraucht wird, aber noch nicht sichtbar ist.
    *
    * Wird nur auf Bildern aufgerufen, die ohnehin schnell waren. Dadurch sind
-   * die Stuecke fertig, bevor die Kamera sie erreicht, und im Bild, in dem sie
+   * die Stücke fertig, bevor die Kamera sie erreicht, und im Bild, in dem sie
    * auftauchen, ist nichts mehr zu tun.
    *
    * @returns {boolean} ob etwas gemalt wurde

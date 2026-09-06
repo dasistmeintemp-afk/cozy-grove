@@ -1,4 +1,4 @@
-/** Bauplaene der Werkbank, Werkzeugstufen und Lagerfeuer-Ausbau. */
+/** Baupläne der Werkbank, Werkzeugstufen und Lagerfeuer-Ausbau. */
 
 /** Lagerfeuer: Brennstoff (Holz o. Ae.) hebt die Stufe. */
 export const CAMPFIRE_LEVELS = [
@@ -39,7 +39,7 @@ function r(id, name, out, cost, opts) {
 }
 
 export const RECIPES = [
-  // Wege & Zaun – guenstig, viel Wirkung
+  // Wege & Zaun – günstig, viel Wirkung
   r('path_tile', 'Steinweg (4x)', { id: 'path_tile', n: 4 }, [{ id: 'stone', n: 2 }]),
   r('fence', 'Zaunstück', { id: 'fence', n: 1 }, [{ id: 'wood', n: 3 }, { id: 'fiber', n: 1 }]),
   r('signpost', 'Wegweiser', { id: 'signpost', n: 1 }, [{ id: 'wood', n: 4 }, { id: 'stone', n: 1 }]),

@@ -21,7 +21,7 @@ export function hashString(str) {
   return h >>> 0;
 }
 
-/** Zufallsgenerator fuer einen bestimmten Tag – Tagesinhalte sind reproduzierbar. */
+/** Zufallsgenerator für einen bestimmten Tag – Tagesinhalte sind reproduzierbar. */
 export function dailyRng(seed, day, salt) {
   return makeRng((hashString(String(seed) + ':' + day + ':' + (salt || '')) >>> 0));
 }
@@ -40,7 +40,7 @@ export function randPick(rng, arr) {
 
 /**
  * Wert-Rausch (value noise) mit bilinearer Interpolation.
- * Reicht voellig fuer Inselumrisse und Bodenvariation.
+ * Reicht völlig für Inselumrisse und Bodenvariation.
  */
 export function makeNoise2D(seed) {
   const perm = new Uint8Array(512);
@@ -77,7 +77,7 @@ export function makeNoise2D(seed) {
   };
 }
 
-/** Mehrere Oktaven uebereinander – natuerlichere Formen. */
+/** Mehrere Oktaven übereinander – natürlichere Formen. */
 export function fbm(noise, x, y, octaves, lacunarity, gain) {
   let amp = 1;
   let freq = 1;

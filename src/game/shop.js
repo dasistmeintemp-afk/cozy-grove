@@ -1,4 +1,4 @@
-/** Der Haendler: taeglich wechselndes Angebot und ein Gesuch des Tages. */
+/** Der Händler: täglich wechselndes Angebot und ein Gesuch des Tages. */
 import { ITEM_LIST, getItem, CAT } from './items.js';
 import { dailyRng, randInt, randPick } from '../core/rng.js';
 import { shuffled as shuffleList } from '../core/util.js';

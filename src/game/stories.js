@@ -2,24 +2,24 @@
  * Erinnerungsketten – die Langzeitgeschichte der Insel.
  *
  * Die Tagesaufgaben sind Tagesarbeit: erledigt, vergessen. Damit die Insel ein
- * Abenteuer wird, hat jeder Geist eine eigene Geschichte aus vier Fundstuecken,
- * die sich ueber viele Tage aufdeckt.
+ * Abenteuer wird, hat jeder Geist eine eigene Geschichte aus vier Fundstücken,
+ * die sich über viele Tage aufdeckt.
  *
  * **Ohne Text.** Jede Stufe ist ein Symbol. Vier Symbole nebeneinander ergeben
  * die Erinnerung – wer sie liest, liest sie selbst. Das passt zur Grundregel
- * des Spiels und braucht keine Dialogbaeume.
+ * des Spiels und braucht keine Dialogbäume.
  *
  * Eine Stufe wird erst freigeschaltet, wenn die Freundschaft weit genug ist.
- * Danach liegt das Stueck irgendwo im Bereich des Geistes und wartet. Es geht
- * nicht in die Tasche: Aufheben schaltet die Stufe direkt weiter, sonst muesste
- * man Erinnerungen mit sich herumtragen und koennte sie verbrennen.
+ * Danach liegt das Stück irgendwo im Bereich des Geistes und wartet. Es geht
+ * nicht in die Tasche: Aufheben schaltet die Stufe direkt weiter, sonst müsste
+ * man Erinnerungen mit sich herumtragen und könnte sie verbrennen.
  *
- * Ist eine Kette vollstaendig, schenkt der Geist sein Andenken – ein Stueck
+ * Ist eine Kette vollständig, schenkt der Geist sein Andenken – ein Stück
  * Deko, das man aufstellen kann, und der einzige Weg, es zu bekommen.
  */
 import { SPIRIT_IDS, SPIRITS } from './spirits.js';
 
-/** Wie viele Aufgaben je Stufe noetig sind, bevor das naechste Stueck auftaucht. */
+/** Wie viele Aufgaben je Stufe nötig sind, bevor das nächste Stück auftaucht. */
 export const QUESTS_PER_STAGE = 3;
 
 /** Vier Stufen je Geist. */
@@ -27,7 +27,7 @@ export const STAGES = 4;
 
 /**
  * Die Ketten. `icons` sind die vier Symbole der Erinnerung, `keepsake` das
- * Andenken am Ende. Beides greift auf vorhandene Grafiken zurueck.
+ * Andenken am Ende. Beides greift auf vorhandene Grafiken zurück.
  */
 export const STORIES = {
   flamey: {
@@ -56,7 +56,7 @@ export const STORIES = {
   },
 };
 
-/** Welche Weltgrafik ein Fundstueck traegt. */
+/** Welche Weltgrafik ein Fundstück trägt. */
 const PIECE_ART = {
   flamey: 'memory_locket',
   mira: 'memory_ribbon',
@@ -82,11 +82,11 @@ export function keepsakeOf(spiritId) {
 }
 
 /**
- * Buchfuehrung ueber alle Ketten.
+ * Buchführung über alle Ketten.
  *
- * `found[spiritId]` ist die Zahl gefundener Stuecke, `placed[spiritId]` die
- * Stufe, deren Stueck gerade in der Welt liegt (oder -1). Mehr braucht es
- * nicht: Wo genau es liegt, weiss die Welt selbst.
+ * `found[spiritId]` ist die Zahl gefundener Stücke, `placed[spiritId]` die
+ * Stufe, deren Stück gerade in der Welt liegt (oder -1). Mehr braucht es
+ * nicht: Wo genau es liegt, weiß die Welt selbst.
  */
 export class StoryBook {
   constructor() {
@@ -116,7 +116,7 @@ export class StoryBook {
   }
 
   /**
-   * Darf jetzt ein Stueck ausgelegt werden?
+   * Darf jetzt ein Stück ausgelegt werden?
    * Eines nach dem anderen, und nur wenn der Geist genug Aufgaben kennt.
    */
   wantsPiece(spiritId, questsDone) {
@@ -130,7 +130,7 @@ export class StoryBook {
     this.placed[spiritId] = stage;
   }
 
-  /** Ein Stueck wurde aufgehoben. Gibt die neue Zahl gefundener Stuecke. */
+  /** Ein Stück wurde aufgehoben. Gibt die neue Zahl gefundener Stücke. */
   collect(spiritId) {
     this.placed[spiritId] = -1;
     this.found[spiritId] = Math.min(STAGES, this.foundOf(spiritId) + 1);
@@ -155,7 +155,7 @@ export class StoryBook {
   }
 }
 
-/** Nur fuer die Anzeige: Name des Geistes zu einer Kette. */
+/** Nur für die Anzeige: Name des Geistes zu einer Kette. */
 export function spiritName(spiritId) {
   return SPIRITS[spiritId] ? SPIRITS[spiritId].name : spiritId;
 }

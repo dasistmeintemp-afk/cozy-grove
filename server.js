@@ -1,5 +1,5 @@
 /**
- * Winziger statischer Dateiserver ohne Abhaengigkeiten.
+ * Winziger statischer Dateiserver ohne Abhängigkeiten.
  *
  * ES-Module lassen sich nicht per file:// laden (CORS), darum braucht das Spiel
  * einen HTTP-Server. `npm start` reicht -> http://localhost:8080
@@ -59,5 +59,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Cozy Grove laeuft auf http://${HOST}:${PORT}`);
+  console.log(`Cozy Grove läuft auf http://${HOST}:${PORT}`);
 });

@@ -1,7 +1,7 @@
 /**
- * Farbfeld – das Herzstueck der Insel.
+ * Farbfeld – das Herzstück der Insel.
  *
- * Die Welt wird entsaettigt gezeichnet. Ueberall dort, wo eine „Farbquelle“
+ * Die Welt wird entsättigt gezeichnet. Überall dort, wo eine „Farbquelle“
  * sitzt (ein zufriedener Geist, das Lagerfeuer), wird die farbige Fassung
  * durch eine weiche Maske eingeblendet.
  */
@@ -45,7 +45,7 @@ export class ColorField {
     return s;
   }
 
-  /** Weiches Nachwachsen, damit Farbe sichtbar „ausblueht“. */
+  /** Weiches Nachwachsen, damit Farbe sichtbar „ausblüht“. */
   update(dt) {
     for (let i = 0; i < this.sources.length; i++) {
       const s = this.sources[i];
@@ -72,12 +72,12 @@ export class ColorField {
     return best;
   }
 
-  /** Anteil der eingefaerbten Landflaeche (0..1). Wird gepuffert. */
+  /** Anteil der eingefärbten Landfläche (0..1). Wird gepuffert. */
   coverage(world) {
     if (!this._dirty) return this._coverage;
     let land = 0;
     let colored = 0;
-    const step = 2; // jede zweite Kachel abtasten – reicht fuer die Anzeige
+    const step = 2; // jede zweite Kachel abtasten – reicht für die Anzeige
     for (let ty = 0; ty < MAP_H; ty += step) {
       for (let tx = 0; tx < MAP_W; tx += step) {
         if (!isWalkable(world.tileAtTile(tx, ty))) continue;
@@ -94,7 +94,7 @@ export class ColorField {
     this._dirty = true;
   }
 
-  /** Sind im Sichtfeld ueberhaupt Farbquellen? */
+  /** Sind im Sichtfeld überhaupt Farbquellen? */
   visibleSources(camX, camY, w, h) {
     const out = [];
     for (let i = 0; i < this.sources.length; i++) {
@@ -107,7 +107,7 @@ export class ColorField {
     return out;
   }
 
-  /** Zeichnet die Maske (weiss = Farbe) in Weltkoordinaten. */
+  /** Zeichnet die Maske (weiß = Farbe) in Weltkoordinaten. */
   drawMask(ctx, sources) {
     for (let i = 0; i < sources.length; i++) {
       const s = sources[i];

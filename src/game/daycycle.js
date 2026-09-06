@@ -1,11 +1,11 @@
-/** Tageslauf: Uhrzeit, Faerbung, Schlafen. */
+/** Tageslauf: Uhrzeit, Färbung, Schlafen. */
 import { clamp, lerp, pad2, hexToRgb } from '../core/util.js';
 
 export const DAY_START = 6;      // Stunde beim Aufwachen
 export const DAY_END = 26;       // 2 Uhr nachts – dann wird zwangsweise geschlafen
 export const DEFAULT_DAY_MINUTES = 14;
 
-/** Stuetzpunkte der Tagesfaerbung. */
+/** Stützpunkte der Tagesfärbung. */
 const KEYS = [
   { h: 6, color: '#4c4a7a', a: 0.34 },
   { h: 8, color: '#ffd9a8', a: 0.10 },
@@ -61,7 +61,7 @@ export class DayCycle {
     return clamp((this.hour - DAY_START) / (DAY_END - DAY_START), 0, 1);
   }
 
-  /** Tagesfaerbung als {r,g,b,a}. */
+  /** Tagesfärbung als {r,g,b,a}. */
   tint() {
     const h = clamp(this.hour, KEYS[0].h, KEYS[KEYS.length - 1].h);
     let a = KEYS[0];
