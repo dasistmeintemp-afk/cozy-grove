@@ -4,10 +4,15 @@
 <meta charset="utf-8">
 <title>Cozy Grove – Web Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="description" content="Ein gemuetliches Insel-Sammelspiel im Browser: Farbe zurueckbringen, sammeln, angeln, bauen – ganz ohne lange Dialoge.">
-<meta name="theme-color" content="#1b2430">
-<meta name="color-scheme" content="dark light">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231b2430'/%3E%3Cpath d='M8 2 L11 8 H5 Z M8 6 L12 12 H4 Z' fill='%236fbf73'/%3E%3Crect x='7' y='11' width='2' height='4' fill='%236b4a2f'/%3E%3C/svg%3E">
+<meta name="description" content="Ein gemütliches Insel-Sammelspiel im Browser: Farbe zurückbringen, sammeln, angeln, bauen – ganz ohne lange Dialoge.">
+<meta name="theme-color" content="#2b3a31">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23f8f3e7'/%3E%3Cpath d='M8 2 L11.5 8 H4.5 Z M8 5.5 L12.5 12 H3.5 Z' fill='%239ec455' stroke='%234a4038' stroke-width='0.9' stroke-linejoin='round'/%3E%3Crect x='7.1' y='11' width='1.8' height='3.6' rx='0.6' fill='%23c19566' stroke='%234a4038' stroke-width='0.7'/%3E%3C/svg%3E">
+<!-- Die Schrift vorziehen: der Startbildschirm steht sofort da, und ohne das
+     hier läse man seinen ersten Moment in der Systemschrift.
+     `crossorigin` ist auch bei eigenen Dateien Pflicht – Schriften werden
+     immer anonym geholt, sonst lädt der Browser sie ein zweites Mal. -->
+<link rel="preload" href="./styles/fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="./styles/ui.css">
 </head>
 <body>
@@ -27,20 +32,22 @@
         <span class="hud-chip" id="chip-clock" title="Uhrzeit"><span class="ico" data-ico="clock"></span><b id="val-clock">06:00</b></span>
       </div>
       <div class="hud-group" id="hud-res">
-        <span class="hud-chip" id="chip-coins" title="Muenzen"><span class="ico" data-ico="coin"></span><b id="val-coins">0</b></span>
+        <span class="hud-chip" id="chip-coins" title="Münzen"><span class="ico" data-ico="coin"></span><b id="val-coins">0</b></span>
         <span class="hud-chip" id="chip-ember" title="Glut"><span class="ico" data-ico="ember"></span><b id="val-ember">0</b></span>
-        <span class="hud-chip" id="chip-color" title="Zurueckgebrachte Farbe"><span class="ico" data-ico="color"></span><b id="val-color">0%</b></span>
+        <span class="hud-chip" id="chip-color" title="Zurückgebrachte Farbe"><span class="ico" data-ico="color"></span><b id="val-color">0%</b></span>
       </div>
       <div class="hud-group" id="hud-buttons">
         <button class="icon-btn" data-panel="quests" title="Aufgaben (Q)" aria-label="Aufgaben"><span class="ico" data-ico="quest"></span></button>
         <button class="icon-btn" data-panel="inventory" title="Tasche (I)" aria-label="Tasche"><span class="ico" data-ico="bag"></span></button>
         <button class="icon-btn" data-panel="craft" title="Werkbank (C)" aria-label="Werkbank"><span class="ico" data-ico="craft"></span></button>
+        <button class="icon-btn" data-panel="found" title="Fundbuch (B)" aria-label="Fundbuch"><span class="ico" data-ico="star"></span></button>
+        <button class="icon-btn" data-panel="stories" title="Erinnerungen (G)" aria-label="Erinnerungen"><span class="ico" data-ico="ghost"></span></button>
         <button class="icon-btn" data-panel="map" title="Karte (M)" aria-label="Karte"><span class="ico" data-ico="map"></span></button>
         <button class="icon-btn" data-panel="settings" title="Einstellungen (Esc)" aria-label="Einstellungen"><span class="ico" data-ico="gear"></span></button>
       </div>
     </div>
 
-    <!-- Aufgaben-Leiste: rein ikonisch, kein Fliesstext -->
+    <!-- Aufgaben-Leiste: rein ikonisch, kein Fließtext -->
     <div id="quest-rail" class="layer ui" aria-label="Aktive Aufgaben"></div>
 
     <!-- Kontext-Aktion -->
@@ -75,18 +82,18 @@
     <section id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title">
       <header>
         <h2 id="panel-title"></h2>
-        <button id="panel-close" class="icon-btn" aria-label="Schliessen">✕</button>
+        <button id="panel-close" class="icon-btn" aria-label="Schließen">✕</button>
       </header>
       <div id="panel-body"></div>
     </section>
   </div>
 
-  <!-- Startbildschirm (noetig fuer Audio-Freigabe in Safari) -->
+  <!-- Startbildschirm (nötig für Audio-Freigabe in Safari) -->
   <div id="boot">
     <div id="boot-card">
       <h1>Cozy&nbsp;Grove</h1>
       <p class="sub">Web&nbsp;Edition</p>
-      <p class="blurb">Eine verzauberte Insel hat ihre Farben verloren.<br>Sammle, angle, baue – und bring sie Stueck fuer Stueck zurueck.</p>
+      <p class="blurb">Eine verzauberte Insel hat ihre Farben verloren.<br>Du bist <b>Seli</b>. Sammle, angle, baue – und bring sie Stück für Stück zurück.</p>
       <div id="boot-actions">
         <button id="btn-continue" class="big-btn" hidden>Weiterspielen</button>
         <button id="btn-new" class="big-btn primary">Neues Spiel</button>
@@ -96,13 +103,15 @@
         <ul>
           <li><b>WASD</b> / <b>Pfeiltasten</b> – laufen</li>
           <li><b>E</b> / <b>Leertaste</b> – Werkzeug benutzen &amp; reden</li>
-          <li><b>1–5</b> – Werkzeug waehlen, <b>Tab</b> – naechstes</li>
-          <li><b>I</b> Tasche · <b>Q</b> Aufgaben · <b>C</b> Werkbank · <b>M</b> Karte</li>
-          <li><b>Esc</b> – Menue / schliessen</li>
+          <li><b>1–5</b> – Werkzeug wählen, <b>Tab</b> – nächstes</li>
+          <li><b>I</b> Tasche · <b>Q</b> Aufgaben · <b>C</b> Werkbank</li>
+          <li><b>B</b> Fundbuch · <b>G</b> Erinnerungen · <b>M</b> Karte</li>
+          <li><b>F</b> schlafen · <b>R</b>/<b>X</b> Deko versetzen</li>
+          <li><b>Esc</b> – Menü / schließen</li>
           <li>Am Touchscreen: Joystick links, Tasten rechts</li>
         </ul>
       </details>
-      <p class="legal">Unabhaengige Fan-Hommage. Alle Grafiken und Klaenge werden im Browser erzeugt.</p>
+      <p class="legal">Unabhängige Fan-Hommage. Alle Grafiken und Klänge werden im Browser erzeugt.</p>
     </div>
   </div>
 

@@ -1,8 +1,8 @@
 /**
  * Browser-Rauchtest.
  *
- * Startet den Server, laedt das Spiel in einem echten Chromium, spielt ein
- * paar Aktionen durch und prueft, dass nichts in der Konsole kracht.
+ * Startet den Server, lädt das Spiel in einem echten Chromium, spielt ein
+ * paar Aktionen durch und prüft, dass nichts in der Konsole kracht.
  *
  *   node tests/browser/smoke.mjs [--headed] [--shots <verzeichnis>]
  */
@@ -43,7 +43,7 @@ async function waitFor(page, fn, timeout, label) {
   for (;;) {
     const v = await page.evaluate(fn);
     if (v) return v;
-    if (Date.now() - started > (timeout || 8000)) throw new Error('Zeitueberschreitung: ' + (label || 'Bedingung'));
+    if (Date.now() - started > (timeout || 8000)) throw new Error('Zeitüberschreitung: ' + (label || 'Bedingung'));
     await page.waitForTimeout(60);
   }
 }
@@ -76,7 +76,7 @@ async function run() {
   let exitCode = 0;
   try {
     const resp = await page.goto(BASE, { waitUntil: 'load' });
-    check('Startseite laedt (HTTP ' + (resp && resp.status()) + ')', resp && resp.ok());
+    check('Startseite lädt (HTTP ' + (resp && resp.status()) + ')', resp && resp.ok());
 
     await page.waitForSelector('#boot', { state: 'visible' });
     check('Startbildschirm sichtbar', true);
@@ -87,7 +87,7 @@ async function run() {
     check('Grafik erzeugt', true);
 
     const artNames = await page.evaluate(() => window.CozyGrove.art.names().length);
-    check('Sprite-Register gefuellt (' + artNames + ')', artNames > 100, String(artNames));
+    check('Sprite-Register gefüllt (' + artNames + ')', artNames > 100, String(artNames));
 
     await page.click('#btn-new');
     await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.game), 20000, 'Spielstart');
@@ -111,11 +111,11 @@ async function run() {
         py: g.player.y,
       };
     });
-    check('Welt bevoelkert (' + info.entities + ' Objekte)', info.entities > 300);
+    check('Welt bevölkert (' + info.entities + ' Objekte)', info.entities > 300);
     check('Sechs Geister platziert', info.kinds.spirit === 6, JSON.stringify(info.kinds.spirit));
     check('Tagesaufgaben vergeben (' + info.quests + ')', info.quests > 0);
     check('Bodenschicht angelegt (' + info.groundW + 'px)', info.groundW > 4000);
-    check('Lagerfeuer faerbt den Startbereich', info.colorSources >= 1 && info.coverage > 0);
+    check('Lagerfeuer färbt den Startbereich', info.colorSources >= 1 && info.coverage > 0);
 
     const artMissing = await page.evaluate(() => {
       const g = window.CozyGrove.game;
@@ -144,7 +144,7 @@ async function run() {
     await page.waitForTimeout(400);
     await page.keyboard.up('KeyS');
     const after = await page.evaluate(() => ({ x: window.CozyGrove.game.player.x, y: window.CozyGrove.game.player.y }));
-    check('Figur laeuft', Math.abs(after.x - before.x) + Math.abs(after.y - before.y) > 8,
+    check('Figur läuft', Math.abs(after.x - before.x) + Math.abs(after.y - before.y) > 8,
       JSON.stringify({ before, after }));
 
     // Werkzeug wechseln
@@ -153,7 +153,7 @@ async function run() {
     const tool = await page.evaluate(() => window.CozyGrove.game.player.tool.id);
     check('Werkzeugwechsel per Zifferntaste', tool === 'axe', tool);
 
-    // Baum faellen: Figur direkt an einen Baum setzen und mehrfach schlagen
+    // Baum fällen: Figur direkt an einen Baum setzen und mehrfach schlagen
     const chopped = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
       const tree = g.world.entities.find((e) => e.kind === 'tree_oak' && !e.gone);
@@ -175,8 +175,8 @@ async function run() {
         respawn: tree.respawnDay,
       };
     });
-    check('Baum faellen gibt Holz', chopped.ok && chopped.woodAfter > chopped.woodBefore, JSON.stringify(chopped));
-    check('Gefaellter Baum wird zum Stumpf', chopped.kind === 'tree_stump', chopped.kind);
+    check('Baum fällen gibt Holz', chopped.ok && chopped.woodAfter > chopped.woodBefore, JSON.stringify(chopped));
+    check('Gefällter Baum wird zum Stumpf', chopped.kind === 'tree_stump', chopped.kind);
 
     // Sammeln
     const foraged = await page.evaluate(() => {
@@ -193,7 +193,7 @@ async function run() {
     });
     check('Beeren sammeln', foraged.ok && foraged.berries > 0, JSON.stringify(foraged));
 
-    // Fenster oeffnen
+    // Fenster öffnen
     for (const [key, title] of [['KeyI', 'Tasche'], ['KeyQ', 'Aufgaben'], ['KeyC', 'Werkbank'], ['KeyM', 'Karte']]) {
       await page.keyboard.press(key);
       await page.waitForTimeout(200);
@@ -202,7 +202,7 @@ async function run() {
         title: document.getElementById('panel-title').textContent,
         body: document.getElementById('panel-body').innerHTML.length,
       }));
-      check('Fenster „' + title + '“ oeffnet', shown.open && shown.title === title && shown.body > 40,
+      check('Fenster „' + title + '“ öffnet', shown.open && shown.title === title && shown.body > 40,
         JSON.stringify(shown));
       if (title === 'Karte') await page.screenshot({ path: join(SHOT_DIR, '03-karte.png') });
       await page.keyboard.press('Escape');
@@ -218,7 +218,7 @@ async function run() {
       g.burnItem('wood', 20);
       return { emberBefore, emberAfter: g.state.ember, fuelBefore: lvlBefore, fuelAfter: g.state.campfireFuel };
     });
-    check('Verbrennen gibt Glut und naehrt das Feuer',
+    check('Verbrennen gibt Glut und nährt das Feuer',
       burned.emberAfter > burned.emberBefore && burned.fuelAfter > burned.fuelBefore, JSON.stringify(burned));
 
     // Bauen
@@ -313,14 +313,14 @@ async function run() {
         done: g.quests.totalCompleted,
       };
     });
-    check('Aufgabe abgeben zahlt Muenzen', quest.ok && quest.coinsAfter > quest.coinsBefore, JSON.stringify(quest));
-    check('Abgabe bringt Farbe zurueck', quest.ok && quest.covAfter > quest.covBefore,
+    check('Aufgabe abgeben zahlt Münzen', quest.ok && quest.coinsAfter > quest.coinsBefore, JSON.stringify(quest));
+    check('Abgabe bringt Farbe zurück', quest.ok && quest.covAfter > quest.covBefore,
       JSON.stringify({ vorher: quest.covBefore, nachher: quest.covAfter }));
 
     await page.waitForTimeout(400);
     await page.screenshot({ path: join(SHOT_DIR, '04-farbe.png') });
 
-    // Sperre entfernen -> Wald oeffnen
+    // Sperre entfernen -> Wald öffnen
     const unlocked = await page.evaluate(() => {
       const g = window.CozyGrove.game;
       g.player.levels.axe = 2;
@@ -337,16 +337,16 @@ async function run() {
       }
       return { unlocked: g.world.unlocked.slice(), gone: !!bar.gone, hits };
     });
-    check('Baumstamm freigeschlagen oeffnet den Wald', unlocked.unlocked[1] === true, JSON.stringify(unlocked));
+    check('Baumstamm freigeschlagen öffnet den Wald', unlocked.unlocked[1] === true, JSON.stringify(unlocked));
 
-    // Bruecke bauen -> Klippen
+    // Brücke bauen -> Klippen
     const bridge = await page.evaluate(() => {
       const g = window.CozyGrove.game;
       g.inventory.add('bridge_kit', 1);
       g.useStation('bridge', g.world.bridgeSpot || { x: g.player.x, y: g.player.y });
       return { built: g.world.bridgeBuilt, unlocked: g.world.unlocked.slice() };
     });
-    check('Bruecke oeffnet die Klippen', bridge.built && bridge.unlocked[2] === true, JSON.stringify(bridge));
+    check('Brücke öffnet die Klippen', bridge.built && bridge.unlocked[2] === true, JSON.stringify(bridge));
 
     // Nachtstimmung
     await page.evaluate(() => { window.CozyGrove.game.day.hour = 22.5; });
@@ -366,7 +366,7 @@ async function run() {
       await new Promise((r) => setTimeout(r, 2800));
       return { dayBefore, dayAfter: g.day.day, sleeping: g.sleeping, quests: g.quests.active().length };
     });
-    check('Schlafen startet den naechsten Tag', slept.dayAfter === slept.dayBefore + 1 && !slept.sleeping,
+    check('Schlafen startet den nächsten Tag', slept.dayAfter === slept.dayBefore + 1 && !slept.sleeping,
       JSON.stringify(slept));
 
     // Speichern und neu laden
@@ -392,17 +392,17 @@ async function run() {
         unlocked: g.world.unlocked.slice(),
       };
     });
-    check('Spielstand wird geladen (Muenzen)', restored.coins === saved.coins,
+    check('Spielstand wird geladen (Münzen)', restored.coins === saved.coins,
       saved.coins + ' -> ' + restored.coins);
-    check('Spielstand behaelt Tag', restored.day === saved.day, saved.day + ' -> ' + restored.day);
-    check('Spielstand behaelt aufgestellte Deko', restored.decor === saved.decor,
+    check('Spielstand behält Tag', restored.day === saved.day, saved.day + ' -> ' + restored.day);
+    check('Spielstand behält aufgestellte Deko', restored.decor === saved.decor,
       saved.decor + ' -> ' + restored.decor);
-    check('Spielstand behaelt Fortschritt', restored.bridge === true && restored.unlocked[1] && restored.unlocked[2],
+    check('Spielstand behält Fortschritt', restored.bridge === true && restored.unlocked[1] && restored.unlocked[2],
       JSON.stringify(restored));
 
     await page.screenshot({ path: join(SHOT_DIR, '06-nach-neuladen.png') });
 
-    // Bildrate grob pruefen
+    // Bildrate grob prüfen
     const fps = await page.evaluate(async () => {
       let frames = 0;
       const start = performance.now();
@@ -416,9 +416,9 @@ async function run() {
       });
       return Math.round((frames / (performance.now() - start)) * 1000);
     });
-    check('Fluessige Darstellung (' + fps + ' fps)', fps >= 30, String(fps));
+    check('Flüssige Darstellung (' + fps + ' fps)', fps >= 30, String(fps));
 
-    // Kleines Fenster / Hochformat: nichts darf ueberlaufen
+    // Kleines Fenster / Hochformat: nichts darf überlaufen
     await page.setViewportSize({ width: 390, height: 780 });
     await page.waitForTimeout(600);
     const mobile = await page.evaluate(() => {
@@ -445,7 +445,7 @@ async function run() {
   server.kill();
 
   const failed = checks.filter((c) => !c.ok);
-  console.log('\n' + (checks.length - failed.length) + '/' + checks.length + ' Pruefungen bestanden');
+  console.log('\n' + (checks.length - failed.length) + '/' + checks.length + ' Prüfungen bestanden');
   console.log('Bildschirmfotos: ' + SHOT_DIR);
   if (failed.length) exitCode = 1;
   process.exit(exitCode);

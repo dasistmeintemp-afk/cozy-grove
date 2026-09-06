@@ -11,13 +11,14 @@ import {
   paintTree, paintPine, paintStump, paintLogBarrier,
   paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft,
   paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot,
+  paintMoonflower, paintRainmushroom, paintFogcrystal,
 } from './painted.js';
 import {
   paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench,
   paintLantern, paintBench, paintFence, paintFlowerbed, paintBirdhouse,
   paintWindchime, paintRug, paintSignpost, paintCrate, paintChest,
   paintMemory, paintTool, paintButterfly, paintBird,
-  paintScout, paintSpirit, paintFlameSpirit, paintFox,
+  paintSeli, paintSpirit, paintFlameSpirit, paintFox,
 } from './painted-camp.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
@@ -72,7 +73,10 @@ export function addArt(name, art, scale) {
 }
 
 export function spr(name) {
-  const s = registry[name];
+  let s = registry[name];
+  // Ein Name ohne Fassungsnummer trifft die erste Fassung. Damit laufen
+  // ältere Spielstände weiter, in denen Bäume noch nur einen Namen hatten.
+  if (!s && name) s = registry[name + '_0'];
   if (!s) {
     if (!spr._warned) spr._warned = Object.create(null);
     if (!spr._warned[name]) {
@@ -170,15 +174,30 @@ export function initArt() {
   if (ready) return;
 
   /* --- Bäume und Gehölz --- */
-  addArt('tree_oak', paintTree({ seed: 21 }));
-  addArt('tree_birch', paintTree({
-    seed: 34, leaf: INK.birchLeaf, leafLight: INK.birchLight, leafDark: INK.birchDark,
-    trunk: INK.birchBark, trunkShade: INK.birchShade, birchMarks: true,
-  }));
-  addArt('tree_maple', paintTree({
-    seed: 47, leaf: INK.autumn, leafLight: INK.autumnLight, leafDark: INK.autumnDark, fruit: INK.berry,
-  }));
-  addArt('tree_pine', paintPine({ seed: 55 }));
+  // Von jedem Baum drei Fassungen. Im dichten Wald fiel sonst sofort auf, dass
+  // alle Kronen dieselbe Form haben – anderer Startwert, andere Ausbuchtungen,
+  // dazu eine breitere und eine schlankere Silhouette.
+  const treeShapes = [
+    { spread: 1, lift: 1 },
+    { spread: 1.16, lift: 0.94 },
+    { spread: 0.88, lift: 1.12 },
+  ];
+  for (let v = 0; v < treeShapes.length; v++) {
+    const s = treeShapes[v];
+    addArt('tree_oak_' + v, paintTree({ seed: 21 + v * 17, spread: s.spread, lift: s.lift }));
+    addArt('tree_birch_' + v, paintTree({
+      seed: 34 + v * 17, spread: s.spread, lift: s.lift,
+      leaf: INK.birchLeaf, leafLight: INK.birchLight, leafDark: INK.birchDark,
+      leafDeep: INK.birchDeep,
+      trunk: INK.birchBark, trunkShade: INK.birchShade, birchMarks: true,
+    }));
+    addArt('tree_maple_' + v, paintTree({
+      seed: 47 + v * 17, spread: s.spread, lift: s.lift,
+      leaf: INK.autumn, leafLight: INK.autumnLight, leafDark: INK.autumnDark,
+      leafDeep: INK.autumnDeep, fruit: INK.berry,
+    }));
+    addArt('tree_pine_' + v, paintPine({ seed: 55 + v * 17 }));
+  }
   addArt('tree_stump', paintStump({ seed: 137 }));
   addArt('log_barrier', paintLogBarrier({ seed: 151 }));
 
@@ -198,6 +217,11 @@ export function initArt() {
   addArt('shell', paintShell({ seed: 261 }));
   addArt('driftwood', paintDriftwood({ seed: 281 }));
   addArt('digspot', paintDigspot({ seed: 301 }));
+
+  /* --- Nur bei Nacht, Regen oder Nebel --- */
+  addArt('moonflower', paintMoonflower({ seed: 811 }));
+  addArt('rainmushroom', paintRainmushroom({ seed: 821 }));
+  addArt('fogcrystal', paintFogcrystal({ seed: 831 }));
   addArt('flower_pink', paintFlower({ seed: 131, petal: INK.petalPink }));
   addArt('flower_yellow', paintFlower({ seed: 137, petal: INK.petalYellow }));
   addArt('flower_violet', paintFlower({ seed: 141, petal: INK.petalViolet }));
@@ -244,7 +268,7 @@ export function initArt() {
   /* --- Figuren --- */
   const dirs = ['down', 'up', 'side'];
   for (let d = 0; d < dirs.length; d++) {
-    for (let f = 0; f < 3; f++) addArt('player_' + dirs[d] + '_' + f, paintScout(dirs[d], f));
+    for (let f = 0; f < 3; f++) addArt('player_' + dirs[d] + '_' + f, paintSeli(dirs[d], f));
   }
   for (const id in SPIRIT_LOOKS) {
     for (let f = 0; f < 2; f++) {
@@ -276,6 +300,8 @@ function buildIcons() {
     ['flowerbed', 'flowerbed'], ['birdhouse', 'birdhouse'], ['windchime', 'windchime'],
     ['rug', 'rug'], ['signpost', 'signpost'], ['path_tile', 'path_tile'],
     ['bridge_kit', 'bridge'],
+    ['moonflower', 'moonflower'], ['rainmushroom', 'rainmushroom'],
+    ['fogcrystal', 'fogcrystal'], ['moonlamp', 'lantern'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = registry[reuse[i][1]];
@@ -287,9 +313,12 @@ function buildIcons() {
   }
   for (let i = 0; i < MEMORY_KINDS.length; i++) {
     const target = registry['memory_' + MEMORY_KINDS[i]];
-    addArt('icon_memory_' + MEMORY_KINDS[i], iconFromArt({
+    const art = iconFromArt({
       color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
-    }), 1);
+    });
+    addArt('icon_memory_' + MEMORY_KINDS[i], art, 1);
+    // Das Andenken am Ende einer Erinnerungskette trägt dasselbe Bild
+    addArt('icon_keepsake_' + MEMORY_KINDS[i], art, 1);
   }
   const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'hand'];
   for (let i = 0; i < tools.length; i++) {

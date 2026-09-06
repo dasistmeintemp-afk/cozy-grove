@@ -1,11 +1,13 @@
 /** Modale Fenster: Tasche, Aufgaben, Werkbank, Laden, Feuer, Karte, Einstellungen. */
 import { iconUrl } from '../art/sprites.js';
-import { getItem, CAT_NAMES, CAT } from '../game/items.js';
+import { getItem, CAT_NAMES, CAT, ITEM_LIST } from '../game/items.js';
 import { RECIPES, missingFor, campfireLevelFor, nextCampfireLevel } from '../game/recipes.js';
 import { SPIRITS, friendshipLevel, friendshipProgress } from '../game/spirits.js';
+import { STAGES, storyIcon, keepsakeOf } from '../game/stories.js';
 import { questTitle, questIcon, QTYPE } from '../game/quests.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
 import { TILE_DEF, TILE_SIZE } from '../art/tiles.js';
+import { REGION_NAMES } from '../world/worldgen.js';
 import { escapeHtml } from './ui.js';
 
 const TITLES = {
@@ -14,6 +16,8 @@ const TITLES = {
   craft: 'Werkbank',
   shop: 'Laden',
   campfire: 'Lagerfeuer',
+  found: 'Fundbuch',
+  stories: 'Erinnerungen',
   map: 'Karte',
   settings: 'Einstellungen',
 };
@@ -195,6 +199,121 @@ export class Panels {
     return html;
   }
 
+  /* ---------------- Erinnerungen ---------------- */
+
+  /**
+   * Die Langzeitgeschichte: je Geist vier Symbole.
+   * Gefundene Stufen stehen farbig da, offene als Schattenriss – die Reihe
+   * liest sich als Erinnerung, ganz ohne Text.
+   */
+  _stories() {
+    const g = this.game;
+    const book = g.stories;
+    // Kurz halten: das Spiel erklärt sich sonst zu Tode
+    let html = '<p class="empty-note" style="padding-bottom:10px">' +
+      'Vier Fundstücke je Geist. Hilf ihm, dann taucht das nächste auf.</p>';
+
+    html += '<div class="rows">';
+    for (const id in SPIRITS) {
+      const s = SPIRITS[id];
+      const known = g.world.isUnlocked(s.region);
+      const n = book.foundOf(id);
+      const done = book.isComplete(id);
+      html += '<div class="row story-row">' + ico('icon_ghost', 'lg') +
+        '<div class="grow"><div class="title">' +
+        escapeHtml(known ? s.name : 'Noch unbekannt') + '</div>' +
+        '<div class="story-cards">';
+      for (let k = 0; k < STAGES; k++) {
+        const got = known && k < n;
+        html += '<span class="story-card' + (got ? '' : ' unknown') + '">' +
+          ico(got ? storyIcon(id, k) : 'icon_lock') + '</span>';
+      }
+      html += '</div></div>';
+      html += '<span class="row-btn ghost">' + (known ? n + '/' + STAGES : '–') + '</span>';
+      html += '</div>';
+      if (known && book.placed[id] >= 0) {
+        html += '<div class="row"><span style="width:34px"></span>' + ico('icon_sparkle', 'lg') +
+          '<div class="grow"><div class="meta"><span>Ein Stück wartet · ' +
+          escapeHtml(REGION_NAMES[s.region]) + '</span></div></div></div>';
+      }
+      if (done) {
+        const keep = getItem(keepsakeOf(id));
+        if (keep) {
+          html += '<div class="row"><span style="width:34px"></span>' + ico(keep.icon, 'lg') +
+            '<div class="grow"><div class="meta"><span>' + escapeHtml(keep.name) +
+            ' erhalten</span></div></div></div>';
+        }
+      }
+    }
+    html += '</div>';
+
+    html += '<p class="empty-note" style="padding-top:14px">' +
+      book.completeCount() + ' von ' + Object.keys(SPIRITS).length +
+      ' Geschichten vollständig</p>';
+    return html;
+  }
+
+  /* ---------------- Fundbuch ---------------- */
+
+  /**
+   * Was die Insel alles hergibt – und was davon schon durch die Tasche ging.
+   * Noch nicht Gefundenes steht als Schattenriss da, damit man sieht, dass es
+   * etwas gibt, aber nicht was.
+   */
+  _found() {
+    const g = this.game;
+    const inv = g.inventory;
+    const cats = [CAT.MATERIAL, CAT.FORAGE, CAT.FISH, CAT.RELIC, CAT.MEMORY, CAT.DECOR];
+    const tab = this.tab && cats.indexOf(this.tab) >= 0 ? this.tab : cats[0];
+
+    let known = 0;
+    for (let i = 0; i < ITEM_LIST.length; i++) {
+      if (inv.everFound(ITEM_LIST[i].id)) known++;
+    }
+
+    let html = '<div class="tabs">';
+    for (let i = 0; i < cats.length; i++) {
+      html += '<button class="tab" data-act="tab" data-arg="' + cats[i] + '" aria-selected="' +
+        (cats[i] === tab) + '">' + CAT_NAMES[cats[i]] + '</button>';
+    }
+    html += '</div>';
+
+    html += '<div class="grid">';
+    for (let i = 0; i < ITEM_LIST.length; i++) {
+      const item = ITEM_LIST[i];
+      if (item.cat !== tab) continue;
+      const have = inv.everFound(item.id);
+      const n = have ? inv.found[item.id] : 0;
+      html += '<button class="slot' + (have ? '' : ' unknown') +
+        (this.selected === item.id && have ? ' sel' : '') + '"' +
+        (have ? ' data-act="select" data-arg="' + item.id + '"' : ' disabled') +
+        ' title="' + escapeHtml(have ? item.name : 'Noch nicht gefunden') + '">' +
+        ico(item.icon, 'lg') +
+        '<span class="cap">' + escapeHtml(have ? item.name : '???') + '</span>' +
+        (have && n > 1 ? '<span class="qty">' + n + '</span>' : '') +
+        '</button>';
+    }
+    html += '</div>';
+
+    if (this.selected && inv.everFound(this.selected)) {
+      const item = getItem(this.selected);
+      if (item) {
+        html += '<div class="rows" style="margin-top:12px"><div class="row">' +
+          ico(item.icon, 'lg') +
+          '<div class="grow"><div class="title">' + escapeHtml(item.name) + '</div>' +
+          '<div class="meta"><span>Insgesamt gefunden: ' + inv.found[item.id] + '</span>' +
+          '<span>Jetzt in der Tasche: ' + inv.count(item.id) + '</span>' +
+          (item.value ? '<span>' + ico('icon_coin') + ' ' + item.value + '</span>' : '') +
+          '</div></div></div></div>';
+      }
+    }
+
+    html += '<p class="empty-note" style="padding-top:14px">' +
+      known + ' von ' + ITEM_LIST.length + ' Dingen gefunden' +
+      (g.state.caught ? ' · ' + g.state.caught + ' Fische geangelt' : '') + '</p>';
+    return html;
+  }
+
   /* ---------------- Aufgaben ---------------- */
 
   _quests() {
@@ -233,10 +352,13 @@ export class Panels {
       if (!g.world.isUnlocked(s.region)) continue;
       const doneN = g.quests.completedBySpirit[id] || 0;
       const lvl = friendshipLevel(doneN);
+      // Die Stufe soll sichtbar etwas bewirken, nicht nur eine Zahl sein
+      const bonus = Math.round(lvl * 9);
       html += '<div class="row">' + ico('icon_ghost', 'lg') +
         '<div class="grow"><div class="title">' + escapeHtml(s.name) + '</div>' +
         '<div class="meta"><span>' + escapeHtml(s.role) + '</span><span>Stufe ' + lvl + '</span>' +
-        '<span>' + doneN + ' Aufgaben</span></div></div>' +
+        '<span>' + doneN + ' Aufgaben</span>' +
+        (bonus ? '<span>+' + bonus + '% Lohn</span>' : '') + '</div></div>' +
         '<span class="row-btn ghost">' + Math.round(friendshipProgress(doneN) * 100) + '%</span></div>';
     }
     html += '</div>';
@@ -424,10 +546,11 @@ export class Panels {
   _map() {
     return '<canvas id="map-canvas" width="192" height="192"></canvas>' +
       '<div class="legend">' +
-      '<span><i style="background:#e8a44c"></i>Du</span>' +
-      '<span><i style="background:#cfe3ef"></i>Geist</span>' +
+      '<span><i style="background:#d9662e"></i>Du</span>' +
+      '<span><i style="background:#5f86b0"></i>Geist</span>' +
       '<span><i style="background:#ff9a3c"></i>Lager</span>' +
-      '<span><i style="background:#4a5560"></i>noch grau</span>' +
+      '<span><i style="background:#d6cdb8"></i>noch blass</span>' +
+      '<span><i style="background:#cf4a3c"></i>Ziel</span>' +
       '</div>';
   }
 
@@ -457,10 +580,14 @@ export class Panels {
           if (colored) {
             img.data[i] = r; img.data[i + 1] = gg; img.data[i + 2] = b;
           } else {
-            const lum = 0.299 * r + 0.587 * gg + 0.114 * b;
-            img.data[i] = lum * 0.75 + 20;
-            img.data[i + 1] = lum * 0.78 + 24;
-            img.data[i + 2] = lum * 0.82 + 30;
+            // Aufhellen, nicht abdunkeln: die Karte ist Papier, und unkoloriert
+            // liegt die Insel hier so blass da wie im Spiel. Wichtig ist, den
+            // Farbton mitzunehmen statt auf Grauwert zu gehen – sonst haben
+            // Wasser und Wiese am ersten Tag denselben Wert und die Insel
+            // verschwindet im Papier.
+            img.data[i] = 238 - (238 - r) * 0.38;
+            img.data[i + 1] = 231 - (231 - gg) * 0.38;
+            img.data[i + 2] = 213 - (213 - b) * 0.38;
           }
           img.data[i + 3] = 255;
         }
@@ -484,11 +611,26 @@ export class Panels {
     if (g.world.campfire) dot(g.world.campfire.x, g.world.campfire.y, '#ff9a3c', 5);
     for (let i = 0; i < g.world.entities.length; i++) {
       const e = g.world.entities[i];
-      if (e.kind === 'spirit' && g.world.isUnlocked(e.region)) dot(e.x, e.y, '#cfe3ef', 4);
-      if (e.kind === 'hidden') dot(e.x, e.y, '#f0d264', 3);
+      if (e.kind === 'spirit' && g.world.isUnlocked(e.region)) dot(e.x, e.y, '#5f86b0', 4);
+      if (e.kind === 'hidden') dot(e.x, e.y, '#c2941f', 3);
     }
-    dot(g.player.x, g.player.y, '#e8a44c', 5);
-    ctx.strokeStyle = 'rgba(20,26,20,0.6)';
+    // Ziele offener „Hingehen"-Aufträge als Kreuz. Ohne Marke wäre die
+    // Aufgabe auf 96 mal 96 Kacheln reines Raten.
+    const offen = g.quests.active();
+    for (let i = 0; i < offen.length; i++) {
+      const q = offen[i];
+      if (q.type !== QTYPE.VISIT || q.turnedIn || !q.spot) continue;
+      const px = Math.round((q.spot.x / TILE_SIZE) * s);
+      const py = Math.round((q.spot.y / TILE_SIZE) * s);
+      ctx.strokeStyle = '#cf4a3c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px - 4, py - 4); ctx.lineTo(px + 4, py + 4);
+      ctx.moveTo(px + 4, py - 4); ctx.lineTo(px - 4, py + 4);
+      ctx.stroke();
+    }
+    dot(g.player.x, g.player.y, '#d9662e', 5);
+    ctx.strokeStyle = 'rgba(74,64,56,0.5)';
     ctx.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
   }
 
@@ -511,6 +653,9 @@ export class Panels {
       seg('sound', [[true, 'An'], [false, 'Aus']], s.sound) + '</div>';
     html += '<div class="setting"><div class="grow"><label>Musik</label></div>' +
       seg('music', [[true, 'An'], [false, 'Aus']], s.music) + '</div>';
+    html += '<div class="setting"><div class="grow"><label>Umgebung</label>' +
+      '<div class="hint">Brandung, Wind, Grillen</div></div>' +
+      seg('ambience', [[true, 'An'], [false, 'Aus']], s.ambience !== false) + '</div>';
     html += '<div class="setting"><div class="grow"><label>Lautstärke</label></div>' +
       seg('volume', [[0.3, 'Leise'], [0.7, 'Mittel'], [1, 'Laut']], s.volume) + '</div>';
     html += '<div class="setting"><div class="grow"><label>Sprechblasen</label>' +

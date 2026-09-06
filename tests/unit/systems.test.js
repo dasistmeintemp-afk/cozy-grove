@@ -2,14 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Inventory } from '../../src/game/inventory.js';
-import { QuestBook, QTYPE, questTitle, questIcon } from '../../src/game/quests.js';
+import { QuestBook, QTYPE, questTitle, questIcon, QUEST_VERB } from '../../src/game/quests.js';
 import { World } from '../../src/world/world.js';
 import { DayCycle, DAY_START, DAY_END } from '../../src/game/daycycle.js';
 import { Fishing } from '../../src/game/fishing.js';
 import { Shop, buyPrice } from '../../src/game/shop.js';
 import { ColorField } from '../../src/world/colorfield.js';
 import { makeRng, dailyRng, makeNoise2D, fbm } from '../../src/core/rng.js';
-import { SPIRITS } from '../../src/game/spirits.js';
+import { SPIRITS, SPIRIT_IDS, friendshipLevel, friendshipGift } from '../../src/game/spirits.js';
+import { weatherFor, WEATHER } from '../../src/render/weather.js';
+import { getItem, ITEM_LIST } from '../../src/game/items.js';
+import { ENTITY_DEFS } from '../../src/world/entities.js';
+import { RECIPES } from '../../src/game/recipes.js';
+import {
+  StoryBook, STORIES, STAGES, QUESTS_PER_STAGE, keepsakeOf, storyIcon,
+} from '../../src/game/stories.js';
 
 const SEED = 4711;
 
@@ -48,7 +55,7 @@ test('Tasche sortiert nach Kategorie', () => {
   assert.deepEqual(inv.usedCategories().sort(), ['decor', 'forage', 'material']);
 });
 
-test('Tasche laesst sich sichern und laden', () => {
+test('Tasche lässt sich sichern und laden', () => {
   const inv = new Inventory(12);
   inv.add('wood', 7);
   inv.add('gem', 1);
@@ -57,7 +64,7 @@ test('Tasche laesst sich sichern und laden', () => {
   assert.equal(back.count('wood'), 7);
   assert.equal(back.count('gem'), 1);
 
-  // Unbekannte Gegenstaende aus alten Staenden werden verworfen
+  // Unbekannte Gegenstände aus alten Ständen werden verworfen
   const dirty = Inventory.fromJSON({ capacity: 10, slots: [{ id: 'gibt_es_nicht', n: 3 }, { id: 'wood', n: 1 }] });
   assert.equal(dirty.slots.length, 1);
 });
@@ -70,7 +77,7 @@ function makeCtx() {
   return { world, inventory };
 }
 
-test('Tagesaufgaben nur fuer freigeschaltete Bereiche', () => {
+test('Tagesaufgaben nur für freigeschaltete Bereiche', () => {
   const ctx = makeCtx();
   const qb = new QuestBook();
   qb.newDay(1, ctx.world, ctx);
@@ -85,24 +92,42 @@ test('Tagesaufgaben nur fuer freigeschaltete Bereiche', () => {
   assert.ok(regions.has(1), 'Waldgeister geben jetzt Aufgaben');
 });
 
-test('Am ersten Tag hoechstens eine Aufgabe pro Geist', () => {
+test('Der erste Tag hat genug für eine ganze Sitzung', () => {
   const ctx = makeCtx();
   const qb = new QuestBook();
   qb.newDay(1, ctx.world, ctx);
   const perSpirit = Object.create(null);
   for (const q of qb.active()) perSpirit[q.spirit] = (perSpirit[q.spirit] || 0) + 1;
-  for (const id of Object.keys(perSpirit)) assert.equal(perSpirit[id], 1);
+  // Zwei je Geist: ruhiger Einstieg, aber niemand steht nach drei Minuten da
+  for (const id of Object.keys(perSpirit)) assert.equal(perSpirit[id], 2);
+  assert.ok(qb.active().length >= 4, 'zu wenig zu tun am ersten Tag');
 });
 
-test('Nie mehr als zwei offene Aufgaben pro Geist', () => {
+test('Nie mehr als drei offene Aufgaben pro Geist', () => {
   const ctx = makeCtx();
   const qb = new QuestBook();
   for (let day = 1; day <= 8; day++) qb.newDay(day, ctx.world, ctx);
   const perSpirit = Object.create(null);
   for (const q of qb.active()) perSpirit[q.spirit] = (perSpirit[q.spirit] || 0) + 1;
   for (const id of Object.keys(perSpirit)) {
-    assert.ok(perSpirit[id] <= 2, id + ' hat ' + perSpirit[id] + ' Aufgaben');
+    assert.ok(perSpirit[id] <= 3, id + ' hat ' + perSpirit[id] + ' Aufgaben');
   }
+});
+
+test('Aufgaben sind nicht überwiegend Hol-und-Bring', () => {
+  const ctx = makeCtx();
+  const arten = Object.create(null);
+  let gesamt = 0;
+  for (let day = 2; day < 60; day++) {
+    const qb = new QuestBook();
+    qb.newDay(day, ctx.world, ctx);
+    for (const q of qb.active()) { arten[q.type] = (arten[q.type] || 0) + 1; gesamt++; }
+  }
+  const holen = (arten[QTYPE.GATHER] || 0) + (arten[QTYPE.FIND] || 0);
+  assert.ok(holen / gesamt < 0.45,
+    'Sammeln und Finden machen ' + Math.round(holen / gesamt * 100) + '% aus');
+  // Mindestens fünf verschiedene Arten kommen wirklich vor
+  assert.ok(Object.keys(arten).length >= 5, 'zu wenig Abwechslung: ' + JSON.stringify(arten));
 });
 
 test('Sammelaufgabe: Fortschritt aus der Tasche, Abgabe verbraucht', () => {
@@ -117,7 +142,7 @@ test('Sammelaufgabe: Fortschritt aus der Tasche, Abgabe verbraucht', () => {
 
   assert.equal(qb.progress(q, ctx), 0);
   assert.equal(qb.isReady(q, ctx), false);
-  assert.equal(qb.turnIn(q, ctx), null, 'zu frueh');
+  assert.equal(qb.turnIn(q, ctx), null, 'zu früh');
 
   ctx.inventory.add('berry', 5);
   assert.equal(qb.progress(q, ctx), 3);
@@ -131,7 +156,7 @@ test('Sammelaufgabe: Fortschritt aus der Tasche, Abgabe verbraucht', () => {
   assert.equal(qb.totalCompleted, 1);
 });
 
-test('Suchaufgabe legt versteckte Fundstuecke in der Welt ab', () => {
+test('Suchaufgabe legt versteckte Fundstücke in der Welt ab', () => {
   const ctx = makeCtx();
   const qb = new QuestBook();
   const rng = makeRng(99);
@@ -145,7 +170,7 @@ test('Suchaufgabe legt versteckte Fundstuecke in der Welt ab', () => {
 
   for (const id of quest.hiddenIds) {
     const e = ctx.world.byId[id];
-    assert.ok(e, 'Fundstueck existiert');
+    assert.ok(e, 'Fundstück existiert');
     assert.equal(e.kind, 'hidden');
     assert.equal(e.questId, quest.id);
   }
@@ -158,7 +183,7 @@ test('Suchaufgabe legt versteckte Fundstuecke in der Welt ab', () => {
   assert.equal(ctx.world.byId[quest.hiddenIds[0]], undefined);
 });
 
-test('Angel- und Brennaufgaben zaehlen Ereignisse', () => {
+test('Angel- und Brennaufgaben zählen Ereignisse', () => {
   const ctx = makeCtx();
   const qb = new QuestBook();
   const fishQ = {
@@ -175,7 +200,7 @@ test('Angel- und Brennaufgaben zaehlen Ereignisse', () => {
   assert.equal(qb.progress(fishQ, ctx), 1);
   qb.notify('fish', {}, ctx);
   qb.notify('fish', {}, ctx);
-  assert.equal(qb.progress(fishQ, ctx), 2, 'nicht ueber das Ziel hinaus');
+  assert.equal(qb.progress(fishQ, ctx), 2, 'nicht über das Ziel hinaus');
 
   qb.notify('burn', { n: 9 }, ctx);
   assert.equal(qb.progress(burnQ, ctx), 5);
@@ -190,7 +215,7 @@ test('Aufgabenkarten haben Titel und vorhandenes Symbol', () => {
   assert.ok(qb.active().length > 0);
   for (const q of qb.active()) {
     assert.ok(questTitle(q).length > 0);
-    // Der Name muss zum Register passen; ob die Grafik existiert, prueft der
+    // Der Name muss zum Register passen; ob die Grafik existiert, prüft der
     // Browsertest – im Node-Lauf gibt es kein Canvas.
     assert.match(questIcon(q), /^icon_[a-z0-9_]+$/);
     assert.ok(q.rewards.coins > 0);
@@ -198,7 +223,7 @@ test('Aufgabenkarten haben Titel und vorhandenes Symbol', () => {
   }
 });
 
-test('Aufgabenbuch ueberlebt Speichern und Laden', () => {
+test('Aufgabenbuch überlebt Speichern und Laden', () => {
   const ctx = makeCtx();
   const qb = new QuestBook();
   qb.newDay(1, ctx.world, ctx);
@@ -210,7 +235,7 @@ test('Aufgabenbuch ueberlebt Speichern und Laden', () => {
 
 /* ---------------- Tageslauf ---------------- */
 
-test('Uhr laeuft und endet beim Schlafenszeitpunkt', () => {
+test('Uhr läuft und endet beim Schlafenszeitpunkt', () => {
   const c = new DayCycle(1); // eine Minute pro Tag – schnell durchlaufen
   assert.equal(c.hour, DAY_START);
   assert.equal(c.clockString(), '06:00');
@@ -228,18 +253,18 @@ test('Uhr laeuft und endet beim Schlafenszeitpunkt', () => {
   assert.equal(c.hour, DAY_START);
 });
 
-test('Tagesfaerbung ist mittags neutral und nachts dunkel', () => {
+test('Tagesfärbung ist mittags neutral und nachts dunkel', () => {
   const c = new DayCycle(14);
   c.hour = 13;
   assert.ok(c.tint().a < 0.02, 'mittags ohne Schleier');
   c.hour = 23;
   const night = c.tint();
   assert.ok(night.a > 0.4, 'nachts dunkel');
-  assert.ok(night.b > night.r, 'kuehler Ton');
+  assert.ok(night.b > night.r, 'kühler Ton');
   assert.ok(c.isDark());
 });
 
-test('Tageslauf laesst sich sichern', () => {
+test('Tageslauf lässt sich sichern', () => {
   const c = new DayCycle(9);
   c.day = 5;
   c.hour = 14.25;
@@ -251,7 +276,7 @@ test('Tageslauf laesst sich sichern', () => {
 
 /* ---------------- Angeln ---------------- */
 
-test('Angel-Minispiel durchlaeuft alle Zustaende', () => {
+test('Angel-Minispiel durchläuft alle Zustände', () => {
   const world = new World(SEED);
   const player = { facingPoint: () => ({ x: 32, y: 32 }) }; // offenes Meer am Kartenrand
   const f = new Fishing();
@@ -272,7 +297,7 @@ test('Angel-Minispiel durchlaeuft alle Zustaende', () => {
   assert.equal(f.press(), 'hooked');
   assert.equal(f.state, 'reel');
 
-  // Marker in die Zone schieben, dann druecken
+  // Marker in die Zone schieben, dann drücken
   f.marker = f.zoneStart + f.zoneSize / 2;
   assert.equal(f.press(), 'catch');
   assert.ok(f.result.fish);
@@ -299,7 +324,7 @@ test('An Land kann man nicht auswerfen', () => {
   assert.equal(f.active, false);
 });
 
-test('Bessere Angel macht die Zone groesser', () => {
+test('Bessere Angel macht die Zone größer', () => {
   const world = new World(SEED);
   const player = { facingPoint: () => ({ x: 32, y: 32 }) };
   const a = new Fishing();
@@ -311,7 +336,7 @@ test('Bessere Angel macht die Zone groesser', () => {
 
 /* ---------------- Laden ---------------- */
 
-test('Laden wechselt taeglich, aber reproduzierbar', () => {
+test('Laden wechselt täglich, aber reproduzierbar', () => {
   const s1 = new Shop().refresh(3, SEED);
   const s2 = new Shop().refresh(3, SEED);
   const s3 = new Shop().refresh(4, SEED);
@@ -328,10 +353,10 @@ test('Tagesgesuch zahlt mehr', () => {
   shop.wanted = 'stone';
   shop.wantedBonus = 3;
   assert.equal(shop.sellPrice('stone'), 9);
-  assert.equal(shop.sellPrice('memory_locket'), 0, 'Erinnerungen sind unverkaeuflich');
+  assert.equal(shop.sellPrice('memory_locket'), 0, 'Erinnerungen sind unverkäuflich');
 });
 
-test('Kaufpreis liegt ueber dem Verkaufspreis', () => {
+test('Kaufpreis liegt über dem Verkaufspreis', () => {
   for (const id of ['wood', 'stone', 'fiber', 'resin']) {
     assert.ok(buyPrice(id) > new Shop().sellPrice(id), id);
   }
@@ -348,7 +373,7 @@ test('Warenbestand nimmt beim Kauf ab', () => {
 
 /* ---------------- Farbfeld ---------------- */
 
-test('Farbfeld waechst und deckt Flaeche ab', () => {
+test('Farbfeld wächst und deckt Fläche ab', () => {
   const world = new World(SEED).populate();
   const cf = new ColorField();
   assert.equal(cf.coverage(world), 0);
@@ -368,7 +393,7 @@ test('Farbfeld waechst und deckt Flaeche ab', () => {
   assert.ok(cf.coverage(world) > cov, 'mehr Farbe nach dem Wachsen');
 });
 
-test('Farbfeld ueberlebt Speichern und Laden', () => {
+test('Farbfeld überlebt Speichern und Laden', () => {
   const cf = new ColorField();
   cf.addSource(100, 200, 80, 'spirit_mira');
   for (let i = 0; i < 100; i++) cf.update(0.05);
@@ -405,5 +430,249 @@ test('Rauschfunktion bleibt im Wertebereich', () => {
   for (let i = 0; i < 500; i++) {
     const v = fbm(n, i * 0.13, i * 0.07, 4, 2, 0.5);
     assert.ok(v >= 0 && v <= 1, 'Wert ' + v);
+  }
+});
+
+test('Wetter hängt nur an Insel und Tag', () => {
+  for (let day = 2; day < 40; day++) {
+    const a = weatherFor(1234, day);
+    const b = weatherFor(1234, day);
+    assert.deepEqual(a, b, 'Tag ' + day + ' muss reproduzierbar sein');
+  }
+});
+
+test('Der erste Tag ist immer klar', () => {
+  for (let seed = 1; seed < 60; seed++) {
+    assert.equal(weatherFor(seed, 1).kind, WEATHER.CLEAR);
+    assert.equal(weatherFor(seed, 1).strength, 0);
+  }
+});
+
+test('Wetter bleibt überwiegend klar, aber nicht immer', () => {
+  const count = { clear: 0, rain: 0, fog: 0 };
+  for (let day = 2; day < 400; day++) count[weatherFor(99, day).kind]++;
+  assert.ok(count.clear > count.rain + count.fog,
+    'klare Tage sollen überwiegen: ' + JSON.stringify(count));
+  assert.ok(count.rain > 10, 'es soll auch regnen: ' + count.rain);
+  assert.ok(count.fog > 10, 'es soll auch neblig sein: ' + count.fog);
+});
+
+test('Wetterstärke bleibt im Wertebereich', () => {
+  for (let day = 1; day < 300; day++) {
+    const w = weatherFor(7, day);
+    assert.ok(w.strength >= 0 && w.strength <= 1, 'Stärke ' + w.strength);
+    if (w.kind === WEATHER.CLEAR) assert.equal(w.strength, 0);
+    else assert.ok(w.strength > 0.3, 'sichtbares Wetter braucht Stärke');
+  }
+});
+
+test('Das Fundbuch merkt sich alles, was durch die Tasche ging', () => {
+  const inv = new Inventory(4);
+  assert.equal(inv.everFound('wood'), false);
+  inv.add('wood', 3);
+  assert.equal(inv.everFound('wood'), true);
+  assert.equal(inv.found.wood, 3);
+
+  // Wieder weggeben löscht den Eintrag nicht
+  inv.remove('wood', 3);
+  assert.equal(inv.count('wood'), 0);
+  assert.equal(inv.everFound('wood'), true);
+
+  // Nachschub zählt dazu
+  inv.add('wood', 2);
+  assert.equal(inv.found.wood, 5);
+});
+
+test('Das Fundbuch zählt nur, was wirklich Platz hatte', () => {
+  const inv = new Inventory(1);
+  inv.add('wood', 99);
+  const before = inv.found.wood;
+  inv.add('stone', 5);          // kein Platz mehr
+  assert.equal(inv.count('stone'), 0);
+  assert.equal(inv.everFound('stone'), false);
+  assert.equal(inv.found.wood, before);
+});
+
+test('Das Fundbuch überlebt Speichern und Laden', () => {
+  const inv = new Inventory(10);
+  inv.add('shell', 2);
+  inv.add('berry', 1);
+  inv.remove('berry', 1);
+  const back = Inventory.fromJSON(JSON.parse(JSON.stringify(inv.toJSON())));
+  assert.equal(back.everFound('shell'), true);
+  assert.equal(back.everFound('berry'), true);
+  assert.equal(back.foundCount(), 2);
+});
+
+test('Alte Spielstände ohne Fundbuch bekommen eines aus der Tasche', () => {
+  const back = Inventory.fromJSON({ capacity: 10, slots: [{ id: 'wood', n: 4 }] });
+  assert.equal(back.everFound('wood'), true);
+  assert.equal(back.found.wood, 4);
+});
+
+test('Freundschaft schenkt ab Stufe 1 und wird größer', () => {
+  for (const id of SPIRIT_IDS) {
+    assert.equal(friendshipGift(id, 0), null, id + ' darf auf Stufe 0 nichts geben');
+    const low = friendshipGift(id, 1);
+    const high = friendshipGift(id, 8);
+    assert.ok(low.coins > 0 && low.ember > 0, id + ' Stufe 1');
+    assert.ok(high.coins > low.coins, id + ': höhere Stufe muss mehr geben');
+    assert.ok(high.ember >= low.ember, id + ': Glut darf nicht schrumpfen');
+  }
+});
+
+test('Geschenke verweisen nur auf echte Gegenstände', () => {
+  for (const id of SPIRIT_IDS) {
+    for (let level = 1; level <= 10; level++) {
+      const gift = friendshipGift(id, level);
+      for (const entry of gift.items) {
+        assert.ok(getItem(entry.id), id + ' Stufe ' + level + ': ' + entry.id + ' gibt es nicht');
+        assert.ok(entry.n > 0);
+      }
+    }
+  }
+});
+
+test('Ein Erinnerungsstück erst ab Stufe 5', () => {
+  assert.equal(friendshipGift('mira', 4).items.some((i) => i.id === 'gem'), false);
+  assert.equal(friendshipGift('mira', 5).items.some((i) => i.id === 'gem'), true);
+});
+
+test('Freundschaftsstufe steigt alle drei Aufgaben und deckelt bei 10', () => {
+  assert.equal(friendshipLevel(0), 0);
+  assert.equal(friendshipLevel(2), 0);
+  assert.equal(friendshipLevel(3), 1);
+  assert.equal(friendshipLevel(29), 9);
+  assert.equal(friendshipLevel(30), 10);
+  assert.equal(friendshipLevel(300), 10);
+});
+
+test('Jeder Geist hat eine Erinnerungskette mit vier Symbolen', () => {
+  for (const id of SPIRIT_IDS) {
+    const st = STORIES[id];
+    assert.ok(st, id + ' braucht eine Kette');
+    assert.equal(st.icons.length, STAGES, id + ': vier Stufen');
+    assert.ok(keepsakeOf(id), id + ' braucht ein Andenken');
+  }
+});
+
+test('Andenken sind echte, aufstellbare Gegenstände', () => {
+  for (const id of SPIRIT_IDS) {
+    const item = getItem(keepsakeOf(id));
+    assert.ok(item, id + ': Andenken fehlt in der Gegenstandsliste');
+    assert.ok(item.prop, id + ': Andenken muss aufstellbar sein');
+    assert.equal(item.value, 0, id + ': Andenken darf man nicht verkaufen');
+    assert.equal(item.burn, 0, id + ': Andenken darf man nicht verbrennen');
+  }
+});
+
+test('Ein Stück erscheint erst nach genug Aufgaben, und nur eines', () => {
+  const b = new StoryBook();
+  assert.equal(b.wantsPiece('flamey', 0), false);
+  assert.equal(b.wantsPiece('flamey', QUESTS_PER_STAGE - 1), false);
+  assert.equal(b.wantsPiece('flamey', QUESTS_PER_STAGE), true);
+
+  b.markPlaced('flamey', 0);
+  assert.equal(b.wantsPiece('flamey', 99), false, 'solange eines liegt, kein zweites');
+
+  b.collect('flamey');
+  assert.equal(b.foundOf('flamey'), 1);
+  assert.equal(b.wantsPiece('flamey', QUESTS_PER_STAGE), false, 'Stufe 2 braucht mehr');
+  assert.equal(b.wantsPiece('flamey', QUESTS_PER_STAGE * 2), true);
+});
+
+test('Eine volle Kette liefert nichts mehr nach', () => {
+  const b = new StoryBook();
+  for (let k = 0; k < STAGES; k++) { b.markPlaced('mira', k); b.collect('mira'); }
+  assert.equal(b.isComplete('mira'), true);
+  assert.equal(b.foundOf('mira'), STAGES);
+  assert.equal(b.wantsPiece('mira', 999), false);
+  // Weiter einsammeln darf nicht über vier hinausgehen
+  b.collect('mira');
+  assert.equal(b.foundOf('mira'), STAGES);
+});
+
+test('Das Geschichtsbuch überlebt Speichern und Laden', () => {
+  const b = new StoryBook();
+  b.markPlaced('bruno', 0);
+  b.collect('bruno');
+  b.markPlaced('nelly', 0);
+  const back = StoryBook.fromJSON(JSON.parse(JSON.stringify(b.toJSON())));
+  assert.equal(back.foundOf('bruno'), 1);
+  assert.equal(back.placed.nelly, 0);
+  assert.equal(back.completeCount(), 0);
+});
+
+test('Beschädigte Spielstände brechen das Geschichtsbuch nicht', () => {
+  const back = StoryBook.fromJSON({ found: { flamey: 99, mira: -5, gibtsnicht: 3 } });
+  assert.equal(back.foundOf('flamey'), STAGES, 'auf vier gedeckelt');
+  assert.equal(back.foundOf('mira'), 0, 'nicht negativ');
+  assert.equal(back.completeCount(), 1);
+});
+
+test('Alle Symbole der Ketten verweisen auf angelegte Grafiken', () => {
+  const icons = Object.create(null);
+  for (const item of ITEM_LIST) icons[item.icon] = true;
+  for (const id of SPIRIT_IDS) {
+    for (let k = 0; k < STAGES; k++) {
+      const name = storyIcon(id, k);
+      assert.ok(name.indexOf('icon_') === 0, id + ' Stufe ' + k + ': ' + name);
+    }
+  }
+});
+
+test('Wetter- und Nachtvorkommen sind sauber definiert', () => {
+  const bedingt = ITEM_LIST.filter((i) => i.onlyAt);
+  assert.equal(bedingt.length, 3, 'Mondblume, Regenpilz, Nebelkristall');
+  const arten = bedingt.map((i) => i.onlyAt).sort();
+  assert.deepEqual(arten, ['fog', 'night', 'rain']);
+  for (const item of bedingt) {
+    assert.ok(item.value > 20, item.id + ' soll sich lohnen: ' + item.value);
+    assert.ok(ENTITY_DEFS[item.id], item.id + ' braucht eine Objektdefinition');
+    assert.equal(ENTITY_DEFS[item.id].category, 'forage');
+    // Kein respawn: sie kommen über die Bedingung zurück, nicht über Tage
+    assert.equal(ENTITY_DEFS[item.id].respawn, undefined, item.id);
+  }
+});
+
+test('Die Mondlaterne braucht die bedingten Funde', () => {
+  const rec = RECIPES.find((r) => r.id === 'moonlamp');
+  assert.ok(rec, 'Rezept fehlt');
+  const zutaten = rec.cost.map((c) => c.id);
+  assert.ok(zutaten.indexOf('moonflower') >= 0, 'braucht Mondblume');
+  assert.ok(zutaten.indexOf('fogcrystal') >= 0, 'braucht Nebelkristall');
+  const lampe = getItem('moonlamp');
+  assert.ok(lampe.light > getItem('lantern').light, 'leuchtet weiter als die Laterne');
+});
+
+test('Neue Aufgabenarten: Fangen zählt nur den richtigen Fisch', () => {
+  const qb = new QuestBook();
+  const q = { id: 'x', type: QTYPE.CATCH, itemId: 'fish_cod', have: 0, need: 1 };
+  qb.quests.push(q);
+  qb.notify('fish', { id: 'fish_sardine' }, null);
+  assert.equal(q.have, 0, 'falscher Fisch darf nicht zählen');
+  qb.notify('fish', { id: 'fish_cod' }, null);
+  assert.equal(q.have, 1);
+});
+
+test('Neue Aufgabenarten: Hingehen zählt erst am Ziel', () => {
+  const qb = new QuestBook();
+  const q = { id: 'y', type: QTYPE.VISIT, spot: { x: 1000, y: 1000 }, have: 0, need: 1 };
+  qb.quests.push(q);
+  qb.notify('visit', { x: 1400, y: 1000 }, null);
+  assert.equal(q.have, 0, 'weit weg zählt nicht');
+  qb.notify('visit', { x: 1040, y: 1010 }, null);
+  assert.equal(q.have, 1, 'nah genug zählt');
+});
+
+test('Jede Aufgabenart hat Titel, Verb und Symbol', () => {
+  for (const key of Object.keys(QTYPE)) {
+    const type = QTYPE[key];
+    const q = { type: type, itemId: 'wood', need: 2, have: 0, spot: { x: 0, y: 0 } };
+    const titel = questTitle(q);
+    assert.ok(titel && titel.length > 0, type + ' braucht einen Titel');
+    assert.ok(titel.length <= 34, type + ': Titel zu lang – "' + titel + '"');
+    assert.ok(QUEST_VERB[type], type + ' braucht ein Verb');
+    assert.ok(questIcon(q).indexOf('icon_') === 0, type + ' braucht ein Symbol');
   }
 });

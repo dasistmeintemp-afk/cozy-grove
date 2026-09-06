@@ -1,4 +1,4 @@
-/** Weltmodell: Kacheln, Objekte, Kollision, raeumlicher Index. */
+/** Weltmodell: Kacheln, Objekte, Kollision, räumlicher Index. */
 import { T, TILE_SIZE, isWalkable, isWater } from '../art/tiles.js';
 import {
   MAP_W, MAP_H, REGION, generateTiles, tileIndex, regionAt,
@@ -94,7 +94,7 @@ export class World {
     const i = this.entities.indexOf(e);
     if (i >= 0) this.entities.splice(i, 1);
     delete this.byId[e.id];
-    // Auch fuer Verweise ausserhalb der Liste (z. B. world.logBarrier) als
+    // Auch für Verweise ausserhalb der Liste (z. B. world.logBarrier) als
     // verschwunden markieren – der Spielstand wertet genau das aus.
     e.gone = true;
     if (e._cell >= 0) {
@@ -104,7 +104,7 @@ export class World {
     }
   }
 
-  /** Nach Positionsaenderung eines Objekts aufrufen. */
+  /** Nach Positionsänderung eines Objekts aufrufen. */
   reindex(e) {
     const ci = this.cellIndex(e.x, e.y);
     if (ci === e._cell) return;
@@ -218,7 +218,7 @@ export class World {
     const by = (BRIDGE_Y0 + BRIDGE_Y1 + 1) / 2;
     this.bridgeSpot = this.add(makeEntity('bridge_spot', (CHANNEL_X0 - 1.5) * TILE_SIZE, by * TILE_SIZE));
 
-    // Geroellhalde versperrt eine Nische auf den Klippen
+    // Geröllhalde versperrt eine Nische auf den Klippen
     const nook = findWalkableNear(this.tiles, 86, 46, 10, REGION.CLIFFS);
     if (nook) {
       this.rockslide = this.add(makeEntity('rockslide', (nook.x + 0.5) * TILE_SIZE, (nook.y + 0.5) * TILE_SIZE));
@@ -352,8 +352,8 @@ export class World {
   /* ---------- Tageswechsel ---------- */
 
   /**
-   * Erneuert die Insel fuer einen neuen Tag:
-   * abgebaute Objekte kehren zurueck, Grabstellen werden neu verteilt.
+   * Erneuert die Insel für einen neuen Tag:
+   * abgebaute Objekte kehren zurück, Grabstellen werden neu verteilt.
    */
   newDay(day) {
     const rng = dailyRng(this.seed, day, 'world');
@@ -382,6 +382,42 @@ export class World {
     return this;
   }
 
+  /**
+   * Vorkommen, die an eine Bedingung gebunden sind: Mondblumen nachts,
+   * Regenpilze bei Regen, Nebelkristalle bei Nebel.
+   *
+   * Sie werden bei jedem Wechsel neu gesetzt und wieder eingesammelt, wenn die
+   * Bedingung fällt. Dadurch bekommt das Wetter Gewicht im Spiel und nicht nur
+   * im Bild – und es gibt einen Grund, zu einer anderen Stunde wiederzukommen.
+   */
+  syncConditional(kind, active, rng, count) {
+    let have = 0;
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      const e = this.entities[i];
+      if (e.kind !== kind) continue;
+      if (!active) this.remove(e);
+      else if (!e.gone) have++;
+    }
+    if (!active || have >= count) return;
+
+    const regions = [REGION.CAMP, REGION.FOREST, REGION.CLIFFS];
+    let guard = 0;
+    while (have < count && guard++ < 500) {
+      const r = regions[Math.floor(rng() * regions.length)];
+      if (!this.unlocked[r]) continue;
+      const spots = walkableTilesOf(this.tiles, r, function (t) {
+        return t === T.GRASS || t === T.DIRT || t === T.ROCKFLOOR;
+      });
+      if (!spots.length) continue;
+      const s = spots[Math.floor(rng() * spots.length)];
+      const wx = (s.x + 0.5) * TILE_SIZE;
+      const wy = (s.y + 0.5) * TILE_SIZE;
+      if (this._tooClose(wx, wy, 110)) continue;
+      this.add(makeEntity(kind, wx, wy));
+      have++;
+    }
+  }
+
   _respawnDigspots(rng) {
     for (let i = this.entities.length - 1; i >= 0; i--) {
       if (this.entities[i].kind === 'digspot') this.remove(this.entities[i]);
@@ -406,7 +442,7 @@ export class World {
     }
   }
 
-  /** Zufaellige begehbare Position in einem freigeschalteten Bereich. */
+  /** Zufällige begehbare Position in einem freigeschalteten Bereich. */
   randomSpot(rng, region, minDistFrom) {
     const spots = walkableTilesOf(this.tiles, region, function (t) {
       return t !== T.BRIDGE;

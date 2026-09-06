@@ -19,15 +19,22 @@ import { INK } from '../../src/art/painted.js';
 /** Namen, die initArt() anlegt – als Spiegel der Registerliste. */
 const SPRITE_NAMES = (function () {
   const names = [
-    'tree_oak', 'tree_birch', 'tree_maple', 'tree_pine', 'tree_stump', 'log_barrier',
+    'tree_stump', 'log_barrier',
     'rock_big', 'rock_small', 'rock_ore', 'rockslide',
     'bush_berry', 'bush_plain', 'grass_tuft', 'reeds', 'mushroom', 'herb',
     'shell', 'driftwood', 'digspot',
+    'moonflower', 'rainmushroom', 'fogcrystal',
     'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
     'campfire', 'tent', 'stall', 'workbench',
     'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',
-    'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge',
+    'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge', 'moonlamp',
   ];
+  // Bäume liegen in drei Fassungen vor; die Objektdefinition nennt nur den
+  // Rumpf, makeEntity hängt die Nummer an.
+  const trees = ['tree_oak', 'tree_birch', 'tree_maple', 'tree_pine'];
+  for (let i = 0; i < trees.length; i++) {
+    for (let v = 0; v < 3; v++) names.push(trees[i] + '_' + v);
+  }
   for (let f = 0; f < 4; f++) names.push('flame_' + f);
   const memories = ['locket', 'compass', 'music', 'photo', 'ribbon', 'teacup'];
   for (let i = 0; i < memories.length; i++) {
@@ -85,7 +92,10 @@ test('jede Objektdefinition verweist auf eine angelegte Grafik', () => {
   for (const kind of Object.keys(ENTITY_DEFS)) {
     const def = ENTITY_DEFS[kind];
     if (!def.sprite) continue;
-    if (!SPRITE_NAMES[def.sprite]) missing.push(kind + ' -> ' + def.sprite);
+    // Wie spr(): ein Name ohne Fassungsnummer trifft die erste Fassung
+    if (!SPRITE_NAMES[def.sprite] && !SPRITE_NAMES[def.sprite + '_0']) {
+      missing.push(kind + ' -> ' + def.sprite);
+    }
   }
   assert.deepEqual(missing, []);
 });

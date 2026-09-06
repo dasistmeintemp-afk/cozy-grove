@@ -7,7 +7,7 @@ import {
   blob, teardrop, smoothClosed, offsetShape,
   inkStroke, inkLine, wash, paintObject,
 } from './brush.js';
-import { INK as ink, fill, made, dot } from './painted.js';
+import { INK as ink, fill, dot } from './painted.js';
 import { makeCanvas, ctx2d } from '../core/util.js';
 
 export const ICON_SIZE = 64;
@@ -34,6 +34,27 @@ export function iconFromArt(art, opts) {
   return { color: shrink(art.color), line: shrink(art.line), w: s, h: s, ax: s / 2, ay: s };
 }
 
+/**
+ * Symbole haben eine feste Kantenlänge, weil die Oberfläche damit rechnet.
+ * Gemalt wird trotzdem mit Rand – sonst schneidet die Leinwand die Kontur ab –
+ * und das Ergebnis anschließend wieder auf die Sollgröße gebracht.
+ */
+function fitIcon(res) {
+  const m = res.margin || 0;
+  const s = ICON_SIZE;
+  if (!m) return { color: res.color, line: res.line, w: s, h: s, ax: s / 2, ay: s };
+  const full = s + m * 2;
+  function shrink(src) {
+    const c = makeCanvas(s, s);
+    const ctx = ctx2d(c);
+    ctx.imageSmoothingEnabled = true;
+    if (ctx.imageSmoothingQuality) ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(src, 0, 0, full, full, 0, 0, s, s);
+    return c;
+  }
+  return { color: shrink(res.color), line: shrink(res.line), w: s, h: s, ax: s / 2, ay: s };
+}
+
 function icon(seed, washFn, shapeFn, inkFn, opts) {
   const o = opts || {};
   const res = paintObject(ICON_SIZE, ICON_SIZE, {
@@ -44,7 +65,7 @@ function icon(seed, washFn, shapeFn, inkFn, opts) {
     shape: shapeFn,
     ink: inkFn,
   });
-  return made(res, ICON_SIZE, ICON_SIZE, ICON_SIZE / 2, ICON_SIZE);
+  return fitIcon(res);
 }
 
 const C = ICON_SIZE / 2;
@@ -161,14 +182,26 @@ export const ICON_PAINTERS = {
       function (g) { inkLine(g, C - 6, C + 24, C + 6, C - 22, { width: 2.0, bend: 0.06, seed: 94 }); });
   },
   driftwood: function () {
-    const body = smoothClosed([[C - 24, C + 6], [C - 18, C - 8], [C + 2, C - 12], [C + 24, C - 4], [C + 22, C + 8], [C - 6, C + 12]], 6);
+    // Schräg gestellter Ast mit Gabel – als Blase war er nicht von einem
+    // Kiesel zu unterscheiden.
+    const body = smoothClosed([
+      [C - 24, C + 14], [C - 18, C + 6], [C + 6, C - 6], [C + 24, C - 16],
+      [C + 26, C - 9], [C + 10, C + 1], [C - 14, C + 20],
+    ], 6);
+    const fork = smoothClosed([
+      [C + 2, C - 1], [C + 12, C - 20], [C + 18, C - 22],
+      [C + 15, C - 15], [C + 8, C + 3],
+    ], 6);
     return icon(101,
       function (g) {
-        wash(g, body, '#ddd0b8', { seed: 102, scale: 1.05 });
-        wash(g, offsetShape(body, 4, 6, 0.7), '#bfae92', { seed: 103, alpha: 0.6 });
+        wash(g, body, '#e2d7c1', { seed: 102, scale: 1.05 });
+        wash(g, fork, '#ddd0b8', { seed: 105, scale: 1.04 });
+        wash(g, offsetShape(body, 4, 5, 0.75), '#b8a68a', { seed: 103, alpha: 0.6 });
       },
-      function (g) { fill(g, body); },
-      function (g) { inkLine(g, C - 16, C, C + 18, C - 2, { width: 1.4, bend: 0.06, seed: 104, alpha: 0.5 }); });
+      function (g) { fill(g, body); fill(g, fork); },
+      function (g) {
+        inkLine(g, C - 18, C + 10, C + 20, C - 12, { width: 1.4, bend: 0.05, seed: 104, alpha: 0.5 });
+      });
   },
 
   /* ------------------------------------------------------------ Sammelgut */
@@ -558,5 +591,5 @@ export function paintFishIcon(body, belly, fin, seed) {
       inkLine(g, cx - 20, cy + 4, cx - 12, cy + 5, { width: 1.6, bend: 0.3, seed: seed + 6, alpha: 0.6 });
     },
   });
-  return made(res, s, s, s / 2, s);
+  return fitIcon(res);
 }

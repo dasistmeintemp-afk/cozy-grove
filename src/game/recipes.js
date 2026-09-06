@@ -1,4 +1,4 @@
-/** Bauplaene der Werkbank, Werkzeugstufen und Lagerfeuer-Ausbau. */
+/** Baupläne der Werkbank, Werkzeugstufen und Lagerfeuer-Ausbau. */
 
 /** Lagerfeuer: Brennstoff (Holz o. Ae.) hebt die Stufe. */
 export const CAMPFIRE_LEVELS = [
@@ -39,7 +39,7 @@ function r(id, name, out, cost, opts) {
 }
 
 export const RECIPES = [
-  // Wege & Zaun – guenstig, viel Wirkung
+  // Wege & Zaun – günstig, viel Wirkung
   r('path_tile', 'Steinweg (4x)', { id: 'path_tile', n: 4 }, [{ id: 'stone', n: 2 }]),
   r('fence', 'Zaunstück', { id: 'fence', n: 1 }, [{ id: 'wood', n: 3 }, { id: 'fiber', n: 1 }]),
   r('signpost', 'Wegweiser', { id: 'signpost', n: 1 }, [{ id: 'wood', n: 4 }, { id: 'stone', n: 1 }]),
@@ -58,6 +58,12 @@ export const RECIPES = [
   // Ab Feuerstufe 3
   r('windchime', 'Windspiel', { id: 'windchime', n: 1 },
     [{ id: 'driftwood', n: 3 }, { id: 'shell', n: 3 }, { id: 'copper_ore', n: 1 }], { ember: 6, fire: 3 }),
+  // Aus dem, was nur Nacht, Regen und Nebel hergeben. Sie sind der Grund,
+  // an einem anderen Tag oder zu anderer Stunde wiederzukommen.
+  r('moonlamp', 'Mondlaterne', { id: 'moonlamp', n: 1 },
+    [{ id: 'moonflower', n: 3 }, { id: 'fogcrystal', n: 2 }, { id: 'copper_ore', n: 3 }],
+    { ember: 14, fire: 3, note: 'Leuchtet doppelt so weit wie eine Laterne.' }),
+
   r('bridge_kit', 'Brückenbausatz', { id: 'bridge_kit', n: 1 },
     [{ id: 'hardwood', n: 10 }, { id: 'stone', n: 8 }, { id: 'copper_ore', n: 4 }],
     { ember: 18, fire: 3, once: true, note: 'Öffnet den Weg zu den Klippen.' }),

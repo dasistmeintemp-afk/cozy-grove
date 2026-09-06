@@ -1,4 +1,4 @@
-/** Alles, was auf der Insel steht: Baeume, Steine, Sammelgut, Bauten, Geister. */
+/** Alles, was auf der Insel steht: Bäume, Steine, Sammelgut, Bauten, Geister. */
 import { randInt } from '../core/rng.js';
 import { nextId } from '../core/util.js';
 
@@ -16,18 +16,18 @@ function drop(id, min, max) {
  *  sprite      Grafikname
  *  solid       blockiert Bewegung
  *  blockR      Kollisionsradius (Pixel)
- *  reachR      Reichweite fuer Interaktion (Pixel)
- *  tool        benoetigtes Werkzeug
- *  minLevel    benoetigte Werkzeugstufe
- *  hits        Schlaege bis erschoepft
+ *  reachR      Reichweite für Interaktion (Pixel)
+ *  tool        benötigtes Werkzeug
+ *  minLevel    benötigte Werkzeugstufe
+ *  hits        Schläge bis erschöpft
  *  yield       (level, rng) => [{id, n}]
  *  becomes     Folgezustand nach Abbau (kind) – sonst verschwindet das Objekt
- *  respawn     Tage bis zur Rueckkehr
+ *  respawn     Tage bis zur Rückkehr
  *  sway        wackelt im Wind
  */
 export const ENTITY_DEFS = {
   tree_oak: {
-    sprite: 'tree_oak', solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 3,
+    sprite: 'tree_oak', variants: 3, solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 3,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
       if (level >= 2 && rng() < 0.35) out.push({ id: 'hardwood', n: 1 });
@@ -37,7 +37,7 @@ export const ENTITY_DEFS = {
     becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
   tree_birch: {
-    sprite: 'tree_birch', solid: true, blockR: 20, reachR: 88, tool: TOOL.AXE, hits: 3,
+    sprite: 'tree_birch', variants: 3, solid: true, blockR: 20, reachR: 88, tool: TOOL.AXE, hits: 3,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
       if (rng() < 0.3) out.push({ id: 'fiber', n: randInt(rng, 1, 2) });
@@ -46,7 +46,7 @@ export const ENTITY_DEFS = {
     becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
   tree_maple: {
-    sprite: 'tree_maple', solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 3,
+    sprite: 'tree_maple', variants: 3, solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 3,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
       if (rng() < 0.45) out.push({ id: 'resin', n: 1 });
@@ -55,7 +55,7 @@ export const ENTITY_DEFS = {
     becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
   tree_pine: {
-    sprite: 'tree_pine', solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 4,
+    sprite: 'tree_pine', variants: 3, solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 4,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 3, 4) + level }];
       if (level >= 2 && rng() < 0.5) out.push({ id: 'hardwood', n: randInt(rng, 1, 2) });
@@ -125,6 +125,21 @@ export const ENTITY_DEFS = {
   flower_violet: { sprite: 'flower_violet', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_violet', 1, 1), respawn: 1, sway: true, category: 'forage' },
   flower_white: { sprite: 'flower_white', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_white', 1, 1), respawn: 1, sway: true, category: 'forage' },
 
+  // Wetter- und Nachtvorkommen. Sie werden jeden Tag neu gesetzt und
+  // verschwinden wieder, sobald die Bedingung nicht mehr gilt.
+  moonflower: {
+    sprite: 'moonflower', solid: false, reachR: 60, tool: TOOL.HAND, hits: 1,
+    yield: drop('moonflower', 1, 1), sway: true, category: 'forage',
+  },
+  rainmushroom: {
+    sprite: 'rainmushroom', solid: false, reachR: 60, tool: TOOL.HAND, hits: 1,
+    yield: drop('rainmushroom', 1, 1), category: 'forage',
+  },
+  fogcrystal: {
+    sprite: 'fogcrystal', solid: false, reachR: 60, tool: TOOL.PICK, hits: 1,
+    yield: drop('fogcrystal', 1, 1), category: 'forage',
+  },
+
   digspot: {
     sprite: 'digspot', solid: false, reachR: 64, tool: TOOL.SHOVEL, hits: 1,
     yield: function (level, rng) {
@@ -165,7 +180,7 @@ export const ENTITY_DEFS = {
   spirit: { solid: false, reachR: 120, category: 'spirit' },
   fox: { sprite: 'fox_0', solid: false, reachR: 112, category: 'fox' },
 
-  // Aufgabengegenstaende
+  // Aufgabengegenstände
   hidden: { solid: false, reachR: 80, tool: TOOL.HAND, hits: 1, category: 'hidden' },
 
   // Vom Spieler aufgestellte Deko
@@ -176,15 +191,26 @@ export function defOf(kind) {
   return ENTITY_DEFS[kind] || null;
 }
 
-/** Erzeugt eine Weltinstanz. x/y sind Weltpixel (Fusspunkt). */
+/** Erzeugt eine Weltinstanz. x/y sind Weltpixel (Fußpunkt). */
+/**
+ * Welche Fassung einer Grafik dieses Objekt bekommt.
+ * Hängt nur am Ort, damit derselbe Baum nach dem Laden wieder gleich aussieht.
+ */
+function variantAt(x, y, count) {
+  const h = (Math.round(x) * 73856093) ^ (Math.round(y) * 19349663);
+  return ((h >>> 3) % count + count) % count;
+}
+
 export function makeEntity(kind, x, y, extra) {
   const def = ENTITY_DEFS[kind];
+  let sprite = def && def.sprite ? def.sprite : null;
+  if (sprite && def.variants > 1) sprite = sprite + '_' + variantAt(x, y, def.variants);
   const e = {
     id: nextId(),
     kind: kind,
     x: x,
     y: y,
-    sprite: def && def.sprite ? def.sprite : null,
+    sprite: sprite,
     hp: def && def.hits ? def.hits : 0,
     hidden: false,
     respawnDay: 0,
@@ -194,7 +220,7 @@ export function makeEntity(kind, x, y, extra) {
   return e;
 }
 
-/** Sortierschluessel fuer die Tiefenstaffelung. */
+/** Sortierschlüssel für die Tiefenstaffelung. */
 export function sortKey(e) {
   return e.y + (e.zBias || 0);
 }

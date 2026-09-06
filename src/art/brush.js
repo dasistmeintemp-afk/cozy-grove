@@ -98,6 +98,23 @@ export function pathFrom(ctx, pts, close) {
   if (close !== false) ctx.closePath();
 }
 
+/**
+ * Beschneidet auf die Vereinigung mehrerer Formen. `pathFrom` beginnt jedes
+ * Mal einen neuen Pfad – für ein gemeinsames Clip müssen die Teilpfade in
+ * einem Pfad liegen. Ruft `save()` selbst; der Aufrufer braucht `restore()`.
+ */
+export function clipTo(ctx, shapes) {
+  ctx.save();
+  ctx.beginPath();
+  for (let i = 0; i < shapes.length; i++) {
+    const pts = shapes[i];
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k][0], pts[k][1]);
+    ctx.closePath();
+  }
+  ctx.clip();
+}
+
 /* ------------------------------------------------------------------- Tinte */
 
 /**
@@ -196,10 +213,12 @@ function modulateAlpha(canvas, seed) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4 + 3;
       if (!d[i]) continue;
-      const m = 0.72
-        + 0.28 * Math.sin(x * f1 + y * f2 * 1.7 + p1)
-        + 0.14 * Math.sin(x * f2 * 2.3 - y * f1 + p2);
-      d[i] = Math.max(0, Math.min(255, d[i] * Math.max(0.3, Math.min(1.15, m))));
+      // Die Stärke wandert, aber die Linie bleibt eine Linie. Vorher fiel sie
+      // stellenweise auf 44 Prozent und wirkte dadurch weich statt gezeichnet.
+      const m = 0.93
+        + 0.13 * Math.sin(x * f1 + y * f2 * 1.7 + p1)
+        + 0.07 * Math.sin(x * f2 * 2.3 - y * f1 + p2);
+      d[i] = Math.max(0, Math.min(255, d[i] * Math.max(0.78, Math.min(1.1, m))));
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -239,11 +258,67 @@ export function inkLine(ctx, x0, y0, x1, y1, opts) {
  * Alpha wird vorher multipliziert, sonst entstehen dunkle Ränder an
  * durchsichtigen Stellen.
  */
+/**
+ * Kann der Browser selbst weichzeichnen?
+ *
+ * `ctx.filter` gibt es in Chrome und Firefox seit Langem, in Safari erst seit
+ * Version 17. Die blosse Anwesenheit der Eigenschaft genügt daher nicht – es
+ * wird einmal wirklich ausprobiert: ein deckender Fleck, weichgezeichnet, und
+ * danach ein Blick auf eine Ecke. Ist sie noch leer, hat der Browser den Filter
+ * ignoriert, und wir rechnen weiter selbst.
+ */
+let nativeBlur = null;
+
+function canBlurNatively() {
+  if (nativeBlur !== null) return nativeBlur;
+  nativeBlur = false;
+  try {
+    const c = makeCanvas(32, 32);
+    const g = ctx2d(c);
+    if (typeof g.filter !== 'string') return nativeBlur;
+    g.filter = 'blur(4px)';
+    g.fillStyle = '#000000';
+    g.fillRect(8, 8, 16, 16);
+    g.filter = 'none';
+    // Ohne Filter wäre diese Stelle unberührt und damit vollständig leer
+    const a = g.getImageData(5, 16, 1, 1).data[3];
+    nativeBlur = a > 4;
+  } catch (err) {
+    nativeBlur = false;
+  }
+  return nativeBlur;
+}
+
 export function blurCanvas(canvas, radius, passes) {
   const r = Math.max(1, Math.round(radius));
   const w = canvas.width;
   const h = canvas.height;
   if (w < 3 || h < 3) return;
+
+  // Der eigene Kastenweichzeichner war die Hälfte der Kosten eines
+  // Bodenstücks. Kann der Browser es selbst, ist es ein Bruchteil davon.
+  if (canBlurNatively()) {
+    const rounds = passes || 2;
+    // Mehrere Kastendurchgänge nähern eine Glocke; sigma entsprechend
+    const sigma = r * Math.sqrt(rounds * 2) * 0.5;
+    try {
+      const tmp = makeCanvas(w, h);
+      const tctx = ctx2d(tmp);
+      tctx.drawImage(canvas, 0, 0);
+      const ctx = ctx2d(canvas);
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.filter = 'blur(' + sigma.toFixed(2) + 'px)';
+      ctx.drawImage(tmp, 0, 0);
+      ctx.filter = 'none';
+      ctx.restore();
+      return;
+    } catch (err) {
+      nativeBlur = false;
+    }
+  }
+
   const ctx = ctx2d(canvas);
   let img;
   try {
@@ -278,6 +353,16 @@ export function blurCanvas(canvas, radius, passes) {
   ctx.putImageData(img, 0, 0);
 }
 
+/**
+ * Ein Kastendurchgang des Weichzeichners.
+ *
+ * Ausserhalb des Bildes wird mit „nichts“ gerechnet, nicht mit dem Randpixel.
+ * Würde der Rand fortgesetzt, bekäme jede Grafik, deren Farbe bis an den
+ * Rand ihrer Leinwand reicht, einen blassen Streifen ringsherum – im Spiel
+ * standen dort rechteckige Schleier im Boden, wo sich Bäume überlagerten.
+ * Beim Boden ist das unkritisch: Dort liegt ein Malrand um jedes Stück, und
+ * gezeichnet wird nur der Kern.
+ */
 function boxPass(src, dst, w, h, r, horizontal) {
   const outer = horizontal ? h : w;
   const inner = horizontal ? w : h;
@@ -290,8 +375,8 @@ function boxPass(src, dst, w, h, r, horizontal) {
     let s1 = 0;
     let s2 = 0;
     let s3 = 0;
-    for (let k = -r; k <= r; k++) {
-      const idx = base + clampIdx(k, inner) * stepIn;
+    for (let k = 0; k <= r && k < inner; k++) {
+      const idx = base + k * stepIn;
       s0 += src[idx]; s1 += src[idx + 1]; s2 += src[idx + 2]; s3 += src[idx + 3];
     }
     for (let i = 0; i < inner; i++) {
@@ -300,18 +385,18 @@ function boxPass(src, dst, w, h, r, horizontal) {
       dst[out + 1] = s1 / win;
       dst[out + 2] = s2 / win;
       dst[out + 3] = s3 / win;
-      const addIdx = base + clampIdx(i + r + 1, inner) * stepIn;
-      const subIdx = base + clampIdx(i - r, inner) * stepIn;
-      s0 += src[addIdx] - src[subIdx];
-      s1 += src[addIdx + 1] - src[subIdx + 1];
-      s2 += src[addIdx + 2] - src[subIdx + 2];
-      s3 += src[addIdx + 3] - src[subIdx + 3];
+      const add = i + r + 1;
+      if (add < inner) {
+        const a = base + add * stepIn;
+        s0 += src[a]; s1 += src[a + 1]; s2 += src[a + 2]; s3 += src[a + 3];
+      }
+      const sub = i - r;
+      if (sub >= 0) {
+        const b = base + sub * stepIn;
+        s0 -= src[b]; s1 -= src[b + 1]; s2 -= src[b + 2]; s3 -= src[b + 3];
+      }
     }
   }
-}
-
-function clampIdx(i, n) {
-  return i < 0 ? 0 : i >= n ? n - 1 : i;
 }
 
 /* -------------------------------------------------------------- Papierkorn */
@@ -387,6 +472,39 @@ export function wash(ctx, pts, color, opts) {
 }
 
 /**
+ * Mehrere Formen als EINE Farbfläche legen.
+ *
+ * Halbdurchsichtig übereinander gelegte Formen addieren sich in den
+ * Überlappungen: Aus sechs Lappen mit je 34 Prozent wird in der Mitte fast
+ * Deckung, und die Schattenseite einer Baumkrone verläuft zu Matsch statt eine
+ * Fläche mit Kante zu sein. Hier wird die Gruppe erst deckend auf eine eigene
+ * Leinwand gelegt und dann einmal als Ganzes eingeblendet.
+ *
+ * @param {Array<Array<[number,number]>>} groups Liste von Punktfolgen
+ */
+export function washGroup(ctx, groups, color, opts) {
+  const o = opts || {};
+  if (!groups.length) return;
+  const c = ctx.canvas;
+  const layer = makeCanvas(c.width, c.height);
+  const lg = ctx2d(layer);
+  lg.imageSmoothingEnabled = true;
+  // Dieselbe Verschiebung wie die Zielebene, damit alles zusammenpasst
+  const tr = ctx.getTransform ? ctx.getTransform() : null;
+  if (tr) lg.setTransform(tr.a, tr.b, tr.c, tr.d, tr.e, tr.f);
+  lg.fillStyle = color;
+  for (let i = 0; i < groups.length; i++) {
+    pathFrom(lg, groups[i], true);
+    lg.fill();
+  }
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
+  ctx.drawImage(layer, 0, 0);
+  ctx.restore();
+}
+
+/**
  * Bildaufbau eines gemalten Sprites:
  *   1. Farbflächen auf eine eigene Ebene, danach weichzeichnen
  *   2. Tuschelinien scharf darüber
@@ -414,6 +532,9 @@ export function paintLayered(w, h, paintWash, paintInk, opts) {
   return out;
 }
 
+/** Luft zwischen Malerei und Leinwandrand, in Bildpunkten. */
+export const DEFAULT_MARGIN = 20;
+
 /**
  * Vollständiger Bildaufbau eines gemalten Objekts.
  *
@@ -425,47 +546,79 @@ export function paintLayered(w, h, paintWash, paintInk, opts) {
  * Die aufwendigen Teile (Weichzeichnen, Kontur) werden dabei nur einmal
  * berechnet.
  *
- * @param {number} w
- * @param {number} h
+ * Um die angegebene Fläche liegt ein Rand (`margin`). Ohne ihn schneidet die
+ * Leinwand die Malerei ab: Farbflächen werden absichtlich etwas größer als die
+ * Form gemalt, und die Außenkontur liegt noch einmal davor. Am einzelnen Objekt
+ * fällt der gerade Schnitt kaum auf – wo sich viele Bäume überlagern, addieren
+ * sich die Schnittkanten aber zu Rechtecken im Boden.
+ *
+ * @param {number} w Breite der Zeichenfläche (ohne Rand)
+ * @param {number} h Höhe der Zeichenfläche (ohne Rand)
  * @param {object} o shadow, wash, shape, ink (Zeichenfunktionen),
- *                   outline (Strichstärke), blur, seed
- * @returns {{color: HTMLCanvasElement, line: HTMLCanvasElement}}
+ *                   outline (Strichstärke), blur, seed, margin
+ * @returns {{color: HTMLCanvasElement, line: HTMLCanvasElement, margin: number}}
  */
 export function paintObject(w, h, o) {
-  const washLayer = makeCanvas(w, h);
-  const wctx = ctx2d(washLayer);
-  wctx.imageSmoothingEnabled = true;
+  const m = o.margin == null ? DEFAULT_MARGIN : o.margin;
+  const W = w + m * 2;
+  const H = h + m * 2;
+
+  function layer() {
+    const c = makeCanvas(W, H);
+    const ctx = ctx2d(c);
+    ctx.imageSmoothingEnabled = true;
+    ctx.translate(m, m);
+    return [c, ctx];
+  }
+
+  const wl = layer();
+  const washLayer = wl[0];
+  const wctx = wl[1];
   if (o.shadow) o.shadow(wctx);
   if (o.wash) o.wash(wctx);
-  blurCanvas(washLayer, o.blur == null ? 3 : o.blur, o.blurPasses || 2);
+  // Wenig Weichzeichnung: die Vorlage hat Farbflächen mit erkennbarer Kante,
+  // keinen Airbrush. Zu viel Weichzeichner nimmt der Zeichnung den Strich.
+  blurCanvas(washLayer, o.blur == null ? 1.6 : o.blur, o.blurPasses || 2);
 
-  const paleWash = makeCanvas(w, h);
+  // Farbige Feinheiten liegen hinter dem Weichzeichner, aber vor dem
+  // Entfärben: in der kolorierten Fassung ein scharfer Strich, im Malbuch
+  // blasses Grau. Farbe in `ink` würde dagegen als Farbfleck stehenbleiben.
+  if (o.detail) {
+    wctx.save();
+    o.detail(wctx);
+    wctx.restore();
+  }
+
+  const paleWash = makeCanvas(W, H);
   const pctx = ctx2d(paleWash);
   pctx.drawImage(washLayer, 0, 0);
   toPaleGrey(paleWash);
 
   let ring = null;
   if (o.shape) {
-    const shapeLayer = makeCanvas(w, h);
-    const sctx = ctx2d(shapeLayer);
-    sctx.imageSmoothingEnabled = true;
-    sctx.fillStyle = '#000000';
-    o.shape(sctx);
-    ring = unionOutline(shapeLayer, o.outline == null ? 2.6 : o.outline,
+    const sl = layer();
+    sl[1].fillStyle = '#000000';
+    o.shape(sl[1]);
+    ring = unionOutline(sl[0], o.outline == null ? 1.9 : o.outline,
       o.outlineColor || '#4a4038', o.seed || 5);
   }
 
   function compose(washSource) {
-    const out = makeCanvas(w, h);
+    const out = makeCanvas(W, H);
     const ctx = ctx2d(out);
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(washSource, 0, 0);
     if (ring) ctx.drawImage(ring, 0, 0);
-    if (o.ink) o.ink(ctx);
+    if (o.ink) {
+      ctx.save();
+      ctx.translate(m, m);
+      o.ink(ctx);
+      ctx.restore();
+    }
     return out;
   }
 
-  return { color: compose(washLayer), line: compose(paleWash) };
+  return { color: compose(washLayer), line: compose(paleWash), margin: m };
 }
 
 /**
@@ -495,13 +648,38 @@ export function toPaleGrey(canvas) {
   ctx.putImageData(img, 0, 0);
 }
 
-/** Weicher Bodenschatten unter einem Objekt. */
+/**
+ * Woher das Licht kommt: von oben links.
+ *
+ * Ein einziger Wert für die ganze Insel. Vorher lag jeder Schatten mittig
+ * unter seinem Objekt, und die Lichtseiten der Objekte zeigten in
+ * unterschiedliche Richtungen – die Szene zerfiel dadurch in Einzelteile,
+ * statt unter einer Sonne zu stehen.
+ */
+export const LIGHT = { x: -0.6, y: -0.8 };
+
+/**
+ * Weicher Bodenschatten unter einem Objekt.
+ *
+ * Zwei Lagen: eine breite, die vom Licht weg versetzt liegt, und ein
+ * dunklerer Kern direkt am Fußpunkt. Der Kern ist das Entscheidende – ohne
+ * ihn schwebt ein Baum über der Wiese, statt auf ihr zu stehen.
+ */
 export function groundShadow(ctx, cx, cy, rx, ry, seed, alpha) {
-  const pts = smoothClosed(blob(cx, cy, rx, ry, seed || 11, 0.16, 14), 4);
+  const a = alpha == null ? 0.16 : alpha;
+  const ox = -LIGHT.x * rx * 0.20;
+  const oy = -LIGHT.y * ry * 0.26;
+  const s = seed || 11;
   ctx.save();
-  ctx.globalAlpha = alpha == null ? 0.16 : alpha;
   ctx.fillStyle = '#6f7a5c';
-  pathFrom(ctx, pts, true);
+
+  ctx.globalAlpha = a;
+  pathFrom(ctx, smoothClosed(blob(cx + ox, cy + oy, rx, ry, s, 0.16, 14), 4), true);
+  ctx.fill();
+
+  ctx.globalAlpha = a * 1.45;
+  pathFrom(ctx, smoothClosed(
+    blob(cx + ox * 0.35, cy + oy * 0.35, rx * 0.58, ry * 0.62, s + 3, 0.2, 12), 4), true);
   ctx.fill();
   ctx.restore();
 }

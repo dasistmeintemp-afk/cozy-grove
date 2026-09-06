@@ -2,7 +2,7 @@
  * Die Geister der Insel.
  *
  * Bewusst wortkarg: jede Figur hat nur eine Handvoll sehr kurzer Zeilen.
- * Was sie wollen, sagen Symbole – nicht Absaetze.
+ * Was sie wollen, sagen Symbole – nicht Absätze.
  */
 
 export const SPIRITS = {
@@ -14,7 +14,7 @@ export const SPIRITS = {
     role: 'Lagerfeuer',
     colorStart: 312,
     colorPerQuest: 88,
-    questTypes: ['burn', 'gather_wood', 'gather'],
+    questTypes: ['burn', 'burn', 'gather_wood', 'visit', 'craft'],
     likes: ['wood', 'hardwood', 'resin'],
     lines: {
       greet: ['Knister.', 'Kalt hier.', 'Ich glimme.'],
@@ -31,7 +31,7 @@ export const SPIRITS = {
     role: 'Wiese',
     colorStart: 240,
     colorPerQuest: 104,
-    questTypes: ['gather_forage', 'find', 'decorate'],
+    questTypes: ['gather_forage', 'find', 'decorate', 'decorate', 'visit'],
     likes: ['flower_pink', 'flower_yellow', 'flower_white', 'herb', 'berry'],
     lines: {
       greet: ['Es duftet.', 'Hallo!', 'Schau mal.'],
@@ -46,9 +46,10 @@ export const SPIRITS = {
     art: 'spirit_kiesel',
     region: 0,
     role: 'Strand',
+    water: 'sea',
     colorStart: 240,
     colorPerQuest: 104,
-    questTypes: ['fish', 'gather_beach', 'find'],
+    questTypes: ['catch', 'catch', 'fish', 'gather_beach', 'visit'],
     likes: ['shell', 'driftwood', 'fish_cod', 'fish_mackerel'],
     lines: {
       greet: ['Moin.', 'Ruhige See.', 'Wind dreht.'],
@@ -63,9 +64,10 @@ export const SPIRITS = {
     art: 'spirit_bruno',
     region: 1,
     role: 'Wald',
+    water: 'fresh',
     colorStart: 256,
     colorPerQuest: 112,
-    questTypes: ['gather_wood', 'find', 'gather'],
+    questTypes: ['gather_wood', 'find', 'visit', 'catch', 'burn'],
     likes: ['hardwood', 'resin', 'mushroom'],
     lines: {
       greet: ['Hmpf.', 'Du wieder.', 'Na gut.'],
@@ -82,7 +84,7 @@ export const SPIRITS = {
     role: 'Werkstatt',
     colorStart: 240,
     colorPerQuest: 112,
-    questTypes: ['craft', 'gather_ore', 'find'],
+    questTypes: ['craft', 'craft', 'gather_ore', 'visit', 'decorate'],
     likes: ['copper_ore', 'stone', 'shard'],
     lines: {
       greet: ['Interessant!', 'Moment...', 'Schraube fehlt.'],
@@ -99,7 +101,7 @@ export const SPIRITS = {
     role: 'Klippen',
     colorStart: 240,
     colorPerQuest: 120,
-    questTypes: ['find', 'gather', 'decorate'],
+    questTypes: ['find', 'visit', 'decorate', 'craft', 'gather'],
     likes: ['fiber', 'flower_violet', 'gem'],
     lines: {
       greet: ['Oh, Besuch.', 'Hier oben!', 'Puh, windig.'],
@@ -119,6 +121,30 @@ export function spiritsOfRegion(region) {
 /** Freundschaftsstufe aus abgeschlossenen Aufgaben. */
 export function friendshipLevel(done) {
   return Math.min(10, Math.floor(done / 3));
+}
+
+/**
+ * Was ein Geist zu einer neuen Freundschaftsstufe schenkt.
+ *
+ * Jeder Geist gibt, was zu ihm passt – Flämmchen Glut, Käptn Kiesel etwas
+ * vom Strand. Ab Stufe 5 kommt ein Erinnerungsstück dazu, denn ab da hat man
+ * sich wirklich Mühe gegeben. Ohne das war die Freundschaftsstufe eine Zahl,
+ * die nichts bewirkte.
+ */
+export function friendshipGift(spiritId, level) {
+  const spirit = SPIRITS[spiritId];
+  if (!spirit || level < 1) return null;
+  const gift = {
+    coins: 20 + level * 15,
+    ember: spiritId === 'flamey' ? 4 + level * 2 : 2 + level,
+    items: [],
+  };
+  const likes = spirit.likes || [];
+  if (likes.length) {
+    gift.items.push({ id: likes[level % likes.length], n: 2 + Math.floor(level / 2) });
+  }
+  if (level >= 5) gift.items.push({ id: 'gem', n: 1 });
+  return gift;
 }
 
 export function friendshipProgress(done) {

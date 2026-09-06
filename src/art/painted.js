@@ -1,18 +1,19 @@
 /**
  * Gemalte Naturobjekte im Tinte-und-Aquarell-Stil.
  *
- * Jedes Objekt wird in vier Durchgängen aufgebaut:
+ * Jedes Objekt wird in fünf Durchgängen aufgebaut:
  *   shadow  – weicher Bodenschatten
  *   wash    – Farbflächen, absichtlich leicht neben der Form (werden weich)
+ *   detail  – farbige Feinheiten, scharf, aber im Malbuch blass (Blattbüschel)
  *   shape   – die reine Silhouette; daraus entsteht EINE Außenkontur
- *   ink     – Innenlinien und Details, scharf obendrauf
+ *   ink     – Innenlinien, scharf obendrauf; bleiben auch unkoloriert stehen
  *
  * Jeder Maler liefert beide Fassungen zurück: koloriert und als blasse
  * Zeichnung. Die zweite ist der Ausgangszustand der Insel.
  */
 import {
-  blob, teardrop, smoothClosed, offsetShape, pathFrom,
-  inkStroke, inkLine, wash, paintObject, groundShadow,
+  blob, teardrop, smoothClosed, offsetShape, pathFrom, clipTo,
+  inkStroke, inkLine, wash, washGroup, paintObject, groundShadow, LIGHT,
 } from './brush.js';
 import { makeRng } from '../core/rng.js';
 
@@ -23,19 +24,21 @@ export const INK = {
   paper: '#f8f3e7',
   paperShade: '#ece4d0',
 
-  leaf: '#a6c95f',
-  leafLight: '#cbe291',
-  leafDark: '#7fa546',
-  leafDeep: '#5f8438',
-  pine: '#6f9a4a',
-  pineDark: '#4f7a3f',
-  pineLight: '#95bb5f',
+  leaf: '#9ec455',
+  leafLight: '#c6e085',
+  leafDark: '#71993c',
+  leafDeep: '#4e732b',
+  pine: '#5d8a42',
+  pineDark: '#3d6636',
+  pineLight: '#82ab4d',
   autumn: '#e2a04c',
   autumnLight: '#f2c87e',
   autumnDark: '#c07a30',
+  autumnDeep: '#9a5721',
   birchLeaf: '#bcd66e',
   birchLight: '#dcea9f',
   birchDark: '#94b352',
+  birchDeep: '#6f8d38',
 
   trunk: '#d7bf94',
   trunkShade: '#a98a5d',
@@ -44,9 +47,9 @@ export const INK = {
   birchBark: '#f2ece0',
   birchShade: '#cfc6ae',
 
-  grass: '#c2d68f',
-  grassLight: '#dce8b4',
-  grassDark: '#9cb968',
+  grass: '#bcd67f',
+  grassLight: '#d8e7a6',
+  grassDark: '#95b45c',
 
   sand: '#f7edd4',
   sandShade: '#e8d7ae',
@@ -105,9 +108,17 @@ export function fill(g, pts) {
   g.fill();
 }
 
-/** Ergebnis eines Malers mit Maßen und Fußpunkt. */
+/**
+ * Ergebnis eines Malers mit Maßen und Fußpunkt.
+ * `paintObject` legt einen Rand um die Zeichenfläche; Maße und Fußpunkt
+ * wandern entsprechend mit, damit das Objekt an derselben Stelle steht.
+ */
 export function made(res, w, h, ax, ay) {
-  return { color: res.color, line: res.line, w: w, h: h, ax: ax, ay: ay };
+  const m = res.margin || 0;
+  return {
+    color: res.color, line: res.line,
+    w: w + m * 2, h: h + m * 2, ax: ax + m, ay: ay + m,
+  };
 }
 
 /** Kleiner farbiger Punkt mit eigener Kontur (Beere, Frucht, Auge). */
@@ -121,6 +132,68 @@ export function dot(gWash, gInk, x, y, r, color, seed) {
   return pts;
 }
 
+/**
+ * Blattbüscheln: kleine Bögen über eine Krone verteilt.
+ *
+ * In der Vorlage steckt in jeder Baumkrone ein Dutzend solcher Zeichen. Sie
+ * machen aus einer gefärbten Fläche eine gezeichnete Krone. Auf der
+ * Schattenseite stehen sie dichter, weil dort ohnehin mehr Struktur sitzt.
+ */
+export function leafClumps(g, cx, cy, rx, ry, seed, color) {
+  const rng = makeRng(seed >>> 0);
+  const n = 16;
+  g.save();
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.strokeStyle = color || ink.leafDeep;
+  for (let i = 0; i < n; i++) {
+    // Gleichmäßig über die Fläche, nicht geballt in der Mitte
+    const a = rng() * Math.PI * 2;
+    const r = Math.sqrt(rng()) * 0.88;
+    const x = cx + Math.cos(a) * rx * r;
+    const y = cy + Math.sin(a) * ry * r;
+    // Zum Licht hin blasser, vom Licht weg kräftiger
+    const lit = (Math.cos(a) * LIGHT.x + Math.sin(a) * LIGHT.y) * r;
+    g.globalAlpha = 0.34 + Math.max(0, -lit) * 0.4 + rng() * 0.12;
+    const wdt = rx * (0.15 + rng() * 0.11);
+    g.lineWidth = 1.6 + rng() * 1.0;
+    g.beginPath();
+    g.moveTo(x - wdt, y);
+    g.quadraticCurveTo(x, y - wdt * 0.95, x + wdt, y);
+    g.stroke();
+  }
+  g.restore();
+}
+
+/**
+ * Nadelsaum: kurze Striche, die von einer Etagenkante nach unten außen
+ * ausfransen. Ohne sie bleibt ein Nadelbaum ein gestapelter, glatter Kegel;
+ * mit ihnen bekommt er die zerfaserte Kante des Vorbilds.
+ */
+export function needleFringe(g, cx, y, halfW, seed, color) {
+  const rng = makeRng(seed >>> 0);
+  const n = Math.round(halfW * 0.34);
+  g.save();
+  g.lineCap = 'round';
+  g.strokeStyle = color || ink.pineDark;
+  g.beginPath();
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    const side = t < 0.5 ? -1 : 1;
+    // Zur Spitze hin steiler, zur Kante hin flacher – wie die Zweige selbst
+    const rel = Math.abs(t - 0.5) * 2;
+    const x = cx + side * halfW * rel * (0.92 + rng() * 0.12);
+    const yy = y - (1 - rel) * halfW * 0.34 + (rng() - 0.5) * 3;
+    const len = 5 + rng() * 6;
+    g.moveTo(x, yy);
+    g.lineTo(x + side * len * (0.5 + rel * 0.6), yy + len * (0.85 - rel * 0.35));
+  }
+  g.globalAlpha = 0.5;
+  g.lineWidth = 1.7;
+  g.stroke();
+  g.restore();
+}
+
 /* ------------------------------------------------------------------ Bäume */
 
 /**
@@ -129,12 +202,17 @@ export function dot(gWash, gInk, x, y, r, color, seed) {
  */
 export function paintTree(opts) {
   const o = opts || {};
-  const w = 180;
-  const h = 224;
+  // `spread` breitet die Krone aus, `lift` streckt sie nach oben. Damit wird
+  // aus demselben Maler eine breite und eine schlanke Silhouette – im dichten
+  // Wald fällt sonst auf, dass alle Bäume dieselbe Form haben.
+  const spread = o.spread == null ? 1 : o.spread;
+  const lift = o.lift == null ? 1 : o.lift;
+  const w = Math.round(180 * Math.max(1, spread));
+  const h = Math.round(224 * Math.max(1, lift));
   const seed = o.seed || 21;
   const cx = w / 2;
   const baseY = h - 14;
-  const canopyY = baseY - 132;
+  const canopyY = baseY - 132 * lift;
 
   const leafMid = o.leaf || ink.leaf;
   const leafLight = o.leafLight || ink.leafLight;
@@ -144,13 +222,14 @@ export function paintTree(opts) {
 
   // Die Krone lebt von vielen kleinen Ausbuchtungen. Da der Umriss aus der
   // Silhouette entsteht, darf sie ruhig unruhig sein.
+  const sx = spread;
   const lobes = [
-    smoothClosed(teardrop(cx, canopyY - 6, 58, 50, seed + 1, 0.17), 7),
-    smoothClosed(blob(cx - 44, canopyY + 26, 36, 30, seed + 2, 0.2), 7),
-    smoothClosed(blob(cx + 46, canopyY + 22, 34, 29, seed + 3, 0.2), 7),
-    smoothClosed(blob(cx + 2, canopyY + 48, 47, 28, seed + 4, 0.18), 7),
-    smoothClosed(blob(cx - 26, canopyY - 24, 27, 24, seed + 5, 0.22), 7),
-    smoothClosed(blob(cx + 30, canopyY - 18, 25, 23, seed + 6, 0.22), 7),
+    smoothClosed(teardrop(cx, canopyY - 6, 58 * sx, 50, seed + 1, 0.17), 7),
+    smoothClosed(blob(cx - 44 * sx, canopyY + 26, 36 * sx, 30, seed + 2, 0.2), 7),
+    smoothClosed(blob(cx + 46 * sx, canopyY + 22, 34 * sx, 29, seed + 3, 0.2), 7),
+    smoothClosed(blob(cx + 2, canopyY + 48, 47 * sx, 28, seed + 4, 0.18), 7),
+    smoothClosed(blob(cx - 26 * sx, canopyY - 24, 27 * sx, 24, seed + 5, 0.22), 7),
+    smoothClosed(blob(cx + 30 * sx, canopyY - 18, 25 * sx, 23, seed + 6, 0.22), 7),
   ];
 
   // Stamm reicht bis in die Krone hinein, sonst entsteht ein Pilzstiel
@@ -165,14 +244,14 @@ export function paintTree(opts) {
   const fruits = [];
   if (o.fruit) {
     for (let i = 0; i < 3; i++) {
-      fruits.push([cx - 34 + rngFruit() * 68, canopyY + 6 + rngFruit() * 44]);
+      fruits.push([cx - 34 * sx + rngFruit() * 68 * sx, canopyY + 6 + rngFruit() * 44]);
     }
   }
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3.5,
-    outline: 3.0,
+    blur: 1.8,
+    outline: 2.0,
     shadow: function (g) { groundShadow(g, cx + 4, baseY - 3, 54, 15, seed, 0.16); },
     wash: function (g) {
       wash(g, trunk, trunkFill, { seed: seed + 9, dx: -2, dy: 2, scale: 1.04 });
@@ -180,9 +259,27 @@ export function paintTree(opts) {
       for (let i = 0; i < lobes.length; i++) {
         wash(g, lobes[i], leafMid, { seed: seed + 20 + i, scale: 1.05 });
       }
-      wash(g, offsetShape(lobes[0], -18, -16, 0.6), leafLight, { seed: seed + 31, alpha: 0.9 });
-      wash(g, offsetShape(lobes[3], 14, 12, 0.78), leafDark, { seed: seed + 32, alpha: 0.5 });
-      wash(g, offsetShape(lobes[2], 12, 8, 0.68), leafDark, { seed: seed + 33, alpha: 0.38 });
+      // Schattenseite: JEDER Lappen bekommt seine dunkle Hälfte, vom Licht weg
+      // versetzt. Die Überlappungen bauen sich zu einer zusammenhängenden
+      // Schattenseite auf – vorher lag nur an zwei Lappen etwas Dunkles, und
+      // die Krone blieb eine flache Fläche.
+      const shx = -LIGHT.x * 15;
+      const shy = -LIGHT.y * 15;
+      const schatten = [];
+      const tief = [];
+      for (let i = 0; i < lobes.length; i++) {
+        schatten.push(offsetShape(lobes[i], shx, shy, 0.84));
+        tief.push(offsetShape(lobes[i], shx * 1.9, shy * 1.8, 0.6));
+      }
+      // Als Gruppe, nicht einzeln: sonst addieren sich die Überlappungen und
+      // die Schattenseite wird ein Verlauf statt einer Fläche mit Kante.
+      washGroup(g, schatten, leafDark, { alpha: 0.62 });
+      washGroup(g, tief, o.leafDeep || ink.leafDeep, { alpha: 0.4 });
+      // Lichtseite zuletzt, damit sie oben liegt
+      washGroup(g, [
+        offsetShape(lobes[0], LIGHT.x * 20, LIGHT.y * 18, 0.68),
+        offsetShape(lobes[4], LIGHT.x * 10, LIGHT.y * 10, 0.66),
+      ], leafLight, { alpha: 0.85 });
       for (let i = 0; i < fruits.length; i++) {
         dot(g, null, fruits[i][0], fruits[i][1], 7.5, o.fruit, seed + 90 + i);
       }
@@ -191,13 +288,20 @@ export function paintTree(opts) {
       fill(g, trunk);
       for (let i = 0; i < lobes.length; i++) fill(g, lobes[i]);
     },
+    // Blattbüscheln: viele kleine Bögen quer durch die Krone. Das ist der
+    // Unterschied zwischen einer gefärbten Fläche und einer Zeichnung –
+    // vorher standen hier neun verlorene Striche. Sie liegen in `detail`,
+    // nicht in `ink`: grüne Tinte bliebe sonst auch im Malbuch grün.
+    detail: function (g) {
+      leafClumps(g, cx, canopyY + 10, 58 * sx, 50, seed + 500, o.leafDeep || ink.leafDeep);
+    },
     ink: function (g) {
       // Kronenlappen nur andeuten, keine vollen Umrisse
-      inkLine(g, cx - 46, canopyY + 16, cx - 14, canopyY + 34,
+      inkLine(g, cx - 46 * sx, canopyY + 16, cx - 14 * sx, canopyY + 34,
         { width: 2.1, bend: 0.3, seed: seed + 60, alpha: 0.7 });
-      inkLine(g, cx + 48, canopyY + 12, cx + 16, canopyY + 32,
+      inkLine(g, cx + 48 * sx, canopyY + 12, cx + 16 * sx, canopyY + 32,
         { width: 2.0, bend: -0.3, seed: seed + 61, alpha: 0.65 });
-      inkLine(g, cx - 26, canopyY + 56, cx + 26, canopyY + 52,
+      inkLine(g, cx - 26 * sx, canopyY + 56, cx + 26 * sx, canopyY + 52,
         { width: 1.9, bend: 0.22, seed: seed + 62, alpha: 0.55 });
       if (o.birchMarks) {
         for (let i = 0; i < 4; i++) {
@@ -208,15 +312,6 @@ export function paintTree(opts) {
       } else {
         inkLine(g, cx - 6, baseY - 26, cx - 4, baseY - 66, { width: 1.6, bend: 0.05, seed: seed + 41, alpha: 0.5 });
         inkLine(g, cx + 6, baseY - 18, cx + 7, baseY - 50, { width: 1.4, bend: -0.05, seed: seed + 42, alpha: 0.42 });
-      }
-      const rng2 = makeRng(seed + 500);
-      for (let i = 0; i < 9; i++) {
-        const a = rng2() * Math.PI * 2;
-        const r = 0.45 + rng2() * 0.45;
-        const x = cx + Math.cos(a) * 58 * r;
-        const y = canopyY + 12 + Math.sin(a) * 48 * r;
-        inkLine(g, x, y, x + 8 - rng2() * 16, y - 5 - rng2() * 6,
-          { width: 1.3, bend: 0.35, seed: seed + 70 + i, alpha: 0.38 });
       }
       for (let i = 0; i < fruits.length; i++) {
         dot(null, g, fruits[i][0], fruits[i][1], 7.5, o.fruit, seed + 90 + i);
@@ -229,7 +324,7 @@ export function paintTree(opts) {
 /** Nadelbaum: gestapelte, weiche Kegel. */
 export function paintPine(opts) {
   const o = opts || {};
-  const w = 158;
+  const w = 176;
   const h = 248;
   const seed = o.seed || 55;
   const cx = w / 2;
@@ -256,21 +351,39 @@ export function paintPine(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3.5,
-    outline: 3.0,
+    blur: 1.8,
+    outline: 2.0,
     shadow: function (g) { groundShadow(g, cx + 3, baseY - 3, 46, 13, seed, 0.16); },
     wash: function (g) {
       wash(g, trunk, ink.trunk, { seed: seed + 3, dx: -1, dy: 2 });
       wash(g, offsetShape(trunk, 7, 2, 0.66), ink.trunkShade, { seed: seed + 4, alpha: 0.8 });
+      // Dieselbe Sonne wie beim Laubbaum: hell nach oben links, dunkel nach
+      // unten rechts. Dazu liegt jede Etage im Schatten der darüber – das
+      // macht aus dem gestapelten Kegel einen Baum mit Tiefe.
       for (let i = 0; i < tiers.length; i++) {
         wash(g, tiers[i], ink.pine, { seed: seed + 12 + i, scale: 1.05 });
-        wash(g, offsetShape(tiers[i], -14, -9, 0.5), ink.pineLight, { seed: seed + 22 + i, alpha: 0.55 });
-        wash(g, offsetShape(tiers[i], 15, 9, 0.55), ink.pineDark, { seed: seed + 32 + i, alpha: 0.45 });
       }
+      // Schatten- und Lichtseite je als EINE Fläche, sonst addieren sich die
+      // Etagenüberlappungen zu einem Verlauf.
+      const dunkel = [];
+      const hell = [];
+      for (let i = 0; i < tiers.length; i++) {
+        dunkel.push(offsetShape(tiers[i], -LIGHT.x * 17, -LIGHT.y * 13, 0.66));
+        hell.push(offsetShape(tiers[i], LIGHT.x * 15, LIGHT.y * 10, 0.52));
+      }
+      washGroup(g, dunkel, ink.pineDark, { alpha: 0.66 });
+      washGroup(g, hell, ink.pineLight, { alpha: 0.7 });
     },
     shape: function (g) {
       fill(g, trunk);
       for (let i = 0; i < tiers.length; i++) fill(g, tiers[i]);
+    },
+    detail: function (g) {
+      // Jede Etage franst nach unten aus. Das ist der ganze Unterschied
+      // zwischen einem Stapel Dreiecke und einer Fichte.
+      for (let i = 0; i < tiers.length; i++) {
+        needleFringe(g, cx, spec[i][0] - 3, spec[i][1] * 0.86, seed + 200 + i * 13, ink.pineDark);
+      }
     },
     ink: function (g) {
       for (let i = 0; i < tiers.length - 1; i++) {
@@ -301,8 +414,8 @@ export function paintStump(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.8,
+    blur: 1.5,
+    outline: 1.8,
     shadow: function (g) { groundShadow(g, cx + 3, baseY - 2, 30, 9, seed, 0.15); },
     wash: function (g) {
       wash(g, body, ink.bark, { seed: seed + 3, scale: 1.04 });
@@ -341,8 +454,8 @@ export function paintLogBarrier(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3.5,
-    outline: 3.0,
+    blur: 1.8,
+    outline: 2.0,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 92, 13, seed, 0.16); },
     wash: function (g) {
       wash(g, log, ink.bark, { seed: seed + 6, scale: 1.03 });
@@ -383,15 +496,43 @@ export function paintRock(opts) {
   }
   const moss = smoothClosed(blob(cx - 11 * scale, baseY - 52 * scale, 21 * scale, 9 * scale, seed + 5, 0.28, 12), 4);
 
+  /**
+   * Deckfläche. Ein Stein aus einer einzigen Blase bleibt ein Kiesel; erst
+   * eine eigene, zum Licht geneigte Oberseite mit sichtbarer Bruchkante macht
+   * daraus einen Felsen.
+   */
+  const rngTop = makeRng(seed + 300);
+  const top = smoothClosed([
+    [cx - 44 * scale, baseY - 32 * scale],
+    [cx - 33 * scale, baseY - 52 * scale + rngTop() * 6],
+    [cx - 6 * scale, baseY - 60 * scale],
+    [cx + 20 * scale, baseY - 50 * scale],
+    [cx + 28 * scale, baseY - 36 * scale],
+    [cx + 6 * scale, baseY - 30 * scale],
+    [cx - 22 * scale, baseY - 27 * scale],
+  ], 5);
+
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.8 * Math.min(1.2, scale),
+    blur: 1.5,
+    outline: 1.8 * Math.min(1.2, scale),
     shadow: function (g) { groundShadow(g, cx + 4, baseY - 3, 42 * scale, 11 * scale, seed + 1, 0.15); },
     wash: function (g) {
       wash(g, body, ink.rock, { seed: seed + 2, scale: 1.05 });
-      wash(g, offsetShape(body, 13 * scale, 10 * scale, 0.7), ink.rockShade, { seed: seed + 3, alpha: 0.75 });
-      if (o.moss !== false) wash(g, moss, ink.moss, { seed: seed + 6, alpha: 0.7 });
+      // Vorderseite liegt im Schatten, Deckfläche fängt das Licht
+      wash(g, offsetShape(body, -LIGHT.x * 16 * scale, -LIGHT.y * 13 * scale, 0.78),
+        ink.rockShade, { seed: seed + 3, alpha: 0.8 });
+      wash(g, offsetShape(body, -LIGHT.x * 24 * scale, -LIGHT.y * 17 * scale, 0.5),
+        ink.rockDeep, { seed: seed + 4, alpha: 0.4 });
+      wash(g, top, '#efece0', { seed: seed + 30, alpha: 0.72, scale: 1.02 });
+      if (o.moss !== false) {
+        // Moos gehört auf den Stein, nicht daneben: die Lasuren liegen
+        // absichtlich versetzt, und ohne Beschnitt schwebte das Grün frei
+        // über der Kante.
+        clipTo(g, [body]);
+        wash(g, moss, ink.moss, { seed: seed + 6, alpha: 0.7 });
+        g.restore();
+      }
       if (o.ore) {
         dot(g, null, cx + 11 * scale, baseY - 34 * scale, 9 * scale, ink.copper, seed + 8);
         dot(g, null, cx - 15 * scale, baseY - 22 * scale, 7 * scale, ink.copper, seed + 11);
@@ -399,6 +540,9 @@ export function paintRock(opts) {
     },
     shape: function (g) { fill(g, body); },
     ink: function (g) {
+      // Bruchkante zwischen Deckfläche und Vorderseite
+      inkStroke(g, top, { width: 1.7 * Math.min(1.2, scale), vary: 0.35,
+        seed: seed + 31, color: ink.lineSoft, alpha: 0.5 });
       inkLine(g, cx - 7 * scale, baseY - 55 * scale, cx + 2, baseY - 26 * scale,
         { width: 1.8, bend: 0.16, seed: seed + 21, alpha: 0.55 });
       inkLine(g, cx + 2, baseY - 32 * scale, cx + 21 * scale, baseY - 21 * scale,
@@ -436,15 +580,17 @@ export function paintRockslide(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3.5,
-    outline: 3.0,
+    blur: 1.8,
+    outline: 2.0,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 100, 14, seed, 0.16); },
     wash: function (g) {
       for (let i = 0; i < chunks.length; i++) {
         wash(g, chunks[i], ink.rock, { seed: seed + 20 + i, scale: 1.05 });
         wash(g, offsetShape(chunks[i], 12, 9, 0.68), ink.rockShade, { seed: seed + 30 + i, alpha: 0.7 });
       }
+      clipTo(g, chunks);
       wash(g, smoothClosed(blob(70, baseY - 88, 28, 10, seed + 60, 0.3, 12), 4), ink.moss, { seed: seed + 61, alpha: 0.6 });
+      g.restore();
       dot(g, null, 150, baseY - 52, 9, ink.copper, seed + 70);
     },
     shape: function (g) { for (let i = 0; i < chunks.length; i++) fill(g, chunks[i]); },
@@ -484,24 +630,210 @@ export function paintBush(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.7,
+    blur: 1.5,
+    outline: 1.8,
     shadow: function (g) { groundShadow(g, cx + 3, baseY - 3, 44, 11, seed + 4, 0.14); },
     wash: function (g) {
       for (let i = 0; i < lobes.length; i++) wash(g, lobes[i], ink.leaf, { seed: seed + 10 + i, scale: 1.05 });
-      wash(g, offsetShape(lobes[0], -13, -11, 0.58), ink.leafLight, { seed: seed + 20, alpha: 0.8 });
-      wash(g, offsetShape(lobes[0], 12, 11, 0.68), ink.leafDark, { seed: seed + 21, alpha: 0.45 });
+      // Wie bei den Kronen: jeder Lappen bekommt seine Schattenhälfte, damit
+      // aus der flachen Amöbe ein Busch mit Volumen wird.
+      const dunkel = [];
+      for (let i = 0; i < lobes.length; i++) {
+        dunkel.push(offsetShape(lobes[i], -LIGHT.x * 12, -LIGHT.y * 11, 0.82));
+      }
+      washGroup(g, dunkel, ink.leafDark, { alpha: 0.6 });
+      washGroup(g, [offsetShape(lobes[0], -LIGHT.x * 18, -LIGHT.y * 15, 0.55)],
+        ink.leafDeep, { alpha: 0.34 });
+      washGroup(g, [offsetShape(lobes[0], LIGHT.x * 15, LIGHT.y * 13, 0.58)],
+        ink.leafLight, { alpha: 0.85 });
       if (o.berries) {
         for (let i = 0; i < berries.length; i++) dot(g, null, berries[i][0], berries[i][1], 6, ink.berry, seed + 40 + i);
       }
     },
     shape: function (g) { for (let i = 0; i < lobes.length; i++) fill(g, lobes[i]); },
+    detail: function (g) {
+      leafClumps(g, cx, baseY - 30, 40, 24, seed + 600, ink.leafDeep);
+    },
     ink: function (g) {
       inkLine(g, cx - 30, baseY - 30, cx - 6, baseY - 40, { width: 1.8, bend: 0.28, seed: seed + 30, alpha: 0.55 });
       inkLine(g, cx + 31, baseY - 31, cx + 8, baseY - 41, { width: 1.8, bend: -0.28, seed: seed + 31, alpha: 0.5 });
+      // Ein paar Blattspitzen am oberen Rand – ohne sie bleibt der Umriss glatt
+      const rngLeaf = makeRng(seed + 700);
+      for (let i = 0; i < 6; i++) {
+        const a = -0.4 - rngLeaf() * 2.4;
+        const x = cx + Math.cos(a) * 34;
+        const y = baseY - 34 + Math.sin(a) * 24;
+        inkLine(g, x, y, x + (rngLeaf() - 0.5) * 12, y - 7 - rngLeaf() * 6,
+          { width: 1.3, bend: 0.3, seed: seed + 50 + i, color: ink.lineSoft, alpha: 0.45 });
+      }
       if (o.berries) {
         for (let i = 0; i < berries.length; i++) dot(null, g, berries[i][0], berries[i][1], 6, ink.berry, seed + 40 + i);
       }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Mondblume: nachts auf der Wiese. Ein heller Schimmer hinter der Blüte macht
+ * sie im Dunkeln auffindbar, ohne dass sie eine Lichtquelle sein müsste.
+ */
+export function paintMoonflower(opts) {
+  const o = opts || {};
+  const w = 68;
+  const h = 92;
+  const seed = o.seed || 811;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const headY = 30;
+
+  const petals = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    petals.push(smoothClosed(blob(cx + Math.cos(a) * 13, headY + Math.sin(a) * 12,
+      9, 8, seed + i, 0.16, 12), 5));
+  }
+  const core = smoothClosed(blob(cx, headY, 8, 7.5, seed + 20, 0.12, 12), 4);
+  const stem = smoothClosed([[cx - 3, baseY], [cx - 4, headY + 14], [cx + 4, headY + 14], [cx + 3, baseY]], 4);
+  const leaf = smoothClosed(blob(cx - 14, baseY - 28, 13, 6, seed + 21, 0.2, 12), 4);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.3,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 14, 5, seed + 1, 0.1); },
+    wash: function (g) {
+      g.save();
+      g.globalAlpha = 0.4;
+      g.fillStyle = '#dfe6ff';
+      fill(g, smoothClosed(blob(cx, headY, 30, 29, seed + 30, 0.1, 16), 6));
+      g.restore();
+      wash(g, stem, ink.grassDark, { seed: seed + 2 });
+      wash(g, leaf, '#8fae86', { seed: seed + 4 });
+      for (let i = 0; i < petals.length; i++) {
+        wash(g, petals[i], '#e8ecff', { seed: seed + 40 + i, scale: 1.06 });
+        wash(g, offsetShape(petals[i], -LIGHT.x * 6, -LIGHT.y * 5, 0.6), '#bcc6ee',
+          { seed: seed + 50 + i, alpha: 0.5 });
+      }
+      wash(g, core, '#f6e9a8', { seed: seed + 6 });
+    },
+    shape: function (g) {
+      fill(g, stem); fill(g, leaf);
+      for (let i = 0; i < petals.length; i++) fill(g, petals[i]);
+      fill(g, core);
+    },
+    ink: function (g) {
+      for (let i = 0; i < petals.length; i++) {
+        inkStroke(g, petals[i], { width: 1.4, vary: 0.3, seed: seed + 60 + i, color: ink.lineSoft, alpha: 0.5 });
+      }
+      inkStroke(g, core, { width: 1.6, vary: 0.3, seed: seed + 70, color: ink.line, alpha: 0.6 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/** Regenpilz: taucht nur an Regentagen auf, dunkelblau mit hellen Tupfen. */
+export function paintRainmushroom(opts) {
+  const o = opts || {};
+  const w = 76;
+  const h = 74;
+  const seed = o.seed || 821;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const caps = [
+    { x: cx, y: baseY - 34, rx: 25, ry: 17 },
+    { x: cx - 20, y: baseY - 20, rx: 15, ry: 11 },
+  ];
+  const capShapes = caps.map(function (c, i) {
+    const pts = smoothClosed(blob(c.x, c.y, c.rx, c.ry, seed + i, 0.12, 16), 5);
+    for (let k = 0; k < pts.length; k++) {
+      if (pts[k][1] > c.y + 2) pts[k][1] = c.y + 2 + (pts[k][1] - c.y - 2) * 0.2;
+    }
+    return pts;
+  });
+  const stems = [
+    smoothClosed([[cx - 7, baseY], [cx - 6, baseY - 30], [cx + 6, baseY - 30], [cx + 7, baseY]], 4),
+    smoothClosed([[cx - 24, baseY], [cx - 23, baseY - 18], [cx - 16, baseY - 18], [cx - 15, baseY]], 4),
+  ];
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.1,
+    outline: 1.5,
+    shadow: function (g) { groundShadow(g, cx - 4, baseY - 2, 24, 7, seed + 1, 0.13); },
+    wash: function (g) {
+      for (let i = 0; i < stems.length; i++) wash(g, stems[i], '#eae2cf', { seed: seed + 5 + i });
+      for (let i = 0; i < capShapes.length; i++) {
+        wash(g, capShapes[i], '#5f7fa8', { seed: seed + 10 + i, scale: 1.05 });
+        wash(g, offsetShape(capShapes[i], -LIGHT.x * 10, -LIGHT.y * 7, 0.65), '#42618a',
+          { seed: seed + 14 + i, alpha: 0.6 });
+        wash(g, offsetShape(capShapes[i], LIGHT.x * 8, LIGHT.y * 6, 0.5), '#8aa9cd',
+          { seed: seed + 18 + i, alpha: 0.6 });
+      }
+      const rng = makeRng(seed + 90);
+      for (let i = 0; i < 5; i++) {
+        dot(g, null, cx - 16 + rng() * 32, baseY - 42 + rng() * 14, 3.2 + rng() * 1.6, '#e6eef8', seed + 100 + i);
+      }
+    },
+    shape: function (g) {
+      for (let i = 0; i < stems.length; i++) fill(g, stems[i]);
+      for (let i = 0; i < capShapes.length; i++) fill(g, capShapes[i]);
+    },
+    ink: function (g) {
+      for (let i = 0; i < capShapes.length; i++) {
+        inkStroke(g, capShapes[i], { width: 1.7, vary: 0.3, seed: seed + 30 + i, color: ink.line, alpha: 0.55 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/** Nebelkristall: nur bei Nebel, milchig und kantig. Braucht die Spitzhacke. */
+export function paintFogcrystal(opts) {
+  const o = opts || {};
+  const w = 78;
+  const h = 92;
+  const seed = o.seed || 831;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const shards = [
+    smoothClosed([[cx - 6, baseY - 2], [cx - 12, baseY - 40], [cx - 2, baseY - 62],
+      [cx + 8, baseY - 38], [cx + 6, baseY - 2]], 3),
+    smoothClosed([[cx + 8, baseY - 2], [cx + 12, baseY - 30], [cx + 22, baseY - 44],
+      [cx + 25, baseY - 24], [cx + 21, baseY - 2]], 3),
+    smoothClosed([[cx - 22, baseY - 2], [cx - 24, baseY - 22], [cx - 15, baseY - 34],
+      [cx - 10, baseY - 18], [cx - 11, baseY - 2]], 3),
+  ];
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.5,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 24, 7, seed + 1, 0.13); },
+    wash: function (g) {
+      g.save();
+      g.globalAlpha = 0.34;
+      g.fillStyle = '#e7f2f4';
+      fill(g, smoothClosed(blob(cx, baseY - 30, 32, 34, seed + 40, 0.1, 16), 6));
+      g.restore();
+      for (let i = 0; i < shards.length; i++) {
+        wash(g, shards[i], '#cfe6ea', { seed: seed + 10 + i, scale: 1.04 });
+        wash(g, offsetShape(shards[i], -LIGHT.x * 9, -LIGHT.y * 8, 0.55), '#9dc3ca',
+          { seed: seed + 14 + i, alpha: 0.65 });
+        wash(g, offsetShape(shards[i], LIGHT.x * 7, LIGHT.y * 9, 0.4), '#f2fbfc',
+          { seed: seed + 18 + i, alpha: 0.7 });
+      }
+    },
+    shape: function (g) { for (let i = 0; i < shards.length; i++) fill(g, shards[i]); },
+    ink: function (g) {
+      for (let i = 0; i < shards.length; i++) {
+        inkStroke(g, shards[i], { width: 1.8, vary: 0.3, seed: seed + 30 + i, color: ink.line, alpha: 0.6 });
+      }
+      // Innenkante je Kristall – lässt sie geschliffen wirken
+      inkLine(g, cx - 2, baseY - 58, cx - 1, baseY - 8, { width: 1.4, bend: 0.02, seed: seed + 50, alpha: 0.4 });
+      inkLine(g, cx + 18, baseY - 40, cx + 16, baseY - 8, { width: 1.3, bend: 0.02, seed: seed + 51, alpha: 0.35 });
     },
   });
   return made(res, w, h, cx, baseY);
@@ -523,8 +855,8 @@ export function paintFlower(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2,
-    outline: 2.0,
+    blur: 1.0,
+    outline: 1.3,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 13, 5, seed + 1, 0.11); },
     wash: function (g) {
       wash(g, stem, ink.grassDark, { seed: seed + 2, dx: 0, dy: 0 });
@@ -559,7 +891,7 @@ export function paintGrassTuft(opts) {
   }
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
+    blur: 1.5,
     wash: function (g) {
       wash(g, smoothClosed(blob(cx, baseY - 9, 24, 9, seed + 1, 0.22, 12), 4), ink.grass, { seed: seed + 2, alpha: 0.8 });
     },
@@ -592,7 +924,7 @@ export function paintReeds(opts) {
   }
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
+    blur: 1.2,
     wash: function (g) {
       wash(g, smoothClosed(blob(cx, baseY - 8, 26, 8, seed + 1, 0.22, 12), 4), ink.grassDark, { seed: seed + 2, alpha: 0.7 });
       for (let i = 0; i < stalks.length; i++) {
@@ -609,7 +941,7 @@ export function paintReeds(opts) {
         fill(g, smoothClosed(blob(s.x + s.lean, s.top + 8, 5, 13, seed + 10 + i, 0.12, 12), 4));
       }
     },
-    outline: 2.0,
+    outline: 1.3,
     ink: function (g) {
       for (let i = 0; i < stalks.length; i++) {
         const s = stalks[i];
@@ -634,8 +966,8 @@ export function paintMushroom(opts) {
   }
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
-    outline: 2.4,
+    blur: 1.2,
+    outline: 1.6,
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 18, 6, seed + 1, 0.13); },
     wash: function (g) {
       wash(g, stem, ink.mushroomStem, { seed: seed + 2 });
@@ -666,8 +998,8 @@ export function paintHerb(opts) {
   ];
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
-    outline: 2.2,
+    blur: 1.2,
+    outline: 1.5,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 16, 6, seed, 0.12); },
     wash: function (g) {
       for (let i = 0; i < leaves.length; i++) wash(g, leaves[i], ink.leafDark, { seed: seed + 10 + i, scale: 1.06 });
@@ -697,8 +1029,8 @@ export function paintShell(opts) {
   ], 6);
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2,
-    outline: 2.2,
+    blur: 1.0,
+    outline: 1.5,
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 1, 20, 5, seed, 0.12); },
     wash: function (g) {
       wash(g, body, '#f7e6d4', { seed: seed + 2, scale: 1.05 });
@@ -717,28 +1049,46 @@ export function paintShell(opts) {
 
 export function paintDriftwood(opts) {
   const o = opts || {};
-  const w = 104;
-  const h = 54;
+  const w = 116;
+  const h = 62;
   const seed = o.seed || 281;
   const cx = w / 2;
   const baseY = h - 10;
-  const body = smoothClosed([
-    [12, baseY - 4], [18, baseY - 18], [46, baseY - 22],
-    [70, baseY - 14], [92, baseY - 18], [96, baseY - 6], [66, baseY - 2], [30, baseY],
+
+  // Ein Ast, kein Kiesel: zum Ende hin dünner, mit einer Gabel und einem
+  // abgebrochenen Stumpf. Die vorige Fassung war eine glatte Blase und im
+  // Spiel nicht als Treibholz zu erkennen.
+  const stem = smoothClosed([
+    [10, baseY - 6], [16, baseY - 15], [42, baseY - 19],
+    [70, baseY - 15], [92, baseY - 20], [106, baseY - 16],
+    [105, baseY - 10], [88, baseY - 12], [68, baseY - 8],
+    [40, baseY - 10], [16, baseY - 1],
   ], 6);
+  const fork = smoothClosed([
+    [64, baseY - 14], [78, baseY - 30], [86, baseY - 33],
+    [84, baseY - 27], [72, baseY - 12],
+  ], 6);
+  const knot = smoothClosed(blob(30, baseY - 13, 7, 5.5, seed + 5, 0.08, 12), 5);
+
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
-    outline: 2.4,
-    shadow: function (g) { groundShadow(g, cx, baseY - 1, 40, 7, seed, 0.13); },
+    blur: 1.1,
+    outline: 1.6,
+    shadow: function (g) { groundShadow(g, cx, baseY - 1, 44, 7, seed, 0.13); },
     wash: function (g) {
-      wash(g, body, '#ddd0b8', { seed: seed + 2, scale: 1.04 });
-      wash(g, offsetShape(body, 4, 6, 0.75), '#bfae92', { seed: seed + 3, alpha: 0.6 });
+      wash(g, stem, '#e2d7c1', { seed: seed + 2, scale: 1.03 });
+      wash(g, fork, '#ddd0b8', { seed: seed + 4, scale: 1.03 });
+      wash(g, knot, '#cbbb9d', { seed: seed + 6 });
+      wash(g, offsetShape(stem, 3, 5, 0.8), '#b8a68a', { seed: seed + 3, alpha: 0.6 });
     },
-    shape: function (g) { fill(g, body); },
+    shape: function (g) { fill(g, stem); fill(g, fork); fill(g, knot); },
     ink: function (g) {
-      inkLine(g, 24, baseY - 12, 88, baseY - 12, { width: 1.4, bend: 0.05, seed: seed + 10, alpha: 0.45 });
-      inkLine(g, 40, baseY - 18, 62, baseY - 6, { width: 1.2, bend: 0.1, seed: seed + 11, alpha: 0.35 });
+      // Maserung läuft mit dem Ast, nicht quer darüber
+      inkLine(g, 22, baseY - 11, 96, baseY - 15, { width: 1.5, bend: 0.04, seed: seed + 10, alpha: 0.5 });
+      inkLine(g, 34, baseY - 8, 86, baseY - 12, { width: 1.2, bend: 0.03, seed: seed + 11, alpha: 0.35 });
+      inkStroke(g, knot, { width: 1.3, vary: 0.25, seed: seed + 12, color: ink.line, alpha: 0.45 });
+      // Bruchkante am dicken Ende
+      inkLine(g, 12, baseY - 14, 14, baseY - 2, { width: 1.6, bend: 0.12, seed: seed + 13, alpha: 0.55 });
     },
   });
   return made(res, w, h, cx, baseY);
@@ -756,8 +1106,8 @@ export function paintDigspot(opts) {
   const mound = smoothClosed(blob(cx + 18, baseY - 18, 16, 8, seed + 2, 0.26, 14), 5);
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.6,
+    blur: 1.5,
+    outline: 1.7,
     wash: function (g) {
       wash(g, pit, ink.dirtDark, { seed: seed + 3, scale: 1.06 });
       wash(g, offsetShape(pit, 0, 2, 0.7), '#7d6540', { seed: seed + 4, alpha: 0.8 });

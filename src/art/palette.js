@@ -1,4 +1,4 @@
-/** Zentrale Farbwelt. Warm, gedaempft, „cozy“. */
+/** Zentrale Farbwelt. Warm, gedämpft, „cozy“. */
 
 export const PAL = {
   // Boden
@@ -72,7 +72,7 @@ export const PAL = {
   shadow: 'rgba(20, 26, 20, 0.28)',
 };
 
-/** Tageszeit-Tönungen (multiplikativ ueber die Welt gelegt). */
+/** Tageszeit-Tönungen (multiplikativ über die Welt gelegt). */
 export const TINTS = {
   dawn: { color: '#5a4a7a', alpha: 0.3 },
   morning: { color: '#ffd9a0', alpha: 0.1 },
@@ -82,19 +82,19 @@ export const TINTS = {
   night: { color: '#141b38', alpha: 0.56 },
 };
 
-/** Ton, in den die entfaerbte Welt gezogen wird – kaltes Schiefergrau. */
+/** Ton, in den die entfärbte Welt gezogen wird – kaltes Schiefergrau. */
 export const DESATURATED_TINT = { r: 92, g: 106, b: 122, mix: 0.24 };
 
-// Helligkeiten werden zusammengezogen: sonst werden helle Farben (Blueten,
-// Sand) im Graumodus zu grellem Weiss und stechen mehr hervor als in Farbe.
+// Helligkeiten werden zusammengezogen: sonst werden helle Farben (Blüten,
+// Sand) im Graumodus zu grellem Weiß und stechen mehr hervor als in Farbe.
 const GRAY_FLOOR = 44;
 const GRAY_RANGE = 0.62;
 
 /**
- * Entfaerbt Bilddaten an Ort und Stelle.
+ * Entfärbt Bilddaten an Ort und Stelle.
  * @param {Uint8ClampedArray} d RGBA-Daten
  * @param {Uint8ClampedArray|null} waterMask optionale Maske; wo sie deckend ist,
- *        wird zusaetzlich abgedunkelt – sonst waere Wasser von Wiese kaum zu
+ *        wird zusätzlich abgedunkelt – sonst wäre Wasser von Wiese kaum zu
  *        unterscheiden, sobald die Farbe fehlt.
  */
 export function desaturatePixels(d, waterMask) {

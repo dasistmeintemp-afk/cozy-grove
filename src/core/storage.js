@@ -1,7 +1,7 @@
 /**
  * Speicherstand im localStorage.
  * Safari im privaten Modus wirft beim Schreiben – deshalb ist alles gekapselt
- * und faellt still auf einen Speicher im Arbeitsspeicher zurueck.
+ * und fällt still auf einen Speicher im Arbeitsspeicher zurück.
  */
 
 const KEY = 'cozy-grove:save:v1';

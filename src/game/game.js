@@ -1,24 +1,27 @@
 /**
- * Spielkern: haelt alles zusammen und verbindet Eingabe, Welt und Oberflaeche.
+ * Spielkern: hält alles zusammen und verbindet Eingabe, Welt und Oberfläche.
  */
 import { World, TILE_SIZE, REGION } from '../world/world.js';
+import { isWater } from '../art/tiles.js';
 import { GroundLayer } from '../render/ground.js';
 import { ColorField } from '../world/colorfield.js';
 import { Renderer } from '../render/renderer.js';
 import { Camera } from '../render/camera.js';
 import { Particles } from '../render/particles.js';
 import { Wildlife } from '../render/wildlife.js';
+import { Weather } from '../render/weather.js';
 import { Player, TOOLS } from './player.js';
 import { Inventory } from './inventory.js';
 import { QuestBook, QTYPE } from './quests.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing } from './fishing.js';
-import { SPIRITS, friendshipLevel } from './spirits.js';
+import { SPIRITS, friendshipLevel, friendshipGift } from './spirits.js';
+import { StoryBook, STAGES, storyArt, keepsakeOf } from './stories.js';
 import { getItem, itemName, CAT } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
 import { defOf, makeEntity } from '../world/entities.js';
-import { startPosition } from '../world/worldgen.js';
+import { startPosition, REGION_NAMES } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
 import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
@@ -32,6 +35,7 @@ const AUTOSAVE_SECONDS = 20;
 export const DEFAULT_SETTINGS = {
   sound: true,
   music: true,
+  ambience: true,
   volume: 0.7,
   talk: 'short',
   dayMinutes: DEFAULT_DAY_MINUTES,
@@ -53,6 +57,16 @@ export class Game {
     this.rng = Math.random;
     this.particles = new Particles(Math.random);
     this.wildlife = new Wildlife(Math.random);
+    const self = this;
+    // Ein Fischsprung platscht – aber nur, wenn er auch zu sehen ist
+    this.wildlife.onJump = function (x, y) {
+      const cam = self.camera;
+      if (!cam || !self.renderer) return;
+      if (x < cam.ox || x > cam.ox + self.renderer.viewW) return;
+      if (y < cam.oy || y > cam.oy + self.renderer.viewH) return;
+      self.audio.play('splash');
+    };
+    this.weather = new Weather(Math.random);
     this.renderer = new Renderer(canvas);
     this.camera = new Camera(canvas.width, canvas.height, 0, 0);
     this.fishing = new Fishing();
@@ -73,6 +87,10 @@ export class Game {
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
 
+    this.weather.setDay(this.world.seed, this.day.day);
+    this.weather.snap();
+    this._placeStoryPieces(this.day.day);
+
     this.ui = new UI(this);
     this.panels = new Panels(this);
     this.ui.layout();
@@ -91,6 +109,7 @@ export class Game {
     this.player = new Player(p.x, p.y);
     this.inventory = new Inventory(30);
     this.quests = new QuestBook();
+    this.stories = new StoryBook();
     this.shop = new Shop();
     this.day = new DayCycle(this.settings.dayMinutes);
     this.state = {
@@ -100,12 +119,11 @@ export class Game {
       bagUpgrades: 0,
       crafted: Object.create(null),
       caught: 0,
-      seen: Object.create(null),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
     this.world.newDay(this.day.day);
-    // Startausruestung, damit sofort etwas geht
+    // Startausrüstung, damit sofort etwas geht
     this.inventory.add('wood', 5);
     this.inventory.add('fiber', 4);
   }
@@ -119,10 +137,11 @@ export class Game {
     this.player = Player.fromJSON(save.player);
     this.inventory = Inventory.fromJSON(save.inventory);
     this.quests = QuestBook.fromJSON(save.quests);
+    this.stories = StoryBook.fromJSON(save.stories);
     this.shop = Shop.fromJSON(save.shop);
     this.state = Object.assign({
       coins: 0, ember: 0, campfireFuel: 0, bagUpgrades: 0,
-      crafted: Object.create(null), caught: 0, seen: Object.create(null),
+      crafted: Object.create(null), caught: 0,
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
 
@@ -156,6 +175,7 @@ export class Game {
       player: this.player.toJSON(),
       inventory: this.inventory.toJSON(),
       quests: this.quests.toJSON(),
+      stories: this.stories.toJSON(),
       shop: this.shop.toJSON(),
       color: this.colorField.toJSON(),
       state: this.state,
@@ -167,7 +187,7 @@ export class Game {
 
   /**
    * Nur die Abweichungen zur frisch erzeugten Welt sichern:
-   * abgebaute Objekte, aufgestellte Deko, versteckte Aufgabenstuecke, Wege.
+   * abgebaute Objekte, aufgestellte Deko, versteckte Aufgabenstücke, Wege.
    */
   _worldDelta() {
     const removed = [];
@@ -179,6 +199,7 @@ export class Game {
         added.push({
           id: e.id, k: e.kind, x: Math.round(e.x), y: Math.round(e.y),
           s: e.sprite, item: e.itemId || null, q: e.questId || null, flat: !!e.flat,
+          sp: e.storySpirit || null, st: e.storyStage != null ? e.storyStage : null,
         });
       } else if (e.gone || e.origin || (e.hp != null && defOf(e.kind) && defOf(e.kind).hits && e.hp < defOf(e.kind).hits)) {
         changed.push({ id: e.id, k: e.kind, g: e.gone ? 1 : 0, o: e.origin || null, r: e.respawnDay || 0, hp: e.hp });
@@ -232,6 +253,7 @@ export class Game {
         const a = delta.added[i];
         const e = makeEntity(a.k, a.x, a.y, {
           itemId: a.item, questId: a.q, flat: a.flat, zBias: a.k === 'hidden' ? 2 : 0,
+          storySpirit: a.sp || null, storyStage: a.st != null ? a.st : null,
         });
         e.id = a.id;
         e.sprite = a.s;
@@ -292,12 +314,17 @@ export class Game {
 
     this.colorField.update(dt);
     this.particles.update(dt);
+    const dark = this.day.isDark();
     this.wildlife.update(
       dt, this.camera, this.world,
       this.renderer.w, this.renderer.h,
-      !this.day.isDark()
+      !dark,
+      dark ? this.lightSources(this.time) : null
     );
     this._ambient(dt);
+    this.weather.update(dt);
+    this._syncConditionalSpawns();
+    this._checkVisits(dt);
 
     const mustSleep = this.day.update(dt);
     if (mustSleep) this.sleep(true);
@@ -330,6 +357,8 @@ export class Game {
     if (inp.pressed('panelQuests')) this.openPanel('quests');
     if (inp.pressed('panelCraft')) this.openPanel('craft');
     if (inp.pressed('panelMap')) this.openPanel('map');
+    if (inp.pressed('panelFound')) this.openPanel('found');
+    if (inp.pressed('panelStories')) this.openPanel('stories');
     if (inp.pressed('cancel')) {
       if (this.panels.isOpen()) this.panels.close();
       else if (this.placing) this.cancelPlacing();
@@ -449,7 +478,7 @@ export class Game {
       this.audio.play('pickup');
       this.particles.burst('sparkle', e.x, e.y - 40, 4);
     }
-    // Muenzbeutel oeffnet sich sofort
+    // Münzbeutel öffnet sich sofort
     for (let i = 0; i < got.length; i++) {
       if (got[i].id === 'coin_pouch') {
         const item = getItem('coin_pouch');
@@ -494,6 +523,7 @@ export class Game {
   }
 
   pickHidden(e) {
+    if (e.storySpirit) { this._pickStoryPiece(e); return; }
     const q = e.questId ? this.quests.byId(e.questId) : null;
     this.world.remove(e);
     this.particles.burst('sparkle', e.x, e.y - 32, 10);
@@ -506,6 +536,151 @@ export class Game {
       this.ui.toast('Etwas Altes gefunden', 'icon_sparkle', 'good');
     }
     this.ui.refreshQuests();
+  }
+
+  /**
+   * Ein Stück einer Erinnerungskette aufheben.
+   *
+   * Es geht bewusst NICHT in die Tasche: Erinnerungen soll man nicht mit sich
+   * herumtragen oder gar verbrennen können. Aufheben schaltet die Stufe
+   * direkt weiter.
+   */
+  _pickStoryPiece(e) {
+    const spiritId = e.storySpirit;
+    this.world.remove(e);
+    this.particles.burst('sparkle', e.x, e.y - 32, 16);
+    this.particles.burst('color', e.x, e.y - 40, 14);
+    this.audio.play('questDone');
+    this.camera.kick(0.2);
+
+    const n = this.stories.collect(spiritId);
+    const spirit = SPIRITS[spiritId];
+    this.ui.toast(spirit.name + ' · Erinnerung ' + n + '/' + STAGES, 'icon_sparkle', 'good');
+
+    // Farbe blüht um den Geist auf, auch ohne Aufgabe
+    const key = 'spirit_' + spiritId;
+    const ent = this.world.spiritEntity(spiritId);
+    if (ent) {
+      if (!this.colorField.find(key)) this.colorField.addSource(ent.x, ent.y, 160, key);
+      else this.colorField.grow(key, 90);
+      this.colorField.markDirty();
+    }
+
+    if (this.stories.isComplete(spiritId)) this._finishStory(spiritId, ent);
+    this.ui.refreshHud();
+    this.save();
+  }
+
+  /** Kette vollständig: das Andenken wird überreicht. */
+  _finishStory(spiritId, ent) {
+    const spirit = SPIRITS[spiritId];
+    const keep = keepsakeOf(spiritId);
+    const self = this;
+    if (keep) this.inventory.add(keep, 1);
+    if (ent) {
+      this.colorField.grow('spirit_' + spiritId, 300);
+      this.colorField.markDirty();
+      this.particles.burst('heart', ent.x, ent.y - 90, 8);
+    }
+    this.audio.play('levelup');
+    setTimeout(function () {
+      self.ui.toast(spirit.name + ' · Geschichte ganz', 'icon_star', 'good');
+      if (keep) self.ui.toast(itemName(keep) + ' erhalten', getItem(keep).icon, 'good');
+    }, 900);
+  }
+
+  /**
+   * Meldet den Standort an offene „Hingehen"-Aufträge.
+   *
+   * Nur viermal je Sekunde: Die Prüfung läuft über alle offenen Aufträge,
+   * und ein Ort ändert sich zwischen zwei Bildern nicht nennenswert.
+   */
+  _checkVisits(dt) {
+    this._visitTimer = (this._visitTimer || 0) - dt;
+    if (this._visitTimer > 0) return;
+    this._visitTimer = 0.25;
+    const open = this.quests.active();
+    let any = false;
+    for (let i = 0; i < open.length; i++) {
+      if (open[i].type === QTYPE.VISIT && !open[i].turnedIn && open[i].have < open[i].need) {
+        any = true;
+        break;
+      }
+    }
+    if (!any) return;
+    if (this.quests.notify('visit', { x: this.player.x, y: this.player.y }, this)) {
+      this.audio.play('questDone');
+      this.particles.burst('sparkle', this.player.x, this.player.y - 40, 12);
+      this.ui.toast('Angekommen', 'icon_map', 'good');
+      this.ui.refreshQuests();
+    }
+  }
+
+  /**
+   * Mondblumen, Regenpilze, Nebelkristalle setzen und wieder einsammeln.
+   *
+   * Nur alle paar Sekunden prüfen: Der Zustand ändert sich höchstens beim
+   * Wetterwechsel oder bei Einbruch der Dunkelheit, und die Suche nach freien
+   * Plätzen läuft über die ganze Kachelkarte.
+   */
+  _syncConditionalSpawns() {
+    this._condTimer = (this._condTimer || 0) - 1;
+    if (this._condTimer > 0) return;
+    this._condTimer = 180;
+
+    const night = this.day.isDark();
+    const rain = this.weather.raining;
+    const fog = this.weather.foggy;
+    const key = (night ? 'n' : '') + (rain ? 'r' : '') + (fog ? 'f' : '') + ':' + this.day.day;
+    if (key === this._condKey) return;
+    this._condKey = key;
+
+    const rng = dailyRng(this.world.seed, this.day.day, 'cond' + key);
+    this.world.syncConditional('moonflower', night, rng, 7);
+    this.world.syncConditional('rainmushroom', rain, rng, 8);
+    this.world.syncConditional('fogcrystal', fog, rng, 5);
+  }
+
+  /**
+   * Legt fällige Geschichtsstücke in die Welt.
+   *
+   * Immer nur eines je Geist, und erst wenn genug Aufgaben für ihn erledigt
+   * sind. So zieht sich eine Kette über viele Tage, statt an einem Abend
+   * abgehakt zu sein.
+   */
+  _placeStoryPieces(day) {
+    const rng = dailyRng(this.world.seed, day, 'story');
+    const placed = [];
+    for (const id in SPIRITS) {
+      const done = this.quests.completedBySpirit[id] || 0;
+      if (!this.stories.wantsPiece(id, done)) continue;
+      const spirit = SPIRITS[id];
+      if (!this.world.isUnlocked(spirit.region)) continue;
+      const ent = this.world.spiritEntity(id);
+      const spot = this.world.randomSpot(rng, spirit.region,
+        ent ? { x: ent.x, y: ent.y, r: 420 } : null);
+      if (!spot) continue;
+      const stage = this.stories.foundOf(id);
+      const e = makeEntity('hidden', spot.x, spot.y, {
+        storySpirit: id, storyStage: stage, zBias: 2,
+      });
+      e.sprite = storyArt(id);
+      this.world.add(e);
+      this.stories.markPlaced(id, stage);
+      placed.push(spirit);
+    }
+    // Ein Hinweis, aber kein Wegweiser: die Insel hat 96 mal 96 Kacheln, ohne
+    // den Bereich wäre das Suchen Zufall statt Erkundung.
+    if (placed.length && this.ui) {
+      const self = this;
+      const list = placed.slice();
+      setTimeout(function () {
+        for (let i = 0; i < list.length; i++) {
+          self.ui.toast(list[i].name + ' erinnert sich · ' +
+            REGION_NAMES[list[i].region], 'icon_sparkle');
+        }
+      }, 2000);
+    }
   }
 
   pickDecor(e) {
@@ -585,7 +760,7 @@ export class Game {
     }
     if (q.hiddenIds) this.quests.dropHidden(q, this.world);
 
-    // Farbe waechst um den Geist
+    // Farbe wächst um den Geist
     const key = 'spirit_' + spirit.id;
     if (!this.colorField.find(key)) {
       this.colorField.addSource(e.x, e.y, spirit.colorStart, key);
@@ -606,14 +781,53 @@ export class Game {
 
     const doneN = this.quests.completedBySpirit[spirit.id];
     if (doneN % 3 === 0) {
-      this.ui.toast(spirit.name + ' · Freundschaft ' + friendshipLevel(doneN), 'icon_heart', 'good');
+      const level = friendshipLevel(doneN);
+      this.ui.toast(spirit.name + ' · Freundschaft ' + level, 'icon_heart', 'good');
       this.audio.play('levelup');
       this.colorField.grow(key, 72);
+      this._giveGift(spirit, level, e);
     }
 
     this.ui.refreshQuests();
     this.ui.refreshHud();
+    this._hintIfIdle();
     this.save();
+  }
+
+  /**
+   * Ist nichts mehr offen, sagen wir es – und dass man jederzeit schlafen darf.
+   *
+   * Das Spiel wartet an keiner Stelle auf die echte Uhr. Wer weiterspielen
+   * will, legt sich hin und hat einen neuen Tag. Ohne diesen Hinweis könnte
+   * es sich anfühlen, als sei man ausgebremst.
+   */
+  _hintIfIdle() {
+    if (this.quests.active().length) return;
+    const self = this;
+    setTimeout(function () {
+      if (self.quests.active().length) return;
+      self.ui.toast('Fertig für heute · F am Zelt', 'icon_day');
+    }, 1400);
+  }
+
+  /** Geschenk zu einer neuen Freundschaftsstufe. */
+  _giveGift(spirit, level, e) {
+    const gift = friendshipGift(spirit.id, level);
+    if (!gift) return;
+    this.state.coins += gift.coins;
+    this.state.ember += gift.ember;
+    const got = [];
+    for (let i = 0; i < gift.items.length; i++) {
+      const added = this.inventory.add(gift.items[i].id, gift.items[i].n);
+      if (added > 0) got.push({ id: gift.items[i].id, n: added });
+    }
+    this.particles.burst('heart', e.x, e.y - 110, 6);
+    const self = this;
+    setTimeout(function () {
+      self.ui.toast('Geschenk: +' + gift.coins + ' Münzen · +' + gift.ember + ' Glut',
+        'icon_heart', 'good');
+      if (got.length) self.ui.toastItems(got);
+    }, 900);
   }
 
   spiritsWithReadyQuest() {
@@ -656,7 +870,7 @@ export class Game {
       this.particles.burst('splash', this.fishing.bobber.x, this.fishing.bobber.y, 10);
       if (added > 0) {
         this.state.caught++;
-        this.quests.notify('fish', {}, this);
+        this.quests.notify('fish', { id: res.fish.id }, this);
         this.ui.toast((res.perfect ? 'Perfekt! ' : '') + res.fish.name + ' ×' + added, res.fish.icon, 'good');
       } else {
         this.ui.toast('Tasche ist voll!', 'icon_bag', 'bad');
@@ -823,7 +1037,7 @@ export class Game {
   }
 
   _rotatePlacing() {
-    // Platzhalter fuer spaetere Drehung – aktuell nur ein kleiner Versatz
+    // Platzhalter für spätere Drehung – aktuell nur ein kleiner Versatz
     if (!this.placing) return;
     this.placing.y += 16;
   }
@@ -928,11 +1142,20 @@ export class Game {
     this.particles.clear();
     this.wildlife.clear();
     this._jitterSpirits(day);
+    this._placeStoryPieces(day);
+    this.weather.setDay(this.world.seed, day);
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
     this.ui.refreshHud();
     this.ui.refreshQuests();
     this.ui.toast('Tag ' + day, 'icon_day');
+    if (this.weather.strength > 0) {
+      const self = this;
+      setTimeout(function () {
+        self.ui.toast(self.weather.kind === 'rain' ? 'Es regnet' : 'Nebel liegt über der Insel',
+          self.weather.kind === 'rain' ? 'icon_bottle' : 'icon_ghost');
+      }, 1400);
+    }
     this.save();
   }
 
@@ -995,6 +1218,46 @@ export class Game {
         this.particles.spawn('spark', c.x + (Math.random() - 0.5) * 24, c.y - 56);
       }
     }
+
+    this._ambienceMix(night);
+  }
+
+  /**
+   * Was rundherum liegt, bestimmt das Klangbett: am Strand die Brandung,
+   * im Wald der Wind in den Blättern, nachts die Grillen.
+   */
+  _ambienceMix(night) {
+    const px = this.player.x;
+    const py = this.player.y;
+    const R = 9; // Hörweite in Kacheln
+    let water = 0;
+    let land = 0;
+    const tx0 = Math.floor(px / TILE_SIZE);
+    const ty0 = Math.floor(py / TILE_SIZE);
+    for (let ty = ty0 - R; ty <= ty0 + R; ty += 2) {
+      for (let tx = tx0 - R; tx <= tx0 + R; tx += 2) {
+        land++;
+        if (isWater(this.world.tileAtTile(tx, ty))) water++;
+      }
+    }
+    const waterShare = land ? water / land : 0;
+
+    // Blattwerk aus den Bäumen in der Nähe – der Wald rauscht, die Wiese nicht
+    let trees = 0;
+    const near = [];
+    this.world.queryRect(px - 560, py - 400, 1120, 800, near);
+    for (let i = 0; i < near.length; i++) {
+      const e = near[i];
+      if (!e.gone && defOf(e.kind) && defOf(e.kind).category === 'tree') trees++;
+    }
+    const leaves = Math.min(1, trees / 14);
+
+    this.audio.setAmbienceMix(
+      Math.min(1, waterShare * 2.2),
+      leaves,
+      night ? 1 : 0,
+      this.weather.raining ? this.weather.level : 0
+    );
   }
 
   lightSources(time) {
@@ -1090,6 +1353,7 @@ export class Game {
   applySettings() {
     this.audio.setEnabled(this.settings.sound);
     this.audio.setMusic(this.settings.music);
+    this.audio.setAmbience(this.settings.ambience !== false);
     this.audio.setVolume(this.settings.volume);
     this.day.dayMinutes = this.settings.dayMinutes;
     if (this.onSettingsChanged) this.onSettingsChanged(this.settings);

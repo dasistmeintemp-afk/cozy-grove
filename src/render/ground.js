@@ -10,8 +10,26 @@ import { paintGroundChunk, CHUNK_TILES, CHUNK_PX, CHUNK_PAD, WASH_SCALE } from '
 import { INK } from '../art/painted.js';
 import { TILE_SIZE } from '../art/tiles.js';
 
-const CACHE_LIMIT = 24;
-const BUDGET_PER_FRAME = 2;
+/**
+ * Wie viele Stücke bleiben liegen.
+ *
+ * Der Wert wächst mit dem Blickfeld: Wären weniger Stücke im Speicher als
+ * gerade sichtbar, würde das Malen eines Stücks ein anderes verdrängen, das im
+ * selben Bild noch gebraucht wird – dessen Tinte fehlte dann, und man sähe ein
+ * flaches Rechteck ohne Küstenlinie und Grasbüschel im Boden.
+ */
+const MIN_CACHE = 24;
+const MAX_CACHE = 84;
+
+/**
+ * Wie viele Stücke ein Bild höchstens malen darf.
+ *
+ * Ein Stück kostet rund 14 ms. Bei zwei pro Bild ergab das Bildzeiten bis
+ * 44 ms – einen sichtbaren Ruckler, genau die Sorte, die Spieler an solchen
+ * Spielen stört. Mit einem pro Bild wird aus einem langen Bild eine Handvoll
+ * knapper, und `paintAhead()` erledigt den Rest schon vorher.
+ */
+const BUDGET_PER_FRAME = 1;
 
 export class GroundLayer {
   constructor(world) {
@@ -23,11 +41,20 @@ export class GroundLayer {
     this.cache = Object.create(null);
     this.order = [];
     this.budget = BUDGET_PER_FRAME;
+    this.limit = MIN_CACHE;
+    this.frame = 1;
   }
 
   /** Am Anfang jedes Bildes: Malbudget zurücksetzen. */
   beginFrame() {
     this.budget = BUDGET_PER_FRAME;
+    this.frame++;
+  }
+
+  /** Platz für mindestens `n` Stücke schaffen (plus etwas Luft). */
+  _ensureLimit(n) {
+    const want = Math.min(MAX_CACHE, Math.max(MIN_CACHE, n + 4));
+    if (want > this.limit) this.limit = want;
   }
 
   /**
@@ -41,12 +68,42 @@ export class GroundLayer {
     const cy0 = Math.floor((camY - CHUNK_PX) / CHUNK_PX);
     const cx1 = Math.floor((camX + viewW + CHUNK_PX) / CHUNK_PX);
     const cy1 = Math.floor((camY + viewH + CHUNK_PX) / CHUNK_PX);
+    this._ensureLimit((cx1 - cx0 + 1) * (cy1 - cy0 + 1));
     const saved = this.budget;
     this.budget = 999;
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) this._get(cx, cy, true);
     }
     this.budget = saved;
+  }
+
+  /**
+   * Malt EIN Stück, das bald gebraucht wird, aber noch nicht sichtbar ist.
+   *
+   * Wird nur auf Bildern aufgerufen, die ohnehin schnell waren. Dadurch sind
+   * die Stücke fertig, bevor die Kamera sie erreicht, und im Bild, in dem sie
+   * auftauchen, ist nichts mehr zu tun.
+   *
+   * @returns {boolean} ob etwas gemalt wurde
+   */
+  paintAhead(camX, camY, viewW, viewH) {
+    const cx0 = Math.floor((camX - CHUNK_PX) / CHUNK_PX);
+    const cy0 = Math.floor((camY - CHUNK_PX) / CHUNK_PX);
+    const cx1 = Math.floor((camX + viewW + CHUNK_PX) / CHUNK_PX);
+    const cy1 = Math.floor((camY + viewH + CHUNK_PX) / CHUNK_PX);
+    this._ensureLimit((cx1 - cx0 + 1) * (cy1 - cy0 + 1));
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        if (cx < 0 || cy < 0 || cx >= this.cols || cy >= this.rows) continue;
+        if (this.cache[this._key(cx, cy)]) continue;
+        const saved = this.budget;
+        this.budget = 1;
+        const painted = this._get(cx, cy, true);
+        this.budget = saved;
+        return !!painted;
+      }
+    }
+    return false;
   }
 
   /** Wird nach Kachelwechseln aufgerufen (Weg gelegt, Brücke gebaut). */
@@ -92,6 +149,7 @@ export class GroundLayer {
     const key = this._key(cx, cy);
     const hit = this.cache[key];
     if (hit) {
+      hit.frame = this.frame;
       const at = this.order.indexOf(key);
       if (at >= 0 && at < this.order.length - 1) {
         this.order.splice(at, 1);
@@ -103,13 +161,28 @@ export class GroundLayer {
     this.budget--;
 
     const chunk = paintGroundChunk(this.world, cx, cy);
+    chunk.frame = this.frame;
     this.cache[key] = chunk;
     this.order.push(key);
-    while (this.order.length > CACHE_LIMIT) {
-      const old = this.order.shift();
+    this._evict();
+    return chunk;
+  }
+
+  /**
+   * Ältestes Stück verwerfen – aber nie eines, das in diesem Bild schon
+   * gezeichnet wurde. Sonst fehlte seine Tinte im laufenden Durchgang.
+   */
+  _evict() {
+    while (this.order.length > this.limit) {
+      let victim = -1;
+      for (let i = 0; i < this.order.length; i++) {
+        const c = this.cache[this.order[i]];
+        if (!c || c.frame !== this.frame) { victim = i; break; }
+      }
+      if (victim < 0) return;
+      const old = this.order.splice(victim, 1)[0];
       delete this.cache[old];
     }
-    return chunk;
   }
 
   /**
@@ -126,6 +199,7 @@ export class GroundLayer {
     const cy0 = Math.floor(viewY / CHUNK_PX);
     const cx1 = Math.floor((viewX + viewW) / CHUNK_PX);
     const cy1 = Math.floor((viewY + viewH) / CHUNK_PX);
+    if (allowPaint) this._ensureLimit((cx1 - cx0 + 1) * (cy1 - cy0 + 1));
 
     // 1 – Farbflächen
     for (let cy = cy0; cy <= cy1; cy++) {

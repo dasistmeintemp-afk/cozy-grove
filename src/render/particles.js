@@ -1,4 +1,4 @@
-/** Kleine Partikel: Spaene, Staub, Funken, Glueckskaefer, Farbausbruch. */
+/** Kleine Partikel: Späne, Staub, Funken, Glückskäfer, Farbausbruch. */
 import { randRange } from '../core/rng.js';
 
 const MAX = 320;

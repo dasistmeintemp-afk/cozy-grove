@@ -5,8 +5,8 @@
  * Kein Dialogbaum, keine Textwand – Annehmen passiert automatisch,
  * Abgeben mit einem Tastendruck beim Geist.
  */
-import { SPIRITS, SPIRIT_IDS } from './spirits.js';
-import { MEMORY_IDS, getItem, CAT } from './items.js';
+import { SPIRITS, SPIRIT_IDS, friendshipLevel } from './spirits.js';
+import { MEMORY_IDS, getItem, CAT, fishesOf } from './items.js';
 import { dailyRng, randInt, randPick } from '../core/rng.js';
 import { makeEntity } from '../world/entities.js';
 import { TILE_SIZE } from '../world/worldgen.js';
@@ -15,6 +15,11 @@ export const QTYPE = {
   GATHER: 'gather',
   FIND: 'find',
   FISH: 'fish',
+  // Einen bestimmten Fisch fangen statt irgendwelche drei – dieselbe
+  // Mechanik, aber ein Ziel statt einer Strichliste.
+  CATCH: 'catch',
+  // Einen Ort aufsuchen. Die einzige Aufgabe, die nichts einsammelt.
+  VISIT: 'visit',
   BURN: 'burn',
   CRAFT: 'craft',
   DECORATE: 'decorate',
@@ -30,7 +35,14 @@ const POOLS = {
 
 const CRAFTABLE_ASKS = ['fence', 'path_tile', 'lantern', 'flowerbed', 'bench', 'birdhouse'];
 
-const MAX_ACTIVE_PER_SPIRIT = 2;
+/**
+ * Wie viele Aufträge ein Geist gleichzeitig offen hat.
+ *
+ * Bei zwei standen am ersten Tag nur drei Aufträge zur Wahl – wer länger
+ * spielen wollte, hatte nach wenigen Minuten nichts mehr zu tun und musste
+ * schlafen. Drei geben einer Sitzung genug Stoff, ohne die Liste zu fluten.
+ */
+const MAX_ACTIVE_PER_SPIRIT = 3;
 
 let questSeq = 1;
 
@@ -60,8 +72,8 @@ export class QuestBook {
   }
 
   /**
-   * Neue Tagesauftraege verteilen.
-   * Offene Auftraege bleiben bestehen – niemand wird bestraft, wenn er
+   * Neue Tagesaufträge verteilen.
+   * Offene Aufträge bleiben bestehen – niemand wird bestraft, wenn er
    * einen Tag nicht dazu kommt.
    */
   newDay(day, world, state) {
@@ -72,8 +84,10 @@ export class QuestBook {
       if (!world.isUnlocked(spirit.region)) continue;
       const open = this.openForSpirit(sid);
       let slots = MAX_ACTIVE_PER_SPIRIT - open.length;
-      // Am ersten Tag nur eine Aufgabe pro Geist – ruhiger Einstieg.
-      if (day <= 1) slots = Math.min(slots, 1);
+      // Am ersten Tag etwas weniger – ruhiger Einstieg, aber genug für eine
+      // ganze Sitzung. Mit nur einer Aufgabe je Geist war nach drei Minuten
+      // Schluss, und das Spiel fühlte sich an, als müsste man warten.
+      if (day <= 1) slots = Math.min(slots, 2);
       while (slots-- > 0) {
         const q = this.generate(sid, day, world, state, rng);
         if (q) this.quests.push(q);
@@ -85,7 +99,11 @@ export class QuestBook {
   generate(spiritId, day, world, state, rng) {
     const spirit = SPIRITS[spiritId];
     const type = randPick(rng, spirit.questTypes);
-    const scale = 1 + Math.min(1.6, day * 0.06);
+    // Der Tag treibt die Belohnung, die Freundschaft ebenso: wer einem Geist
+    // oft geholfen hat, bekommt von ihm mehr. Vorher war die Freundschaftsstufe
+    // eine Zahl ohne Wirkung.
+    const friends = friendshipLevel(this.completedBySpirit[spiritId] || 0);
+    const scale = 1 + Math.min(1.6, day * 0.06) + friends * 0.09;
 
     if (type === 'find') {
       const count = randInt(rng, 2, 3);
@@ -114,6 +132,25 @@ export class QuestBook {
       const count = randInt(rng, 2, 4);
       const q = this._base(spiritId, QTYPE.FISH, count, day);
       q.rewards = rewardFor(QTYPE.FISH, count, scale, rng);
+      return q;
+    }
+
+    if (type === 'catch') {
+      const q = this._base(spiritId, QTYPE.CATCH, 1, day);
+      const pool = fishesOf(spirit.water || 'sea', true);
+      q.itemId = randPick(rng, pool).id;
+      q.rewards = rewardFor(QTYPE.CATCH, 1, scale, rng);
+      return q;
+    }
+
+    if (type === 'visit') {
+      const q = this._base(spiritId, QTYPE.VISIT, 1, day);
+      const spiritEnt = world.spiritEntity(spiritId);
+      const spot = world.randomSpot(rng, spirit.region, spiritEnt
+        ? { x: spiritEnt.x, y: spiritEnt.y, r: 600 }
+        : null);
+      q.spot = { x: Math.round(spot.x), y: Math.round(spot.y) };
+      q.rewards = rewardFor(QTYPE.VISIT, 1, scale, rng);
       return q;
     }
 
@@ -184,7 +221,7 @@ export class QuestBook {
     return !q.turnedIn && this.progress(q, ctx) >= q.need;
   }
 
-  /** Meldet ein Ereignis an alle passenden Auftraege. */
+  /** Meldet ein Ereignis an alle passenden Aufträge. */
   notify(event, payload, ctx) {
     let changed = false;
     for (let i = 0; i < this.quests.length; i++) {
@@ -200,12 +237,20 @@ export class QuestBook {
       } else if (event === 'found' && q.type === QTYPE.FIND && payload.questId === q.id) {
         q.have++;
         changed = true;
+      } else if (event === 'fish' && q.type === QTYPE.CATCH && q.have < q.need &&
+                 payload && payload.id === q.itemId) {
+        q.have = q.need;
+        changed = true;
+      } else if (event === 'visit' && q.type === QTYPE.VISIT && q.have < q.need && q.spot) {
+        const dx = payload.x - q.spot.x;
+        const dy = payload.y - q.spot.y;
+        if (dx * dx + dy * dy < 110 * 110) { q.have = q.need; changed = true; }
       }
     }
     return changed;
   }
 
-  /** Erledigt einen Auftrag und liefert die Belohnung zurueck. */
+  /** Erledigt einen Auftrag und liefert die Belohnung zurück. */
   turnIn(q, ctx) {
     if (q.turnedIn) return null;
     if (!this.isReady(q, ctx)) return null;
@@ -222,7 +267,7 @@ export class QuestBook {
     return q.rewards;
   }
 
-  /** Aufraeumen: versteckte Gegenstaende eines Auftrags entfernen. */
+  /** Aufräumen: versteckte Gegenstände eines Auftrags entfernen. */
   dropHidden(q, world) {
     if (!q.hiddenIds) return;
     for (let i = 0; i < q.hiddenIds.length; i++) {
@@ -270,6 +315,8 @@ function rewardFor(type, count, scale, rng, item) {
     gather: item ? Math.max(6, item.value * 1.6) : 10,
     find: 26,
     fish: 20,
+    catch: 70,
+    visit: 54,
     burn: 9,
     craft: 46,
     decorate: 30,
@@ -284,11 +331,13 @@ function rewardFor(type, count, scale, rng, item) {
   return { coins: coins, ember: ember, items: items };
 }
 
-/** Kurzbeschreibung fuer die Oberflaeche – Symbol + Zahl, kein Fliesstext. */
+/** Kurzbeschreibung für die Oberfläche – Symbol + Zahl, kein Fließtext. */
 export function questIcon(q) {
   switch (q.type) {
     case QTYPE.FIND: return 'icon_' + q.itemId;
     case QTYPE.FISH: return 'icon_fish_trout';
+    case QTYPE.CATCH: return 'icon_' + q.itemId;
+    case QTYPE.VISIT: return 'icon_map';
     case QTYPE.BURN: return 'icon_campfire';
     case QTYPE.CRAFT: return 'icon_' + q.itemId;
     case QTYPE.DECORATE: return 'icon_flowerbed';
@@ -300,6 +349,8 @@ export const QUEST_VERB = {
   gather: 'bringen',
   find: 'finden',
   fish: 'angeln',
+  catch: 'fangen',
+  visit: 'hingehen',
   burn: 'verbrennen',
   craft: 'bauen',
   decorate: 'aufstellen',
@@ -310,6 +361,8 @@ export function questTitle(q) {
   switch (q.type) {
     case QTYPE.FIND: return (item ? item.name : 'Erinnerung') + ' finden';
     case QTYPE.FISH: return 'Fische angeln';
+    case QTYPE.CATCH: return (item ? item.name : 'Fisch') + ' fangen';
+    case QTYPE.VISIT: return 'Nachsehen gehen';
     case QTYPE.BURN: return 'Im Feuer verbrennen';
     case QTYPE.CRAFT: return (item ? item.name : 'Gegenstand') + ' bauen';
     case QTYPE.DECORATE: return 'Deko aufstellen';

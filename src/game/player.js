@@ -24,9 +24,9 @@ export class Player {
     this.moving = false;
     this.toolIndex = 0;
     this.levels = { hand: 1, axe: 1, pickaxe: 1, shovel: 1, rod: 1 };
-    this.swing = 0;        // 0..1, laeuft nach einem Einsatz ab
+    this.swing = 0;        // 0..1, läuft nach einem Einsatz ab
     this.swingDur = 0.34;
-    this.busy = false;     // z. B. waehrend des Angelns
+    this.busy = false;     // z. B. während des Angelns
     this.stepTimer = 0;
   }
 
@@ -82,7 +82,7 @@ export class Player {
     this.y = clamp(this.y, 32, world.h * 64 - 32);
   }
 
-  /** Soll ein Schrittgeraeusch gespielt werden? */
+  /** Soll ein Schrittgeräusch gespielt werden? */
   consumeStep() {
     if (!this.moving) return false;
     if (this.stepTimer > 0) return false;
@@ -99,7 +99,7 @@ export class Player {
     return this.dir === 'left';
   }
 
-  /** Punkt kurz vor der Figur – fuer Angel und Werkzeugeinsatz. */
+  /** Punkt kurz vor der Figur – für Angel und Werkzeugeinsatz. */
   facingPoint(dist) {
     const d = dist == null ? 64 : dist;
     switch (this.dir) {
@@ -116,8 +116,8 @@ export class Player {
 
   /**
    * Bestes Ziel in Reichweite.
-   * Objekte, die zum aktiven Werkzeug passen, haben Vorrang; danach zaehlt,
-   * was am naechsten in Blickrichtung liegt.
+   * Objekte, die zum aktiven Werkzeug passen, haben Vorrang; danach zählt,
+   * was am nächsten in Blickrichtung liegt.
    */
   findTarget(world) {
     const toolId = this.tool.id;
@@ -142,7 +142,7 @@ export class Player {
       const matches = def.tool && def.tool === toolId;
       if (!interactive && !def.tool) continue;
 
-      // Naehe zum Punkt vor der Figur
+      // Nähe zum Punkt vor der Figur
       const fdx = e.x - fp.x;
       const fdy = (e.y - 16) - fp.y;
       const facing = Math.sqrt(fdx * fdx + fdy * fdy);
