@@ -529,13 +529,38 @@ export function toPaleGrey(canvas) {
   ctx.putImageData(img, 0, 0);
 }
 
-/** Weicher Bodenschatten unter einem Objekt. */
+/**
+ * Woher das Licht kommt: von oben links.
+ *
+ * Ein einziger Wert für die ganze Insel. Vorher lag jeder Schatten mittig
+ * unter seinem Objekt, und die Lichtseiten der Objekte zeigten in
+ * unterschiedliche Richtungen – die Szene zerfiel dadurch in Einzelteile,
+ * statt unter einer Sonne zu stehen.
+ */
+export const LIGHT = { x: -0.6, y: -0.8 };
+
+/**
+ * Weicher Bodenschatten unter einem Objekt.
+ *
+ * Zwei Lagen: eine breite, die vom Licht weg versetzt liegt, und ein
+ * dunklerer Kern direkt am Fußpunkt. Der Kern ist das Entscheidende – ohne
+ * ihn schwebt ein Baum über der Wiese, statt auf ihr zu stehen.
+ */
 export function groundShadow(ctx, cx, cy, rx, ry, seed, alpha) {
-  const pts = smoothClosed(blob(cx, cy, rx, ry, seed || 11, 0.16, 14), 4);
+  const a = alpha == null ? 0.16 : alpha;
+  const ox = -LIGHT.x * rx * 0.20;
+  const oy = -LIGHT.y * ry * 0.26;
+  const s = seed || 11;
   ctx.save();
-  ctx.globalAlpha = alpha == null ? 0.16 : alpha;
   ctx.fillStyle = '#6f7a5c';
-  pathFrom(ctx, pts, true);
+
+  ctx.globalAlpha = a;
+  pathFrom(ctx, smoothClosed(blob(cx + ox, cy + oy, rx, ry, s, 0.16, 14), 4), true);
+  ctx.fill();
+
+  ctx.globalAlpha = a * 1.45;
+  pathFrom(ctx, smoothClosed(
+    blob(cx + ox * 0.35, cy + oy * 0.35, rx * 0.58, ry * 0.62, s + 3, 0.2, 12), 4), true);
   ctx.fill();
   ctx.restore();
 }

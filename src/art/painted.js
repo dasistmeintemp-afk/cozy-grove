@@ -12,7 +12,7 @@
  */
 import {
   blob, teardrop, smoothClosed, offsetShape, pathFrom,
-  inkStroke, inkLine, wash, paintObject, groundShadow,
+  inkStroke, inkLine, wash, paintObject, groundShadow, LIGHT,
 } from './brush.js';
 import { makeRng } from '../core/rng.js';
 
@@ -194,9 +194,23 @@ export function paintTree(opts) {
       for (let i = 0; i < lobes.length; i++) {
         wash(g, lobes[i], leafMid, { seed: seed + 20 + i, scale: 1.05 });
       }
-      wash(g, offsetShape(lobes[0], -18, -16, 0.6), leafLight, { seed: seed + 31, alpha: 0.9 });
-      wash(g, offsetShape(lobes[3], 14, 12, 0.78), leafDark, { seed: seed + 32, alpha: 0.5 });
-      wash(g, offsetShape(lobes[2], 12, 8, 0.68), leafDark, { seed: seed + 33, alpha: 0.38 });
+      // Schattenseite: JEDER Lappen bekommt seine dunkle Haelfte, vom Licht weg
+      // versetzt. Die Ueberlappungen bauen sich zu einer zusammenhaengenden
+      // Schattenseite auf – vorher lag nur an zwei Lappen etwas Dunkles, und
+      // die Krone blieb eine flache Flaeche.
+      const shx = -LIGHT.x * 15;
+      const shy = -LIGHT.y * 15;
+      for (let i = 0; i < lobes.length; i++) {
+        wash(g, offsetShape(lobes[i], shx, shy, 0.82), leafDark,
+          { seed: seed + 40 + i, alpha: 0.34 });
+      }
+      wash(g, offsetShape(lobes[3], shx * 1.3, shy * 1.2, 0.7), o.leafDeep || ink.leafDeep,
+        { seed: seed + 46, alpha: 0.3 });
+      // Lichtseite zuletzt, damit sie oben liegt
+      wash(g, offsetShape(lobes[0], LIGHT.x * 22, LIGHT.y * 20, 0.62), leafLight,
+        { seed: seed + 31, alpha: 0.95 });
+      wash(g, offsetShape(lobes[4], LIGHT.x * 12, LIGHT.y * 12, 0.6), leafLight,
+        { seed: seed + 32, alpha: 0.6 });
       for (let i = 0; i < fruits.length; i++) {
         dot(g, null, fruits[i][0], fruits[i][1], 7.5, o.fruit, seed + 90 + i);
       }
@@ -276,10 +290,19 @@ export function paintPine(opts) {
     wash: function (g) {
       wash(g, trunk, ink.trunk, { seed: seed + 3, dx: -1, dy: 2 });
       wash(g, offsetShape(trunk, 7, 2, 0.66), ink.trunkShade, { seed: seed + 4, alpha: 0.8 });
+      // Dieselbe Sonne wie beim Laubbaum: hell nach oben links, dunkel nach
+      // unten rechts. Dazu liegt jede Etage im Schatten der darueber – das
+      // macht aus dem gestapelten Kegel einen Baum mit Tiefe.
       for (let i = 0; i < tiers.length; i++) {
         wash(g, tiers[i], ink.pine, { seed: seed + 12 + i, scale: 1.05 });
-        wash(g, offsetShape(tiers[i], -14, -9, 0.5), ink.pineLight, { seed: seed + 22 + i, alpha: 0.55 });
-        wash(g, offsetShape(tiers[i], 15, 9, 0.55), ink.pineDark, { seed: seed + 32 + i, alpha: 0.45 });
+        wash(g, offsetShape(tiers[i], -LIGHT.x * 17, -LIGHT.y * 13, 0.62), ink.pineDark,
+          { seed: seed + 32 + i, alpha: 0.5 });
+        if (i < tiers.length - 1) {
+          wash(g, offsetShape(tiers[i], 0, -10, 0.9), ink.pineDark,
+            { seed: seed + 42 + i, alpha: 0.28 });
+        }
+        wash(g, offsetShape(tiers[i], LIGHT.x * 16, LIGHT.y * 11, 0.5), ink.pineLight,
+          { seed: seed + 22 + i, alpha: 0.7 });
       }
     },
     shape: function (g) {
@@ -397,6 +420,22 @@ export function paintRock(opts) {
   }
   const moss = smoothClosed(blob(cx - 11 * scale, baseY - 52 * scale, 21 * scale, 9 * scale, seed + 5, 0.28, 12), 4);
 
+  /**
+   * Deckflaeche. Ein Stein aus einer einzigen Blase bleibt ein Kiesel; erst
+   * eine eigene, zum Licht geneigte Oberseite mit sichtbarer Bruchkante macht
+   * daraus einen Felsen.
+   */
+  const rngTop = makeRng(seed + 300);
+  const top = smoothClosed([
+    [cx - 44 * scale, baseY - 32 * scale],
+    [cx - 33 * scale, baseY - 52 * scale + rngTop() * 6],
+    [cx - 6 * scale, baseY - 60 * scale],
+    [cx + 20 * scale, baseY - 50 * scale],
+    [cx + 28 * scale, baseY - 36 * scale],
+    [cx + 6 * scale, baseY - 30 * scale],
+    [cx - 22 * scale, baseY - 27 * scale],
+  ], 5);
+
   const res = paintObject(w, h, {
     seed: seed,
     blur: 3,
@@ -404,7 +443,12 @@ export function paintRock(opts) {
     shadow: function (g) { groundShadow(g, cx + 4, baseY - 3, 42 * scale, 11 * scale, seed + 1, 0.15); },
     wash: function (g) {
       wash(g, body, ink.rock, { seed: seed + 2, scale: 1.05 });
-      wash(g, offsetShape(body, 13 * scale, 10 * scale, 0.7), ink.rockShade, { seed: seed + 3, alpha: 0.75 });
+      // Vorderseite liegt im Schatten, Deckflaeche faengt das Licht
+      wash(g, offsetShape(body, -LIGHT.x * 16 * scale, -LIGHT.y * 13 * scale, 0.78),
+        ink.rockShade, { seed: seed + 3, alpha: 0.8 });
+      wash(g, offsetShape(body, -LIGHT.x * 24 * scale, -LIGHT.y * 17 * scale, 0.5),
+        ink.rockDeep, { seed: seed + 4, alpha: 0.4 });
+      wash(g, top, '#efece0', { seed: seed + 30, alpha: 0.72, scale: 1.02 });
       if (o.moss !== false) wash(g, moss, ink.moss, { seed: seed + 6, alpha: 0.7 });
       if (o.ore) {
         dot(g, null, cx + 11 * scale, baseY - 34 * scale, 9 * scale, ink.copper, seed + 8);
@@ -413,6 +457,9 @@ export function paintRock(opts) {
     },
     shape: function (g) { fill(g, body); },
     ink: function (g) {
+      // Bruchkante zwischen Deckflaeche und Vorderseite
+      inkStroke(g, top, { width: 1.7 * Math.min(1.2, scale), vary: 0.35,
+        seed: seed + 31, color: ink.lineSoft, alpha: 0.5 });
       inkLine(g, cx - 7 * scale, baseY - 55 * scale, cx + 2, baseY - 26 * scale,
         { width: 1.8, bend: 0.16, seed: seed + 21, alpha: 0.55 });
       inkLine(g, cx + 2, baseY - 32 * scale, cx + 21 * scale, baseY - 21 * scale,
