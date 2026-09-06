@@ -502,6 +502,18 @@ html, body {
   gap: 8px;
 }
 
+/* Noch nicht Gefundenes: als Schattenriss, damit man sieht, DASS es etwas gibt */
+.slot.unknown {
+  opacity: 0.42;
+  cursor: default;
+}
+.slot.unknown .ico {
+  filter: grayscale(1) brightness(0.55) contrast(0.4);
+}
+.slot.unknown .cap {
+  letter-spacing: 0.12em;
+}
+
 .slot {
   position: relative;
   aspect-ratio: 1 / 1;

@@ -16,7 +16,7 @@ import { QuestBook, QTYPE } from './quests.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing } from './fishing.js';
-import { SPIRITS, friendshipLevel } from './spirits.js';
+import { SPIRITS, friendshipLevel, friendshipGift } from './spirits.js';
 import { getItem, itemName, CAT } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
 import { defOf, makeEntity } from '../world/entities.js';
@@ -107,7 +107,6 @@ export class Game {
       bagUpgrades: 0,
       crafted: Object.create(null),
       caught: 0,
-      seen: Object.create(null),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -129,7 +128,7 @@ export class Game {
     this.shop = Shop.fromJSON(save.shop);
     this.state = Object.assign({
       coins: 0, ember: 0, campfireFuel: 0, bagUpgrades: 0,
-      crafted: Object.create(null), caught: 0, seen: Object.create(null),
+      crafted: Object.create(null), caught: 0,
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
 
@@ -338,6 +337,7 @@ export class Game {
     if (inp.pressed('panelQuests')) this.openPanel('quests');
     if (inp.pressed('panelCraft')) this.openPanel('craft');
     if (inp.pressed('panelMap')) this.openPanel('map');
+    if (inp.pressed('panelFound')) this.openPanel('found');
     if (inp.pressed('cancel')) {
       if (this.panels.isOpen()) this.panels.close();
       else if (this.placing) this.cancelPlacing();
@@ -614,14 +614,36 @@ export class Game {
 
     const doneN = this.quests.completedBySpirit[spirit.id];
     if (doneN % 3 === 0) {
-      this.ui.toast(spirit.name + ' · Freundschaft ' + friendshipLevel(doneN), 'icon_heart', 'good');
+      const level = friendshipLevel(doneN);
+      this.ui.toast(spirit.name + ' · Freundschaft ' + level, 'icon_heart', 'good');
       this.audio.play('levelup');
       this.colorField.grow(key, 72);
+      this._giveGift(spirit, level, e);
     }
 
     this.ui.refreshQuests();
     this.ui.refreshHud();
     this.save();
+  }
+
+  /** Geschenk zu einer neuen Freundschaftsstufe. */
+  _giveGift(spirit, level, e) {
+    const gift = friendshipGift(spirit.id, level);
+    if (!gift) return;
+    this.state.coins += gift.coins;
+    this.state.ember += gift.ember;
+    const got = [];
+    for (let i = 0; i < gift.items.length; i++) {
+      const added = this.inventory.add(gift.items[i].id, gift.items[i].n);
+      if (added > 0) got.push({ id: gift.items[i].id, n: added });
+    }
+    this.particles.burst('heart', e.x, e.y - 110, 6);
+    const self = this;
+    setTimeout(function () {
+      self.ui.toast('Geschenk: +' + gift.coins + ' Münzen · +' + gift.ember + ' Glut',
+        'icon_heart', 'good');
+      if (got.length) self.ui.toastItems(got);
+    }, 900);
   }
 
   spiritsWithReadyQuest() {

@@ -5,7 +5,7 @@
  * Kein Dialogbaum, keine Textwand – Annehmen passiert automatisch,
  * Abgeben mit einem Tastendruck beim Geist.
  */
-import { SPIRITS, SPIRIT_IDS } from './spirits.js';
+import { SPIRITS, SPIRIT_IDS, friendshipLevel } from './spirits.js';
 import { MEMORY_IDS, getItem, CAT } from './items.js';
 import { dailyRng, randInt, randPick } from '../core/rng.js';
 import { makeEntity } from '../world/entities.js';
@@ -85,7 +85,11 @@ export class QuestBook {
   generate(spiritId, day, world, state, rng) {
     const spirit = SPIRITS[spiritId];
     const type = randPick(rng, spirit.questTypes);
-    const scale = 1 + Math.min(1.6, day * 0.06);
+    // Der Tag treibt die Belohnung, die Freundschaft ebenso: wer einem Geist
+    // oft geholfen hat, bekommt von ihm mehr. Vorher war die Freundschaftsstufe
+    // eine Zahl ohne Wirkung.
+    const friends = friendshipLevel(this.completedBySpirit[spiritId] || 0);
+    const scale = 1 + Math.min(1.6, day * 0.06) + friends * 0.09;
 
     if (type === 'find') {
       const count = randInt(rng, 2, 3);

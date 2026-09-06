@@ -9,8 +9,9 @@ import { Fishing } from '../../src/game/fishing.js';
 import { Shop, buyPrice } from '../../src/game/shop.js';
 import { ColorField } from '../../src/world/colorfield.js';
 import { makeRng, dailyRng, makeNoise2D, fbm } from '../../src/core/rng.js';
-import { SPIRITS } from '../../src/game/spirits.js';
+import { SPIRITS, SPIRIT_IDS, friendshipLevel, friendshipGift } from '../../src/game/spirits.js';
 import { weatherFor, WEATHER } from '../../src/render/weather.js';
+import { getItem } from '../../src/game/items.js';
 
 const SEED = 4711;
 
@@ -440,4 +441,85 @@ test('Wetterstaerke bleibt im Wertebereich', () => {
     if (w.kind === WEATHER.CLEAR) assert.equal(w.strength, 0);
     else assert.ok(w.strength > 0.3, 'sichtbares Wetter braucht Staerke');
   }
+});
+
+test('Das Fundbuch merkt sich alles, was durch die Tasche ging', () => {
+  const inv = new Inventory(4);
+  assert.equal(inv.everFound('wood'), false);
+  inv.add('wood', 3);
+  assert.equal(inv.everFound('wood'), true);
+  assert.equal(inv.found.wood, 3);
+
+  // Wieder weggeben loescht den Eintrag nicht
+  inv.remove('wood', 3);
+  assert.equal(inv.count('wood'), 0);
+  assert.equal(inv.everFound('wood'), true);
+
+  // Nachschub zaehlt dazu
+  inv.add('wood', 2);
+  assert.equal(inv.found.wood, 5);
+});
+
+test('Das Fundbuch zaehlt nur, was wirklich Platz hatte', () => {
+  const inv = new Inventory(1);
+  inv.add('wood', 99);
+  const before = inv.found.wood;
+  inv.add('stone', 5);          // kein Platz mehr
+  assert.equal(inv.count('stone'), 0);
+  assert.equal(inv.everFound('stone'), false);
+  assert.equal(inv.found.wood, before);
+});
+
+test('Das Fundbuch ueberlebt Speichern und Laden', () => {
+  const inv = new Inventory(10);
+  inv.add('shell', 2);
+  inv.add('berry', 1);
+  inv.remove('berry', 1);
+  const back = Inventory.fromJSON(JSON.parse(JSON.stringify(inv.toJSON())));
+  assert.equal(back.everFound('shell'), true);
+  assert.equal(back.everFound('berry'), true);
+  assert.equal(back.foundCount(), 2);
+});
+
+test('Alte Spielstaende ohne Fundbuch bekommen eines aus der Tasche', () => {
+  const back = Inventory.fromJSON({ capacity: 10, slots: [{ id: 'wood', n: 4 }] });
+  assert.equal(back.everFound('wood'), true);
+  assert.equal(back.found.wood, 4);
+});
+
+test('Freundschaft schenkt ab Stufe 1 und wird groesser', () => {
+  for (const id of SPIRIT_IDS) {
+    assert.equal(friendshipGift(id, 0), null, id + ' darf auf Stufe 0 nichts geben');
+    const low = friendshipGift(id, 1);
+    const high = friendshipGift(id, 8);
+    assert.ok(low.coins > 0 && low.ember > 0, id + ' Stufe 1');
+    assert.ok(high.coins > low.coins, id + ': hoehere Stufe muss mehr geben');
+    assert.ok(high.ember >= low.ember, id + ': Glut darf nicht schrumpfen');
+  }
+});
+
+test('Geschenke verweisen nur auf echte Gegenstaende', () => {
+  for (const id of SPIRIT_IDS) {
+    for (let level = 1; level <= 10; level++) {
+      const gift = friendshipGift(id, level);
+      for (const entry of gift.items) {
+        assert.ok(getItem(entry.id), id + ' Stufe ' + level + ': ' + entry.id + ' gibt es nicht');
+        assert.ok(entry.n > 0);
+      }
+    }
+  }
+});
+
+test('Ein Erinnerungsstueck erst ab Stufe 5', () => {
+  assert.equal(friendshipGift('mira', 4).items.some((i) => i.id === 'gem'), false);
+  assert.equal(friendshipGift('mira', 5).items.some((i) => i.id === 'gem'), true);
+});
+
+test('Freundschaftsstufe steigt alle drei Aufgaben und deckelt bei 10', () => {
+  assert.equal(friendshipLevel(0), 0);
+  assert.equal(friendshipLevel(2), 0);
+  assert.equal(friendshipLevel(3), 1);
+  assert.equal(friendshipLevel(29), 9);
+  assert.equal(friendshipLevel(30), 10);
+  assert.equal(friendshipLevel(300), 10);
 });

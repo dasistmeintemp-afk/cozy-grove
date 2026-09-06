@@ -12,6 +12,11 @@ komplett im Browser: wackelige Tuschelinien, Farbflächen, die absichtlich ein
 Stück neben der Kontur liegen, Papierkorn. Im Projekt liegt keine einzige
 Bild- oder Audiodatei.
 
+Der **Klang** ebenso: zwanzig Einzelgeräusche, eine Melodie in Pentatonik und
+ein Klangbett aus vier Rauschschichten – Brandung, Wind, Grillen, Regen. Das
+Spiel mischt sie nach Ort und Uhrzeit; am Strand rauscht die See, im Wald der
+Wind, nachts zirpt es. Abschaltbar unter „Umgebung“.
+
 Unabhängige Fan-Hommage.
 
 ## Starten
@@ -39,6 +44,7 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | `E` / Leertaste | Werkzeug benutzen, reden, abgeben |
 | `1`–`5`, `Tab` | Werkzeug wählen |
 | `I` `Q` `C` `M` | Tasche · Aufgaben · Werkbank · Karte |
+| `B` | Fundbuch |
 | `F` | schlafen (am Zelt) |
 | `R` / `X` | Deko versetzen / abbrechen |
 | `Esc` | Menü, Fenster schließen |
@@ -64,6 +70,13 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Angeln** als kleines Geschicklichkeitsspiel, mit Tag- und Nachtfischen.
 * **Einrichten.** Gebaute Deko lässt sich frei aufstellen; Laternen leuchten
   nachts, und manche Geister wünschen sich Deko in ihrer Nähe.
+* **Wetter.** Manche Tage bringen Regen, manche Nebel. Was ein Tag bekommt,
+  hängt nur an Insel und Tagnummer – es steht fest, bevor der Tag beginnt.
+* **Fundbuch.** Alles, was je durch die Tasche ging, mit Gesamtzahl. Was noch
+  fehlt, steht als Schattenriss da.
+* **Freundschaft.** Alle drei erledigten Aufgaben steigt die Stufe bei einem
+  Geist. Das bringt ein Geschenk, mehr Farbe ringsum und dauerhaft besseren
+  Lohn für seine Aufgaben.
 
 ## Die Geister
 
@@ -91,7 +104,7 @@ src/art/              Mal-Werkzeugkasten und alle Grafiken (im Code gemalt)
   sprites.js            Register: legt beim Start jede Grafik zweimal an
 src/world/            Inselgenerierung, Weltmodell, Objekte, Farbfeld
 src/game/             Spielkern, Spielfigur, Tasche, Aufgaben, Laden, Angeln …
-src/render/           Kamera, Bodenschicht, Szenen-Renderer, Partikel, Kleintiere
+src/render/           Kamera, Boden, Szenen-Renderer, Partikel, Kleintiere, Wetter
 src/ui/               HUD, Sprechblasen, modale Fenster
 tests/unit/           Node-Tests ohne Browser
 tests/browser/        Rauchtest im echten Chromium
@@ -125,7 +138,7 @@ rechnet das Spiel etwas gröber, statt zu ruckeln.
 ## Tests
 
 ```bash
-npm test               # 51 Tests: Weltgenerierung, Aufgaben, Tasche, Angeln …
+npm test               # 63 Tests: Welt, Wetter, Aufgaben, Tasche, Fundbuch …
 npm run test:browser   # 36 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
@@ -139,6 +152,7 @@ node tests/browser/atlas.mjs           # alle Grafiken als Übersichtsbild
 node tests/browser/atlas.mjs --only=player_ --zoom=2.5   # eine Auswahl, groß
 node tools/look.mjs                    # die Welt an vier Orten, in voller Farbe
 node tools/look.mjs --pale --hour=22   # unkoloriert, nachts
+node tools/look.mjs --weather=rain     # bei Regen (oder fog)
 node tools/edges.mjs                   # findet abgeschnittene Grafiken
 ```
 

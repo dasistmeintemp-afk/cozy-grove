@@ -5,6 +5,23 @@ export class Inventory {
   constructor(capacity) {
     this.capacity = capacity || 30;
     this.slots = [];
+    /**
+     * Fundbuch: was schon einmal in der Tasche lag, und wie viel davon
+     * insgesamt. Es haengt hier und nicht am Spielstand, weil add() der
+     * einzige Weg ist, auf dem etwas hereinkommt – gefunden, gekauft,
+     * gefischt oder gebaut, alles laeuft hier durch.
+     */
+    this.found = Object.create(null);
+  }
+
+  /** Wurde das schon einmal gefunden? */
+  everFound(id) {
+    return !!this.found[id];
+  }
+
+  /** Wie viele verschiedene Dinge kennt das Fundbuch. */
+  foundCount() {
+    return Object.keys(this.found).length;
   }
 
   count(id) {
@@ -51,6 +68,7 @@ export class Inventory {
       left -= take;
       added += take;
     }
+    if (added > 0) this.found[id] = (this.found[id] || 0) + added;
     return added;
   }
 
@@ -110,12 +128,23 @@ export class Inventory {
   }
 
   toJSON() {
-    return { capacity: this.capacity, slots: this.slots };
+    return { capacity: this.capacity, slots: this.slots, found: this.found };
   }
 
   static fromJSON(data) {
     const inv = new Inventory(data && data.capacity ? data.capacity : 30);
     if (data && data.slots) inv.slots = data.slots.filter(function (s) { return getItem(s.id); });
+    if (data && data.found) {
+      for (const id in data.found) {
+        if (getItem(id)) inv.found[id] = data.found[id];
+      }
+    } else if (data && data.slots) {
+      // Aeltere Spielstaende kannten das Fundbuch noch nicht: was in der
+      // Tasche liegt, gilt als gefunden.
+      for (let i = 0; i < inv.slots.length; i++) {
+        inv.found[inv.slots[i].id] = inv.slots[i].n;
+      }
+    }
     return inv;
   }
 }

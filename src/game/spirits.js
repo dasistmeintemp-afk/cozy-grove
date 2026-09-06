@@ -121,6 +121,30 @@ export function friendshipLevel(done) {
   return Math.min(10, Math.floor(done / 3));
 }
 
+/**
+ * Was ein Geist zu einer neuen Freundschaftsstufe schenkt.
+ *
+ * Jeder Geist gibt, was zu ihm passt – Flaemmchen Glut, Kaeptn Kiesel etwas
+ * vom Strand. Ab Stufe 5 kommt ein Erinnerungsstueck dazu, denn ab da hat man
+ * sich wirklich Muehe gegeben. Ohne das war die Freundschaftsstufe eine Zahl,
+ * die nichts bewirkte.
+ */
+export function friendshipGift(spiritId, level) {
+  const spirit = SPIRITS[spiritId];
+  if (!spirit || level < 1) return null;
+  const gift = {
+    coins: 20 + level * 15,
+    ember: spiritId === 'flamey' ? 4 + level * 2 : 2 + level,
+    items: [],
+  };
+  const likes = spirit.likes || [];
+  if (likes.length) {
+    gift.items.push({ id: likes[level % likes.length], n: 2 + Math.floor(level / 2) });
+  }
+  if (level >= 5) gift.items.push({ id: 'gem', n: 1 });
+  return gift;
+}
+
 export function friendshipProgress(done) {
   return (done % 3) / 3;
 }

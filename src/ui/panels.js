@@ -1,6 +1,6 @@
 /** Modale Fenster: Tasche, Aufgaben, Werkbank, Laden, Feuer, Karte, Einstellungen. */
 import { iconUrl } from '../art/sprites.js';
-import { getItem, CAT_NAMES, CAT } from '../game/items.js';
+import { getItem, CAT_NAMES, CAT, ITEM_LIST } from '../game/items.js';
 import { RECIPES, missingFor, campfireLevelFor, nextCampfireLevel } from '../game/recipes.js';
 import { SPIRITS, friendshipLevel, friendshipProgress } from '../game/spirits.js';
 import { questTitle, questIcon, QTYPE } from '../game/quests.js';
@@ -14,6 +14,7 @@ const TITLES = {
   craft: 'Werkbank',
   shop: 'Laden',
   campfire: 'Lagerfeuer',
+  found: 'Fundbuch',
   map: 'Karte',
   settings: 'Einstellungen',
 };
@@ -195,6 +196,67 @@ export class Panels {
     return html;
   }
 
+  /* ---------------- Fundbuch ---------------- */
+
+  /**
+   * Was die Insel alles hergibt – und was davon schon durch die Tasche ging.
+   * Noch nicht Gefundenes steht als Schattenriss da, damit man sieht, dass es
+   * etwas gibt, aber nicht was.
+   */
+  _found() {
+    const g = this.game;
+    const inv = g.inventory;
+    const cats = [CAT.MATERIAL, CAT.FORAGE, CAT.FISH, CAT.RELIC, CAT.MEMORY, CAT.DECOR];
+    const tab = this.tab && cats.indexOf(this.tab) >= 0 ? this.tab : cats[0];
+
+    let known = 0;
+    for (let i = 0; i < ITEM_LIST.length; i++) {
+      if (inv.everFound(ITEM_LIST[i].id)) known++;
+    }
+
+    let html = '<div class="tabs">';
+    for (let i = 0; i < cats.length; i++) {
+      html += '<button class="tab" data-act="tab" data-arg="' + cats[i] + '" aria-selected="' +
+        (cats[i] === tab) + '">' + CAT_NAMES[cats[i]] + '</button>';
+    }
+    html += '</div>';
+
+    html += '<div class="grid">';
+    for (let i = 0; i < ITEM_LIST.length; i++) {
+      const item = ITEM_LIST[i];
+      if (item.cat !== tab) continue;
+      const have = inv.everFound(item.id);
+      const n = have ? inv.found[item.id] : 0;
+      html += '<button class="slot' + (have ? '' : ' unknown') +
+        (this.selected === item.id && have ? ' sel' : '') + '"' +
+        (have ? ' data-act="select" data-arg="' + item.id + '"' : ' disabled') +
+        ' title="' + escapeHtml(have ? item.name : 'Noch nicht gefunden') + '">' +
+        ico(item.icon, 'lg') +
+        '<span class="cap">' + escapeHtml(have ? item.name : '???') + '</span>' +
+        (have && n > 1 ? '<span class="qty">' + n + '</span>' : '') +
+        '</button>';
+    }
+    html += '</div>';
+
+    if (this.selected && inv.everFound(this.selected)) {
+      const item = getItem(this.selected);
+      if (item) {
+        html += '<div class="rows" style="margin-top:12px"><div class="row">' +
+          ico(item.icon, 'lg') +
+          '<div class="grow"><div class="title">' + escapeHtml(item.name) + '</div>' +
+          '<div class="meta"><span>Insgesamt gefunden: ' + inv.found[item.id] + '</span>' +
+          '<span>Jetzt in der Tasche: ' + inv.count(item.id) + '</span>' +
+          (item.value ? '<span>' + ico('icon_coin') + ' ' + item.value + '</span>' : '') +
+          '</div></div></div></div>';
+      }
+    }
+
+    html += '<p class="empty-note" style="padding-top:14px">' +
+      known + ' von ' + ITEM_LIST.length + ' Dingen gefunden' +
+      (g.state.caught ? ' · ' + g.state.caught + ' Fische geangelt' : '') + '</p>';
+    return html;
+  }
+
   /* ---------------- Aufgaben ---------------- */
 
   _quests() {
@@ -233,10 +295,13 @@ export class Panels {
       if (!g.world.isUnlocked(s.region)) continue;
       const doneN = g.quests.completedBySpirit[id] || 0;
       const lvl = friendshipLevel(doneN);
+      // Die Stufe soll sichtbar etwas bewirken, nicht nur eine Zahl sein
+      const bonus = Math.round(lvl * 9);
       html += '<div class="row">' + ico('icon_ghost', 'lg') +
         '<div class="grow"><div class="title">' + escapeHtml(s.name) + '</div>' +
         '<div class="meta"><span>' + escapeHtml(s.role) + '</span><span>Stufe ' + lvl + '</span>' +
-        '<span>' + doneN + ' Aufgaben</span></div></div>' +
+        '<span>' + doneN + ' Aufgaben</span>' +
+        (bonus ? '<span>+' + bonus + '% Lohn</span>' : '') + '</div></div>' +
         '<span class="row-btn ghost">' + Math.round(friendshipProgress(doneN) * 100) + '%</span></div>';
     }
     html += '</div>';
