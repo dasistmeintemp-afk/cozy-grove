@@ -45,7 +45,7 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | --- | --- |
 | `WASD` / Pfeiltasten | laufen |
 | `E` / Leertaste | Werkzeug benutzen, reden, abgeben |
-| `1`–`5`, `Tab` | Werkzeug wählen |
+| `1`–`6`, `Tab` | Werkzeug wählen |
 | `I` `Q` `C` `M` | Tasche · Aufgaben · Werkbank · Karte |
 | `B` | Fundbuch |
 | `G` | Erinnerungen |
@@ -69,17 +69,29 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Achterlei Aufgaben.** Bringen, finden, angeln, einen *bestimmten* Fisch
   fangen, einen Ort aufsuchen, verbrennen, bauen, aufstellen. Nur knapp ein
   Drittel ist Hol-und-Bring; ein Test wacht darüber.
-* **Werkzeuge.** Hand, Axt, Spitzhacke, Schaufel, Angel – jeweils in drei Stufen.
-  Bessere Werkzeuge geben mehr Ertrag und öffnen neue Bereiche.
+* **Werkzeuge.** Hand, Axt, Spitzhacke, Schaufel, Angel, Kescher – jeweils in
+  mehreren Stufen. Bessere Werkzeuge geben mehr Ertrag, größere Reichweite und
+  öffnen neue Bereiche.
 * **Lagerfeuer.** Verbrannte Fundstücke geben Glut (Handwerkswährung) und lassen
   das Feuer wachsen – und mit ihm den farbigen Kreis und die Rezeptliste.
 * **Drei Bereiche.** Lager & Strand (Start) → Wald (umgestürzter Baumstamm,
   braucht Axt Stufe 2) → Klippen (Brückenbausatz an der Werkbank).
 * **Angeln** als kleines Geschicklichkeitsspiel, mit Tag- und Nachtfischen.
-* **Einrichten.** Gebaute Deko lässt sich frei aufstellen; Laternen leuchten
-  nachts, und manche Geister wünschen sich Deko in ihrer Nähe.
-* **Leben ringsum.** Tags Schmetterlinge und Vögel, nachts Motten, die zum
-  nächsten Licht streben – und zu jeder Zeit springen Fische aus dem Wasser.
+* **Einrichten, das zählt.** Gebaute Deko lässt sich frei aufstellen; Laternen
+  leuchten nachts. Jedes Stück trägt **Gemütlichkeitspunkte** – ein Zaunstück 1,
+  ein Blumenbeet 5, ein Andenken 10. Was im Umkreis eines Geistes steht, zählt
+  für ihn zusammen: um ihn wächst ein zusätzlicher Farbkreis, und seine
+  Aufgaben zahlen besser. Vier Stufen, im Aufgabenfenster als Punktreihe zu
+  sehen. Packt man die Deko wieder ein, schrumpft der Kreis auch wieder –
+  anders als die Farbe aus erledigten Aufgaben, die bleibt.
+* **Leben ringsum – und zum Anfassen.** Tags Falter, nachts Motten, die zum
+  nächsten Licht streben, dazu Vögel und springende Fische. Fünf Falterarten
+  lassen sich mit dem **Kescher** fangen: drei am Tag, zwei nur nachts, jede
+  in ihrer eigenen Farbe und unterschiedlich selten. Der seltenste ist der
+  wertvollste; ein Test wacht darüber. Ein Schlag daneben schreckt die Falter
+  ringsum auf, und sie fliegen zwei Sekunden lang doppelt so schnell – blind
+  wischen lohnt sich nicht. Ist kein Falter in der Nähe, verhält sich der
+  Kescher wie jedes andere Werkzeug und man kann damit reden und aufheben.
 * **Wetter.** Manche Tage bringen Regen, manche Nebel. Was ein Tag bekommt,
   hängt nur an Insel und Tagnummer – es steht fest, bevor der Tag beginnt.
   Und es zählt: **Mondblumen** wachsen nur nachts, **Regenpilze** nur an
@@ -194,7 +206,7 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 76 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
+npm test               # 89 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
 npm run test:browser   # 36 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
@@ -210,7 +222,7 @@ node tools/look.mjs                    # die Welt an vier Orten, in voller Farbe
 node tools/look.mjs --pale --hour=22   # unkoloriert, nachts
 node tools/look.mjs --weather=rain     # bei Regen (oder fog)
 node tools/edges.mjs                   # findet abgeschnittene Grafiken
-node tools/panels.mjs                  # jedes Fenster der Oberfläche
+node tools/panels.mjs                  # jedes Fenster der Oberfläche (auch das Ende langer Listen)
 node tools/panels.mjs --pale --only=map
 ```
 

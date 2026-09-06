@@ -8,7 +8,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ITEM_LIST, getItem, CAT, MEMORY_IDS, fishesOf } from '../../src/game/items.js';
+import { BUGS, CONDITIONAL, ITEM_LIST, getItem, CAT, MEMORY_IDS, fishesOf, bugsOf } from '../../src/game/items.js';
+import { TOOLS } from '../../src/game/player.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, campfireLevelFor, nextCampfireLevel, missingFor, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
 import { SPIRITS, SPIRIT_IDS, friendshipLevel } from '../../src/game/spirits.js';
@@ -41,7 +42,7 @@ const SPRITE_NAMES = (function () {
     names.push('memory_' + memories[i]);
     names.push('icon_memory_' + memories[i]);
   }
-  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'hand'];
+  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'net', 'hand'];
   for (let i = 0; i < tools.length; i++) {
     names.push('tool_' + tools[i]);
     names.push('icon_' + tools[i]);
@@ -49,6 +50,10 @@ const SPRITE_NAMES = (function () {
   for (let f = 0; f < 2; f++) {
     names.push('butterfly_' + f);
     names.push('bird_' + f);
+  }
+  for (const bug of BUGS) {
+    for (let f = 0; f < 2; f++) names.push(bug.id + '_' + f);
+    names.push('icon_' + bug.id);
   }
   const dirs = ['down', 'up', 'side'];
   for (let d = 0; d < dirs.length; d++) {
@@ -132,7 +137,10 @@ test('Rezepte verweisen nur auf echte Gegenstände', () => {
     }
     if (rec.out) assert.ok(getItem(rec.out.id), rec.id + ' liefert unbekanntes ' + rec.out.id);
     if (rec.kind === 'tool') {
-      assert.ok(['axe', 'pickaxe', 'shovel', 'rod'].indexOf(rec.tool) >= 0);
+      // Aus TOOLS abgeleitet statt abgeschrieben: eine zweite Liste veraltet.
+      const bekannt = TOOLS.map(function (x) { return x.id; });
+      assert.ok(bekannt.indexOf(rec.tool) >= 0, rec.id + ': unbekanntes Werkzeug ' + rec.tool);
+      assert.ok(rec.tool !== 'hand', 'die Hand lässt sich nicht bauen');
       assert.ok(rec.level >= 2);
     }
   }
@@ -206,5 +214,57 @@ test('Malpalette ist vollständig', () => {
   const needed = ['line', 'paper', 'leaf', 'grass', 'sand', 'water', 'rock', 'trunk', 'wood', 'fur', 'skin'];
   for (const key of needed) {
     assert.ok(/^#[0-9a-f]{6}$/i.test(INK[key]), 'Farbe ' + key);
+  }
+});
+
+
+test('Bedingte Gegenstände: Bedingung und Aussaat stehen am Gegenstand', () => {
+  // Vorher standen Bedingung und Anzahl doppelt da – einmal am Gegenstand,
+  // einmal im Spielkern. Ein vierter hätte stillschweigend nie ausgesät.
+  assert.ok(CONDITIONAL.length >= 3, 'es gibt bedingte Gegenstände');
+  const erlaubt = ['night', 'rain', 'fog'];
+  for (const item of CONDITIONAL) {
+    assert.ok(erlaubt.indexOf(item.onlyAt) >= 0,
+      item.id + ': unbekannte Bedingung „' + item.onlyAt + '"');
+    assert.ok(item.spawn > 0, item.id + ' braucht eine Aussaatzahl');
+  }
+  for (const item of ITEM_LIST) {
+    if (item.onlyAt) {
+      assert.ok(CONDITIONAL.indexOf(item) >= 0, item.id + ' fehlt in CONDITIONAL');
+    }
+  }
+});
+
+
+test('Falter: jede Art hat Flügelfarbe, Gewicht und eine Tageszeit', () => {
+  assert.ok(BUGS.length >= 4, 'genug Arten, damit Fangen sich lohnt');
+  for (const bug of BUGS) {
+    assert.match(bug.wing, /^#[0-9a-f]{6}$/i, bug.id + ' braucht eine Flügelfarbe');
+    assert.ok(bug.weight > 0, bug.id + ' braucht ein Gewicht');
+    assert.ok(bug.flight > 0, bug.id + ' braucht eine Fluggeschwindigkeit');
+    assert.ok(bug.value > 0, bug.id + ' muss verkäuflich sein');
+  }
+  assert.ok(bugsOf(false).length >= 2, 'am Tag fliegt mehr als eine Art');
+  assert.ok(bugsOf(true).length >= 2, 'nachts fliegt mehr als eine Art');
+  // Tag und Nacht überschneiden sich nicht – sonst wäre die Nacht kein Grund
+  for (const bug of bugsOf(true)) {
+    assert.ok(bugsOf(false).indexOf(bug) < 0, bug.id + ' darf nicht in beiden Listen stehen');
+  }
+});
+
+test('Seltene Falter sind auch die wertvollen', () => {
+  const sortiert = BUGS.slice().sort(function (a, b) { return a.weight - b.weight; });
+  assert.ok(sortiert[0].value > sortiert[sortiert.length - 1].value,
+    'der seltenste Falter muss mehr wert sein als der häufigste');
+});
+
+test('Jedes Werkzeug hat Name, Symbol, Grafik und Taste', () => {
+  const tasten = {};
+  for (const tool of TOOLS) {
+    assert.ok(tool.name && tool.name.length, tool.id + ' braucht einen Namen');
+    assert.ok(SPRITE_NAMES[tool.icon], tool.id + ': Symbol ' + tool.icon + ' fehlt');
+    assert.ok(SPRITE_NAMES[tool.sprite], tool.id + ': Grafik ' + tool.sprite + ' fehlt');
+    assert.ok(!tasten[tool.key], 'Taste ' + tool.key + ' doppelt vergeben');
+    tasten[tool.key] = true;
   }
 });

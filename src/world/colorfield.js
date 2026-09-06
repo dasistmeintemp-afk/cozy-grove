@@ -45,12 +45,40 @@ export class ColorField {
     return s;
   }
 
-  /** Weiches Nachwachsen, damit Farbe sichtbar „ausblüht“. */
+  /**
+   * Setzt ein Ziel absolut – auch nach unten.
+   *
+   * `grow` kann nur wachsen, und für Erledigtes ist das richtig: einmal
+   * zurückgebrachte Farbe bleibt. Die Gemütlichkeit einer Ecke hängt aber
+   * daran, was dort gerade steht; nimmt man die Deko weg, muss der Kreis
+   * wieder schrumpfen können.
+   */
+  setTarget(x, y, value, key) {
+    let s = this.find(key);
+    if (!s) {
+      if (value <= 0) return null;
+      s = { x: x, y: y, r: 0, target: value, key: key };
+      this.sources.push(s);
+    } else {
+      s.x = x;
+      s.y = y;
+      s.target = value;
+    }
+    this._dirty = true;
+    return s;
+  }
+
+  /** Weiches Nachwachsen, damit Farbe sichtbar „ausblüht“ – und Schrumpfen. */
   update(dt) {
     for (let i = 0; i < this.sources.length; i++) {
       const s = this.sources[i];
       if (s.r < s.target) {
         s.r = Math.min(s.target, s.r + (s.target - s.r) * Math.min(1, dt * 1.6) + dt * 6);
+        this._dirty = true;
+      } else if (s.r > s.target) {
+        // Langsamer als das Wachsen: Farbe soll nicht wegzucken, wenn man
+        // eine Bank nur versetzt.
+        s.r = Math.max(s.target, s.r - (s.r - s.target) * Math.min(1, dt * 0.9) - dt * 4);
         this._dirty = true;
       }
     }

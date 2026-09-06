@@ -2,7 +2,7 @@
 import { randInt } from '../core/rng.js';
 import { nextId } from '../core/util.js';
 
-export const TOOL = { HAND: 'hand', AXE: 'axe', PICK: 'pickaxe', SHOVEL: 'shovel', ROD: 'rod' };
+export const TOOL = { HAND: 'hand', AXE: 'axe', PICK: 'pickaxe', SHOVEL: 'shovel', ROD: 'rod', NET: 'net' };
 
 function drop(id, min, max) {
   return function (level, rng) {

@@ -18,7 +18,8 @@ import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing } from './fishing.js';
 import { SPIRITS, friendshipLevel, friendshipGift } from './spirits.js';
 import { StoryBook, STAGES, storyArt, keepsakeOf } from './stories.js';
-import { getItem, itemName, CAT } from './items.js';
+import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
+import { getItem, itemName, CAT, CONDITIONAL } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
 import { defOf, makeEntity } from '../world/entities.js';
 import { startPosition, REGION_NAMES } from '../world/worldgen.js';
@@ -96,6 +97,9 @@ export class Game {
     this.ui.layout();
     this.applySettings();
     this._syncCampfireColor();
+    // Still: beim Laden steht die Deko ja schon da, da wäre eine Meldung
+    // für jede Stufe eine Meldungslawine beim Spielstart.
+    this.syncCosiness(true);
     this.ui.refreshHud();
     this.ui.refreshQuests();
     return this;
@@ -365,7 +369,7 @@ export class Game {
       else if (this.fishing.active) this.fishing.cancel();
       else this.openPanel('settings');
     }
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < TOOLS.length; i++) {
       if (inp.pressed('tool' + (i + 1))) this.selectTool(i);
     }
     if (inp.pressed('nextTool')) {
@@ -401,6 +405,12 @@ export class Game {
       else if (r === 'miss') this._onFishEvent('miss');
       return;
     }
+
+    // Der Kescher greift nur, wenn überhaupt ein Falter in der Nähe ist.
+    // Sonst würde er das Reden, Aufheben und den Laden blockieren – man
+    // müsste vor jedem Gespräch das Werkzeug wechseln. Knapp daneben zählt
+    // aber als Fehlschlag, sonst wäre Zielen belanglos.
+    if (this.player.tool.id === 'net' && this.bugNearby()) { this.swingNet(); return; }
 
     const t = this.target;
     if (t) {
@@ -636,9 +646,11 @@ export class Game {
     this._condKey = key;
 
     const rng = dailyRng(this.world.seed, this.day.day, 'cond' + key);
-    this.world.syncConditional('moonflower', night, rng, 7);
-    this.world.syncConditional('rainmushroom', rain, rng, 8);
-    this.world.syncConditional('fogcrystal', fog, rng, 5);
+    const jetzt = { night: night, rain: rain, fog: fog };
+    for (let i = 0; i < CONDITIONAL.length; i++) {
+      const item = CONDITIONAL[i];
+      this.world.syncConditional(item.id, !!jetzt[item.onlyAt], rng, item.spawn || 6);
+    }
   }
 
   /**
@@ -683,6 +695,62 @@ export class Game {
     }
   }
 
+  /* ---------------- Kescher ---------------- */
+
+  /**
+   * Schlägt mit dem Kescher zu.
+   *
+   * Getroffen wird der nächste Falter im Umkreis – kein Zielen mit dem
+   * Mauszeiger, das Spiel wird auch mit Joystick gespielt. Ein Fehlschlag
+   * kostet: die Falter ringsum schrecken auf und fliegen zwei Sekunden lang
+   * doppelt so schnell. Ohne das wäre blindes Wischen die beste Taktik.
+   */
+  /** Reichweite des Kescher nach Stufe. */
+  netReach() {
+    return 74 + ((this.player.levels.net || 1) - 1) * 26;
+  }
+
+  /** Der nächste fangbare Falter vor der Figur, oder null. */
+  bugInReach() {
+    return this.wildlife.catchableNear(this.player.x, this.player.y - 42, this.netReach());
+  }
+
+  /** Ein Falter in Sichtweite – nah genug, dass ein Schlag sinnvoll wirkt. */
+  bugNearby() {
+    return this.wildlife.catchableNear(this.player.x, this.player.y - 42, this.netReach() + 90);
+  }
+
+  swingNet() {
+    this.player.startSwing();
+    this.audio.play('swing');
+    const reach = this.netReach();
+    const px = this.player.x;
+    const py = this.player.y - 42;
+
+    const bug = this.wildlife.catchableNear(px, py, reach);
+    if (!bug) {
+      this.wildlife.scare(px, py, reach + 90);
+      this.audio.play('fail');
+      return;
+    }
+
+    const item = getItem(bug.species);
+    if (!item) { this.wildlife.remove(bug); return; }
+    if (!this.inventory.add(item.id, 1)) {
+      this.ui.toast('Tasche ist voll!', 'icon_bag', 'bad');
+      return;
+    }
+
+    this.wildlife.remove(bug);
+    this.particles.burst('sparkle', bug.x, bug.y - bug.z, 10);
+    this.audio.play('pickup');
+    this.ui.toast(item.name, item.icon, 'good');
+    this.state.bugsCaught = (this.state.bugsCaught || 0) + 1;
+
+    if (this.quests.notify('catch', { id: item.id }, this)) this.ui.refreshQuests();
+    this.save();
+  }
+
   pickDecor(e) {
     if (this.player.tool.id !== 'hand') {
       this.ui.toast('Mit der Hand aufheben', 'icon_hand');
@@ -696,6 +764,50 @@ export class Game {
     this.world.remove(e);
     this.audio.play('place');
     this.ui.toast(itemName(e.itemId) + ' eingepackt', getItem(e.itemId).icon);
+    this.syncCosiness();
+    this.ui.refreshQuests();
+  }
+
+  /* ---------------- Gemütlichkeit ---------------- */
+
+  /**
+   * Rechnet für jeden Geist nach, wie gemütlich es um ihn herum ist, und
+   * setzt seinen Deko-Farbkreis entsprechend.
+   *
+   * Jeder Geist hat zwei Farbquellen: `spirit_<id>` wächst mit erledigten
+   * Aufgaben und bleibt (Erledigtes bleibt erledigt), `cosy_<id>` hängt an
+   * der Deko und darf auch wieder schrumpfen.
+   *
+   * @param {boolean} quiet ohne Meldung – beim Laden und beim Tageswechsel
+   */
+  syncCosiness(quiet) {
+    if (!this.state.cosy) this.state.cosy = {};
+    for (const id in SPIRITS) {
+      const spirit = SPIRITS[id];
+      const e = this.world.spiritEntity(id);
+      if (!e) continue;
+      const points = charmAround(this.world, id, getItem);
+      const level = cosyLevel(points);
+      const before = this.state.cosy[id] || 0;
+      this.state.cosy[id] = level;
+
+      this.colorField.setTarget(e.x, e.y, cosyRadius(points), 'cosy_' + id);
+
+      if (!quiet && level > before && this.world.isUnlocked(spirit.region)) {
+        this.ui.toast(spirit.name + ' · Gemütlich ' + level + '/' + COSY_MAX,
+          'icon_heart', 'good');
+        this.audio.play('levelup');
+        this.particles.burst('color', e.x, e.y - 60, 14);
+        this.particles.burst('heart', e.x, e.y - 90, 2);
+      }
+    }
+    this.colorField.markDirty();
+  }
+
+  /** Punkte und Stufe eines Geistes – für die Anzeige. */
+  cosyOf(spiritId) {
+    const points = charmAround(this.world, spiritId, getItem);
+    return { points: points, level: cosyLevel(points) };
   }
 
   useStation(station, entity) {
@@ -752,6 +864,14 @@ export class Game {
   _turnIn(q, e, spirit) {
     const rewards = this.quests.turnIn(q, this);
     if (!rewards) return;
+
+    // Wer es einem Geist gemütlich gemacht hat, wird von ihm besser bezahlt.
+    // Bewusst hier und nicht bei der Vergabe: es zählt, wie es jetzt aussieht,
+    // nicht wie es aussah, als er die Aufgabe stellte.
+    const cosy = this.cosyOf(spirit.id);
+    const factor = rewardFactor(cosy.level);
+    rewards.coins = Math.round(rewards.coins * factor);
+    rewards.ember = Math.round(rewards.ember * factor);
 
     this.state.coins += rewards.coins;
     this.state.ember += rewards.ember;
@@ -1092,6 +1212,7 @@ export class Game {
     }
     this.audio.play('place');
     this.particles.burst('dust', p.x, p.y, 5);
+    this.syncCosiness();
     this.ui.refreshQuests();
 
     if (this.inventory.count(p.itemId) <= 0) this.cancelPlacing();
@@ -1296,6 +1417,10 @@ export class Game {
   _updatePrompt() {
     if (this.placing) {
       this.ui.setPrompt(this.placing.valid ? 'Hier aufstellen' : 'Kein Platz');
+      return;
+    }
+    if (this.player.tool.id === 'net' && this.bugInReach()) {
+      this.ui.setPrompt('Fangen');
       return;
     }
     if (this.fishing.active) {

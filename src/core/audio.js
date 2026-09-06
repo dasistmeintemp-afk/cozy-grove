@@ -291,6 +291,11 @@ export class AudioEngine {
       case 'cast':
         this._noise({ freq: 3000, freqTo: 900, dur: 0.18, gain: 0.09, q: 1.0 });
         break;
+      // Kescherschlag: ein kurzes Wischen durch die Luft. Höher und trockener
+      // als das Auswerfen, damit man beide Werkzeuge am Klang unterscheidet.
+      case 'swing':
+        this._noise({ freq: 900, freqTo: 4200, dur: 0.14, gain: 0.075, q: 1.4, filter: 'bandpass' });
+        break;
       case 'bite':
         this._tone({ type: 'sine', freq: noteHz(11), dur: 0.09, gain: 0.2 });
         this._tone({ type: 'sine', freq: noteHz(11), dur: 0.09, gain: 0.2, delay: 0.13 });

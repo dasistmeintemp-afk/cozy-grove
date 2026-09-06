@@ -10,8 +10,9 @@ import { Shop, buyPrice } from '../../src/game/shop.js';
 import { ColorField } from '../../src/world/colorfield.js';
 import { makeRng, dailyRng, makeNoise2D, fbm } from '../../src/core/rng.js';
 import { SPIRITS, SPIRIT_IDS, friendshipLevel, friendshipGift } from '../../src/game/spirits.js';
+import { charmAround, cosyLevel, pointsToNext, cosyRadius, rewardFactor, COSY_STEPS, COSY_MAX, COSY_RADIUS } from '../../src/game/cosiness.js';
 import { weatherFor, WEATHER } from '../../src/render/weather.js';
-import { getItem, ITEM_LIST } from '../../src/game/items.js';
+import { getItem, ITEM_LIST, CAT } from '../../src/game/items.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES } from '../../src/game/recipes.js';
 import {
@@ -675,4 +676,105 @@ test('Jede Aufgabenart hat Titel, Verb und Symbol', () => {
     assert.ok(QUEST_VERB[type], type + ' braucht ein Verb');
     assert.ok(questIcon(q).indexOf('icon_') === 0, type + ' braucht ein Symbol');
   }
+});
+
+
+/* ---------------- Gemütlichkeit ---------------- */
+
+/** Kleine Welt-Attrappe: ein Geist an (0,0) und ein paar Deko-Stücke. */
+function fakeWorld(decor) {
+  const spirit = { x: 0, y: 0, kind: 'spirit' };
+  const list = decor.map((d) => ({
+    kind: 'decor', itemId: d.id, x: d.x || 0, y: d.y || 0, gone: !!d.gone,
+  }));
+  return {
+    spiritEntity: () => spirit,
+    queryNear: () => list,
+  };
+}
+
+test('Gemütlichkeit zählt Charme, nicht Stücke', () => {
+  // Drei Steinwege (je 1) sind weniger wert als eine Mondlaterne (9).
+  const wege = charmAround(fakeWorld([
+    { id: 'path_tile' }, { id: 'path_tile' }, { id: 'path_tile' },
+  ]), 'mira', getItem);
+  const lampe = charmAround(fakeWorld([{ id: 'moonlamp' }]), 'mira', getItem);
+  assert.equal(wege, 3);
+  assert.equal(lampe, 9);
+  assert.ok(lampe > wege, 'teure Deko muss mehr zählen');
+});
+
+test('Gemütlichkeit ignoriert Entferntes und Abgeräumtes', () => {
+  const weit = charmAround(fakeWorld([
+    { id: 'moonlamp', x: COSY_RADIUS + 40 },
+  ]), 'mira', getItem);
+  assert.equal(weit, 0, 'außerhalb des Umkreises zählt nicht');
+
+  const weg = charmAround(fakeWorld([{ id: 'moonlamp', gone: true }]), 'mira', getItem);
+  assert.equal(weg, 0, 'eingepackte Deko zählt nicht');
+});
+
+test('Gemütlichkeitsstufen steigen monoton und decken die Schwellen', () => {
+  assert.equal(cosyLevel(0), 0);
+  assert.equal(cosyLevel(COSY_STEPS[0] - 1), 0);
+  for (let i = 0; i < COSY_STEPS.length; i++) {
+    assert.equal(cosyLevel(COSY_STEPS[i]), i + 1, 'Schwelle ' + COSY_STEPS[i]);
+  }
+  assert.equal(cosyLevel(9999), COSY_MAX, 'nie über die höchste Stufe');
+
+  let last = -1;
+  for (let p = 0; p <= 100; p++) {
+    const lvl = cosyLevel(p);
+    assert.ok(lvl >= last, 'darf bei mehr Punkten nicht fallen');
+    last = lvl;
+  }
+});
+
+test('Bis zur nächsten Stufe fehlt genau die Differenz', () => {
+  for (let i = 0; i < COSY_STEPS.length; i++) {
+    const knapp = COSY_STEPS[i] - 1;
+    if (i > 0 && knapp < COSY_STEPS[i - 1]) continue;
+    assert.equal(pointsToNext(knapp), 1, 'bei ' + knapp + ' fehlt genau 1');
+  }
+  assert.equal(pointsToNext(9999), null, 'auf der höchsten Stufe fehlt nichts');
+});
+
+test('Der Deko-Farbkreis wächst, ist aber gedeckelt', () => {
+  assert.equal(cosyRadius(0), 0, 'ohne Deko kein Kreis');
+  assert.ok(cosyRadius(10) > cosyRadius(5), 'mehr Punkte, größerer Kreis');
+  assert.ok(cosyRadius(100000) <= 430, 'gedeckelt – Farbe kommt weiter von Aufgaben');
+});
+
+test('Lohnaufschlag steigt mit der Stufe und ist nie kleiner als 1', () => {
+  assert.equal(rewardFactor(0), 1);
+  for (let l = 1; l <= COSY_MAX; l++) {
+    assert.ok(rewardFactor(l) > rewardFactor(l - 1), 'Stufe ' + l);
+  }
+  assert.ok(rewardFactor(COSY_MAX) < 1.7, 'Aufschlag darf den Lohn nicht verdoppeln');
+});
+
+test('Jedes aufstellbare Stück trägt Charme', () => {
+  for (const item of ITEM_LIST) {
+    if (item.cat !== CAT.DECOR || !item.prop) continue;
+    assert.ok(item.charm > 0, item.id + ' braucht einen Charme-Wert');
+  }
+});
+
+test('Farbfeld kann auch wieder schrumpfen', () => {
+  const f = new ColorField();
+  f.setTarget(100, 100, 300, 'cosy_test');
+  for (let i = 0; i < 400; i++) f.update(1 / 60);
+  assert.ok(f.find('cosy_test').r > 290, 'wächst auf das Ziel, war ' + f.find('cosy_test').r);
+  f.setTarget(100, 100, 0, 'cosy_test');
+  for (let i = 0; i < 800; i++) f.update(1 / 60);
+  assert.ok(f.find('cosy_test').r < 1, 'schrumpft wieder, war ' + f.find('cosy_test').r);
+});
+
+test('Erledigtes bleibt: grow schrumpft nie', () => {
+  const f = new ColorField();
+  f.addSource(0, 0, 200, 'spirit_x');
+  f.grow('spirit_x', 100);
+  assert.equal(f.find('spirit_x').target, 300);
+  f.grow('spirit_x', 0);
+  assert.equal(f.find('spirit_x').target, 300, 'grow darf nichts wegnehmen');
 });

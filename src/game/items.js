@@ -4,6 +4,7 @@ export const CAT = {
   MATERIAL: 'material',
   FORAGE: 'forage',
   FISH: 'fish',
+  BUG: 'bug',
   RELIC: 'relic',
   MEMORY: 'memory',
   DECOR: 'decor',
@@ -13,6 +14,7 @@ export const CAT_NAMES = {
   material: 'Material',
   forage: 'Gesammelt',
   fish: 'Fische',
+  bug: 'Falter',
   relic: 'Fundstücke',
   memory: 'Erinnerungen',
   decor: 'Deko',
@@ -71,6 +73,19 @@ const LIST = [
   it('fish_catfish', 'Wels', CAT.FISH, 30, 4, { water: 'fresh', rarity: 3, night: true }),
   it('fish_goldcarp', 'Goldkarpfen', CAT.FISH, 70, 8, { water: 'fresh', rarity: 5 }),
 
+  // Falter – mit dem Kescher zu fangen. `flight` steuert, wie schnell sie
+  // ausweichen, `night` und `weight` die Verteilung am Himmel.
+  it('bug_lemon', 'Zitronenfalter', CAT.BUG, 12, 3,
+    { wing: '#f2d45a', flight: 1, weight: 5 }),
+  it('bug_blue', 'Bläuling', CAT.BUG, 18, 3,
+    { wing: '#8fb8e8', flight: 1.15, weight: 4 }),
+  it('bug_admiral', 'Admiral', CAT.BUG, 30, 5,
+    { wing: '#d9663f', flight: 1.4, weight: 2 }),
+  it('bug_moth', 'Abendfalter', CAT.BUG, 16, 3,
+    { wing: '#cfc2a6', flight: 1.1, weight: 5, night: true }),
+  it('bug_luna', 'Mondfalter', CAT.BUG, 52, 8,
+    { wing: '#bfe4c4', flight: 1.5, weight: 1, night: true }),
+
   // Erinnerungsstücke – nur für Aufgaben, nicht verkäuflich
   it('memory_locket', 'Medaillon', CAT.MEMORY, 0, 0, { quest: true }),
   it('memory_compass', 'Kompass', CAT.MEMORY, 0, 0, { quest: true }),
@@ -81,9 +96,9 @@ const LIST = [
 
   // Nur unter bestimmten Bedingungen zu finden – das ist der Grund, an einem
   // anderen Tag oder zu anderer Stunde wiederzukommen.
-  it('moonflower', 'Mondblume', CAT.FORAGE, 34, 6, { onlyAt: 'night' }),
-  it('rainmushroom', 'Regenpilz', CAT.FORAGE, 30, 6, { onlyAt: 'rain' }),
-  it('fogcrystal', 'Nebelkristall', CAT.RELIC, 48, 9, { onlyAt: 'fog' }),
+  it('moonflower', 'Mondblume', CAT.FORAGE, 34, 6, { onlyAt: 'night', spawn: 7 }),
+  it('rainmushroom', 'Regenpilz', CAT.FORAGE, 30, 6, { onlyAt: 'rain', spawn: 8 }),
+  it('fogcrystal', 'Nebelkristall', CAT.RELIC, 48, 9, { onlyAt: 'fog', spawn: 5 }),
 
   // Deko (aufstellbar)
   it('lantern', 'Laterne', CAT.DECOR, 40, 0, { prop: 'lantern', light: 62, charm: 4 }),
@@ -160,6 +175,23 @@ export function fishesOf(water, night) {
     out.push(f);
   }
   return out;
+}
+
+/**
+ * Gegenstände, die nur unter einer Bedingung wachsen.
+ *
+ * Bedingung und Anzahl stehen am Gegenstand, nicht im Spielkern: vorher
+ * standen sie doppelt da, und ein vierter Gegenstand hätte stillschweigend
+ * nie ausgesät.
+ */
+export const CONDITIONAL = LIST.filter(function (i) { return !!i.onlyAt; });
+
+/** Alle Falter. */
+export const BUGS = LIST.filter(function (i) { return i.cat === CAT.BUG; });
+
+/** Falter, die zu dieser Tageszeit fliegen. */
+export function bugsOf(night) {
+  return BUGS.filter(function (b) { return !!b.night === !!night; });
 }
 
 export const MEMORY_IDS = LIST

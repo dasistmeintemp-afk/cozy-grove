@@ -9,7 +9,7 @@ import { SPIRITS } from '../game/spirits.js';
 import { questIcon, questTitle } from '../game/quests.js';
 import { getItem } from '../game/items.js';
 
-const TOOL_KEYS = ['1', '2', '3', '4', '5'];
+const TOOL_KEYS = ['1', '2', '3', '4', '5', '6'];
 const ROMAN = { 1: '', 2: 'II', 3: 'III', 4: 'IV' };
 
 export class UI {

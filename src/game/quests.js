@@ -6,7 +6,8 @@
  * Abgeben mit einem Tastendruck beim Geist.
  */
 import { SPIRITS, SPIRIT_IDS, friendshipLevel } from './spirits.js';
-import { MEMORY_IDS, getItem, CAT, fishesOf } from './items.js';
+import { charmAround } from './cosiness.js';
+import { MEMORY_IDS, getItem, CAT, fishesOf, bugsOf } from './items.js';
 import { dailyRng, randInt, randPick } from '../core/rng.js';
 import { makeEntity } from '../world/entities.js';
 import { TILE_SIZE } from '../world/worldgen.js';
@@ -143,6 +144,18 @@ export class QuestBook {
       return q;
     }
 
+    // Dieselbe Mechanik wie beim Fisch, anderes Ziel: ein bestimmter Falter.
+    // Nachtfalter fliegen nur nachts – das ist ein Grund, abends draußen zu
+    // bleiben, statt sofort schlafen zu gehen.
+    if (type === 'catch_bug') {
+      const q = this._base(spiritId, QTYPE.CATCH, 1, day);
+      const pool = bugsOf(rng() < 0.4);
+      if (!pool.length) return null;
+      q.itemId = randPick(rng, pool).id;
+      q.rewards = rewardFor(QTYPE.CATCH, 1, scale, rng);
+      return q;
+    }
+
     if (type === 'visit') {
       const q = this._base(spiritId, QTYPE.VISIT, 1, day);
       const spiritEnt = world.spiritEntity(spiritId);
@@ -169,9 +182,14 @@ export class QuestBook {
     }
 
     if (type === 'decorate') {
-      const count = randInt(rng, 2, 3);
+      // Gezaehlt werden Gemuetlichkeitspunkte, nicht Stuecke: sonst waeren
+      // drei Steinwege fuer 24 Muenzen dasselbe wie eine Mondlaterne.
+      // Die Forderung liegt ueber dem, was schon dasteht – sonst waere die
+      // Aufgabe im Moment ihrer Vergabe bereits erfuellt.
+      const has = charmAround(world, spiritId, getItem);
+      const count = has + randInt(rng, 4, 8);
       const q = this._base(spiritId, QTYPE.DECORATE, count, day);
-      q.rewards = rewardFor(QTYPE.DECORATE, count, scale, rng);
+      q.rewards = rewardFor(QTYPE.DECORATE, count - has, scale, rng);
       return q;
     }
 
@@ -211,7 +229,7 @@ export class QuestBook {
       case QTYPE.CRAFT:
         return Math.min(q.need, ctx.inventory.count(q.itemId));
       case QTYPE.DECORATE:
-        return Math.min(q.need, countDecorNear(ctx.world, q.spirit));
+        return Math.min(q.need, charmAround(ctx.world, q.spirit, getItem));
       default:
         return Math.min(q.need, q.have);
     }
@@ -237,8 +255,8 @@ export class QuestBook {
       } else if (event === 'found' && q.type === QTYPE.FIND && payload.questId === q.id) {
         q.have++;
         changed = true;
-      } else if (event === 'fish' && q.type === QTYPE.CATCH && q.have < q.need &&
-                 payload && payload.id === q.itemId) {
+      } else if ((event === 'fish' || event === 'catch') && q.type === QTYPE.CATCH &&
+                 q.have < q.need && payload && payload.id === q.itemId) {
         q.have = q.need;
         changed = true;
       } else if (event === 'visit' && q.type === QTYPE.VISIT && q.have < q.need && q.spot) {
@@ -296,20 +314,6 @@ export class QuestBook {
   }
 }
 
-function countDecorNear(world, spiritId) {
-  const e = world.spiritEntity(spiritId);
-  if (!e) return 0;
-  const near = world.queryNear(e.x, e.y, 520);
-  let n = 0;
-  for (let i = 0; i < near.length; i++) {
-    if (near[i].kind !== 'decor') continue;
-    const dx = near[i].x - e.x;
-    const dy = near[i].y - e.y;
-    if (dx * dx + dy * dy <= 520 * 520) n++;
-  }
-  return n;
-}
-
 function rewardFor(type, count, scale, rng, item) {
   const perUnit = {
     gather: item ? Math.max(6, item.value * 1.6) : 10,
@@ -365,7 +369,7 @@ export function questTitle(q) {
     case QTYPE.VISIT: return 'Nachsehen gehen';
     case QTYPE.BURN: return 'Im Feuer verbrennen';
     case QTYPE.CRAFT: return (item ? item.name : 'Gegenstand') + ' bauen';
-    case QTYPE.DECORATE: return 'Deko aufstellen';
+    case QTYPE.DECORATE: return 'Gemütlicher machen';
     default: return (item ? item.name : 'Material') + ' bringen';
   }
 }

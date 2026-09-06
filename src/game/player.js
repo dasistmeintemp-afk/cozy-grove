@@ -10,6 +10,7 @@ export const TOOLS = [
   { id: TOOL.PICK, name: 'Spitzhacke', icon: 'icon_pickaxe', sprite: 'tool_pickaxe', key: '3' },
   { id: TOOL.SHOVEL, name: 'Schaufel', icon: 'icon_shovel', sprite: 'tool_shovel', key: '4' },
   { id: TOOL.ROD, name: 'Angel', icon: 'icon_rod', sprite: 'tool_rod', key: '5' },
+  { id: TOOL.NET, name: 'Kescher', icon: 'icon_net', sprite: 'tool_net', key: '6' },
 ];
 
 export class Player {
@@ -23,7 +24,7 @@ export class Player {
     this.frame = 0;
     this.moving = false;
     this.toolIndex = 0;
-    this.levels = { hand: 1, axe: 1, pickaxe: 1, shovel: 1, rod: 1 };
+    this.levels = { hand: 1, axe: 1, pickaxe: 1, shovel: 1, rod: 1, net: 1 };
     this.swing = 0;        // 0..1, läuft nach einem Einsatz ab
     this.swingDur = 0.34;
     this.busy = false;     // z. B. während des Angelns

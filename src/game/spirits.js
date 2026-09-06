@@ -31,7 +31,7 @@ export const SPIRITS = {
     role: 'Wiese',
     colorStart: 240,
     colorPerQuest: 104,
-    questTypes: ['gather_forage', 'find', 'decorate', 'decorate', 'visit'],
+    questTypes: ['gather_forage', 'find', 'decorate', 'catch_bug', 'visit'],
     likes: ['flower_pink', 'flower_yellow', 'flower_white', 'herb', 'berry'],
     lines: {
       greet: ['Es duftet.', 'Hallo!', 'Schau mal.'],
@@ -67,7 +67,7 @@ export const SPIRITS = {
     water: 'fresh',
     colorStart: 256,
     colorPerQuest: 112,
-    questTypes: ['gather_wood', 'find', 'visit', 'catch', 'burn'],
+    questTypes: ['gather_wood', 'find', 'visit', 'catch_bug', 'burn'],
     likes: ['hardwood', 'resin', 'mushroom'],
     lines: {
       greet: ['Hmpf.', 'Du wieder.', 'Na gut.'],

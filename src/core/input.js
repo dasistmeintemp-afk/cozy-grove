@@ -12,6 +12,7 @@ const KEYMAP = {
   KeyE: 'interact', Space: 'interact', Enter: 'interact',
   Escape: 'cancel',
   Digit1: 'tool1', Digit2: 'tool2', Digit3: 'tool3', Digit4: 'tool4', Digit5: 'tool5',
+  Digit6: 'tool6',
   Tab: 'nextTool',
   KeyI: 'panelInventory',
   KeyQ: 'panelQuests',

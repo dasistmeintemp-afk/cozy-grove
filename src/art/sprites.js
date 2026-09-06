@@ -22,6 +22,7 @@ import {
 } from './painted-camp.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
+import { BUGS } from '../game/items.js';
 
 /**
  * Die Maler arbeiten in bequemen Maßen; beim Ablegen wird alles einmal
@@ -254,7 +255,7 @@ export function initArt() {
   }
 
   /* --- Werkzeuge --- */
-  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'hand'];
+  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'net', 'hand'];
   for (let i = 0; i < tools.length; i++) {
     addArt('tool_' + tools[i], paintTool(tools[i], { seed: 651 + i * 13 }));
   }
@@ -263,6 +264,14 @@ export function initArt() {
   for (let f = 0; f < 2; f++) {
     addArt('butterfly_' + f, paintButterfly(f, { color: INK.warm }));
     addArt('bird_' + f, paintBird(f));
+  }
+  // Jede Falterart in ihrer eigenen Farbe. Derselbe Maler, ein Wert anders –
+  // fünf unterscheidbare Tiere am Himmel für ein paar Zeilen.
+  for (let i = 0; i < BUGS.length; i++) {
+    const bug = BUGS[i];
+    for (let f = 0; f < 2; f++) {
+      addArt(bug.id + '_' + f, paintButterfly(f, { color: bug.wing, seed: 701 + i * 23 }));
+    }
   }
 
   /* --- Figuren --- */
@@ -320,11 +329,19 @@ function buildIcons() {
     // Das Andenken am Ende einer Erinnerungskette trägt dasselbe Bild
     addArt('icon_keepsake_' + MEMORY_KINDS[i], art, 1);
   }
-  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'hand'];
+  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'net', 'hand'];
   for (let i = 0; i < tools.length; i++) {
     const target = registry['tool_' + tools[i]];
     addArt('icon_' + tools[i], iconFromArt({
       color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
     }, { pad: 2 }), 1);
+  }
+  // Faltersymbole: die ausgebreitete Fassung, die liest sich klein am besten
+  for (let i = 0; i < BUGS.length; i++) {
+    const target = registry[BUGS[i].id + '_0'];
+    if (!target) continue;
+    addArt('icon_' + BUGS[i].id, iconFromArt({
+      color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
+    }), 1);
   }
 }

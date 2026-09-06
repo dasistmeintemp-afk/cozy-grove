@@ -81,6 +81,10 @@ export const RECIPES = [
     { ember: 5, kind: 'tool', tool: 'shovel', level: 2, fire: 2 }),
   r('rod2', 'Angel · Stufe 2', null, [{ id: 'wood', n: 5 }, { id: 'fiber', n: 6 }, { id: 'copper_ore', n: 2 }],
     { ember: 5, kind: 'tool', tool: 'rod', level: 2, fire: 2 }),
+  r('net2', 'Kescher · Stufe 2', null, [{ id: 'wood', n: 4 }, { id: 'fiber', n: 8 }],
+    { ember: 4, kind: 'tool', tool: 'net', level: 2, fire: 1 }),
+  r('net3', 'Kescher · Stufe 3', null, [{ id: 'hardwood', n: 4 }, { id: 'fiber', n: 12 }, { id: 'resin', n: 3 }],
+    { ember: 10, kind: 'tool', tool: 'net', level: 3, fire: 2 }),
 
   // Tasche
   r('bag2', 'Größere Tasche (+10)', null, [{ id: 'fiber', n: 10 }, { id: 'resin', n: 3 }],
