@@ -1238,12 +1238,75 @@ export class Game {
     this.ui.toast('Platz wählen · E setzen · X abbrechen', item.icon);
   }
 
+  /**
+   * Setzt den Vorschaupunkt vor die Figur – und sucht sich einen freien Platz,
+   * wenn dort gerade ein Baum steht.
+   *
+   * Vorher lag der Punkt starr 96 px voraus. Wer im Wald oder im dichten Lager
+   * etwas aufstellen wollte, bekam „Kein Platz" und musste blind herumlaufen,
+   * bis es zufällig passte – und wusste nie, woran es lag. Jetzt weicht der
+   * Punkt in Ringen aus, bis zu 90 px; erst wenn dort wirklich nichts frei
+   * ist, bleibt er stehen und sagt, warum.
+   */
   _updatePlacing() {
     if (!this.placing) return;
     const p = this.player.facingPoint(96);
-    this.placing.x = Math.round(p.x);
-    this.placing.y = Math.round(p.y);
-    this.placing.valid = this._canPlaceAt(this.placing.x, this.placing.y);
+    const px = Math.round(p.x);
+    const py = Math.round(p.y);
+
+    if (this._canPlaceAt(px, py)) {
+      this.placing.x = px;
+      this.placing.y = py;
+      this.placing.valid = true;
+      this.placing.reason = null;
+      return;
+    }
+
+    // Ringe um den Wunschpunkt, von innen nach außen
+    const ringe = [30, 56, 90];
+    for (let r = 0; r < ringe.length; r++) {
+      const schritte = 8 + r * 4;
+      for (let i = 0; i < schritte; i++) {
+        // Versetzt anfangen, damit nicht jeder Ring dieselbe Richtung bevorzugt
+        const a = (i / schritte) * Math.PI * 2 + r * 0.4;
+        const x = Math.round(px + Math.cos(a) * ringe[r]);
+        const y = Math.round(py + Math.sin(a) * ringe[r]);
+        if (this._canPlaceAt(x, y)) {
+          this.placing.x = x;
+          this.placing.y = y;
+          this.placing.valid = true;
+          this.placing.reason = null;
+          return;
+        }
+      }
+    }
+
+    this.placing.x = px;
+    this.placing.y = py;
+    this.placing.valid = false;
+    this.placing.reason = this._placeReason(px, py);
+  }
+
+  /** Warum geht es hier nicht? Für den Hinweis unten am Bild. */
+  _placeReason(x, y) {
+    if (!this.world.canStand(x, y, 12, 8)) return 'Hier ist kein Platz frei';
+    if (this.world.regionAtPixel(x, y) == null) return 'Nicht auf der Insel';
+    const near = this.world.queryNear(x, y, 120);
+    for (let i = 0; i < near.length; i++) {
+      const e = near[i];
+      if (e.gone) continue;
+      const d = defOf(e.kind);
+      if (!d) continue;
+      const dx = e.x - x;
+      const dy = e.y - y;
+      const dist2 = dx * dx + dy * dy;
+      if ((d.category === 'station' || d.category === 'spirit' || d.category === 'fox') &&
+          dist2 < 110 * 110) {
+        return 'Zu nah am Lager';
+      }
+      if (e.kind === 'decor' && dist2 < 52 * 52) return 'Zu nah an anderer Deko';
+    }
+    return 'Hier ist kein Platz frei';
   }
 
   _rotatePlacing() {
@@ -1279,7 +1342,7 @@ export class Game {
     const p = this.placing;
     if (!p) return;
     if (!p.valid) {
-      this.ui.toast('Hier passt es nicht', 'icon_lock', 'bad');
+      this.ui.toast(p.reason || 'Hier passt es nicht', 'icon_lock', 'bad');
       this.audio.play('fail');
       return;
     }
@@ -1506,7 +1569,9 @@ export class Game {
 
   _updatePrompt() {
     if (this.placing) {
-      this.ui.setPrompt(this.placing.valid ? 'Hier aufstellen' : 'Kein Platz');
+      this.ui.setPrompt(this.placing.valid
+        ? 'Hier aufstellen · X abbrechen'
+        : (this.placing.reason || 'Kein Platz') + ' · X abbrechen');
       return;
     }
     if (this.player.tool.id === 'net' && this.bugInReach()) {

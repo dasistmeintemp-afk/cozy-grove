@@ -475,16 +475,26 @@ export class Renderer {
     ctx.restore();
   }
 
+  /**
+   * Randabdunklung – sehr zurückhaltend.
+   *
+   * Sie sitzt in der Bildmitte, und die Kamera folgt der Figur: Ein kräftiger
+   * Verlauf ist damit ein heller Kreis, der mit dem Spieler mitwandert. Genau
+   * das steht der Kernmechanik im Weg – man soll an der Farbe ablesen können,
+   * wo die Insel schon wieder lebt, nicht daran, wo man gerade steht. Bei 0.2
+   * waren das 14 % Abdunklung in den Ecken, und der Kreis war deutlich zu
+   * sehen. 0.06 rahmt das Bild noch, ohne die Farbe zu überstimmen.
+   */
   _vignetteLayer() {
     if (!this._vignette) {
       const c = makeCanvas(this.w, this.h);
       const g = ctx2d(c);
       const grad = g.createRadialGradient(
-        this.w / 2, this.h / 2, Math.min(this.w, this.h) * 0.36,
-        this.w / 2, this.h / 2, Math.max(this.w, this.h) * 0.74
+        this.w / 2, this.h / 2, Math.min(this.w, this.h) * 0.52,
+        this.w / 2, this.h / 2, Math.max(this.w, this.h) * 0.78
       );
       grad.addColorStop(0, 'rgba(0,0,0,0)');
-      grad.addColorStop(1, 'rgba(96,84,60,0.2)');
+      grad.addColorStop(1, 'rgba(96,84,60,0.06)');
       g.fillStyle = grad;
       g.fillRect(0, 0, this.w, this.h);
       this._vignette = c;

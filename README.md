@@ -109,8 +109,10 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Drei Bereiche.** Lager & Strand (Start) → Wald (umgestürzter Baumstamm,
   braucht Axt Stufe 2) → Klippen (Brückenbausatz an der Werkbank).
 * **Angeln** als kleines Geschicklichkeitsspiel, mit Tag- und Nachtfischen.
-* **Einrichten, das zählt.** Gebaute Deko lässt sich frei aufstellen; Laternen
-  leuchten nachts. Jedes Stück trägt **Gemütlichkeitspunkte** – ein Zaunstück 1,
+* **Einrichten, das zählt.** Gebaute Deko lässt sich frei aufstellen – der
+  Vorschaupunkt weicht Bäumen und Steinen selbst aus, statt „Kein Platz" zu
+  sagen; nur wenn im Umkreis wirklich nichts frei ist, steht der Grund dabei.
+  Laternen leuchten nachts. Jedes Stück trägt **Gemütlichkeitspunkte** – ein Zaunstück 1,
   ein Blumenbeet 5, ein Andenken 10. Was im Umkreis eines Geistes steht, zählt
   für ihn zusammen: um ihn wächst ein zusätzlicher Farbkreis, und seine
   Aufgaben zahlen besser. Vier Stufen, im Aufgabenfenster als Punktreihe zu
@@ -241,7 +243,7 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 
 ```bash
 npm test               # 91 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
-npm run test:browser   # 40 Prüfungen im echten Browser, mit Bildschirmfotos
+npm run test:browser   # 44 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

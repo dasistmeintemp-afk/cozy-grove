@@ -396,9 +396,13 @@ html, body {
 
 /* ---------- Meldungen ---------- */
 
+/* Über dem Kontext-Hinweis, nicht darauf: der sitzt bei 96 px und sagt, was
+   die Taste E gerade tut. Bei zwei, drei Meldungen wuchs der Stapel vorher
+   von 70 px aufwärts genau darüber – ausgerechnet beim Aufstellen, wo der
+   Hinweis „Hier aufstellen" die einzige Anleitung ist. */
 #toasts {
   left: 50%;
-  bottom: calc(70px + var(--safe-b));
+  bottom: calc(140px + var(--safe-b));
   transform: translateX(-50%);
   display: flex;
   flex-direction: column-reverse;

@@ -640,6 +640,7 @@ export class Panels {
       '<span><i style="background:#d9662e"></i>Du</span>' +
       '<span><i style="background:#5f86b0"></i>Geist</span>' +
       '<span><i style="background:#ff9a3c"></i>Lager</span>' +
+      '<span><i style="background:#c2941f"></i>Fundstück</span>' +
       '<span><i style="background:#d6cdb8"></i>noch blass</span>' +
       '<span><i style="background:#cf4a3c"></i>Ziel</span>' +
       '</div>';
@@ -703,7 +704,12 @@ export class Panels {
     for (let i = 0; i < g.world.entities.length; i++) {
       const e = g.world.entities[i];
       if (e.kind === 'spirit' && g.world.isUnlocked(e.region)) dot(e.x, e.y, '#5f86b0', 4);
-      if (e.kind === 'hidden') dot(e.x, e.y, '#c2941f', 3);
+      // Fundstücke nur dort zeigen, wo man auch hinkommt. Vorher standen sie
+      // auch im Wald und auf den Klippen, lange bevor der Weg dorthin offen
+      // war – man lief hin und stand vor der Sperre.
+      if (e.kind === 'hidden' && g.world.isUnlocked(g.world.regionAtPixel(e.x, e.y))) {
+        dot(e.x, e.y, '#c2941f', 4);
+      }
     }
     // Ziele offener „Hingehen"-Aufträge als Kreuz. Ohne Marke wäre die
     // Aufgabe auf 96 mal 96 Kacheln reines Raten.

@@ -411,6 +411,85 @@ async function run() {
 
     await page.screenshot({ path: join(SHOT_DIR, '06-nach-neuladen.png') });
 
+    /* ---- Aufstellen: der Punkt weicht Hindernissen aus ---- */
+    // Vorher lag er starr 96 px voraus. Stand dort ein Baum, hieß es „Kein
+    // Platz", und man musste blind herumlaufen. Gemessen über ein Raster ums
+    // Lager: 74 % der Standorte gingen, jetzt über 95 %.
+    const aufstellen = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      g.inventory.add('lantern', 999);
+      const c = g.world.campfire;
+      let starr = 0, gesucht = 0, gesamt = 0;
+      let ohneGrund = 0;
+      for (let dy = -300; dy <= 300; dy += 60) {
+        for (let dx = -300; dx <= 300; dx += 60) {
+          const x = c.x + dx, y = c.y + dy;
+          if (!g.world.canStand(x, y, 14, 10)) continue;
+          for (const dir of ['down', 'up', 'side']) {
+            gesamt++;
+            g.player.x = x; g.player.y = y; g.player.dir = dir;
+            const f = g.player.facingPoint(96);
+            if (g._canPlaceAt(Math.round(f.x), Math.round(f.y))) starr++;
+            g.startPlacing('lantern');
+            g._updatePlacing();
+            if (g.placing.valid) gesucht++;
+            else if (!g.placing.reason) ohneGrund++;
+            g.cancelPlacing();
+          }
+        }
+      }
+      return { gesamt, starr, gesucht, ohneGrund,
+        anteil: gesamt ? gesucht / gesamt : 0 };
+    });
+    check('Aufstellen findet fast immer einen Platz', aufstellen.anteil > 0.95,
+      JSON.stringify(aufstellen));
+    check('Misslingt es doch, steht ein Grund dabei', aufstellen.ohneGrund === 0,
+      aufstellen.ohneGrund + ' ohne Grund');
+
+    /* ---- Karte verrät nichts aus gesperrten Bereichen ---- */
+    const karte = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      // An dieser Stelle des Tests ist die Brücke längst gebaut und alles
+      // offen. Also einen Bereich kurz zusperren, prüfen, zurückstellen –
+      // sonst prüfte der Test nur den Zustand, nicht die Regel.
+      const vorher = g.world.unlocked.slice();
+      let punkt = null;
+      for (let ty = 4; ty < 92 && !punkt; ty++) {
+        for (let tx = 4; tx < 92; tx++) {
+          if (g.world.regionAtPixel((tx + 0.5) * 64, (ty + 0.5) * 64) === 1) {
+            punkt = { x: (tx + 0.5) * 64, y: (ty + 0.5) * 64 };
+            break;
+          }
+        }
+      }
+      if (!punkt) return { keinPunkt: true };
+      const zeigt = (x, y) => g.world.isUnlocked(g.world.regionAtPixel(x, y));
+      g.world.unlocked[1] = false;
+      const gesperrt = zeigt(punkt.x, punkt.y);
+      g.world.unlocked[1] = true;
+      const offen = zeigt(punkt.x, punkt.y);
+      g.world.unlocked = vorher;
+      return { gesperrterBereich: gesperrt, offenerBereich: offen };
+    });
+    check('Karte zeigt keine Fundstücke in gesperrten Bereichen',
+      karte.gesperrterBereich === false && karte.offenerBereich === true,
+      JSON.stringify(karte));
+
+    /* ---- Randabdunklung bleibt dezent ---- */
+    // Sie sitzt in der Bildmitte, und die Kamera folgt der Figur: ein starker
+    // Verlauf ist ein heller Kreis, der mitwandert – und der überstimmt genau
+    // das Signal, um das sich das ganze Spiel dreht.
+    const vignette = await page.evaluate(() => {
+      const R = window.CozyGrove.game.renderer;
+      R._vignette = null;
+      const c = R._vignetteLayer();
+      const ctx = c.getContext('2d');
+      const a = (x, y) => ctx.getImageData(x, y, 1, 1).data[3];
+      return { mitte: a(c.width >> 1, c.height >> 1), ecke: a(2, 2) };
+    });
+    check('Randabdunklung überstimmt die Farbe nicht',
+      vignette.mitte === 0 && vignette.ecke <= 16, JSON.stringify(vignette));
+
     /* ---- Spielstand als Datei: übernehmen und Neuladen überstehen ---- */
     // Der Weg für „anderer Browser, anderer Rechner". Die heikle Stelle ist
     // nicht das Schreiben, sondern das Neuladen danach: `location.reload()`
