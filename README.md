@@ -76,8 +76,13 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Drei Bereiche.** Lager & Strand (Start) → Wald (umgestürzter Baumstamm,
   braucht Axt Stufe 2) → Klippen (Brückenbausatz an der Werkbank).
 * **Angeln** als kleines Geschicklichkeitsspiel, mit Tag- und Nachtfischen.
-* **Einrichten.** Gebaute Deko lässt sich frei aufstellen; Laternen leuchten
-  nachts, und manche Geister wünschen sich Deko in ihrer Nähe.
+* **Einrichten, das zählt.** Gebaute Deko lässt sich frei aufstellen; Laternen
+  leuchten nachts. Jedes Stück trägt **Gemütlichkeitspunkte** – ein Zaunstück 1,
+  ein Blumenbeet 5, ein Andenken 10. Was im Umkreis eines Geistes steht, zählt
+  für ihn zusammen: um ihn wächst ein zusätzlicher Farbkreis, und seine
+  Aufgaben zahlen besser. Vier Stufen, im Aufgabenfenster als Punktreihe zu
+  sehen. Packt man die Deko wieder ein, schrumpft der Kreis auch wieder –
+  anders als die Farbe aus erledigten Aufgaben, die bleibt.
 * **Leben ringsum.** Tags Schmetterlinge und Vögel, nachts Motten, die zum
   nächsten Licht streben – und zu jeder Zeit springen Fische aus dem Wasser.
 * **Wetter.** Manche Tage bringen Regen, manche Nebel. Was ein Tag bekommt,
@@ -194,7 +199,7 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 76 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
+npm test               # 86 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
 npm run test:browser   # 36 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
@@ -210,7 +215,7 @@ node tools/look.mjs                    # die Welt an vier Orten, in voller Farbe
 node tools/look.mjs --pale --hour=22   # unkoloriert, nachts
 node tools/look.mjs --weather=rain     # bei Regen (oder fog)
 node tools/edges.mjs                   # findet abgeschnittene Grafiken
-node tools/panels.mjs                  # jedes Fenster der Oberfläche
+node tools/panels.mjs                  # jedes Fenster der Oberfläche (auch das Ende langer Listen)
 node tools/panels.mjs --pale --only=map
 ```
 

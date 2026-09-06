@@ -118,6 +118,22 @@ async function run() {
     const file = join(ROOT, '.screenshots', 'ui-' + name + '.png');
     await page.screenshot({ path: file });
     console.log('geschrieben: .screenshots/ui-' + name + '.png');
+
+    // Läuft das Fenster über, gibt es ein zweites Bild vom unteren Ende.
+    // Ohne das bleibt alles unterhalb der Kante ungesehen – genau dort steht
+    // erfahrungsgemäß das, was zuletzt hinzugefügt wurde.
+    const scrolled = await page.evaluate(() => {
+      const b = document.getElementById('panel-body');
+      if (!b || b.scrollHeight <= b.clientHeight + 8) return false;
+      b.scrollTop = b.scrollHeight;
+      return true;
+    });
+    if (scrolled) {
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: join(ROOT, '.screenshots', 'ui-' + name + '-unten.png') });
+      console.log('geschrieben: .screenshots/ui-' + name + '-unten.png');
+    }
+
     await page.evaluate(() => window.CozyGrove.game.panels.close());
     await page.waitForTimeout(120);
   }

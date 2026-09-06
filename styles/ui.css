@@ -674,6 +674,18 @@ html, body {
 .row .meta { font-size: 0.76em; color: var(--ink-dim); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
 .row.dim { opacity: 0.55; }
 
+/* Gemütlichkeitsstufe: vier Punkte, gefüllte in Lagerfeuerfarbe. Eine Reihe
+   liest sich schneller als eine Zahl und braucht kein Wort dazu. */
+.cosy-bar { display: flex; gap: 4px; margin-top: 5px; }
+.cosy-bar .pip {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--edge-soft);
+  background: transparent;
+}
+.cosy-bar .pip.on { background: var(--warm); border-color: var(--edge); }
+
 .row-btn {
   border: 2px solid var(--edge);
   background: var(--warm);

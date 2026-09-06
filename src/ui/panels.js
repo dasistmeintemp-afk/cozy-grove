@@ -4,6 +4,7 @@ import { getItem, CAT_NAMES, CAT, ITEM_LIST } from '../game/items.js';
 import { RECIPES, missingFor, campfireLevelFor, nextCampfireLevel } from '../game/recipes.js';
 import { SPIRITS, friendshipLevel, friendshipProgress } from '../game/spirits.js';
 import { STAGES, storyIcon, keepsakeOf } from '../game/stories.js';
+import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
 import { questTitle, questIcon, QTYPE } from '../game/quests.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
 import { TILE_DEF, TILE_SIZE } from '../art/tiles.js';
@@ -25,6 +26,15 @@ const TITLES = {
 function ico(name, cls) {
   const url = iconUrl(name);
   return '<span class="ico ' + (cls || '') + '" style="background-image:url(' + url + ')"></span>';
+}
+
+/** Gemütlichkeitsstufe als Punktreihe – auf einen Blick lesbar, ohne Zahl. */
+function cosyPips(level) {
+  let h = '';
+  for (let i = 0; i < COSY_MAX; i++) {
+    h += '<i class="pip' + (i < level ? ' on' : '') + '"></i>';
+  }
+  return h;
 }
 
 export class Panels {
@@ -346,19 +356,24 @@ export class Panels {
       html += '<p class="empty-note">Fertige Aufgaben gibst du beim Geist ab (Taste E).</p>';
     }
 
-    html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Freundschaft</h3><div class="rows">';
+    html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Die Geister</h3><div class="rows">';
     for (const id in SPIRITS) {
       const s = SPIRITS[id];
       if (!g.world.isUnlocked(s.region)) continue;
       const doneN = g.quests.completedBySpirit[id] || 0;
       const lvl = friendshipLevel(doneN);
-      // Die Stufe soll sichtbar etwas bewirken, nicht nur eine Zahl sein
-      const bonus = Math.round(lvl * 9);
+      const cosy = g.cosyOf(id);
+      // Beide Stufen sollen sichtbar etwas bewirken, nicht nur Zahlen sein
+      const bonus = Math.round(lvl * 9 + cosy.level * 11);
+      const next = pointsToNext(cosy.points);
       html += '<div class="row">' + ico('icon_ghost', 'lg') +
         '<div class="grow"><div class="title">' + escapeHtml(s.name) + '</div>' +
-        '<div class="meta"><span>' + escapeHtml(s.role) + '</span><span>Stufe ' + lvl + '</span>' +
-        '<span>' + doneN + ' Aufgaben</span>' +
-        (bonus ? '<span>+' + bonus + '% Lohn</span>' : '') + '</div></div>' +
+        '<div class="meta"><span>' + escapeHtml(s.role) + '</span>' +
+        '<span>' + ico('icon_heart') + ' Stufe ' + lvl + '</span>' +
+        '<span title="Gemütlichkeit: Deko in seiner Nähe">' + ico('icon_flowerbed') + ' ' +
+        cosy.points + (next ? ' (+' + next + ')' : ' · voll') + '</span>' +
+        (bonus ? '<span>+' + bonus + '% Lohn</span>' : '') + '</div>' +
+        '<div class="cosy-bar" aria-hidden="true">' + cosyPips(cosy.level) + '</div></div>' +
         '<span class="row-btn ghost">' + Math.round(friendshipProgress(doneN) * 100) + '%</span></div>';
     }
     html += '</div>';

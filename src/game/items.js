@@ -81,9 +81,9 @@ const LIST = [
 
   // Nur unter bestimmten Bedingungen zu finden – das ist der Grund, an einem
   // anderen Tag oder zu anderer Stunde wiederzukommen.
-  it('moonflower', 'Mondblume', CAT.FORAGE, 34, 6, { onlyAt: 'night' }),
-  it('rainmushroom', 'Regenpilz', CAT.FORAGE, 30, 6, { onlyAt: 'rain' }),
-  it('fogcrystal', 'Nebelkristall', CAT.RELIC, 48, 9, { onlyAt: 'fog' }),
+  it('moonflower', 'Mondblume', CAT.FORAGE, 34, 6, { onlyAt: 'night', spawn: 7 }),
+  it('rainmushroom', 'Regenpilz', CAT.FORAGE, 30, 6, { onlyAt: 'rain', spawn: 8 }),
+  it('fogcrystal', 'Nebelkristall', CAT.RELIC, 48, 9, { onlyAt: 'fog', spawn: 5 }),
 
   // Deko (aufstellbar)
   it('lantern', 'Laterne', CAT.DECOR, 40, 0, { prop: 'lantern', light: 62, charm: 4 }),
@@ -161,6 +161,15 @@ export function fishesOf(water, night) {
   }
   return out;
 }
+
+/**
+ * Gegenstände, die nur unter einer Bedingung wachsen.
+ *
+ * Bedingung und Anzahl stehen am Gegenstand, nicht im Spielkern: vorher
+ * standen sie doppelt da, und ein vierter Gegenstand hätte stillschweigend
+ * nie ausgesät.
+ */
+export const CONDITIONAL = LIST.filter(function (i) { return !!i.onlyAt; });
 
 export const MEMORY_IDS = LIST
   .filter(function (i) { return i.cat === CAT.MEMORY; })

@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ITEM_LIST, getItem, CAT, MEMORY_IDS, fishesOf } from '../../src/game/items.js';
+import { CONDITIONAL, ITEM_LIST, getItem, CAT, MEMORY_IDS, fishesOf } from '../../src/game/items.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, campfireLevelFor, nextCampfireLevel, missingFor, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
 import { SPIRITS, SPIRIT_IDS, friendshipLevel } from '../../src/game/spirits.js';
@@ -206,5 +206,23 @@ test('Malpalette ist vollständig', () => {
   const needed = ['line', 'paper', 'leaf', 'grass', 'sand', 'water', 'rock', 'trunk', 'wood', 'fur', 'skin'];
   for (const key of needed) {
     assert.ok(/^#[0-9a-f]{6}$/i.test(INK[key]), 'Farbe ' + key);
+  }
+});
+
+
+test('Bedingte Gegenstände: Bedingung und Aussaat stehen am Gegenstand', () => {
+  // Vorher standen Bedingung und Anzahl doppelt da – einmal am Gegenstand,
+  // einmal im Spielkern. Ein vierter hätte stillschweigend nie ausgesät.
+  assert.ok(CONDITIONAL.length >= 3, 'es gibt bedingte Gegenstände');
+  const erlaubt = ['night', 'rain', 'fog'];
+  for (const item of CONDITIONAL) {
+    assert.ok(erlaubt.indexOf(item.onlyAt) >= 0,
+      item.id + ': unbekannte Bedingung „' + item.onlyAt + '"');
+    assert.ok(item.spawn > 0, item.id + ' braucht eine Aussaatzahl');
+  }
+  for (const item of ITEM_LIST) {
+    if (item.onlyAt) {
+      assert.ok(CONDITIONAL.indexOf(item) >= 0, item.id + ' fehlt in CONDITIONAL');
+    }
   }
 });
