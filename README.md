@@ -70,6 +70,8 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Angeln** als kleines Geschicklichkeitsspiel, mit Tag- und Nachtfischen.
 * **Einrichten.** Gebaute Deko lässt sich frei aufstellen; Laternen leuchten
   nachts, und manche Geister wünschen sich Deko in ihrer Nähe.
+* **Leben ringsum.** Tags Schmetterlinge und Vögel, nachts Motten, die zum
+  nächsten Licht streben – und zu jeder Zeit springen Fische aus dem Wasser.
 * **Wetter.** Manche Tage bringen Regen, manche Nebel. Was ein Tag bekommt,
   hängt nur an Insel und Tagnummer – es steht fest, bevor der Tag beginnt.
 * **Fundbuch.** Alles, was je durch die Tasche ging, mit Gesamtzahl. Was noch

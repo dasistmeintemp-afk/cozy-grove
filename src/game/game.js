@@ -56,6 +56,15 @@ export class Game {
     this.rng = Math.random;
     this.particles = new Particles(Math.random);
     this.wildlife = new Wildlife(Math.random);
+    const self = this;
+    // Ein Fischsprung platscht – aber nur, wenn er auch zu sehen ist
+    this.wildlife.onJump = function (x, y) {
+      const cam = self.camera;
+      if (!cam || !self.renderer) return;
+      if (x < cam.ox || x > cam.ox + self.renderer.viewW) return;
+      if (y < cam.oy || y > cam.oy + self.renderer.viewH) return;
+      self.audio.play('splash');
+    };
     this.weather = new Weather(Math.random);
     this.renderer = new Renderer(canvas);
     this.camera = new Camera(canvas.width, canvas.height, 0, 0);
@@ -298,10 +307,12 @@ export class Game {
 
     this.colorField.update(dt);
     this.particles.update(dt);
+    const dark = this.day.isDark();
     this.wildlife.update(
       dt, this.camera, this.world,
       this.renderer.w, this.renderer.h,
-      !this.day.isDark()
+      !dark,
+      dark ? this.lightSources(this.time) : null
     );
     this._ambient(dt);
     this.weather.update(dt);
