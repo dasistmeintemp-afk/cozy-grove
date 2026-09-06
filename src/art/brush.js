@@ -239,11 +239,67 @@ export function inkLine(ctx, x0, y0, x1, y1, opts) {
  * Alpha wird vorher multipliziert, sonst entstehen dunkle Ränder an
  * durchsichtigen Stellen.
  */
+/**
+ * Kann der Browser selbst weichzeichnen?
+ *
+ * `ctx.filter` gibt es in Chrome und Firefox seit Langem, in Safari erst seit
+ * Version 17. Die blosse Anwesenheit der Eigenschaft genuegt daher nicht – es
+ * wird einmal wirklich ausprobiert: ein deckender Fleck, weichgezeichnet, und
+ * danach ein Blick auf eine Ecke. Ist sie noch leer, hat der Browser den Filter
+ * ignoriert, und wir rechnen weiter selbst.
+ */
+let nativeBlur = null;
+
+function canBlurNatively() {
+  if (nativeBlur !== null) return nativeBlur;
+  nativeBlur = false;
+  try {
+    const c = makeCanvas(32, 32);
+    const g = ctx2d(c);
+    if (typeof g.filter !== 'string') return nativeBlur;
+    g.filter = 'blur(4px)';
+    g.fillStyle = '#000000';
+    g.fillRect(8, 8, 16, 16);
+    g.filter = 'none';
+    // Ohne Filter waere diese Stelle unberuehrt und damit vollstaendig leer
+    const a = g.getImageData(5, 16, 1, 1).data[3];
+    nativeBlur = a > 4;
+  } catch (err) {
+    nativeBlur = false;
+  }
+  return nativeBlur;
+}
+
 export function blurCanvas(canvas, radius, passes) {
   const r = Math.max(1, Math.round(radius));
   const w = canvas.width;
   const h = canvas.height;
   if (w < 3 || h < 3) return;
+
+  // Der eigene Kastenweichzeichner war die Haelfte der Kosten eines
+  // Bodenstuecks. Kann der Browser es selbst, ist es ein Bruchteil davon.
+  if (canBlurNatively()) {
+    const rounds = passes || 2;
+    // Mehrere Kastendurchgaenge naehern eine Glocke; sigma entsprechend
+    const sigma = r * Math.sqrt(rounds * 2) * 0.5;
+    try {
+      const tmp = makeCanvas(w, h);
+      const tctx = ctx2d(tmp);
+      tctx.drawImage(canvas, 0, 0);
+      const ctx = ctx2d(canvas);
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.filter = 'blur(' + sigma.toFixed(2) + 'px)';
+      ctx.drawImage(tmp, 0, 0);
+      ctx.filter = 'none';
+      ctx.restore();
+      return;
+    } catch (err) {
+      nativeBlur = false;
+    }
+  }
+
   const ctx = ctx2d(canvas);
   let img;
   try {

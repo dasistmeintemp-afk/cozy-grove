@@ -60,9 +60,17 @@ function loop(now) {
 
   const drawStart = performance.now();
   game.draw();
-  if (game.renderer.adapt(performance.now() - drawStart, game.camera)) {
+  const drawMs = performance.now() - drawStart;
+  if (game.renderer.adapt(drawMs, game.camera)) {
     game.ui.layout();
     game.ground.prewarm(game.camera.ox, game.camera.oy,
+      game.renderer.viewW, game.renderer.viewH);
+  }
+
+  // War das Bild schnell, ist noch Zeit für ein Bodenstück, das bald ins Bild
+  // kommt. So entsteht der Ruckler gar nicht erst, statt ihn nur zu verteilen.
+  if (drawMs < 5) {
+    game.ground.paintAhead(game.camera.ox, game.camera.oy,
       game.renderer.viewW, game.renderer.viewH);
   }
 }

@@ -20,7 +20,16 @@ import { TILE_SIZE } from '../art/tiles.js';
  */
 const MIN_CACHE = 24;
 const MAX_CACHE = 84;
-const BUDGET_PER_FRAME = 2;
+
+/**
+ * Wie viele Stuecke ein Bild hoechstens malen darf.
+ *
+ * Ein Stueck kostet rund 14 ms. Bei zwei pro Bild ergab das Bildzeiten bis
+ * 44 ms – einen sichtbaren Ruckler, genau die Sorte, die Spieler an solchen
+ * Spielen stoert. Mit einem pro Bild wird aus einem langen Bild eine Handvoll
+ * knapper, und `paintAhead()` erledigt den Rest schon vorher.
+ */
+const BUDGET_PER_FRAME = 1;
 
 export class GroundLayer {
   constructor(world) {
@@ -66,6 +75,35 @@ export class GroundLayer {
       for (let cx = cx0; cx <= cx1; cx++) this._get(cx, cy, true);
     }
     this.budget = saved;
+  }
+
+  /**
+   * Malt EIN Stueck, das bald gebraucht wird, aber noch nicht sichtbar ist.
+   *
+   * Wird nur auf Bildern aufgerufen, die ohnehin schnell waren. Dadurch sind
+   * die Stuecke fertig, bevor die Kamera sie erreicht, und im Bild, in dem sie
+   * auftauchen, ist nichts mehr zu tun.
+   *
+   * @returns {boolean} ob etwas gemalt wurde
+   */
+  paintAhead(camX, camY, viewW, viewH) {
+    const cx0 = Math.floor((camX - CHUNK_PX) / CHUNK_PX);
+    const cy0 = Math.floor((camY - CHUNK_PX) / CHUNK_PX);
+    const cx1 = Math.floor((camX + viewW + CHUNK_PX) / CHUNK_PX);
+    const cy1 = Math.floor((camY + viewH + CHUNK_PX) / CHUNK_PX);
+    this._ensureLimit((cx1 - cx0 + 1) * (cy1 - cy0 + 1));
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        if (cx < 0 || cy < 0 || cx >= this.cols || cy >= this.rows) continue;
+        if (this.cache[this._key(cx, cy)]) continue;
+        const saved = this.budget;
+        this.budget = 1;
+        const painted = this._get(cx, cy, true);
+        this.budget = saved;
+        return !!painted;
+      }
+    }
+    return false;
   }
 
   /** Wird nach Kachelwechseln aufgerufen (Weg gelegt, Brücke gebaut). */
