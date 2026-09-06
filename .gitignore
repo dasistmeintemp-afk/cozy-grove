@@ -1,4 +1,5 @@
 node_modules/
+dist/
 .screenshots/
 __atlas.html
 .DS_Store

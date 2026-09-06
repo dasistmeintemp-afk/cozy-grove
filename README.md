@@ -32,6 +32,35 @@ Mehr braucht es nicht: kein Build-Schritt, keine Abhängigkeiten zur Laufzeit.
 Der Server liegt bei, weil ES-Module sich nicht per `file://` laden lassen.
 Jeder andere statische Webserver funktioniert genauso.
 
+## Verschenken
+
+```bash
+npm run bundle     # dist/cozy-grove.html – baut und prüft in einem
+```
+
+Das ganze Spiel in **einer HTML-Datei**: Oberfläche, Schrift und alle Module
+darin. Die Datei per Doppelklick zu öffnen genügt, kein Server, keine
+Installation, kein Internet. Zum Verschicken gedacht – gut 500 kB, das passt
+an eine E-Mail.
+
+Der Umweg ist nötig, weil ES-Module sich nicht per `file://` laden lassen:
+Ein verschickter Projektordner ist per Doppelklick tot, egal wie vollständig
+er ist. `tools/bundle.mjs` schreibt darum `import`/`export` in ein winziges
+Register um – jedes Modul in seinem eigenen Funktionsrumpf, sonst kämen sich
+gleichnamige Hilfsfunktionen aus verschiedenen Dateien in die Quere. Die
+Schrift wandert als `data:`-URL mit hinein, weil Browser eine nachgeladene
+Schriftdatei über `file://` als fremden Ursprung ablehnen.
+
+`tools/checkbundle.mjs` öffnet die fertige Datei anschließend genau so, wie
+der Beschenkte sie öffnet – per `file://`, ohne Server – und prüft, dass die
+Grafik entsteht, die Schrift sitzt, die Figur läuft, der Spielstand ein
+zweites Öffnen übersteht und **keine einzige Anfrage nach außen** geht. Wer
+eine Datei verschenkt, die er nur über `http` probiert hat, verschenkt eine
+Vermutung.
+
+Zum Weiterentwickeln bleibt `npm start` der Weg; die Einzeldatei ist nur der
+Ausgabeweg.
+
 ## Browser
 
 Getestet und ausgelegt auf **Safari, Firefox und Chrome** (Desktop und Mobil).
@@ -222,6 +251,8 @@ node tools/look.mjs                    # die Welt an vier Orten, in voller Farbe
 node tools/look.mjs --pale --hour=22   # unkoloriert, nachts
 node tools/look.mjs --weather=rain     # bei Regen (oder fog)
 node tools/edges.mjs                   # findet abgeschnittene Grafiken
+node tools/bundle.mjs                  # alles in eine HTML-Datei
+node tools/checkbundle.mjs             # öffnet sie per file:// und prüft sie
 node tools/panels.mjs                  # jedes Fenster der Oberfläche (auch das Ende langer Listen)
 node tools/panels.mjs --pale --only=map
 ```

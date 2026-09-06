@@ -9,7 +9,8 @@
     "dev": "node server.js",
     "test": "node --test tests/unit/*.test.js",
     "test:browser": "node tests/browser/smoke.mjs",
-    "test:all": "npm run test && npm run test:browser"
+    "test:all": "npm run test && npm run test:browser",
+    "bundle": "node tools/bundle.mjs && node tools/checkbundle.mjs"
   },
   "devDependencies": {
     "playwright": "^1.49.0"
