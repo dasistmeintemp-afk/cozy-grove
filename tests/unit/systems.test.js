@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Inventory } from '../../src/game/inventory.js';
-import { QuestBook, QTYPE, questTitle, questIcon } from '../../src/game/quests.js';
+import { QuestBook, QTYPE, questTitle, questIcon, QUEST_VERB } from '../../src/game/quests.js';
 import { World } from '../../src/world/world.js';
 import { DayCycle, DAY_START, DAY_END } from '../../src/game/daycycle.js';
 import { Fishing } from '../../src/game/fishing.js';
@@ -92,24 +92,42 @@ test('Tagesaufgaben nur fuer freigeschaltete Bereiche', () => {
   assert.ok(regions.has(1), 'Waldgeister geben jetzt Aufgaben');
 });
 
-test('Am ersten Tag hoechstens eine Aufgabe pro Geist', () => {
+test('Der erste Tag hat genug fuer eine ganze Sitzung', () => {
   const ctx = makeCtx();
   const qb = new QuestBook();
   qb.newDay(1, ctx.world, ctx);
   const perSpirit = Object.create(null);
   for (const q of qb.active()) perSpirit[q.spirit] = (perSpirit[q.spirit] || 0) + 1;
-  for (const id of Object.keys(perSpirit)) assert.equal(perSpirit[id], 1);
+  // Zwei je Geist: ruhiger Einstieg, aber niemand steht nach drei Minuten da
+  for (const id of Object.keys(perSpirit)) assert.equal(perSpirit[id], 2);
+  assert.ok(qb.active().length >= 4, 'zu wenig zu tun am ersten Tag');
 });
 
-test('Nie mehr als zwei offene Aufgaben pro Geist', () => {
+test('Nie mehr als drei offene Aufgaben pro Geist', () => {
   const ctx = makeCtx();
   const qb = new QuestBook();
   for (let day = 1; day <= 8; day++) qb.newDay(day, ctx.world, ctx);
   const perSpirit = Object.create(null);
   for (const q of qb.active()) perSpirit[q.spirit] = (perSpirit[q.spirit] || 0) + 1;
   for (const id of Object.keys(perSpirit)) {
-    assert.ok(perSpirit[id] <= 2, id + ' hat ' + perSpirit[id] + ' Aufgaben');
+    assert.ok(perSpirit[id] <= 3, id + ' hat ' + perSpirit[id] + ' Aufgaben');
   }
+});
+
+test('Aufgaben sind nicht ueberwiegend Hol-und-Bring', () => {
+  const ctx = makeCtx();
+  const arten = Object.create(null);
+  let gesamt = 0;
+  for (let day = 2; day < 60; day++) {
+    const qb = new QuestBook();
+    qb.newDay(day, ctx.world, ctx);
+    for (const q of qb.active()) { arten[q.type] = (arten[q.type] || 0) + 1; gesamt++; }
+  }
+  const holen = (arten[QTYPE.GATHER] || 0) + (arten[QTYPE.FIND] || 0);
+  assert.ok(holen / gesamt < 0.45,
+    'Sammeln und Finden machen ' + Math.round(holen / gesamt * 100) + '% aus');
+  // Mindestens fuenf verschiedene Arten kommen wirklich vor
+  assert.ok(Object.keys(arten).length >= 5, 'zu wenig Abwechslung: ' + JSON.stringify(arten));
 });
 
 test('Sammelaufgabe: Fortschritt aus der Tasche, Abgabe verbraucht', () => {
@@ -625,4 +643,36 @@ test('Die Mondlaterne braucht die bedingten Funde', () => {
   assert.ok(zutaten.indexOf('fogcrystal') >= 0, 'braucht Nebelkristall');
   const lampe = getItem('moonlamp');
   assert.ok(lampe.light > getItem('lantern').light, 'leuchtet weiter als die Laterne');
+});
+
+test('Neue Aufgabenarten: Fangen zaehlt nur den richtigen Fisch', () => {
+  const qb = new QuestBook();
+  const q = { id: 'x', type: QTYPE.CATCH, itemId: 'fish_cod', have: 0, need: 1 };
+  qb.quests.push(q);
+  qb.notify('fish', { id: 'fish_sardine' }, null);
+  assert.equal(q.have, 0, 'falscher Fisch darf nicht zaehlen');
+  qb.notify('fish', { id: 'fish_cod' }, null);
+  assert.equal(q.have, 1);
+});
+
+test('Neue Aufgabenarten: Hingehen zaehlt erst am Ziel', () => {
+  const qb = new QuestBook();
+  const q = { id: 'y', type: QTYPE.VISIT, spot: { x: 1000, y: 1000 }, have: 0, need: 1 };
+  qb.quests.push(q);
+  qb.notify('visit', { x: 1400, y: 1000 }, null);
+  assert.equal(q.have, 0, 'weit weg zaehlt nicht');
+  qb.notify('visit', { x: 1040, y: 1010 }, null);
+  assert.equal(q.have, 1, 'nah genug zaehlt');
+});
+
+test('Jede Aufgabenart hat Titel, Verb und Symbol', () => {
+  for (const key of Object.keys(QTYPE)) {
+    const type = QTYPE[key];
+    const q = { type: type, itemId: 'wood', need: 2, have: 0, spot: { x: 0, y: 0 } };
+    const titel = questTitle(q);
+    assert.ok(titel && titel.length > 0, type + ' braucht einen Titel');
+    assert.ok(titel.length <= 34, type + ': Titel zu lang – "' + titel + '"');
+    assert.ok(QUEST_VERB[type], type + ' braucht ein Verb');
+    assert.ok(questIcon(q).indexOf('icon_') === 0, type + ' braucht ein Symbol');
+  }
 });

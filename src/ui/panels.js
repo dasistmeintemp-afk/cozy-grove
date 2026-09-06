@@ -209,9 +209,9 @@ export class Panels {
   _stories() {
     const g = this.game;
     const book = g.stories;
+    // Kurz halten: das Spiel erklaert sich sonst zu Tode
     let html = '<p class="empty-note" style="padding-bottom:10px">' +
-      'Jeder Geist erinnert sich an vier Dinge. Hilf ihm oft genug, und das ' +
-      'naechste Stueck taucht irgendwo in seinem Bereich auf.</p>';
+      'Vier Fundstuecke je Geist. Hilf ihm, dann taucht das naechste auf.</p>';
 
     html += '<div class="rows">';
     for (const id in SPIRITS) {
@@ -550,6 +550,7 @@ export class Panels {
       '<span><i style="background:#cfe3ef"></i>Geist</span>' +
       '<span><i style="background:#ff9a3c"></i>Lager</span>' +
       '<span><i style="background:#4a5560"></i>noch grau</span>' +
+      '<span><i style="background:#e8574c"></i>Ziel</span>' +
       '</div>';
   }
 
@@ -608,6 +609,21 @@ export class Panels {
       const e = g.world.entities[i];
       if (e.kind === 'spirit' && g.world.isUnlocked(e.region)) dot(e.x, e.y, '#cfe3ef', 4);
       if (e.kind === 'hidden') dot(e.x, e.y, '#f0d264', 3);
+    }
+    // Ziele offener „Hingehen"-Auftraege als Kreuz. Ohne Marke waere die
+    // Aufgabe auf 96 mal 96 Kacheln reines Raten.
+    const offen = g.quests.active();
+    for (let i = 0; i < offen.length; i++) {
+      const q = offen[i];
+      if (q.type !== QTYPE.VISIT || q.turnedIn || !q.spot) continue;
+      const px = Math.round((q.spot.x / TILE_SIZE) * s);
+      const py = Math.round((q.spot.y / TILE_SIZE) * s);
+      ctx.strokeStyle = '#e8574c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px - 4, py - 4); ctx.lineTo(px + 4, py + 4);
+      ctx.moveTo(px + 4, py - 4); ctx.lineTo(px - 4, py + 4);
+      ctx.stroke();
     }
     dot(g.player.x, g.player.y, '#e8a44c', 5);
     ctx.strokeStyle = 'rgba(20,26,20,0.6)';

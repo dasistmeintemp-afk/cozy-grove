@@ -59,9 +59,13 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Geist und um das Lagerfeuer wächst ein farbiger Kreis. Die Prozentanzeige oben
   zeigt, wie viel der Insel wieder Farbe hat. Was lebt (du, die Geister, der
   Händler, das Feuer), ist immer farbig.
-* **Tagesrhythmus.** Ein Tag läuft von 6 bis 2 Uhr (Länge einstellbar). Schlafen
-  im Zelt bringt neue Aufgaben, neue Grabstellen, neues Ladenangebot.
-  Abgebaute Bäume und Steine wachsen nach ein paar Tagen nach.
+* **Kein Warten auf die Uhr.** Ein Tag läuft von 6 bis 2 Uhr (Länge einstellbar),
+  aber schlafen darfst du jederzeit – und bekommst sofort neue Aufgaben, neue
+  Grabstellen, neues Ladenangebot. Wer eine Stunde am Stück spielen will, kann
+  das; wer zehn Minuten hat, auch. Offene Aufgaben verfallen nie.
+* **Achterlei Aufgaben.** Bringen, finden, angeln, einen *bestimmten* Fisch
+  fangen, einen Ort aufsuchen, verbrennen, bauen, aufstellen. Nur knapp ein
+  Drittel ist Hol-und-Bring; ein Test wacht darüber.
 * **Werkzeuge.** Hand, Axt, Spitzhacke, Schaufel, Angel – jeweils in drei Stufen.
   Bessere Werkzeuge geben mehr Ertrag und öffnen neue Bereiche.
 * **Lagerfeuer.** Verbrannte Fundstücke geben Glut (Handwerkswährung) und lassen
@@ -145,12 +149,16 @@ zwischen beide, die Zeichnung bleibt. Objekte werden je nach Position überblend
 – dadurch muss die Szene nicht zweimal gezeichnet werden.
 
 **Leistung.** Die interne Auflösung passt sich der Bildrate an: Wird es eng,
-rechnet das Spiel etwas gröber, statt zu ruckeln.
+rechnet das Spiel etwas gröber, statt zu ruckeln. Weichgezeichnet wird über
+`ctx.filter`, wo der Browser das kann – einmal wirklich ausprobiert, nicht nur
+abgefragt, weil Safari es erst seit Version 17 beherrscht. Ein Bodenstück
+kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
+44 auf 18 ms.
 
 ## Tests
 
 ```bash
-npm test               # 72 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
+npm test               # 76 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
 npm run test:browser   # 36 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```

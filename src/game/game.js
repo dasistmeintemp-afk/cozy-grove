@@ -324,6 +324,7 @@ export class Game {
     this._ambient(dt);
     this.weather.update(dt);
     this._syncConditionalSpawns();
+    this._checkVisits(dt);
 
     const mustSleep = this.day.update(dt);
     if (mustSleep) this.sleep(true);
@@ -583,9 +584,36 @@ export class Game {
     }
     this.audio.play('levelup');
     setTimeout(function () {
-      self.ui.toast(spirit.name + ' · Geschichte vollstaendig', 'icon_star', 'good');
+      self.ui.toast(spirit.name + ' · Geschichte ganz', 'icon_star', 'good');
       if (keep) self.ui.toast(itemName(keep) + ' erhalten', getItem(keep).icon, 'good');
     }, 900);
+  }
+
+  /**
+   * Meldet den Standort an offene „Hingehen"-Auftraege.
+   *
+   * Nur viermal je Sekunde: Die Pruefung laeuft ueber alle offenen Auftraege,
+   * und ein Ort aendert sich zwischen zwei Bildern nicht nennenswert.
+   */
+  _checkVisits(dt) {
+    this._visitTimer = (this._visitTimer || 0) - dt;
+    if (this._visitTimer > 0) return;
+    this._visitTimer = 0.25;
+    const open = this.quests.active();
+    let any = false;
+    for (let i = 0; i < open.length; i++) {
+      if (open[i].type === QTYPE.VISIT && !open[i].turnedIn && open[i].have < open[i].need) {
+        any = true;
+        break;
+      }
+    }
+    if (!any) return;
+    if (this.quests.notify('visit', { x: this.player.x, y: this.player.y }, this)) {
+      this.audio.play('questDone');
+      this.particles.burst('sparkle', this.player.x, this.player.y - 40, 12);
+      this.ui.toast('Angekommen', 'icon_map', 'good');
+      this.ui.refreshQuests();
+    }
   }
 
   /**
@@ -648,7 +676,7 @@ export class Game {
       const list = placed.slice();
       setTimeout(function () {
         for (let i = 0; i < list.length; i++) {
-          self.ui.toast(list[i].name + ' erinnert sich an etwas · ' +
+          self.ui.toast(list[i].name + ' erinnert sich · ' +
             REGION_NAMES[list[i].region], 'icon_sparkle');
         }
       }, 2000);
@@ -762,7 +790,24 @@ export class Game {
 
     this.ui.refreshQuests();
     this.ui.refreshHud();
+    this._hintIfIdle();
     this.save();
+  }
+
+  /**
+   * Ist nichts mehr offen, sagen wir es – und dass man jederzeit schlafen darf.
+   *
+   * Das Spiel wartet an keiner Stelle auf die echte Uhr. Wer weiterspielen
+   * will, legt sich hin und hat einen neuen Tag. Ohne diesen Hinweis koennte
+   * es sich anfuehlen, als sei man ausgebremst.
+   */
+  _hintIfIdle() {
+    if (this.quests.active().length) return;
+    const self = this;
+    setTimeout(function () {
+      if (self.quests.active().length) return;
+      self.ui.toast('Fertig für heute · F am Zelt', 'icon_day');
+    }, 1400);
   }
 
   /** Geschenk zu einer neuen Freundschaftsstufe. */
@@ -825,7 +870,7 @@ export class Game {
       this.particles.burst('splash', this.fishing.bobber.x, this.fishing.bobber.y, 10);
       if (added > 0) {
         this.state.caught++;
-        this.quests.notify('fish', {}, this);
+        this.quests.notify('fish', { id: res.fish.id }, this);
         this.ui.toast((res.perfect ? 'Perfekt! ' : '') + res.fish.name + ' ×' + added, res.fish.icon, 'good');
       } else {
         this.ui.toast('Tasche ist voll!', 'icon_bag', 'bad');
