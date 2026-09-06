@@ -4,7 +4,7 @@
  * Innenlinien – und beide Fassungen (koloriert / Zeichnung) auf einmal.
  */
 import {
-  blob, teardrop, smoothClosed, offsetShape, pathFrom,
+  blob, teardrop, smoothClosed, offsetShape, pathFrom, clipTo,
   inkStroke, inkLine, wash, paintObject, groundShadow, LIGHT,
 } from './brush.js';
 import { INK as ink, fill, made, dot } from './painted.js';
@@ -61,6 +61,8 @@ export const SELI = {
   hat: '#c98a4c',
   hatShade: '#a06a37',
   boot: '#8c6a4a',
+  pack: '#9fa877',
+  packShade: '#7d8659',
 };
 
 /* --------------------------------------------------------------- Lagerfeuer */
@@ -90,8 +92,8 @@ export function paintCampfire(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.6,
+    blur: 1.5,
+    outline: 1.7,
     shadow: function (g) { groundShadow(g, cx, baseY - 4, 62, 18, seed + 40, 0.13); },
     wash: function (g) {
       for (let i = 0; i < stones.length; i++) {
@@ -138,7 +140,7 @@ export function paintFlame(frame, seedBase) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 4,
+    blur: 2.0,
     wash: function (g) {
       wash(g, outer, ink.emberDeep, { seed: seed + 5, alpha: 0.85, scale: 1.06 });
       wash(g, mid, ink.ember, { seed: seed + 6, scale: 1.04 });
@@ -174,8 +176,8 @@ export function paintTent(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 4,
-    outline: 3.4,
+    blur: 2.0,
+    outline: 2.2,
     shadow: function (g) { groundShadow(g, cx, baseY - 3, 132, 20, seed, 0.16); },
     wash: function (g) {
       wash(g, body, '#e3b48c', { seed: seed + 2, scale: 1.03 });
@@ -248,8 +250,8 @@ export function paintStall(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 4,
-    outline: 3.2,
+    blur: 2.0,
+    outline: 2.1,
     shadow: function (g) { groundShadow(g, cx, baseY - 3, 140, 20, seed, 0.16); },
     wash: function (g) {
       wash(g, postL, ink.wood, { seed: seed + 20 });
@@ -353,8 +355,8 @@ export function paintWorkbench(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3.5,
-    outline: 3.0,
+    blur: 1.8,
+    outline: 2.0,
     shadow: function (g) { groundShadow(g, cx, baseY - 3, 96, 15, seed, 0.15); },
     wash: function (g) {
       wash(g, legL, ink.woodDark, { seed: seed + 2 });
@@ -417,8 +419,8 @@ export function paintLantern(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.6,
+    blur: 1.5,
+    outline: 1.7,
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 22, 8, seed, 0.14); },
     wash: function (g) {
       wash(g, foot, ink.ironDark, { seed: seed + 2 });
@@ -455,8 +457,8 @@ export function paintBench(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.8,
+    blur: 1.5,
+    outline: 1.8,
     shadow: function (g) { groundShadow(g, cx, baseY - 3, 86, 13, seed, 0.15); },
     wash: function (g) {
       wash(g, legL, ink.woodDark, { seed: seed + 2 });
@@ -502,8 +504,8 @@ export function paintFence(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
-    outline: 2.6,
+    blur: 1.2,
+    outline: 1.7,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 52, 9, seed, 0.14); },
     wash: function (g) {
       wash(g, railA, ink.wood, { seed: seed + 2 });
@@ -542,8 +544,8 @@ export function paintFlowerbed(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.8,
+    blur: 1.5,
+    outline: 1.8,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 74, 12, seed, 0.15); },
     wash: function (g) {
       wash(g, box, ink.wood, { seed: seed + 2, scale: 1.03 });
@@ -583,8 +585,8 @@ export function paintBirdhouse(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.8,
+    blur: 1.5,
+    outline: 1.8,
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 22, 8, seed, 0.14); },
     wash: function (g) {
       wash(g, post, ink.woodDark, { seed: seed + 3 });
@@ -620,8 +622,8 @@ export function paintWindchime(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
-    outline: 2.6,
+    blur: 1.2,
+    outline: 1.7,
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 20, 8, seed, 0.14); },
     wash: function (g) {
       wash(g, post, ink.wood, { seed: seed + 2 });
@@ -662,8 +664,8 @@ export function paintRug(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.6,
+    blur: 1.5,
+    outline: 1.7,
     wash: function (g) {
       wash(g, outer, '#c48091', { seed: seed + 3, scale: 1.03 });
       wash(g, mid, '#e2b39a', { seed: seed + 4 });
@@ -701,8 +703,8 @@ export function paintSignpost(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.8,
+    blur: 1.5,
+    outline: 1.8,
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 20, 8, seed, 0.14); },
     wash: function (g) {
       wash(g, post, ink.woodDark, { seed: seed + 2 });
@@ -730,8 +732,8 @@ export function paintCrate(opts) {
   ], 5);
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.8,
+    blur: 1.5,
+    outline: 1.8,
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 54, 11, seed, 0.15); },
     wash: function (g) {
       wash(g, body, ink.wood, { seed: seed + 2, scale: 1.03 });
@@ -764,8 +766,8 @@ export function paintChest(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 3.0,
+    blur: 1.5,
+    outline: 2.0,
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 60, 12, seed, 0.15); },
     wash: function (g) {
       wash(g, box, ink.wood, { seed: seed + 2, scale: 1.03 });
@@ -884,8 +886,8 @@ export function paintMemory(kind, opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
-    outline: 2.6,
+    blur: 1.2,
+    outline: 1.7,
     wash: function (g) { painter(g, null, cx, cy, seed); },
     shape: function (g) {
       const shapes = painter(null, null, cx, cy, seed);
@@ -943,8 +945,8 @@ export function paintTool(kind, opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
-    outline: 2.6,
+    blur: 1.2,
+    outline: 1.7,
     wash: function (g) {
       for (let i = 0; i < shafts.length; i++) wash(g, shafts[i], ink.wood, { seed: seed + 10 + i, scale: 1.04 });
       for (let i = 0; i < heads.length; i++) {
@@ -989,8 +991,8 @@ export function paintButterfly(frame, opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2,
-    outline: 2.0,
+    blur: 1.0,
+    outline: 1.3,
     wash: function (g) {
       wash(g, wingL, o.color || ink.warm, { seed: seed + 5 });
       wash(g, wingR, o.color || ink.warm, { seed: seed + 6 });
@@ -1021,8 +1023,8 @@ export function paintBird(frame, opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2,
-    outline: 2.2,
+    blur: 1.0,
+    outline: 1.5,
     wash: function (g) {
       wash(g, tail, '#8fa9b8', { seed: seed + 5 });
       wash(g, body, o.color || '#a3bccb', { seed: seed + 6, scale: 1.04 });
@@ -1095,10 +1097,16 @@ export function paintSeli(dir, frame, opts) {
   // Der Einschnitt in der Mitte lässt Platz für Hals und Halstuch.
   const hairSide = side ? 4 : 0;
   const hairBack = back
+    // Von hinten derselbe Bob wie von vorn: bis knapp unter die Schultern,
+    // unten in drei weichen Spitzen. Vorher stand hier eine blonde Platte,
+    // die den halben Ruecken verdeckte.
     ? smoothClosed([
-      [cx - 31, headY - 20 + bob], [cx + 31, headY - 20 + bob],
-      [cx + 35, headY + 8 + bob], [cx + 31, headY + 35 + bob],
-      [cx, headY + 39 + bob], [cx - 31, headY + 35 + bob], [cx - 35, headY + 8 + bob],
+      [cx - 30, headY - 20 + bob], [cx + 30, headY - 20 + bob],
+      [cx + 33, headY + 6 + bob], [cx + 28, headY + 24 + bob],
+      [cx + 20, headY + 20 + bob], [cx + 10, headY + 27 + bob],
+      [cx, headY + 22 + bob],
+      [cx - 10, headY + 27 + bob], [cx - 20, headY + 20 + bob],
+      [cx - 28, headY + 24 + bob], [cx - 33, headY + 6 + bob],
     ], 6)
     : smoothClosed([
       [cx - 30, headY - 20 + bob], [cx + 30, headY - 20 + bob],
@@ -1111,7 +1119,9 @@ export function paintSeli(dir, frame, opts) {
 
   const brim = smoothClosed(blob(cx, headY - 23 + bob, 43, 11, seed + 5, 0.07, 18), 6);
   const crown = smoothClosed(blob(cx, headY - 34 + bob, 21, 14, seed + 6, 0.07, 14), 5);
-  const pack = smoothClosed(blob(cx, baseY - 62 + bob, 17, 15, seed + 7, 0.08, 16), 5);
+  // Rucksack auf dem unteren Ruecken, unter den Haarspitzen. Eigene Farbe:
+  // im selben Braun wie der Hut sah er aus wie ein zweiter Hut.
+  const pack = smoothClosed(blob(cx, baseY - 54 + bob, 15, 14, seed + 7, 0.07, 16), 5);
   // Halstuch: kleines Dreieck unterhalb des Kinns, kein Lätzchen vor dem Mund
   const scarf = smoothClosed([
     [cx - 10, headY + 31 + bob], [cx + 10, headY + 31 + bob],
@@ -1120,8 +1130,8 @@ export function paintSeli(dir, frame, opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.1,
-    outline: 2.9,
+    blur: 1.1,
+    outline: 1.9,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 30, 9, seed + 8, 0.17); },
     wash: function (g) {
       // Haar hinter allem, damit Kopf und Arm davor liegen
@@ -1142,8 +1152,8 @@ export function paintSeli(dir, frame, opts) {
       wash(g, offsetShape(skirt, 8, 4, 0.66), SELI.skirtShade, { seed: seed + 21, alpha: 0.6 });
 
       if (back) {
-        wash(g, pack, '#c08f5c', { seed: seed + 16, scale: 1.03 });
-        wash(g, offsetShape(pack, 7, 5, 0.6), '#a2744a', { seed: seed + 17, alpha: 0.6 });
+        wash(g, pack, SELI.pack, { seed: seed + 16, scale: 1.03 });
+        wash(g, offsetShape(pack, 6, 5, 0.6), SELI.packShade, { seed: seed + 17, alpha: 0.6 });
       } else {
         wash(g, scarf, SELI.scarf, { seed: seed + 18 });
         wash(g, head, ink.skin, { seed: seed + 22, scale: 1.04 });
@@ -1186,14 +1196,19 @@ export function paintSeli(dir, frame, opts) {
 
       if (back) {
         inkStroke(g, pack, { width: 2.2, vary: 0.3, seed: seed + 52, color: ink.line, alpha: 0.8 });
-        inkLine(g, cx - 9, baseY - 72 + bob, cx - 6, baseY - 60 + bob,
-          { width: 1.6, bend: 0.1, seed: seed + 53, alpha: 0.5 });
-        inkLine(g, cx + 9, baseY - 72 + bob, cx + 6, baseY - 60 + bob,
-          { width: 1.6, bend: -0.1, seed: seed + 58, alpha: 0.5 });
-        // Haarwellen von hinten
-        for (let i = -1; i <= 1; i++) {
-          inkLine(g, cx + i * 13, headY - 10 + bob, cx + i * 15, headY + 30 + bob,
-            { width: 1.5, bend: 0.06, seed: seed + 60 + i, color: hairShade, alpha: 0.7 });
+        // Deckelnaht und die beiden Traeger, die unter dem Haar verschwinden
+        inkLine(g, cx - 13, baseY - 58 + bob, cx + 13, baseY - 59 + bob,
+          { width: 1.6, bend: 0.14, seed: seed + 54, color: SELI.packShade, alpha: 0.8 });
+        inkLine(g, cx - 11, baseY - 70 + bob, cx - 8, baseY - 60 + bob,
+          { width: 2.0, bend: 0.1, seed: seed + 53, color: SELI.packShade, alpha: 0.6 });
+        inkLine(g, cx + 11, baseY - 70 + bob, cx + 8, baseY - 60 + bob,
+          { width: 2.0, bend: -0.1, seed: seed + 58, color: SELI.packShade, alpha: 0.6 });
+        // Scheitel und zwei Haarwellen von hinten
+        inkLine(g, cx, headY - 16 + bob, cx, headY + 16 + bob,
+          { width: 1.6, bend: 0.03, seed: seed + 59, color: hairShade, alpha: 0.55 });
+        for (let i = -1; i <= 1; i += 2) {
+          inkLine(g, cx + i * 14, headY - 12 + bob, cx + i * 20, headY + 18 + bob,
+            { width: 1.4, bend: i * 0.08, seed: seed + 60 + i, color: hairShade, alpha: 0.5 });
         }
         return;
       }
@@ -1206,6 +1221,13 @@ export function paintSeli(dir, frame, opts) {
       fill(g, smoothClosed(blob(cx - 11 + ex, headY + 5 + bob, 3.6, 4.8, seed + 40, 0.08, 10), 4));
       if (!side) fill(g, smoothClosed(blob(cx + 11, headY + 5 + bob, 3.6, 4.8, seed + 41, 0.08, 10), 4));
       else fill(g, smoothClosed(blob(cx + 19, headY + 5 + bob, 3.2, 4.4, seed + 41, 0.08, 10), 4));
+      // Lichtpunkt oben links im Auge – erst damit schaut sie wirklich
+      g.fillStyle = '#fffdf6';
+      g.beginPath();
+      g.arc(cx - 12.2 + ex, headY + 3.4 + bob, 1.2, 0, 6.2832);
+      g.arc((side ? cx + 17.8 : cx + 9.8), headY + 3.4 + bob, 1.15, 0, 6.2832);
+      g.fill();
+      g.fillStyle = ink.line;
       // Wimpern – machen das Gesicht auch winzig noch lesbar
       inkLine(g, cx - 16 + ex, headY - 1 + bob, cx - 8 + ex, headY + 1 + bob,
         { width: 1.5, bend: -0.25, seed: seed + 45, alpha: 0.8 });
@@ -1273,10 +1295,34 @@ export function paintSpirit(look, frame, opts) {
     ];
   }
 
+  // Kopfbedeckungen gehören in die Silhouette, sonst liegen sie als Farbfleck
+  // ohne Kontur neben dem Kopf. Das Halstuch dagegen wird beschnitten: es
+  // liegt um den Hals, es steht nicht ab.
+  const worn = [];
+  if (look.hat === 'cap') {
+    worn.push(smoothClosed(blob(cx, headY - 32 + bob, 40, 15, seed + 23, 0.08, 16), 5));
+    worn.push(smoothClosed(blob(cx, headY - 24 + bob, 48, 8, seed + 25, 0.08, 16), 5));
+  } else if (look.hat === 'bow') {
+    worn.push(smoothClosed([[cx, headY - 36 + bob], [cx - 26, headY - 48 + bob], [cx - 26, headY - 26 + bob]], 5));
+    worn.push(smoothClosed([[cx, headY - 36 + bob], [cx + 26, headY - 48 + bob], [cx + 26, headY - 26 + bob]], 5));
+  }
+  // Sitzt am Hals unter der Schnauze, nicht quer darueber, und haengt in der
+  // Mitte durch – ein gerader Streifen sah aus wie ein Balken.
+  const scarf = look.hat === 'scarf' ? smoothClosed([
+    [cx - 42, baseY - 78 + bob], [cx - 20, baseY - 70 + bob], [cx, baseY - 65 + bob],
+    [cx + 20, baseY - 70 + bob], [cx + 42, baseY - 78 + bob],
+    [cx + 40, baseY - 58 + bob], [cx, baseY - 44 + bob], [cx - 40, baseY - 58 + bob],
+  ], 6) : null;
+  const flowers = look.hat === 'flowers' ? [
+    [cx - 26, headY - 34 + bob, 11, ink.petalPink, seed + 20],
+    [cx, headY - 42 + bob, 11, ink.petalYellow, seed + 21],
+    [cx + 26, headY - 34 + bob, 11, ink.petalViolet, seed + 22],
+  ] : null;
+
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 3.1,
+    blur: 1.5,
+    outline: 2.0,
     wash: function (g) {
       // Geisterschimmer: eine helle Aura hinter der Figur. Sie macht aus dem
       // Fellknaeuel etwas, das nicht ganz da ist.
@@ -1301,23 +1347,19 @@ export function paintSpirit(look, frame, opts) {
         { seed: seed + 19, alpha: 0.3 });
       wash(g, muzzle, '#faf4e6', { seed: seed + 17 });
 
-      if (look.hat === 'scarf') {
-        wash(g, smoothClosed([
-          [cx - 37, baseY - 98 + bob], [cx + 37, baseY - 100 + bob],
-          [cx + 33, baseY - 82 + bob], [cx - 33, baseY - 80 + bob],
-        ], 4), accent, { seed: seed + 18 });
-      } else if (look.hat === 'flowers') {
-        dot(g, null, cx - 26, headY - 34 + bob, 11, ink.petalPink, seed + 20);
-        dot(g, null, cx, headY - 42 + bob, 11, ink.petalYellow, seed + 21);
-        dot(g, null, cx + 26, headY - 34 + bob, 11, ink.petalViolet, seed + 22);
-      } else if (look.hat === 'cap') {
-        wash(g, smoothClosed(blob(cx, headY - 32 + bob, 40, 15, seed + 23, 0.08, 16), 5), accent, { seed: seed + 24 });
-        wash(g, smoothClosed(blob(cx, headY - 24 + bob, 48, 8, seed + 25, 0.08, 16), 5), accent, { seed: seed + 26 });
-      } else if (look.hat === 'bow') {
-        wash(g, smoothClosed([[cx, headY - 36 + bob], [cx - 26, headY - 48 + bob], [cx - 26, headY - 26 + bob]], 5),
-          accent, { seed: seed + 27 });
-        wash(g, smoothClosed([[cx, headY - 36 + bob], [cx + 26, headY - 48 + bob], [cx + 26, headY - 26 + bob]], 5),
-          accent, { seed: seed + 28 });
+      if (scarf) {
+        clipTo(g, [body, head]);
+        wash(g, scarf, accent, { seed: seed + 18 });
+        g.restore();
+      }
+      for (let i = 0; i < worn.length; i++) {
+        wash(g, worn[i], accent, { seed: seed + 24 + i });
+      }
+      if (flowers) {
+        for (let i = 0; i < flowers.length; i++) {
+          const f = flowers[i];
+          dot(g, null, f[0], f[1], f[2], f[3], f[4]);
+        }
       }
     },
     shape: function (g) {
@@ -1325,6 +1367,7 @@ export function paintSpirit(look, frame, opts) {
       for (let i = 0; i < ears.length; i++) fill(g, ears[i]);
       fill(g, body);
       fill(g, head);
+      for (let i = 0; i < worn.length; i++) fill(g, worn[i]);
     },
     ink: function (g) {
       inkStroke(g, muzzle, { width: 2.1, vary: 0.3, seed: seed + 35, color: ink.line, alpha: 0.8 });
@@ -1338,6 +1381,13 @@ export function paintSpirit(look, frame, opts) {
       } else {
         fill(g, smoothClosed(blob(cx - 16, headY - 3 + bob, 4.6, 5.8, seed + 40, 0.08, 10), 4));
         fill(g, smoothClosed(blob(cx + 16, headY - 3 + bob, 4.6, 5.8, seed + 41, 0.08, 10), 4));
+        // Lichtpunkt im Auge, oben links wie ueberall. Ohne ihn bleibt der
+        // Blick ein schwarzer Fleck; mit ihm schaut die Figur.
+        g.fillStyle = '#fffdf6';
+        g.beginPath();
+        g.arc(cx - 17.6, headY - 5 + bob, 1.5, 0, 6.2832);
+        g.arc(cx + 14.4, headY - 5 + bob, 1.5, 0, 6.2832);
+        g.fill();
       }
       g.fillStyle = ink.line;
       fill(g, smoothClosed(blob(cx, headY + 13 + bob, 5.8, 4, seed + 42, 0.08, 10), 4));
@@ -1352,6 +1402,19 @@ export function paintSpirit(look, frame, opts) {
       }
       inkLine(g, cx - 32, baseY - 84 + bob, cx - 26, baseY - 66 + bob, { width: 1.4, bend: 0.15, seed: seed + 60, alpha: 0.35 });
       inkLine(g, cx + 32, baseY - 84 + bob, cx + 26, baseY - 66 + bob, { width: 1.4, bend: -0.15, seed: seed + 61, alpha: 0.35 });
+      if (flowers) {
+        for (let i = 0; i < flowers.length; i++) {
+          const f = flowers[i];
+          dot(null, g, f[0], f[1], f[2], f[3], f[4]);
+        }
+      }
+      if (scarf) {
+        // Obere Kante und ein Knoten – ohne sie ist das Halstuch ein Farbfleck
+        inkLine(g, cx - 34, baseY - 76 + bob, cx, baseY - 64 + bob, { width: 1.7, bend: -0.2, seed: seed + 62, alpha: 0.6 });
+        inkLine(g, cx + 34, baseY - 76 + bob, cx, baseY - 64 + bob, { width: 1.7, bend: 0.2, seed: seed + 63, alpha: 0.6 });
+        inkLine(g, cx - 3, baseY - 62 + bob, cx - 8, baseY - 47 + bob, { width: 1.5, bend: 0.22, seed: seed + 64, alpha: 0.45 });
+        inkLine(g, cx + 4, baseY - 62 + bob, cx + 7, baseY - 47 + bob, { width: 1.5, bend: -0.22, seed: seed + 65, alpha: 0.4 });
+      }
     },
   });
   return made(res, w, h, cx, baseY);
@@ -1373,8 +1436,8 @@ export function paintFlameSpirit(frame, opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3.5,
-    outline: 3.0,
+    blur: 1.8,
+    outline: 2.0,
     outlineColor: '#a8482a',
     wash: function (g) {
       wash(g, outer, ink.emberDeep, { seed: seed + 5, scale: 1.05 });
@@ -1425,8 +1488,8 @@ export function paintFox(frame, opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.9,
+    blur: 1.5,
+    outline: 1.9,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 36, 11, seed + 5, 0.16); },
     wash: function (g) {
       wash(g, tail, fur, { seed: seed + 10, scale: 1.05 });

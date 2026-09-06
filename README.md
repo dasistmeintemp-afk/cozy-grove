@@ -127,13 +127,23 @@ tests/browser/        Rauchtest im echten Chromium
 tools/                Werkzeuge zum Hinsehen (siehe Tests)
 ```
 
-**Wie der Stil entsteht.** Jedes Objekt wird in vier Durchgängen gemalt: weicher
-Bodenschatten, Farbflächen (die anschließend weichgezeichnet werden), eine
-einzige Außenkontur aus der Silhouette, dann Innenlinien. Der Kontur-Trick ist
-der wichtigste: Die gefüllte Form wird ringsum versetzt kopiert und die Mitte
-ausgestanzt – so bekommt eine Baumkrone aus sechs Lappen *eine* Außenlinie statt
-sechs sich kreuzender Kringel. Jede Grafik fällt dabei zweimal an, koloriert und
-als blasse Zeichnung.
+**Wie der Stil entsteht.** Jedes Objekt wird in fünf Durchgängen gemalt: weicher
+Bodenschatten, Farbflächen (die anschließend weichgezeichnet werden), farbige
+Feinheiten, eine einzige Außenkontur aus der Silhouette, dann Innenlinien. Der
+Kontur-Trick ist der wichtigste: Die gefüllte Form wird ringsum versetzt kopiert
+und die Mitte ausgestanzt – so bekommt eine Baumkrone aus sechs Lappen *eine*
+Außenlinie statt sechs sich kreuzender Kringel. Jede Grafik fällt dabei zweimal
+an, koloriert und als blasse Zeichnung.
+
+Der Durchgang dazwischen ist neu und wichtig: **Blattbüschel** in den Kronen,
+**Nadelsäume** an jeder Fichtenetage. Sie liegen hinter dem Weichzeichner (also
+scharf), aber vor dem Entfärben – koloriert ein grüner Strich, im Malbuch ein
+blasses Grau. Stünden sie bei den Innenlinien, bliebe im unkolorierten Zustand
+ein grüner Fleck stehen. Ohne sie ist eine Baumkrone eine eingefärbte Fläche,
+mit ihnen eine Zeichnung. Aus demselben Grund werden Moos, Halstücher und
+alles andere, was auf einer Form liegt statt neben ihr, auf diese Form
+beschnitten – die Lasuren liegen absichtlich ein Stück versetzt und schwebten
+sonst frei über der Kante.
 
 Um jede Zeichenfläche liegt ein Rand. Ohne ihn schneidet die Leinwand die
 Malerei ab – am einzelnen Baum kaum zu sehen, aber wo sich viele überlagern,

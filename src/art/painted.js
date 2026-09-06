@@ -1,18 +1,19 @@
 /**
  * Gemalte Naturobjekte im Tinte-und-Aquarell-Stil.
  *
- * Jedes Objekt wird in vier Durchgängen aufgebaut:
+ * Jedes Objekt wird in fünf Durchgängen aufgebaut:
  *   shadow  – weicher Bodenschatten
  *   wash    – Farbflächen, absichtlich leicht neben der Form (werden weich)
+ *   detail  – farbige Feinheiten, scharf, aber im Malbuch blass (Blattbüschel)
  *   shape   – die reine Silhouette; daraus entsteht EINE Außenkontur
- *   ink     – Innenlinien und Details, scharf obendrauf
+ *   ink     – Innenlinien, scharf obendrauf; bleiben auch unkoloriert stehen
  *
  * Jeder Maler liefert beide Fassungen zurück: koloriert und als blasse
  * Zeichnung. Die zweite ist der Ausgangszustand der Insel.
  */
 import {
-  blob, teardrop, smoothClosed, offsetShape, pathFrom,
-  inkStroke, inkLine, wash, paintObject, groundShadow, LIGHT,
+  blob, teardrop, smoothClosed, offsetShape, pathFrom, clipTo,
+  inkStroke, inkLine, wash, washGroup, paintObject, groundShadow, LIGHT,
 } from './brush.js';
 import { makeRng } from '../core/rng.js';
 
@@ -23,19 +24,21 @@ export const INK = {
   paper: '#f8f3e7',
   paperShade: '#ece4d0',
 
-  leaf: '#a6c95f',
-  leafLight: '#cbe291',
-  leafDark: '#7fa546',
-  leafDeep: '#5f8438',
-  pine: '#6f9a4a',
-  pineDark: '#4f7a3f',
-  pineLight: '#95bb5f',
+  leaf: '#9ec455',
+  leafLight: '#c6e085',
+  leafDark: '#71993c',
+  leafDeep: '#4e732b',
+  pine: '#5d8a42',
+  pineDark: '#3d6636',
+  pineLight: '#82ab4d',
   autumn: '#e2a04c',
   autumnLight: '#f2c87e',
   autumnDark: '#c07a30',
+  autumnDeep: '#9a5721',
   birchLeaf: '#bcd66e',
   birchLight: '#dcea9f',
   birchDark: '#94b352',
+  birchDeep: '#6f8d38',
 
   trunk: '#d7bf94',
   trunkShade: '#a98a5d',
@@ -44,9 +47,9 @@ export const INK = {
   birchBark: '#f2ece0',
   birchShade: '#cfc6ae',
 
-  grass: '#c2d68f',
-  grassLight: '#dce8b4',
-  grassDark: '#9cb968',
+  grass: '#bcd67f',
+  grassLight: '#d8e7a6',
+  grassDark: '#95b45c',
 
   sand: '#f7edd4',
   sandShade: '#e8d7ae',
@@ -129,6 +132,68 @@ export function dot(gWash, gInk, x, y, r, color, seed) {
   return pts;
 }
 
+/**
+ * Blattbuescheln: kleine Boegen ueber eine Krone verteilt.
+ *
+ * In der Vorlage steckt in jeder Baumkrone ein Dutzend solcher Zeichen. Sie
+ * machen aus einer gefaerbten Flaeche eine gezeichnete Krone. Auf der
+ * Schattenseite stehen sie dichter, weil dort ohnehin mehr Struktur sitzt.
+ */
+export function leafClumps(g, cx, cy, rx, ry, seed, color) {
+  const rng = makeRng(seed >>> 0);
+  const n = 16;
+  g.save();
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.strokeStyle = color || ink.leafDeep;
+  for (let i = 0; i < n; i++) {
+    // Gleichmaessig ueber die Flaeche, nicht geballt in der Mitte
+    const a = rng() * Math.PI * 2;
+    const r = Math.sqrt(rng()) * 0.88;
+    const x = cx + Math.cos(a) * rx * r;
+    const y = cy + Math.sin(a) * ry * r;
+    // Zum Licht hin blasser, vom Licht weg kraeftiger
+    const lit = (Math.cos(a) * LIGHT.x + Math.sin(a) * LIGHT.y) * r;
+    g.globalAlpha = 0.34 + Math.max(0, -lit) * 0.4 + rng() * 0.12;
+    const wdt = rx * (0.15 + rng() * 0.11);
+    g.lineWidth = 1.6 + rng() * 1.0;
+    g.beginPath();
+    g.moveTo(x - wdt, y);
+    g.quadraticCurveTo(x, y - wdt * 0.95, x + wdt, y);
+    g.stroke();
+  }
+  g.restore();
+}
+
+/**
+ * Nadelsaum: kurze Striche, die von einer Etagenkante nach unten aussen
+ * ausfransen. Ohne sie bleibt ein Nadelbaum ein gestapelter, glatter Kegel;
+ * mit ihnen bekommt er die zerfaserte Kante des Vorbilds.
+ */
+export function needleFringe(g, cx, y, halfW, seed, color) {
+  const rng = makeRng(seed >>> 0);
+  const n = Math.round(halfW * 0.34);
+  g.save();
+  g.lineCap = 'round';
+  g.strokeStyle = color || ink.pineDark;
+  g.beginPath();
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    const side = t < 0.5 ? -1 : 1;
+    // Zur Spitze hin steiler, zur Kante hin flacher – wie die Zweige selbst
+    const rel = Math.abs(t - 0.5) * 2;
+    const x = cx + side * halfW * rel * (0.92 + rng() * 0.12);
+    const yy = y - (1 - rel) * halfW * 0.34 + (rng() - 0.5) * 3;
+    const len = 5 + rng() * 6;
+    g.moveTo(x, yy);
+    g.lineTo(x + side * len * (0.5 + rel * 0.6), yy + len * (0.85 - rel * 0.35));
+  }
+  g.globalAlpha = 0.5;
+  g.lineWidth = 1.7;
+  g.stroke();
+  g.restore();
+}
+
 /* ------------------------------------------------------------------ Bäume */
 
 /**
@@ -185,8 +250,8 @@ export function paintTree(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3.5,
-    outline: 3.0,
+    blur: 1.8,
+    outline: 2.0,
     shadow: function (g) { groundShadow(g, cx + 4, baseY - 3, 54, 15, seed, 0.16); },
     wash: function (g) {
       wash(g, trunk, trunkFill, { seed: seed + 9, dx: -2, dy: 2, scale: 1.04 });
@@ -200,17 +265,21 @@ export function paintTree(opts) {
       // die Krone blieb eine flache Flaeche.
       const shx = -LIGHT.x * 15;
       const shy = -LIGHT.y * 15;
+      const schatten = [];
+      const tief = [];
       for (let i = 0; i < lobes.length; i++) {
-        wash(g, offsetShape(lobes[i], shx, shy, 0.82), leafDark,
-          { seed: seed + 40 + i, alpha: 0.34 });
+        schatten.push(offsetShape(lobes[i], shx, shy, 0.84));
+        tief.push(offsetShape(lobes[i], shx * 1.9, shy * 1.8, 0.6));
       }
-      wash(g, offsetShape(lobes[3], shx * 1.3, shy * 1.2, 0.7), o.leafDeep || ink.leafDeep,
-        { seed: seed + 46, alpha: 0.3 });
+      // Als Gruppe, nicht einzeln: sonst addieren sich die Ueberlappungen und
+      // die Schattenseite wird ein Verlauf statt einer Flaeche mit Kante.
+      washGroup(g, schatten, leafDark, { alpha: 0.62 });
+      washGroup(g, tief, o.leafDeep || ink.leafDeep, { alpha: 0.4 });
       // Lichtseite zuletzt, damit sie oben liegt
-      wash(g, offsetShape(lobes[0], LIGHT.x * 22, LIGHT.y * 20, 0.62), leafLight,
-        { seed: seed + 31, alpha: 0.95 });
-      wash(g, offsetShape(lobes[4], LIGHT.x * 12, LIGHT.y * 12, 0.6), leafLight,
-        { seed: seed + 32, alpha: 0.6 });
+      washGroup(g, [
+        offsetShape(lobes[0], LIGHT.x * 20, LIGHT.y * 18, 0.68),
+        offsetShape(lobes[4], LIGHT.x * 10, LIGHT.y * 10, 0.66),
+      ], leafLight, { alpha: 0.85 });
       for (let i = 0; i < fruits.length; i++) {
         dot(g, null, fruits[i][0], fruits[i][1], 7.5, o.fruit, seed + 90 + i);
       }
@@ -218,6 +287,13 @@ export function paintTree(opts) {
     shape: function (g) {
       fill(g, trunk);
       for (let i = 0; i < lobes.length; i++) fill(g, lobes[i]);
+    },
+    // Blattbuescheln: viele kleine Boegen quer durch die Krone. Das ist der
+    // Unterschied zwischen einer gefaerbten Flaeche und einer Zeichnung –
+    // vorher standen hier neun verlorene Striche. Sie liegen in `detail`,
+    // nicht in `ink`: gruene Tinte bliebe sonst auch im Malbuch gruen.
+    detail: function (g) {
+      leafClumps(g, cx, canopyY + 10, 58 * sx, 50, seed + 500, o.leafDeep || ink.leafDeep);
     },
     ink: function (g) {
       // Kronenlappen nur andeuten, keine vollen Umrisse
@@ -236,15 +312,6 @@ export function paintTree(opts) {
       } else {
         inkLine(g, cx - 6, baseY - 26, cx - 4, baseY - 66, { width: 1.6, bend: 0.05, seed: seed + 41, alpha: 0.5 });
         inkLine(g, cx + 6, baseY - 18, cx + 7, baseY - 50, { width: 1.4, bend: -0.05, seed: seed + 42, alpha: 0.42 });
-      }
-      const rng2 = makeRng(seed + 500);
-      for (let i = 0; i < 9; i++) {
-        const a = rng2() * Math.PI * 2;
-        const r = 0.45 + rng2() * 0.45;
-        const x = cx + Math.cos(a) * 58 * sx * r;
-        const y = canopyY + 12 + Math.sin(a) * 48 * r;
-        inkLine(g, x, y, x + 8 - rng2() * 16, y - 5 - rng2() * 6,
-          { width: 1.3, bend: 0.35, seed: seed + 70 + i, alpha: 0.38 });
       }
       for (let i = 0; i < fruits.length; i++) {
         dot(null, g, fruits[i][0], fruits[i][1], 7.5, o.fruit, seed + 90 + i);
@@ -284,8 +351,8 @@ export function paintPine(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3.5,
-    outline: 3.0,
+    blur: 1.8,
+    outline: 2.0,
     shadow: function (g) { groundShadow(g, cx + 3, baseY - 3, 46, 13, seed, 0.16); },
     wash: function (g) {
       wash(g, trunk, ink.trunk, { seed: seed + 3, dx: -1, dy: 2 });
@@ -295,19 +362,28 @@ export function paintPine(opts) {
       // macht aus dem gestapelten Kegel einen Baum mit Tiefe.
       for (let i = 0; i < tiers.length; i++) {
         wash(g, tiers[i], ink.pine, { seed: seed + 12 + i, scale: 1.05 });
-        wash(g, offsetShape(tiers[i], -LIGHT.x * 17, -LIGHT.y * 13, 0.62), ink.pineDark,
-          { seed: seed + 32 + i, alpha: 0.5 });
-        if (i < tiers.length - 1) {
-          wash(g, offsetShape(tiers[i], 0, -10, 0.9), ink.pineDark,
-            { seed: seed + 42 + i, alpha: 0.28 });
-        }
-        wash(g, offsetShape(tiers[i], LIGHT.x * 16, LIGHT.y * 11, 0.5), ink.pineLight,
-          { seed: seed + 22 + i, alpha: 0.7 });
       }
+      // Schatten- und Lichtseite je als EINE Flaeche, sonst addieren sich die
+      // Etagenueberlappungen zu einem Verlauf.
+      const dunkel = [];
+      const hell = [];
+      for (let i = 0; i < tiers.length; i++) {
+        dunkel.push(offsetShape(tiers[i], -LIGHT.x * 17, -LIGHT.y * 13, 0.66));
+        hell.push(offsetShape(tiers[i], LIGHT.x * 15, LIGHT.y * 10, 0.52));
+      }
+      washGroup(g, dunkel, ink.pineDark, { alpha: 0.66 });
+      washGroup(g, hell, ink.pineLight, { alpha: 0.7 });
     },
     shape: function (g) {
       fill(g, trunk);
       for (let i = 0; i < tiers.length; i++) fill(g, tiers[i]);
+    },
+    detail: function (g) {
+      // Jede Etage franst nach unten aus. Das ist der ganze Unterschied
+      // zwischen einem Stapel Dreiecke und einer Fichte.
+      for (let i = 0; i < tiers.length; i++) {
+        needleFringe(g, cx, spec[i][0] - 3, spec[i][1] * 0.86, seed + 200 + i * 13, ink.pineDark);
+      }
     },
     ink: function (g) {
       for (let i = 0; i < tiers.length - 1; i++) {
@@ -338,8 +414,8 @@ export function paintStump(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.8,
+    blur: 1.5,
+    outline: 1.8,
     shadow: function (g) { groundShadow(g, cx + 3, baseY - 2, 30, 9, seed, 0.15); },
     wash: function (g) {
       wash(g, body, ink.bark, { seed: seed + 3, scale: 1.04 });
@@ -378,8 +454,8 @@ export function paintLogBarrier(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3.5,
-    outline: 3.0,
+    blur: 1.8,
+    outline: 2.0,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 92, 13, seed, 0.16); },
     wash: function (g) {
       wash(g, log, ink.bark, { seed: seed + 6, scale: 1.03 });
@@ -438,8 +514,8 @@ export function paintRock(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.8 * Math.min(1.2, scale),
+    blur: 1.5,
+    outline: 1.8 * Math.min(1.2, scale),
     shadow: function (g) { groundShadow(g, cx + 4, baseY - 3, 42 * scale, 11 * scale, seed + 1, 0.15); },
     wash: function (g) {
       wash(g, body, ink.rock, { seed: seed + 2, scale: 1.05 });
@@ -449,7 +525,14 @@ export function paintRock(opts) {
       wash(g, offsetShape(body, -LIGHT.x * 24 * scale, -LIGHT.y * 17 * scale, 0.5),
         ink.rockDeep, { seed: seed + 4, alpha: 0.4 });
       wash(g, top, '#efece0', { seed: seed + 30, alpha: 0.72, scale: 1.02 });
-      if (o.moss !== false) wash(g, moss, ink.moss, { seed: seed + 6, alpha: 0.7 });
+      if (o.moss !== false) {
+        // Moos gehoert auf den Stein, nicht daneben: die Lasuren liegen
+        // absichtlich versetzt, und ohne Beschnitt schwebte das Gruen frei
+        // ueber der Kante.
+        clipTo(g, [body]);
+        wash(g, moss, ink.moss, { seed: seed + 6, alpha: 0.7 });
+        g.restore();
+      }
       if (o.ore) {
         dot(g, null, cx + 11 * scale, baseY - 34 * scale, 9 * scale, ink.copper, seed + 8);
         dot(g, null, cx - 15 * scale, baseY - 22 * scale, 7 * scale, ink.copper, seed + 11);
@@ -497,15 +580,17 @@ export function paintRockslide(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3.5,
-    outline: 3.0,
+    blur: 1.8,
+    outline: 2.0,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 100, 14, seed, 0.16); },
     wash: function (g) {
       for (let i = 0; i < chunks.length; i++) {
         wash(g, chunks[i], ink.rock, { seed: seed + 20 + i, scale: 1.05 });
         wash(g, offsetShape(chunks[i], 12, 9, 0.68), ink.rockShade, { seed: seed + 30 + i, alpha: 0.7 });
       }
+      clipTo(g, chunks);
       wash(g, smoothClosed(blob(70, baseY - 88, 28, 10, seed + 60, 0.3, 12), 4), ink.moss, { seed: seed + 61, alpha: 0.6 });
+      g.restore();
       dot(g, null, 150, baseY - 52, 9, ink.copper, seed + 70);
     },
     shape: function (g) { for (let i = 0; i < chunks.length; i++) fill(g, chunks[i]); },
@@ -545,26 +630,30 @@ export function paintBush(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.7,
+    blur: 1.5,
+    outline: 1.8,
     shadow: function (g) { groundShadow(g, cx + 3, baseY - 3, 44, 11, seed + 4, 0.14); },
     wash: function (g) {
       for (let i = 0; i < lobes.length; i++) wash(g, lobes[i], ink.leaf, { seed: seed + 10 + i, scale: 1.05 });
       // Wie bei den Kronen: jeder Lappen bekommt seine Schattenhaelfte, damit
       // aus der flachen Amoebe ein Busch mit Volumen wird.
+      const dunkel = [];
       for (let i = 0; i < lobes.length; i++) {
-        wash(g, offsetShape(lobes[i], -LIGHT.x * 12, -LIGHT.y * 11, 0.8), ink.leafDark,
-          { seed: seed + 21 + i, alpha: 0.36 });
+        dunkel.push(offsetShape(lobes[i], -LIGHT.x * 12, -LIGHT.y * 11, 0.82));
       }
-      wash(g, offsetShape(lobes[0], -LIGHT.x * 18, -LIGHT.y * 15, 0.55), ink.leafDeep,
-        { seed: seed + 26, alpha: 0.26 });
-      wash(g, offsetShape(lobes[0], LIGHT.x * 15, LIGHT.y * 13, 0.55), ink.leafLight,
-        { seed: seed + 20, alpha: 0.9 });
+      washGroup(g, dunkel, ink.leafDark, { alpha: 0.6 });
+      washGroup(g, [offsetShape(lobes[0], -LIGHT.x * 18, -LIGHT.y * 15, 0.55)],
+        ink.leafDeep, { alpha: 0.34 });
+      washGroup(g, [offsetShape(lobes[0], LIGHT.x * 15, LIGHT.y * 13, 0.58)],
+        ink.leafLight, { alpha: 0.85 });
       if (o.berries) {
         for (let i = 0; i < berries.length; i++) dot(g, null, berries[i][0], berries[i][1], 6, ink.berry, seed + 40 + i);
       }
     },
     shape: function (g) { for (let i = 0; i < lobes.length; i++) fill(g, lobes[i]); },
+    detail: function (g) {
+      leafClumps(g, cx, baseY - 30, 40, 24, seed + 600, ink.leafDeep);
+    },
     ink: function (g) {
       inkLine(g, cx - 30, baseY - 30, cx - 6, baseY - 40, { width: 1.8, bend: 0.28, seed: seed + 30, alpha: 0.55 });
       inkLine(g, cx + 31, baseY - 31, cx + 8, baseY - 41, { width: 1.8, bend: -0.28, seed: seed + 31, alpha: 0.5 });
@@ -610,8 +699,8 @@ export function paintMoonflower(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.4,
-    outline: 2.0,
+    blur: 1.2,
+    outline: 1.3,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 14, 5, seed + 1, 0.1); },
     wash: function (g) {
       g.save();
@@ -670,8 +759,8 @@ export function paintRainmushroom(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.2,
-    outline: 2.2,
+    blur: 1.1,
+    outline: 1.5,
     shadow: function (g) { groundShadow(g, cx - 4, baseY - 2, 24, 7, seed + 1, 0.13); },
     wash: function (g) {
       for (let i = 0; i < stems.length; i++) wash(g, stems[i], '#eae2cf', { seed: seed + 5 + i });
@@ -720,8 +809,8 @@ export function paintFogcrystal(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.4,
-    outline: 2.2,
+    blur: 1.2,
+    outline: 1.5,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 24, 7, seed + 1, 0.13); },
     wash: function (g) {
       g.save();
@@ -766,8 +855,8 @@ export function paintFlower(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2,
-    outline: 2.0,
+    blur: 1.0,
+    outline: 1.3,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 13, 5, seed + 1, 0.11); },
     wash: function (g) {
       wash(g, stem, ink.grassDark, { seed: seed + 2, dx: 0, dy: 0 });
@@ -802,7 +891,7 @@ export function paintGrassTuft(opts) {
   }
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
+    blur: 1.5,
     wash: function (g) {
       wash(g, smoothClosed(blob(cx, baseY - 9, 24, 9, seed + 1, 0.22, 12), 4), ink.grass, { seed: seed + 2, alpha: 0.8 });
     },
@@ -835,7 +924,7 @@ export function paintReeds(opts) {
   }
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
+    blur: 1.2,
     wash: function (g) {
       wash(g, smoothClosed(blob(cx, baseY - 8, 26, 8, seed + 1, 0.22, 12), 4), ink.grassDark, { seed: seed + 2, alpha: 0.7 });
       for (let i = 0; i < stalks.length; i++) {
@@ -852,7 +941,7 @@ export function paintReeds(opts) {
         fill(g, smoothClosed(blob(s.x + s.lean, s.top + 8, 5, 13, seed + 10 + i, 0.12, 12), 4));
       }
     },
-    outline: 2.0,
+    outline: 1.3,
     ink: function (g) {
       for (let i = 0; i < stalks.length; i++) {
         const s = stalks[i];
@@ -877,8 +966,8 @@ export function paintMushroom(opts) {
   }
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
-    outline: 2.4,
+    blur: 1.2,
+    outline: 1.6,
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 18, 6, seed + 1, 0.13); },
     wash: function (g) {
       wash(g, stem, ink.mushroomStem, { seed: seed + 2 });
@@ -909,8 +998,8 @@ export function paintHerb(opts) {
   ];
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
-    outline: 2.2,
+    blur: 1.2,
+    outline: 1.5,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 16, 6, seed, 0.12); },
     wash: function (g) {
       for (let i = 0; i < leaves.length; i++) wash(g, leaves[i], ink.leafDark, { seed: seed + 10 + i, scale: 1.06 });
@@ -940,8 +1029,8 @@ export function paintShell(opts) {
   ], 6);
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2,
-    outline: 2.2,
+    blur: 1.0,
+    outline: 1.5,
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 1, 20, 5, seed, 0.12); },
     wash: function (g) {
       wash(g, body, '#f7e6d4', { seed: seed + 2, scale: 1.05 });
@@ -983,8 +1072,8 @@ export function paintDriftwood(opts) {
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.2,
-    outline: 2.4,
+    blur: 1.1,
+    outline: 1.6,
     shadow: function (g) { groundShadow(g, cx, baseY - 1, 44, 7, seed, 0.13); },
     wash: function (g) {
       wash(g, stem, '#e2d7c1', { seed: seed + 2, scale: 1.03 });
@@ -1017,8 +1106,8 @@ export function paintDigspot(opts) {
   const mound = smoothClosed(blob(cx + 18, baseY - 18, 16, 8, seed + 2, 0.26, 14), 5);
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 3,
-    outline: 2.6,
+    blur: 1.5,
+    outline: 1.7,
     wash: function (g) {
       wash(g, pit, ink.dirtDark, { seed: seed + 3, scale: 1.06 });
       wash(g, offsetShape(pit, 0, 2, 0.7), '#7d6540', { seed: seed + 4, alpha: 0.8 });

@@ -188,11 +188,13 @@ export function initArt() {
     addArt('tree_birch_' + v, paintTree({
       seed: 34 + v * 17, spread: s.spread, lift: s.lift,
       leaf: INK.birchLeaf, leafLight: INK.birchLight, leafDark: INK.birchDark,
+      leafDeep: INK.birchDeep,
       trunk: INK.birchBark, trunkShade: INK.birchShade, birchMarks: true,
     }));
     addArt('tree_maple_' + v, paintTree({
       seed: 47 + v * 17, spread: s.spread, lift: s.lift,
-      leaf: INK.autumn, leafLight: INK.autumnLight, leafDark: INK.autumnDark, fruit: INK.berry,
+      leaf: INK.autumn, leafLight: INK.autumnLight, leafDark: INK.autumnDark,
+      leafDeep: INK.autumnDeep, fruit: INK.berry,
     }));
     addArt('tree_pine_' + v, paintPine({ seed: 55 + v * 17 }));
   }

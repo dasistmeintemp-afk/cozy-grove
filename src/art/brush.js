@@ -98,6 +98,23 @@ export function pathFrom(ctx, pts, close) {
   if (close !== false) ctx.closePath();
 }
 
+/**
+ * Beschneidet auf die Vereinigung mehrerer Formen. `pathFrom` beginnt jedes
+ * Mal einen neuen Pfad – für ein gemeinsames Clip müssen die Teilpfade in
+ * einem Pfad liegen. Ruft `save()` selbst; der Aufrufer braucht `restore()`.
+ */
+export function clipTo(ctx, shapes) {
+  ctx.save();
+  ctx.beginPath();
+  for (let i = 0; i < shapes.length; i++) {
+    const pts = shapes[i];
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k][0], pts[k][1]);
+    ctx.closePath();
+  }
+  ctx.clip();
+}
+
 /* ------------------------------------------------------------------- Tinte */
 
 /**
@@ -196,10 +213,12 @@ function modulateAlpha(canvas, seed) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4 + 3;
       if (!d[i]) continue;
-      const m = 0.72
-        + 0.28 * Math.sin(x * f1 + y * f2 * 1.7 + p1)
-        + 0.14 * Math.sin(x * f2 * 2.3 - y * f1 + p2);
-      d[i] = Math.max(0, Math.min(255, d[i] * Math.max(0.3, Math.min(1.15, m))));
+      // Die Staerke wandert, aber die Linie bleibt eine Linie. Vorher fiel sie
+      // stellenweise auf 44 Prozent und wirkte dadurch weich statt gezeichnet.
+      const m = 0.93
+        + 0.13 * Math.sin(x * f1 + y * f2 * 1.7 + p1)
+        + 0.07 * Math.sin(x * f2 * 2.3 - y * f1 + p2);
+      d[i] = Math.max(0, Math.min(255, d[i] * Math.max(0.78, Math.min(1.1, m))));
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -453,6 +472,39 @@ export function wash(ctx, pts, color, opts) {
 }
 
 /**
+ * Mehrere Formen als EINE Farbfläche legen.
+ *
+ * Halbdurchsichtig übereinander gelegte Formen addieren sich in den
+ * Überlappungen: Aus sechs Lappen mit je 34 Prozent wird in der Mitte fast
+ * Deckung, und die Schattenseite einer Baumkrone verläuft zu Matsch statt eine
+ * Fläche mit Kante zu sein. Hier wird die Gruppe erst deckend auf eine eigene
+ * Leinwand gelegt und dann einmal als Ganzes eingeblendet.
+ *
+ * @param {Array<Array<[number,number]>>} groups Liste von Punktfolgen
+ */
+export function washGroup(ctx, groups, color, opts) {
+  const o = opts || {};
+  if (!groups.length) return;
+  const c = ctx.canvas;
+  const layer = makeCanvas(c.width, c.height);
+  const lg = ctx2d(layer);
+  lg.imageSmoothingEnabled = true;
+  // Dieselbe Verschiebung wie die Zielebene, damit alles zusammenpasst
+  const tr = ctx.getTransform ? ctx.getTransform() : null;
+  if (tr) lg.setTransform(tr.a, tr.b, tr.c, tr.d, tr.e, tr.f);
+  lg.fillStyle = color;
+  for (let i = 0; i < groups.length; i++) {
+    pathFrom(lg, groups[i], true);
+    lg.fill();
+  }
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
+  ctx.drawImage(layer, 0, 0);
+  ctx.restore();
+}
+
+/**
  * Bildaufbau eines gemalten Sprites:
  *   1. Farbflächen auf eine eigene Ebene, danach weichzeichnen
  *   2. Tuschelinien scharf darüber
@@ -524,7 +576,18 @@ export function paintObject(w, h, o) {
   const wctx = wl[1];
   if (o.shadow) o.shadow(wctx);
   if (o.wash) o.wash(wctx);
-  blurCanvas(washLayer, o.blur == null ? 3 : o.blur, o.blurPasses || 2);
+  // Wenig Weichzeichnung: die Vorlage hat Farbflaechen mit erkennbarer Kante,
+  // keinen Airbrush. Zu viel Weichzeichner nimmt der Zeichnung den Strich.
+  blurCanvas(washLayer, o.blur == null ? 1.6 : o.blur, o.blurPasses || 2);
+
+  // Farbige Feinheiten liegen hinter dem Weichzeichner, aber vor dem
+  // Entfaerben: in der kolorierten Fassung ein scharfer Strich, im Malbuch
+  // blasses Grau. Farbe in `ink` wuerde dagegen als Farbfleck stehenbleiben.
+  if (o.detail) {
+    wctx.save();
+    o.detail(wctx);
+    wctx.restore();
+  }
 
   const paleWash = makeCanvas(W, H);
   const pctx = ctx2d(paleWash);
@@ -536,7 +599,7 @@ export function paintObject(w, h, o) {
     const sl = layer();
     sl[1].fillStyle = '#000000';
     o.shape(sl[1]);
-    ring = unionOutline(sl[0], o.outline == null ? 2.6 : o.outline,
+    ring = unionOutline(sl[0], o.outline == null ? 1.9 : o.outline,
       o.outlineColor || '#4a4038', o.seed || 5);
   }
 
