@@ -2,12 +2,14 @@
  * Spielkern: haelt alles zusammen und verbindet Eingabe, Welt und Oberflaeche.
  */
 import { World, TILE_SIZE, REGION } from '../world/world.js';
+import { isWater } from '../art/tiles.js';
 import { GroundLayer } from '../render/ground.js';
 import { ColorField } from '../world/colorfield.js';
 import { Renderer } from '../render/renderer.js';
 import { Camera } from '../render/camera.js';
 import { Particles } from '../render/particles.js';
 import { Wildlife } from '../render/wildlife.js';
+import { Weather } from '../render/weather.js';
 import { Player, TOOLS } from './player.js';
 import { Inventory } from './inventory.js';
 import { QuestBook, QTYPE } from './quests.js';
@@ -32,6 +34,7 @@ const AUTOSAVE_SECONDS = 20;
 export const DEFAULT_SETTINGS = {
   sound: true,
   music: true,
+  ambience: true,
   volume: 0.7,
   talk: 'short',
   dayMinutes: DEFAULT_DAY_MINUTES,
@@ -53,6 +56,7 @@ export class Game {
     this.rng = Math.random;
     this.particles = new Particles(Math.random);
     this.wildlife = new Wildlife(Math.random);
+    this.weather = new Weather(Math.random);
     this.renderer = new Renderer(canvas);
     this.camera = new Camera(canvas.width, canvas.height, 0, 0);
     this.fishing = new Fishing();
@@ -72,6 +76,9 @@ export class Game {
     this.syncViewport();
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
+
+    this.weather.setDay(this.world.seed, this.day.day);
+    this.weather.snap();
 
     this.ui = new UI(this);
     this.panels = new Panels(this);
@@ -298,6 +305,7 @@ export class Game {
       !this.day.isDark()
     );
     this._ambient(dt);
+    this.weather.update(dt);
 
     const mustSleep = this.day.update(dt);
     if (mustSleep) this.sleep(true);
@@ -928,11 +936,19 @@ export class Game {
     this.particles.clear();
     this.wildlife.clear();
     this._jitterSpirits(day);
+    this.weather.setDay(this.world.seed, day);
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
     this.ui.refreshHud();
     this.ui.refreshQuests();
     this.ui.toast('Tag ' + day, 'icon_day');
+    if (this.weather.strength > 0) {
+      const self = this;
+      setTimeout(function () {
+        self.ui.toast(self.weather.kind === 'rain' ? 'Es regnet' : 'Nebel liegt ueber der Insel',
+          self.weather.kind === 'rain' ? 'icon_bottle' : 'icon_ghost');
+      }, 1400);
+    }
     this.save();
   }
 
@@ -995,6 +1011,46 @@ export class Game {
         this.particles.spawn('spark', c.x + (Math.random() - 0.5) * 24, c.y - 56);
       }
     }
+
+    this._ambienceMix(night);
+  }
+
+  /**
+   * Was rundherum liegt, bestimmt das Klangbett: am Strand die Brandung,
+   * im Wald der Wind in den Blaettern, nachts die Grillen.
+   */
+  _ambienceMix(night) {
+    const px = this.player.x;
+    const py = this.player.y;
+    const R = 9; // Hoerweite in Kacheln
+    let water = 0;
+    let land = 0;
+    const tx0 = Math.floor(px / TILE_SIZE);
+    const ty0 = Math.floor(py / TILE_SIZE);
+    for (let ty = ty0 - R; ty <= ty0 + R; ty += 2) {
+      for (let tx = tx0 - R; tx <= tx0 + R; tx += 2) {
+        land++;
+        if (isWater(this.world.tileAtTile(tx, ty))) water++;
+      }
+    }
+    const waterShare = land ? water / land : 0;
+
+    // Blattwerk aus den Baeumen in der Naehe – der Wald rauscht, die Wiese nicht
+    let trees = 0;
+    const near = [];
+    this.world.queryRect(px - 560, py - 400, 1120, 800, near);
+    for (let i = 0; i < near.length; i++) {
+      const e = near[i];
+      if (!e.gone && defOf(e.kind) && defOf(e.kind).category === 'tree') trees++;
+    }
+    const leaves = Math.min(1, trees / 14);
+
+    this.audio.setAmbienceMix(
+      Math.min(1, waterShare * 2.2),
+      leaves,
+      night ? 1 : 0,
+      this.weather.raining ? this.weather.level : 0
+    );
   }
 
   lightSources(time) {
@@ -1090,6 +1146,7 @@ export class Game {
   applySettings() {
     this.audio.setEnabled(this.settings.sound);
     this.audio.setMusic(this.settings.music);
+    this.audio.setAmbience(this.settings.ambience !== false);
     this.audio.setVolume(this.settings.volume);
     this.day.dayMinutes = this.settings.dayMinutes;
     if (this.onSettingsChanged) this.onSettingsChanged(this.settings);

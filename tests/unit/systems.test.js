@@ -10,6 +10,7 @@ import { Shop, buyPrice } from '../../src/game/shop.js';
 import { ColorField } from '../../src/world/colorfield.js';
 import { makeRng, dailyRng, makeNoise2D, fbm } from '../../src/core/rng.js';
 import { SPIRITS } from '../../src/game/spirits.js';
+import { weatherFor, WEATHER } from '../../src/render/weather.js';
 
 const SEED = 4711;
 
@@ -405,5 +406,38 @@ test('Rauschfunktion bleibt im Wertebereich', () => {
   for (let i = 0; i < 500; i++) {
     const v = fbm(n, i * 0.13, i * 0.07, 4, 2, 0.5);
     assert.ok(v >= 0 && v <= 1, 'Wert ' + v);
+  }
+});
+
+test('Wetter haengt nur an Insel und Tag', () => {
+  for (let day = 2; day < 40; day++) {
+    const a = weatherFor(1234, day);
+    const b = weatherFor(1234, day);
+    assert.deepEqual(a, b, 'Tag ' + day + ' muss reproduzierbar sein');
+  }
+});
+
+test('Der erste Tag ist immer klar', () => {
+  for (let seed = 1; seed < 60; seed++) {
+    assert.equal(weatherFor(seed, 1).kind, WEATHER.CLEAR);
+    assert.equal(weatherFor(seed, 1).strength, 0);
+  }
+});
+
+test('Wetter bleibt ueberwiegend klar, aber nicht immer', () => {
+  const count = { clear: 0, rain: 0, fog: 0 };
+  for (let day = 2; day < 400; day++) count[weatherFor(99, day).kind]++;
+  assert.ok(count.clear > count.rain + count.fog,
+    'klare Tage sollen ueberwiegen: ' + JSON.stringify(count));
+  assert.ok(count.rain > 10, 'es soll auch regnen: ' + count.rain);
+  assert.ok(count.fog > 10, 'es soll auch neblig sein: ' + count.fog);
+});
+
+test('Wetterstaerke bleibt im Wertebereich', () => {
+  for (let day = 1; day < 300; day++) {
+    const w = weatherFor(7, day);
+    assert.ok(w.strength >= 0 && w.strength <= 1, 'Staerke ' + w.strength);
+    if (w.kind === WEATHER.CLEAR) assert.equal(w.strength, 0);
+    else assert.ok(w.strength > 0.3, 'sichtbares Wetter braucht Staerke');
   }
 });

@@ -375,6 +375,14 @@ export class Renderer {
       lc.fillStyle = 'rgba(' + tint.r + ',' + tint.g + ',' + tint.b + ',' + tint.a.toFixed(3) + ')';
       lc.fillRect(0, 0, this.w, this.h);
     }
+    // Wetter faerbt mit: Regen kuehlt und graut ein, Nebel hellt flach auf.
+    // Es liegt VOR den Lichtern, damit eine Laterne auch bei Regen ein Loch
+    // in die Truebung schneidet.
+    const wt = game.weather && game.weather.tint();
+    if (wt && wt.a >= 0.01) {
+      lc.fillStyle = 'rgba(' + wt.r + ',' + wt.g + ',' + wt.b + ',' + wt.a.toFixed(3) + ')';
+      lc.fillRect(0, 0, this.w, this.h);
+    }
 
     if (game.day.isDark()) {
       this._world(lc, camX, camY);
@@ -398,6 +406,9 @@ export class Renderer {
     lc.drawImage(this._vignetteLayer(), 0, 0);
     this._screen(ctx);
     ctx.drawImage(this.lightCanvas, 0, 0);
+    // Tropfen und Schwaden zuletzt und im Bildschirmraum: sie liegen vor
+    // allem, auch vor der Randabdunklung.
+    if (game.weather) game.weather.draw(ctx, this.w, this.h);
   }
 
   _drawMarkers(ctx, game, time) {

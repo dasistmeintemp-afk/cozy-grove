@@ -511,6 +511,9 @@ export class Panels {
       seg('sound', [[true, 'An'], [false, 'Aus']], s.sound) + '</div>';
     html += '<div class="setting"><div class="grow"><label>Musik</label></div>' +
       seg('music', [[true, 'An'], [false, 'Aus']], s.music) + '</div>';
+    html += '<div class="setting"><div class="grow"><label>Umgebung</label>' +
+      '<span class="hint">Brandung, Wind, Grillen</span></div>' +
+      seg('ambience', [[true, 'An'], [false, 'Aus']], s.ambience !== false) + '</div>';
     html += '<div class="setting"><div class="grow"><label>Lautstärke</label></div>' +
       seg('volume', [[0.3, 'Leise'], [0.7, 'Mittel'], [1, 'Laut']], s.volume) + '</div>';
     html += '<div class="setting"><div class="grow"><label>Sprechblasen</label>' +

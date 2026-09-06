@@ -16,6 +16,7 @@ const PALE = args.indexOf('--pale') >= 0;
 const ZOOM = Number((args.find((a) => a.startsWith('--zoom=')) || '=0').split('=')[1]) || 0;
 const HOUR = Number((args.find((a) => a.startsWith('--hour=')) || '=13').split('=')[1]);
 const SEED = Number((args.find((a) => a.startsWith('--seed=')) || '=7').split('=')[1]) || 7;
+const WEATHER = (args.find((a) => a.startsWith('--weather=')) || '').slice(10);
 const CLIP = (args.find((a) => a.startsWith('--clip=')) || '').slice(7);
 const clipRect = CLIP ? (function () {
   const p = CLIP.split(',').map(Number);
@@ -74,6 +75,14 @@ async function run() {
     g.day.hour = h;
     g.day.paused = true;
   }, HOUR);
+  if (WEATHER) {
+    await page.evaluate((k) => {
+      const g = window.CozyGrove.game;
+      g.weather.kind = k;
+      g.weather.strength = 0.9;
+      g.weather.snap();
+    }, WEATHER);
+  }
 
   const spots = await page.evaluate(() => {
     const g = window.CozyGrove.game;

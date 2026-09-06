@@ -27,6 +27,9 @@ export class AudioEngine {
     this._step = 0;
     this._mood = 'day';
     this._lastStepSound = 0;
+    this.ambienceOn = true;
+    this._amb = null;
+    this._ambTarget = { surf: 0, wind: 0.35, night: 0, rain: 0 };
   }
 
   /** Nur innerhalb eines Klick-/Tastendruck-Handlers aufrufen. */
@@ -71,7 +74,97 @@ export class AudioEngine {
     this.noiseBuffer = buf;
 
     if (ctx.state === 'suspended') ctx.resume();
+    this._startAmbience();
     this._startMusic();
+  }
+
+  /**
+   * Umgebungsklang: drei Dauerschichten aus gefiltertem Rauschen.
+   *
+   *   surf  – Brandung, tief und langsam an- und abschwellend
+   *   wind  – Wind in den Blaettern, hoeher und gleichmaessiger
+   *   night – Grillen, ein schmales Band weit oben
+   *
+   * Sie laufen durchgehend; das Spiel regelt nur ihre Lautstaerke nach Ort
+   * und Uhrzeit. Ein Klangbett traegt die Stimmung mehr als jeder Einzelton –
+   * und kostet, weil es Rauschen ist, keine einzige Audiodatei.
+   */
+  _startAmbience() {
+    const ctx = this.ctx;
+    const bus = ctx.createGain();
+    bus.gain.value = this.ambienceOn ? 1 : 0;
+    bus.connect(this.master);
+
+    function layer(type, freq, q, gain) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noiseBuffer;
+      src.loop = true;
+      const filt = ctx.createBiquadFilter();
+      filt.type = type;
+      filt.frequency.value = freq;
+      filt.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(filt);
+      filt.connect(g);
+      g.connect(bus);
+      src.start();
+      return { gain: g, peak: gain };
+    }
+
+    const mk = layer.bind(this);
+    this._amb = {
+      bus: bus,
+      surf: mk('lowpass', 420, 0.7, 0.16),
+      wind: mk('bandpass', 900, 0.5, 0.05),
+      night: mk('bandpass', 4600, 8, 0.02),
+      rain: mk('highpass', 1400, 0.6, 0.11),
+    };
+
+    // Die Brandung atmet. Der Schwinger haengt an einem EIGENEN Regler hinter
+    // der Lautstaerke, nicht an ihr selbst: sonst addierte er sich auf denselben
+    // Parameter, den die Mischung setzt, und zoege ihn ins Negative.
+    const breath = ctx.createGain();
+    breath.gain.value = 0.75;
+    this._amb.surf.gain.disconnect();
+    this._amb.surf.gain.connect(breath);
+    breath.connect(bus);
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 0.11;
+    lfoGain.gain.value = 0.25;
+    lfo.connect(lfoGain);
+    lfoGain.connect(breath.gain);
+    lfo.start();
+    this._amb.lfo = lfo;
+  }
+
+  setAmbience(on) {
+    this.ambienceOn = on;
+    if (this._amb) {
+      this._amb.bus.gain.setTargetAtTime(on ? 1 : 0, this.ctx.currentTime, 0.3);
+    }
+  }
+
+  /**
+   * Wie nah am Wasser, wie viel Blattwerk, wie spaet.
+   * @param {number} water 0..1 Anteil Wasser in Hoerweite
+   * @param {number} leaves 0..1 Anteil Baeume in Hoerweite
+   * @param {number} night 0..1 Nachtanteil
+   */
+  setAmbienceMix(water, leaves, night, rain) {
+    this._ambTarget.surf = water;
+    this._ambTarget.wind = leaves;
+    this._ambTarget.night = night;
+    this._ambTarget.rain = rain || 0;
+    if (!this._amb || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const a = this._amb;
+    // Traege Uebergaenge, sonst pumpt es beim Laufen
+    a.surf.gain.gain.setTargetAtTime(a.surf.peak * water, t, 1.2);
+    a.wind.gain.gain.setTargetAtTime(a.wind.peak * (0.35 + leaves * 0.65), t, 1.2);
+    a.night.gain.gain.setTargetAtTime(a.night.peak * night, t, 2.0);
+    a.rain.gain.gain.setTargetAtTime(a.rain.peak * (rain || 0), t, 1.5);
   }
 
   setEnabled(on) {
