@@ -27,7 +27,7 @@ function drop(id, min, max) {
  */
 export const ENTITY_DEFS = {
   tree_oak: {
-    sprite: 'tree_oak', solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 3,
+    sprite: 'tree_oak', variants: 3, solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 3,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
       if (level >= 2 && rng() < 0.35) out.push({ id: 'hardwood', n: 1 });
@@ -37,7 +37,7 @@ export const ENTITY_DEFS = {
     becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
   tree_birch: {
-    sprite: 'tree_birch', solid: true, blockR: 20, reachR: 88, tool: TOOL.AXE, hits: 3,
+    sprite: 'tree_birch', variants: 3, solid: true, blockR: 20, reachR: 88, tool: TOOL.AXE, hits: 3,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
       if (rng() < 0.3) out.push({ id: 'fiber', n: randInt(rng, 1, 2) });
@@ -46,7 +46,7 @@ export const ENTITY_DEFS = {
     becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
   tree_maple: {
-    sprite: 'tree_maple', solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 3,
+    sprite: 'tree_maple', variants: 3, solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 3,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
       if (rng() < 0.45) out.push({ id: 'resin', n: 1 });
@@ -55,7 +55,7 @@ export const ENTITY_DEFS = {
     becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
   tree_pine: {
-    sprite: 'tree_pine', solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 4,
+    sprite: 'tree_pine', variants: 3, solid: true, blockR: 24, reachR: 88, tool: TOOL.AXE, hits: 4,
     yield: function (level, rng) {
       const out = [{ id: 'wood', n: randInt(rng, 3, 4) + level }];
       if (level >= 2 && rng() < 0.5) out.push({ id: 'hardwood', n: randInt(rng, 1, 2) });
@@ -177,14 +177,25 @@ export function defOf(kind) {
 }
 
 /** Erzeugt eine Weltinstanz. x/y sind Weltpixel (Fusspunkt). */
+/**
+ * Welche Fassung einer Grafik dieses Objekt bekommt.
+ * Haengt nur am Ort, damit derselbe Baum nach dem Laden wieder gleich aussieht.
+ */
+function variantAt(x, y, count) {
+  const h = (Math.round(x) * 73856093) ^ (Math.round(y) * 19349663);
+  return ((h >>> 3) % count + count) % count;
+}
+
 export function makeEntity(kind, x, y, extra) {
   const def = ENTITY_DEFS[kind];
+  let sprite = def && def.sprite ? def.sprite : null;
+  if (sprite && def.variants > 1) sprite = sprite + '_' + variantAt(x, y, def.variants);
   const e = {
     id: nextId(),
     kind: kind,
     x: x,
     y: y,
-    sprite: def && def.sprite ? def.sprite : null,
+    sprite: sprite,
     hp: def && def.hits ? def.hits : 0,
     hidden: false,
     respawnDay: 0,

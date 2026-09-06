@@ -72,7 +72,10 @@ export function addArt(name, art, scale) {
 }
 
 export function spr(name) {
-  const s = registry[name];
+  let s = registry[name];
+  // Ein Name ohne Fassungsnummer trifft die erste Fassung. Damit laufen
+  // aeltere Spielstaende weiter, in denen Baeume noch nur einen Namen hatten.
+  if (!s && name) s = registry[name + '_0'];
   if (!s) {
     if (!spr._warned) spr._warned = Object.create(null);
     if (!spr._warned[name]) {
@@ -170,15 +173,28 @@ export function initArt() {
   if (ready) return;
 
   /* --- Bäume und Gehölz --- */
-  addArt('tree_oak', paintTree({ seed: 21 }));
-  addArt('tree_birch', paintTree({
-    seed: 34, leaf: INK.birchLeaf, leafLight: INK.birchLight, leafDark: INK.birchDark,
-    trunk: INK.birchBark, trunkShade: INK.birchShade, birchMarks: true,
-  }));
-  addArt('tree_maple', paintTree({
-    seed: 47, leaf: INK.autumn, leafLight: INK.autumnLight, leafDark: INK.autumnDark, fruit: INK.berry,
-  }));
-  addArt('tree_pine', paintPine({ seed: 55 }));
+  // Von jedem Baum drei Fassungen. Im dichten Wald fiel sonst sofort auf, dass
+  // alle Kronen dieselbe Form haben – anderer Startwert, andere Ausbuchtungen,
+  // dazu eine breitere und eine schlankere Silhouette.
+  const treeShapes = [
+    { spread: 1, lift: 1 },
+    { spread: 1.16, lift: 0.94 },
+    { spread: 0.88, lift: 1.12 },
+  ];
+  for (let v = 0; v < treeShapes.length; v++) {
+    const s = treeShapes[v];
+    addArt('tree_oak_' + v, paintTree({ seed: 21 + v * 17, spread: s.spread, lift: s.lift }));
+    addArt('tree_birch_' + v, paintTree({
+      seed: 34 + v * 17, spread: s.spread, lift: s.lift,
+      leaf: INK.birchLeaf, leafLight: INK.birchLight, leafDark: INK.birchDark,
+      trunk: INK.birchBark, trunkShade: INK.birchShade, birchMarks: true,
+    }));
+    addArt('tree_maple_' + v, paintTree({
+      seed: 47 + v * 17, spread: s.spread, lift: s.lift,
+      leaf: INK.autumn, leafLight: INK.autumnLight, leafDark: INK.autumnDark, fruit: INK.berry,
+    }));
+    addArt('tree_pine_' + v, paintPine({ seed: 55 + v * 17 }));
+  }
   addArt('tree_stump', paintStump({ seed: 137 }));
   addArt('log_barrier', paintLogBarrier({ seed: 151 }));
 

@@ -137,12 +137,17 @@ export function dot(gWash, gInk, x, y, r, color, seed) {
  */
 export function paintTree(opts) {
   const o = opts || {};
-  const w = 180;
-  const h = 224;
+  // `spread` breitet die Krone aus, `lift` streckt sie nach oben. Damit wird
+  // aus demselben Maler eine breite und eine schlanke Silhouette – im dichten
+  // Wald faellt sonst auf, dass alle Baeume dieselbe Form haben.
+  const spread = o.spread == null ? 1 : o.spread;
+  const lift = o.lift == null ? 1 : o.lift;
+  const w = Math.round(180 * Math.max(1, spread));
+  const h = Math.round(224 * Math.max(1, lift));
   const seed = o.seed || 21;
   const cx = w / 2;
   const baseY = h - 14;
-  const canopyY = baseY - 132;
+  const canopyY = baseY - 132 * lift;
 
   const leafMid = o.leaf || ink.leaf;
   const leafLight = o.leafLight || ink.leafLight;
@@ -152,13 +157,14 @@ export function paintTree(opts) {
 
   // Die Krone lebt von vielen kleinen Ausbuchtungen. Da der Umriss aus der
   // Silhouette entsteht, darf sie ruhig unruhig sein.
+  const sx = spread;
   const lobes = [
-    smoothClosed(teardrop(cx, canopyY - 6, 58, 50, seed + 1, 0.17), 7),
-    smoothClosed(blob(cx - 44, canopyY + 26, 36, 30, seed + 2, 0.2), 7),
-    smoothClosed(blob(cx + 46, canopyY + 22, 34, 29, seed + 3, 0.2), 7),
-    smoothClosed(blob(cx + 2, canopyY + 48, 47, 28, seed + 4, 0.18), 7),
-    smoothClosed(blob(cx - 26, canopyY - 24, 27, 24, seed + 5, 0.22), 7),
-    smoothClosed(blob(cx + 30, canopyY - 18, 25, 23, seed + 6, 0.22), 7),
+    smoothClosed(teardrop(cx, canopyY - 6, 58 * sx, 50, seed + 1, 0.17), 7),
+    smoothClosed(blob(cx - 44 * sx, canopyY + 26, 36 * sx, 30, seed + 2, 0.2), 7),
+    smoothClosed(blob(cx + 46 * sx, canopyY + 22, 34 * sx, 29, seed + 3, 0.2), 7),
+    smoothClosed(blob(cx + 2, canopyY + 48, 47 * sx, 28, seed + 4, 0.18), 7),
+    smoothClosed(blob(cx - 26 * sx, canopyY - 24, 27 * sx, 24, seed + 5, 0.22), 7),
+    smoothClosed(blob(cx + 30 * sx, canopyY - 18, 25 * sx, 23, seed + 6, 0.22), 7),
   ];
 
   // Stamm reicht bis in die Krone hinein, sonst entsteht ein Pilzstiel
@@ -173,7 +179,7 @@ export function paintTree(opts) {
   const fruits = [];
   if (o.fruit) {
     for (let i = 0; i < 3; i++) {
-      fruits.push([cx - 34 + rngFruit() * 68, canopyY + 6 + rngFruit() * 44]);
+      fruits.push([cx - 34 * sx + rngFruit() * 68 * sx, canopyY + 6 + rngFruit() * 44]);
     }
   }
 
@@ -201,11 +207,11 @@ export function paintTree(opts) {
     },
     ink: function (g) {
       // Kronenlappen nur andeuten, keine vollen Umrisse
-      inkLine(g, cx - 46, canopyY + 16, cx - 14, canopyY + 34,
+      inkLine(g, cx - 46 * sx, canopyY + 16, cx - 14 * sx, canopyY + 34,
         { width: 2.1, bend: 0.3, seed: seed + 60, alpha: 0.7 });
-      inkLine(g, cx + 48, canopyY + 12, cx + 16, canopyY + 32,
+      inkLine(g, cx + 48 * sx, canopyY + 12, cx + 16 * sx, canopyY + 32,
         { width: 2.0, bend: -0.3, seed: seed + 61, alpha: 0.65 });
-      inkLine(g, cx - 26, canopyY + 56, cx + 26, canopyY + 52,
+      inkLine(g, cx - 26 * sx, canopyY + 56, cx + 26 * sx, canopyY + 52,
         { width: 1.9, bend: 0.22, seed: seed + 62, alpha: 0.55 });
       if (o.birchMarks) {
         for (let i = 0; i < 4; i++) {
@@ -221,7 +227,7 @@ export function paintTree(opts) {
       for (let i = 0; i < 9; i++) {
         const a = rng2() * Math.PI * 2;
         const r = 0.45 + rng2() * 0.45;
-        const x = cx + Math.cos(a) * 58 * r;
+        const x = cx + Math.cos(a) * 58 * sx * r;
         const y = canopyY + 12 + Math.sin(a) * 48 * r;
         inkLine(g, x, y, x + 8 - rng2() * 16, y - 5 - rng2() * 6,
           { width: 1.3, bend: 0.35, seed: seed + 70 + i, alpha: 0.38 });
