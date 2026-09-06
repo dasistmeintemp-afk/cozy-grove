@@ -75,6 +75,9 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nächsten Licht streben – und zu jeder Zeit springen Fische aus dem Wasser.
 * **Wetter.** Manche Tage bringen Regen, manche Nebel. Was ein Tag bekommt,
   hängt nur an Insel und Tagnummer – es steht fest, bevor der Tag beginnt.
+  Und es zählt: **Mondblumen** wachsen nur nachts, **Regenpilze** nur an
+  Regentagen, **Nebelkristalle** nur im Nebel. Sie verschwinden wieder, sobald
+  die Bedingung fällt, und sind die Zutaten der Mondlaterne.
 * **Fundbuch.** Alles, was je durch die Tasche ging, mit Gesamtzahl. Was noch
   fehlt, steht als Schattenriss da.
 * **Erinnerungen.** Jeder Geist hat eine Geschichte aus vier Fundstücken, die
@@ -147,7 +150,7 @@ rechnet das Spiel etwas gröber, statt zu ruckeln.
 ## Tests
 
 ```bash
-npm test               # 70 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
+npm test               # 72 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
 npm run test:browser   # 36 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```

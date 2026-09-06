@@ -11,6 +11,7 @@ import {
   paintTree, paintPine, paintStump, paintLogBarrier,
   paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft,
   paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot,
+  paintMoonflower, paintRainmushroom, paintFogcrystal,
 } from './painted.js';
 import {
   paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench,
@@ -214,6 +215,11 @@ export function initArt() {
   addArt('shell', paintShell({ seed: 261 }));
   addArt('driftwood', paintDriftwood({ seed: 281 }));
   addArt('digspot', paintDigspot({ seed: 301 }));
+
+  /* --- Nur bei Nacht, Regen oder Nebel --- */
+  addArt('moonflower', paintMoonflower({ seed: 811 }));
+  addArt('rainmushroom', paintRainmushroom({ seed: 821 }));
+  addArt('fogcrystal', paintFogcrystal({ seed: 831 }));
   addArt('flower_pink', paintFlower({ seed: 131, petal: INK.petalPink }));
   addArt('flower_yellow', paintFlower({ seed: 137, petal: INK.petalYellow }));
   addArt('flower_violet', paintFlower({ seed: 141, petal: INK.petalViolet }));
@@ -292,6 +298,8 @@ function buildIcons() {
     ['flowerbed', 'flowerbed'], ['birdhouse', 'birdhouse'], ['windchime', 'windchime'],
     ['rug', 'rug'], ['signpost', 'signpost'], ['path_tile', 'path_tile'],
     ['bridge_kit', 'bridge'],
+    ['moonflower', 'moonflower'], ['rainmushroom', 'rainmushroom'],
+    ['fogcrystal', 'fogcrystal'], ['moonlamp', 'lantern'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = registry[reuse[i][1]];

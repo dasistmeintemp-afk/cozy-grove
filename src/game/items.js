@@ -79,8 +79,15 @@ const LIST = [
   it('memory_ribbon', 'Haarband', CAT.MEMORY, 0, 0, { quest: true }),
   it('memory_teacup', 'Teetasse', CAT.MEMORY, 0, 0, { quest: true }),
 
+  // Nur unter bestimmten Bedingungen zu finden – das ist der Grund, an einem
+  // anderen Tag oder zu anderer Stunde wiederzukommen.
+  it('moonflower', 'Mondblume', CAT.FORAGE, 34, 6, { onlyAt: 'night' }),
+  it('rainmushroom', 'Regenpilz', CAT.FORAGE, 30, 6, { onlyAt: 'rain' }),
+  it('fogcrystal', 'Nebelkristall', CAT.RELIC, 48, 9, { onlyAt: 'fog' }),
+
   // Deko (aufstellbar)
   it('lantern', 'Laterne', CAT.DECOR, 40, 0, { prop: 'lantern', light: 62, charm: 4 }),
+  it('moonlamp', 'Mondlaterne', CAT.DECOR, 120, 0, { prop: 'lantern', light: 128, charm: 9 }),
   it('bench', 'Holzbank', CAT.DECOR, 46, 0, { prop: 'bench', charm: 4 }),
   it('fence', 'Zaunstueck', CAT.DECOR, 14, 0, { prop: 'fence', charm: 1 }),
   it('flowerbed', 'Blumenbeet', CAT.DECOR, 38, 0, { prop: 'flowerbed', charm: 5 }),

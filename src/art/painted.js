@@ -585,6 +585,171 @@ export function paintBush(opts) {
   return made(res, w, h, cx, baseY);
 }
 
+/**
+ * Mondblume: nachts auf der Wiese. Ein heller Schimmer hinter der Bluete macht
+ * sie im Dunkeln auffindbar, ohne dass sie eine Lichtquelle sein muesste.
+ */
+export function paintMoonflower(opts) {
+  const o = opts || {};
+  const w = 68;
+  const h = 92;
+  const seed = o.seed || 811;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const headY = 30;
+
+  const petals = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    petals.push(smoothClosed(blob(cx + Math.cos(a) * 13, headY + Math.sin(a) * 12,
+      9, 8, seed + i, 0.16, 12), 5));
+  }
+  const core = smoothClosed(blob(cx, headY, 8, 7.5, seed + 20, 0.12, 12), 4);
+  const stem = smoothClosed([[cx - 3, baseY], [cx - 4, headY + 14], [cx + 4, headY + 14], [cx + 3, baseY]], 4);
+  const leaf = smoothClosed(blob(cx - 14, baseY - 28, 13, 6, seed + 21, 0.2, 12), 4);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 2.4,
+    outline: 2.0,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 14, 5, seed + 1, 0.1); },
+    wash: function (g) {
+      g.save();
+      g.globalAlpha = 0.4;
+      g.fillStyle = '#dfe6ff';
+      fill(g, smoothClosed(blob(cx, headY, 30, 29, seed + 30, 0.1, 16), 6));
+      g.restore();
+      wash(g, stem, ink.grassDark, { seed: seed + 2 });
+      wash(g, leaf, '#8fae86', { seed: seed + 4 });
+      for (let i = 0; i < petals.length; i++) {
+        wash(g, petals[i], '#e8ecff', { seed: seed + 40 + i, scale: 1.06 });
+        wash(g, offsetShape(petals[i], -LIGHT.x * 6, -LIGHT.y * 5, 0.6), '#bcc6ee',
+          { seed: seed + 50 + i, alpha: 0.5 });
+      }
+      wash(g, core, '#f6e9a8', { seed: seed + 6 });
+    },
+    shape: function (g) {
+      fill(g, stem); fill(g, leaf);
+      for (let i = 0; i < petals.length; i++) fill(g, petals[i]);
+      fill(g, core);
+    },
+    ink: function (g) {
+      for (let i = 0; i < petals.length; i++) {
+        inkStroke(g, petals[i], { width: 1.4, vary: 0.3, seed: seed + 60 + i, color: ink.lineSoft, alpha: 0.5 });
+      }
+      inkStroke(g, core, { width: 1.6, vary: 0.3, seed: seed + 70, color: ink.line, alpha: 0.6 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/** Regenpilz: taucht nur an Regentagen auf, dunkelblau mit hellen Tupfen. */
+export function paintRainmushroom(opts) {
+  const o = opts || {};
+  const w = 76;
+  const h = 74;
+  const seed = o.seed || 821;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const caps = [
+    { x: cx, y: baseY - 34, rx: 25, ry: 17 },
+    { x: cx - 20, y: baseY - 20, rx: 15, ry: 11 },
+  ];
+  const capShapes = caps.map(function (c, i) {
+    const pts = smoothClosed(blob(c.x, c.y, c.rx, c.ry, seed + i, 0.12, 16), 5);
+    for (let k = 0; k < pts.length; k++) {
+      if (pts[k][1] > c.y + 2) pts[k][1] = c.y + 2 + (pts[k][1] - c.y - 2) * 0.2;
+    }
+    return pts;
+  });
+  const stems = [
+    smoothClosed([[cx - 7, baseY], [cx - 6, baseY - 30], [cx + 6, baseY - 30], [cx + 7, baseY]], 4),
+    smoothClosed([[cx - 24, baseY], [cx - 23, baseY - 18], [cx - 16, baseY - 18], [cx - 15, baseY]], 4),
+  ];
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 2.2,
+    outline: 2.2,
+    shadow: function (g) { groundShadow(g, cx - 4, baseY - 2, 24, 7, seed + 1, 0.13); },
+    wash: function (g) {
+      for (let i = 0; i < stems.length; i++) wash(g, stems[i], '#eae2cf', { seed: seed + 5 + i });
+      for (let i = 0; i < capShapes.length; i++) {
+        wash(g, capShapes[i], '#5f7fa8', { seed: seed + 10 + i, scale: 1.05 });
+        wash(g, offsetShape(capShapes[i], -LIGHT.x * 10, -LIGHT.y * 7, 0.65), '#42618a',
+          { seed: seed + 14 + i, alpha: 0.6 });
+        wash(g, offsetShape(capShapes[i], LIGHT.x * 8, LIGHT.y * 6, 0.5), '#8aa9cd',
+          { seed: seed + 18 + i, alpha: 0.6 });
+      }
+      const rng = makeRng(seed + 90);
+      for (let i = 0; i < 5; i++) {
+        dot(g, null, cx - 16 + rng() * 32, baseY - 42 + rng() * 14, 3.2 + rng() * 1.6, '#e6eef8', seed + 100 + i);
+      }
+    },
+    shape: function (g) {
+      for (let i = 0; i < stems.length; i++) fill(g, stems[i]);
+      for (let i = 0; i < capShapes.length; i++) fill(g, capShapes[i]);
+    },
+    ink: function (g) {
+      for (let i = 0; i < capShapes.length; i++) {
+        inkStroke(g, capShapes[i], { width: 1.7, vary: 0.3, seed: seed + 30 + i, color: ink.line, alpha: 0.55 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/** Nebelkristall: nur bei Nebel, milchig und kantig. Braucht die Spitzhacke. */
+export function paintFogcrystal(opts) {
+  const o = opts || {};
+  const w = 78;
+  const h = 92;
+  const seed = o.seed || 831;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const shards = [
+    smoothClosed([[cx - 6, baseY - 2], [cx - 12, baseY - 40], [cx - 2, baseY - 62],
+      [cx + 8, baseY - 38], [cx + 6, baseY - 2]], 3),
+    smoothClosed([[cx + 8, baseY - 2], [cx + 12, baseY - 30], [cx + 22, baseY - 44],
+      [cx + 25, baseY - 24], [cx + 21, baseY - 2]], 3),
+    smoothClosed([[cx - 22, baseY - 2], [cx - 24, baseY - 22], [cx - 15, baseY - 34],
+      [cx - 10, baseY - 18], [cx - 11, baseY - 2]], 3),
+  ];
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 2.4,
+    outline: 2.2,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 24, 7, seed + 1, 0.13); },
+    wash: function (g) {
+      g.save();
+      g.globalAlpha = 0.34;
+      g.fillStyle = '#e7f2f4';
+      fill(g, smoothClosed(blob(cx, baseY - 30, 32, 34, seed + 40, 0.1, 16), 6));
+      g.restore();
+      for (let i = 0; i < shards.length; i++) {
+        wash(g, shards[i], '#cfe6ea', { seed: seed + 10 + i, scale: 1.04 });
+        wash(g, offsetShape(shards[i], -LIGHT.x * 9, -LIGHT.y * 8, 0.55), '#9dc3ca',
+          { seed: seed + 14 + i, alpha: 0.65 });
+        wash(g, offsetShape(shards[i], LIGHT.x * 7, LIGHT.y * 9, 0.4), '#f2fbfc',
+          { seed: seed + 18 + i, alpha: 0.7 });
+      }
+    },
+    shape: function (g) { for (let i = 0; i < shards.length; i++) fill(g, shards[i]); },
+    ink: function (g) {
+      for (let i = 0; i < shards.length; i++) {
+        inkStroke(g, shards[i], { width: 1.8, vary: 0.3, seed: seed + 30 + i, color: ink.line, alpha: 0.6 });
+      }
+      // Innenkante je Kristall – laesst sie geschliffen wirken
+      inkLine(g, cx - 2, baseY - 58, cx - 1, baseY - 8, { width: 1.4, bend: 0.02, seed: seed + 50, alpha: 0.4 });
+      inkLine(g, cx + 18, baseY - 40, cx + 16, baseY - 8, { width: 1.3, bend: 0.02, seed: seed + 51, alpha: 0.35 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
 export function paintFlower(opts) {
   const o = opts || {};
   const w = 60;

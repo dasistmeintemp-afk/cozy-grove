@@ -323,6 +323,7 @@ export class Game {
     );
     this._ambient(dt);
     this.weather.update(dt);
+    this._syncConditionalSpawns();
 
     const mustSleep = this.day.update(dt);
     if (mustSleep) this.sleep(true);
@@ -585,6 +586,31 @@ export class Game {
       self.ui.toast(spirit.name + ' · Geschichte vollstaendig', 'icon_star', 'good');
       if (keep) self.ui.toast(itemName(keep) + ' erhalten', getItem(keep).icon, 'good');
     }, 900);
+  }
+
+  /**
+   * Mondblumen, Regenpilze, Nebelkristalle setzen und wieder einsammeln.
+   *
+   * Nur alle paar Sekunden pruefen: Der Zustand aendert sich hoechstens beim
+   * Wetterwechsel oder bei Einbruch der Dunkelheit, und die Suche nach freien
+   * Plaetzen laeuft ueber die ganze Kachelkarte.
+   */
+  _syncConditionalSpawns() {
+    this._condTimer = (this._condTimer || 0) - 1;
+    if (this._condTimer > 0) return;
+    this._condTimer = 180;
+
+    const night = this.day.isDark();
+    const rain = this.weather.raining;
+    const fog = this.weather.foggy;
+    const key = (night ? 'n' : '') + (rain ? 'r' : '') + (fog ? 'f' : '') + ':' + this.day.day;
+    if (key === this._condKey) return;
+    this._condKey = key;
+
+    const rng = dailyRng(this.world.seed, this.day.day, 'cond' + key);
+    this.world.syncConditional('moonflower', night, rng, 7);
+    this.world.syncConditional('rainmushroom', rain, rng, 8);
+    this.world.syncConditional('fogcrystal', fog, rng, 5);
   }
 
   /**

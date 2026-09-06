@@ -382,6 +382,42 @@ export class World {
     return this;
   }
 
+  /**
+   * Vorkommen, die an eine Bedingung gebunden sind: Mondblumen nachts,
+   * Regenpilze bei Regen, Nebelkristalle bei Nebel.
+   *
+   * Sie werden bei jedem Wechsel neu gesetzt und wieder eingesammelt, wenn die
+   * Bedingung faellt. Dadurch bekommt das Wetter Gewicht im Spiel und nicht nur
+   * im Bild – und es gibt einen Grund, zu einer anderen Stunde wiederzukommen.
+   */
+  syncConditional(kind, active, rng, count) {
+    let have = 0;
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      const e = this.entities[i];
+      if (e.kind !== kind) continue;
+      if (!active) this.remove(e);
+      else if (!e.gone) have++;
+    }
+    if (!active || have >= count) return;
+
+    const regions = [REGION.CAMP, REGION.FOREST, REGION.CLIFFS];
+    let guard = 0;
+    while (have < count && guard++ < 500) {
+      const r = regions[Math.floor(rng() * regions.length)];
+      if (!this.unlocked[r]) continue;
+      const spots = walkableTilesOf(this.tiles, r, function (t) {
+        return t === T.GRASS || t === T.DIRT || t === T.ROCKFLOOR;
+      });
+      if (!spots.length) continue;
+      const s = spots[Math.floor(rng() * spots.length)];
+      const wx = (s.x + 0.5) * TILE_SIZE;
+      const wy = (s.y + 0.5) * TILE_SIZE;
+      if (this._tooClose(wx, wy, 110)) continue;
+      this.add(makeEntity(kind, wx, wy));
+      have++;
+    }
+  }
+
   _respawnDigspots(rng) {
     for (let i = this.entities.length - 1; i >= 0; i--) {
       if (this.entities[i].kind === 'digspot') this.remove(this.entities[i]);

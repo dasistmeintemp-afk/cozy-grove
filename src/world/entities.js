@@ -125,6 +125,21 @@ export const ENTITY_DEFS = {
   flower_violet: { sprite: 'flower_violet', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_violet', 1, 1), respawn: 1, sway: true, category: 'forage' },
   flower_white: { sprite: 'flower_white', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_white', 1, 1), respawn: 1, sway: true, category: 'forage' },
 
+  // Wetter- und Nachtvorkommen. Sie werden jeden Tag neu gesetzt und
+  // verschwinden wieder, sobald die Bedingung nicht mehr gilt.
+  moonflower: {
+    sprite: 'moonflower', solid: false, reachR: 60, tool: TOOL.HAND, hits: 1,
+    yield: drop('moonflower', 1, 1), sway: true, category: 'forage',
+  },
+  rainmushroom: {
+    sprite: 'rainmushroom', solid: false, reachR: 60, tool: TOOL.HAND, hits: 1,
+    yield: drop('rainmushroom', 1, 1), category: 'forage',
+  },
+  fogcrystal: {
+    sprite: 'fogcrystal', solid: false, reachR: 60, tool: TOOL.PICK, hits: 1,
+    yield: drop('fogcrystal', 1, 1), category: 'forage',
+  },
+
   digspot: {
     sprite: 'digspot', solid: false, reachR: 64, tool: TOOL.SHOVEL, hits: 1,
     yield: function (level, rng) {

@@ -23,10 +23,11 @@ const SPRITE_NAMES = (function () {
     'rock_big', 'rock_small', 'rock_ore', 'rockslide',
     'bush_berry', 'bush_plain', 'grass_tuft', 'reeds', 'mushroom', 'herb',
     'shell', 'driftwood', 'digspot',
+    'moonflower', 'rainmushroom', 'fogcrystal',
     'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
     'campfire', 'tent', 'stall', 'workbench',
     'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',
-    'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge',
+    'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge', 'moonlamp',
   ];
   // Baeume liegen in drei Fassungen vor; die Objektdefinition nennt nur den
   // Rumpf, makeEntity haengt die Nummer an.

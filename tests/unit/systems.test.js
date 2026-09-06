@@ -12,6 +12,8 @@ import { makeRng, dailyRng, makeNoise2D, fbm } from '../../src/core/rng.js';
 import { SPIRITS, SPIRIT_IDS, friendshipLevel, friendshipGift } from '../../src/game/spirits.js';
 import { weatherFor, WEATHER } from '../../src/render/weather.js';
 import { getItem, ITEM_LIST } from '../../src/game/items.js';
+import { ENTITY_DEFS } from '../../src/world/entities.js';
+import { RECIPES } from '../../src/game/recipes.js';
 import {
   StoryBook, STORIES, STAGES, QUESTS_PER_STAGE, keepsakeOf, storyIcon,
 } from '../../src/game/stories.js';
@@ -599,4 +601,28 @@ test('Alle Symbole der Ketten verweisen auf angelegte Grafiken', () => {
       assert.ok(name.indexOf('icon_') === 0, id + ' Stufe ' + k + ': ' + name);
     }
   }
+});
+
+test('Wetter- und Nachtvorkommen sind sauber definiert', () => {
+  const bedingt = ITEM_LIST.filter((i) => i.onlyAt);
+  assert.equal(bedingt.length, 3, 'Mondblume, Regenpilz, Nebelkristall');
+  const arten = bedingt.map((i) => i.onlyAt).sort();
+  assert.deepEqual(arten, ['fog', 'night', 'rain']);
+  for (const item of bedingt) {
+    assert.ok(item.value > 20, item.id + ' soll sich lohnen: ' + item.value);
+    assert.ok(ENTITY_DEFS[item.id], item.id + ' braucht eine Objektdefinition');
+    assert.equal(ENTITY_DEFS[item.id].category, 'forage');
+    // Kein respawn: sie kommen ueber die Bedingung zurueck, nicht ueber Tage
+    assert.equal(ENTITY_DEFS[item.id].respawn, undefined, item.id);
+  }
+});
+
+test('Die Mondlaterne braucht die bedingten Funde', () => {
+  const rec = RECIPES.find((r) => r.id === 'moonlamp');
+  assert.ok(rec, 'Rezept fehlt');
+  const zutaten = rec.cost.map((c) => c.id);
+  assert.ok(zutaten.indexOf('moonflower') >= 0, 'braucht Mondblume');
+  assert.ok(zutaten.indexOf('fogcrystal') >= 0, 'braucht Nebelkristall');
+  const lampe = getItem('moonlamp');
+  assert.ok(lampe.light > getItem('lantern').light, 'leuchtet weiter als die Laterne');
 });
