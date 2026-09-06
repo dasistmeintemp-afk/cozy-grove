@@ -45,6 +45,7 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | `1`–`5`, `Tab` | Werkzeug wählen |
 | `I` `Q` `C` `M` | Tasche · Aufgaben · Werkbank · Karte |
 | `B` | Fundbuch |
+| `G` | Erinnerungen |
 | `F` | schlafen (am Zelt) |
 | `R` / `X` | Deko versetzen / abbrechen |
 | `Esc` | Menü, Fenster schließen |
@@ -76,6 +77,12 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   hängt nur an Insel und Tagnummer – es steht fest, bevor der Tag beginnt.
 * **Fundbuch.** Alles, was je durch die Tasche ging, mit Gesamtzahl. Was noch
   fehlt, steht als Schattenriss da.
+* **Erinnerungen.** Jeder Geist hat eine Geschichte aus vier Fundstücken, die
+  sich über viele Tage aufdeckt. Ein Stück erscheint erst, wenn du ihm oft genug
+  geholfen hast, und liegt dann irgendwo in seinem Bereich. Vier Symbole
+  nebeneinander ergeben die Erinnerung – wer sie liest, liest sie selbst. Ist
+  eine Kette vollständig, schenkt der Geist sein Andenken: aufstellbare Deko,
+  die es auf keinem anderen Weg gibt.
 * **Freundschaft.** Alle drei erledigten Aufgaben steigt die Stufe bei einem
   Geist. Das bringt ein Geschenk, mehr Farbe ringsum und dauerhaft besseren
   Lohn für seine Aufgaben.
@@ -105,7 +112,7 @@ src/art/              Mal-Werkzeugkasten und alle Grafiken (im Code gemalt)
   painted*.js           Natur, Bauten, Figuren, Symbole, Boden
   sprites.js            Register: legt beim Start jede Grafik zweimal an
 src/world/            Inselgenerierung, Weltmodell, Objekte, Farbfeld
-src/game/             Spielkern, Spielfigur, Tasche, Aufgaben, Laden, Angeln …
+src/game/             Spielkern, Figur, Tasche, Aufgaben, Erinnerungen, Laden …
 src/render/           Kamera, Boden, Szenen-Renderer, Partikel, Kleintiere, Wetter
 src/ui/               HUD, Sprechblasen, modale Fenster
 tests/unit/           Node-Tests ohne Browser
@@ -140,7 +147,7 @@ rechnet das Spiel etwas gröber, statt zu ruckeln.
 ## Tests
 
 ```bash
-npm test               # 63 Tests: Welt, Wetter, Aufgaben, Tasche, Fundbuch …
+npm test               # 70 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
 npm run test:browser   # 36 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```

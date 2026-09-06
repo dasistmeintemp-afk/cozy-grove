@@ -11,7 +11,10 @@ import { ColorField } from '../../src/world/colorfield.js';
 import { makeRng, dailyRng, makeNoise2D, fbm } from '../../src/core/rng.js';
 import { SPIRITS, SPIRIT_IDS, friendshipLevel, friendshipGift } from '../../src/game/spirits.js';
 import { weatherFor, WEATHER } from '../../src/render/weather.js';
-import { getItem } from '../../src/game/items.js';
+import { getItem, ITEM_LIST } from '../../src/game/items.js';
+import {
+  StoryBook, STORIES, STAGES, QUESTS_PER_STAGE, keepsakeOf, storyIcon,
+} from '../../src/game/stories.js';
 
 const SEED = 4711;
 
@@ -522,4 +525,78 @@ test('Freundschaftsstufe steigt alle drei Aufgaben und deckelt bei 10', () => {
   assert.equal(friendshipLevel(29), 9);
   assert.equal(friendshipLevel(30), 10);
   assert.equal(friendshipLevel(300), 10);
+});
+
+test('Jeder Geist hat eine Erinnerungskette mit vier Symbolen', () => {
+  for (const id of SPIRIT_IDS) {
+    const st = STORIES[id];
+    assert.ok(st, id + ' braucht eine Kette');
+    assert.equal(st.icons.length, STAGES, id + ': vier Stufen');
+    assert.ok(keepsakeOf(id), id + ' braucht ein Andenken');
+  }
+});
+
+test('Andenken sind echte, aufstellbare Gegenstaende', () => {
+  for (const id of SPIRIT_IDS) {
+    const item = getItem(keepsakeOf(id));
+    assert.ok(item, id + ': Andenken fehlt in der Gegenstandsliste');
+    assert.ok(item.prop, id + ': Andenken muss aufstellbar sein');
+    assert.equal(item.value, 0, id + ': Andenken darf man nicht verkaufen');
+    assert.equal(item.burn, 0, id + ': Andenken darf man nicht verbrennen');
+  }
+});
+
+test('Ein Stueck erscheint erst nach genug Aufgaben, und nur eines', () => {
+  const b = new StoryBook();
+  assert.equal(b.wantsPiece('flamey', 0), false);
+  assert.equal(b.wantsPiece('flamey', QUESTS_PER_STAGE - 1), false);
+  assert.equal(b.wantsPiece('flamey', QUESTS_PER_STAGE), true);
+
+  b.markPlaced('flamey', 0);
+  assert.equal(b.wantsPiece('flamey', 99), false, 'solange eines liegt, kein zweites');
+
+  b.collect('flamey');
+  assert.equal(b.foundOf('flamey'), 1);
+  assert.equal(b.wantsPiece('flamey', QUESTS_PER_STAGE), false, 'Stufe 2 braucht mehr');
+  assert.equal(b.wantsPiece('flamey', QUESTS_PER_STAGE * 2), true);
+});
+
+test('Eine volle Kette liefert nichts mehr nach', () => {
+  const b = new StoryBook();
+  for (let k = 0; k < STAGES; k++) { b.markPlaced('mira', k); b.collect('mira'); }
+  assert.equal(b.isComplete('mira'), true);
+  assert.equal(b.foundOf('mira'), STAGES);
+  assert.equal(b.wantsPiece('mira', 999), false);
+  // Weiter einsammeln darf nicht ueber vier hinausgehen
+  b.collect('mira');
+  assert.equal(b.foundOf('mira'), STAGES);
+});
+
+test('Das Geschichtsbuch ueberlebt Speichern und Laden', () => {
+  const b = new StoryBook();
+  b.markPlaced('bruno', 0);
+  b.collect('bruno');
+  b.markPlaced('nelly', 0);
+  const back = StoryBook.fromJSON(JSON.parse(JSON.stringify(b.toJSON())));
+  assert.equal(back.foundOf('bruno'), 1);
+  assert.equal(back.placed.nelly, 0);
+  assert.equal(back.completeCount(), 0);
+});
+
+test('Beschaedigte Spielstaende brechen das Geschichtsbuch nicht', () => {
+  const back = StoryBook.fromJSON({ found: { flamey: 99, mira: -5, gibtsnicht: 3 } });
+  assert.equal(back.foundOf('flamey'), STAGES, 'auf vier gedeckelt');
+  assert.equal(back.foundOf('mira'), 0, 'nicht negativ');
+  assert.equal(back.completeCount(), 1);
+});
+
+test('Alle Symbole der Ketten verweisen auf angelegte Grafiken', () => {
+  const icons = Object.create(null);
+  for (const item of ITEM_LIST) icons[item.icon] = true;
+  for (const id of SPIRIT_IDS) {
+    for (let k = 0; k < STAGES; k++) {
+      const name = storyIcon(id, k);
+      assert.ok(name.indexOf('icon_') === 0, id + ' Stufe ' + k + ': ' + name);
+    }
+  }
 });

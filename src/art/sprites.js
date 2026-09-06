@@ -303,9 +303,12 @@ function buildIcons() {
   }
   for (let i = 0; i < MEMORY_KINDS.length; i++) {
     const target = registry['memory_' + MEMORY_KINDS[i]];
-    addArt('icon_memory_' + MEMORY_KINDS[i], iconFromArt({
+    const art = iconFromArt({
       color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
-    }), 1);
+    });
+    addArt('icon_memory_' + MEMORY_KINDS[i], art, 1);
+    // Das Andenken am Ende einer Erinnerungskette traegt dasselbe Bild
+    addArt('icon_keepsake_' + MEMORY_KINDS[i], art, 1);
   }
   const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'hand'];
   for (let i = 0; i < tools.length; i++) {

@@ -502,6 +502,18 @@ html, body {
   gap: 8px;
 }
 
+/* Erinnerungskette: vier Symbole nebeneinander, offene Stufen verschattet */
+.story-cards { display: flex; gap: 6px; margin-top: 5px; }
+.story-card {
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.04);
+}
+.story-card.unknown { opacity: 0.38; }
+.story-card .ico { width: 20px; height: 20px; }
+
 /* Noch nicht Gefundenes: als Schattenriss, damit man sieht, DASS es etwas gibt */
 .slot.unknown {
   opacity: 0.42;

@@ -18,6 +18,7 @@ const KEYMAP = {
   KeyC: 'panelCraft',
   KeyM: 'panelMap',
   KeyB: 'panelFound',
+  KeyG: 'panelStories',
   KeyF: 'sleep',
   KeyR: 'rotate',
   KeyX: 'cancelPlace',

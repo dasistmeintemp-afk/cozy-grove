@@ -3,9 +3,11 @@ import { iconUrl } from '../art/sprites.js';
 import { getItem, CAT_NAMES, CAT, ITEM_LIST } from '../game/items.js';
 import { RECIPES, missingFor, campfireLevelFor, nextCampfireLevel } from '../game/recipes.js';
 import { SPIRITS, friendshipLevel, friendshipProgress } from '../game/spirits.js';
+import { STAGES, storyIcon, keepsakeOf } from '../game/stories.js';
 import { questTitle, questIcon, QTYPE } from '../game/quests.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
 import { TILE_DEF, TILE_SIZE } from '../art/tiles.js';
+import { REGION_NAMES } from '../world/worldgen.js';
 import { escapeHtml } from './ui.js';
 
 const TITLES = {
@@ -15,6 +17,7 @@ const TITLES = {
   shop: 'Laden',
   campfire: 'Lagerfeuer',
   found: 'Fundbuch',
+  stories: 'Erinnerungen',
   map: 'Karte',
   settings: 'Einstellungen',
 };
@@ -193,6 +196,60 @@ export class Panels {
 
     html += '<p class="empty-note" style="padding-top:14px">' +
       inv.slots.length + ' / ' + inv.capacity + ' Plätze belegt</p>';
+    return html;
+  }
+
+  /* ---------------- Erinnerungen ---------------- */
+
+  /**
+   * Die Langzeitgeschichte: je Geist vier Symbole.
+   * Gefundene Stufen stehen farbig da, offene als Schattenriss – die Reihe
+   * liest sich als Erinnerung, ganz ohne Text.
+   */
+  _stories() {
+    const g = this.game;
+    const book = g.stories;
+    let html = '<p class="empty-note" style="padding-bottom:10px">' +
+      'Jeder Geist erinnert sich an vier Dinge. Hilf ihm oft genug, und das ' +
+      'naechste Stueck taucht irgendwo in seinem Bereich auf.</p>';
+
+    html += '<div class="rows">';
+    for (const id in SPIRITS) {
+      const s = SPIRITS[id];
+      const known = g.world.isUnlocked(s.region);
+      const n = book.foundOf(id);
+      const done = book.isComplete(id);
+      html += '<div class="row story-row">' + ico('icon_ghost', 'lg') +
+        '<div class="grow"><div class="title">' +
+        escapeHtml(known ? s.name : 'Noch unbekannt') + '</div>' +
+        '<div class="story-cards">';
+      for (let k = 0; k < STAGES; k++) {
+        const got = known && k < n;
+        html += '<span class="story-card' + (got ? '' : ' unknown') + '">' +
+          ico(got ? storyIcon(id, k) : 'icon_lock') + '</span>';
+      }
+      html += '</div></div>';
+      html += '<span class="row-btn ghost">' + (known ? n + '/' + STAGES : '–') + '</span>';
+      html += '</div>';
+      if (known && book.placed[id] >= 0) {
+        html += '<div class="row"><span style="width:34px"></span>' + ico('icon_sparkle', 'lg') +
+          '<div class="grow"><div class="meta"><span>Ein Stueck wartet · ' +
+          escapeHtml(REGION_NAMES[s.region]) + '</span></div></div></div>';
+      }
+      if (done) {
+        const keep = getItem(keepsakeOf(id));
+        if (keep) {
+          html += '<div class="row"><span style="width:34px"></span>' + ico(keep.icon, 'lg') +
+            '<div class="grow"><div class="meta"><span>' + escapeHtml(keep.name) +
+            ' erhalten</span></div></div></div>';
+        }
+      }
+    }
+    html += '</div>';
+
+    html += '<p class="empty-note" style="padding-top:14px">' +
+      book.completeCount() + ' von ' + Object.keys(SPIRITS).length +
+      ' Geschichten vollstaendig</p>';
     return html;
   }
 

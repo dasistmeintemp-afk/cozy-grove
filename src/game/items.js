@@ -90,6 +90,22 @@ const LIST = [
   it('path_tile', 'Steinweg', CAT.DECOR, 8, 0, { prop: 'path_tile', charm: 1, tile: true }),
   it('signpost', 'Wegweiser', CAT.DECOR, 30, 0, { prop: 'signpost', charm: 2 }),
   it('bridge_kit', 'Brueckenbausatz', CAT.DECOR, 0, 0, { special: 'bridge' }),
+
+  // Andenken – das Geschenk am Ende einer Erinnerungskette. Nicht kaeuflich,
+  // nicht herstellbar, nicht verbrennbar: der einzige Weg dahin ist die
+  // Geschichte des jeweiligen Geistes.
+  it('keepsake_locket', 'Flaemmchens Medaillon', CAT.DECOR, 0, 0,
+    { prop: 'memory_locket', charm: 10, keepsake: true }),
+  it('keepsake_ribbon', 'Miras Haarband', CAT.DECOR, 0, 0,
+    { prop: 'memory_ribbon', charm: 10, keepsake: true }),
+  it('keepsake_compass', 'Kiesels Kompass', CAT.DECOR, 0, 0,
+    { prop: 'memory_compass', charm: 10, keepsake: true }),
+  it('keepsake_photo', 'Brunos altes Foto', CAT.DECOR, 0, 0,
+    { prop: 'memory_photo', charm: 10, keepsake: true }),
+  it('keepsake_music', 'Tobis Spieldose', CAT.DECOR, 0, 0,
+    { prop: 'memory_music', charm: 10, keepsake: true }),
+  it('keepsake_teacup', 'Nellys Teetasse', CAT.DECOR, 0, 0,
+    { prop: 'memory_teacup', charm: 10, keepsake: true }),
 ];
 
 const BY_ID = Object.create(null);

@@ -17,10 +17,11 @@ import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing } from './fishing.js';
 import { SPIRITS, friendshipLevel, friendshipGift } from './spirits.js';
+import { StoryBook, STAGES, storyArt, keepsakeOf } from './stories.js';
 import { getItem, itemName, CAT } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
 import { defOf, makeEntity } from '../world/entities.js';
-import { startPosition } from '../world/worldgen.js';
+import { startPosition, REGION_NAMES } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
 import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
@@ -88,6 +89,7 @@ export class Game {
 
     this.weather.setDay(this.world.seed, this.day.day);
     this.weather.snap();
+    this._placeStoryPieces(this.day.day);
 
     this.ui = new UI(this);
     this.panels = new Panels(this);
@@ -107,6 +109,7 @@ export class Game {
     this.player = new Player(p.x, p.y);
     this.inventory = new Inventory(30);
     this.quests = new QuestBook();
+    this.stories = new StoryBook();
     this.shop = new Shop();
     this.day = new DayCycle(this.settings.dayMinutes);
     this.state = {
@@ -134,6 +137,7 @@ export class Game {
     this.player = Player.fromJSON(save.player);
     this.inventory = Inventory.fromJSON(save.inventory);
     this.quests = QuestBook.fromJSON(save.quests);
+    this.stories = StoryBook.fromJSON(save.stories);
     this.shop = Shop.fromJSON(save.shop);
     this.state = Object.assign({
       coins: 0, ember: 0, campfireFuel: 0, bagUpgrades: 0,
@@ -171,6 +175,7 @@ export class Game {
       player: this.player.toJSON(),
       inventory: this.inventory.toJSON(),
       quests: this.quests.toJSON(),
+      stories: this.stories.toJSON(),
       shop: this.shop.toJSON(),
       color: this.colorField.toJSON(),
       state: this.state,
@@ -194,6 +199,7 @@ export class Game {
         added.push({
           id: e.id, k: e.kind, x: Math.round(e.x), y: Math.round(e.y),
           s: e.sprite, item: e.itemId || null, q: e.questId || null, flat: !!e.flat,
+          sp: e.storySpirit || null, st: e.storyStage != null ? e.storyStage : null,
         });
       } else if (e.gone || e.origin || (e.hp != null && defOf(e.kind) && defOf(e.kind).hits && e.hp < defOf(e.kind).hits)) {
         changed.push({ id: e.id, k: e.kind, g: e.gone ? 1 : 0, o: e.origin || null, r: e.respawnDay || 0, hp: e.hp });
@@ -247,6 +253,7 @@ export class Game {
         const a = delta.added[i];
         const e = makeEntity(a.k, a.x, a.y, {
           itemId: a.item, questId: a.q, flat: a.flat, zBias: a.k === 'hidden' ? 2 : 0,
+          storySpirit: a.sp || null, storyStage: a.st != null ? a.st : null,
         });
         e.id = a.id;
         e.sprite = a.s;
@@ -349,6 +356,7 @@ export class Game {
     if (inp.pressed('panelCraft')) this.openPanel('craft');
     if (inp.pressed('panelMap')) this.openPanel('map');
     if (inp.pressed('panelFound')) this.openPanel('found');
+    if (inp.pressed('panelStories')) this.openPanel('stories');
     if (inp.pressed('cancel')) {
       if (this.panels.isOpen()) this.panels.close();
       else if (this.placing) this.cancelPlacing();
@@ -513,6 +521,7 @@ export class Game {
   }
 
   pickHidden(e) {
+    if (e.storySpirit) { this._pickStoryPiece(e); return; }
     const q = e.questId ? this.quests.byId(e.questId) : null;
     this.world.remove(e);
     this.particles.burst('sparkle', e.x, e.y - 32, 10);
@@ -525,6 +534,99 @@ export class Game {
       this.ui.toast('Etwas Altes gefunden', 'icon_sparkle', 'good');
     }
     this.ui.refreshQuests();
+  }
+
+  /**
+   * Ein Stueck einer Erinnerungskette aufheben.
+   *
+   * Es geht bewusst NICHT in die Tasche: Erinnerungen soll man nicht mit sich
+   * herumtragen oder gar verbrennen koennen. Aufheben schaltet die Stufe
+   * direkt weiter.
+   */
+  _pickStoryPiece(e) {
+    const spiritId = e.storySpirit;
+    this.world.remove(e);
+    this.particles.burst('sparkle', e.x, e.y - 32, 16);
+    this.particles.burst('color', e.x, e.y - 40, 14);
+    this.audio.play('questDone');
+    this.camera.kick(0.2);
+
+    const n = this.stories.collect(spiritId);
+    const spirit = SPIRITS[spiritId];
+    this.ui.toast(spirit.name + ' · Erinnerung ' + n + '/' + STAGES, 'icon_sparkle', 'good');
+
+    // Farbe blueht um den Geist auf, auch ohne Aufgabe
+    const key = 'spirit_' + spiritId;
+    const ent = this.world.spiritEntity(spiritId);
+    if (ent) {
+      if (!this.colorField.find(key)) this.colorField.addSource(ent.x, ent.y, 160, key);
+      else this.colorField.grow(key, 90);
+      this.colorField.markDirty();
+    }
+
+    if (this.stories.isComplete(spiritId)) this._finishStory(spiritId, ent);
+    this.ui.refreshHud();
+    this.save();
+  }
+
+  /** Kette vollstaendig: das Andenken wird ueberreicht. */
+  _finishStory(spiritId, ent) {
+    const spirit = SPIRITS[spiritId];
+    const keep = keepsakeOf(spiritId);
+    const self = this;
+    if (keep) this.inventory.add(keep, 1);
+    if (ent) {
+      this.colorField.grow('spirit_' + spiritId, 300);
+      this.colorField.markDirty();
+      this.particles.burst('heart', ent.x, ent.y - 90, 8);
+    }
+    this.audio.play('levelup');
+    setTimeout(function () {
+      self.ui.toast(spirit.name + ' · Geschichte vollstaendig', 'icon_star', 'good');
+      if (keep) self.ui.toast(itemName(keep) + ' erhalten', getItem(keep).icon, 'good');
+    }, 900);
+  }
+
+  /**
+   * Legt faellige Geschichtsstuecke in die Welt.
+   *
+   * Immer nur eines je Geist, und erst wenn genug Aufgaben fuer ihn erledigt
+   * sind. So zieht sich eine Kette ueber viele Tage, statt an einem Abend
+   * abgehakt zu sein.
+   */
+  _placeStoryPieces(day) {
+    const rng = dailyRng(this.world.seed, day, 'story');
+    const placed = [];
+    for (const id in SPIRITS) {
+      const done = this.quests.completedBySpirit[id] || 0;
+      if (!this.stories.wantsPiece(id, done)) continue;
+      const spirit = SPIRITS[id];
+      if (!this.world.isUnlocked(spirit.region)) continue;
+      const ent = this.world.spiritEntity(id);
+      const spot = this.world.randomSpot(rng, spirit.region,
+        ent ? { x: ent.x, y: ent.y, r: 420 } : null);
+      if (!spot) continue;
+      const stage = this.stories.foundOf(id);
+      const e = makeEntity('hidden', spot.x, spot.y, {
+        storySpirit: id, storyStage: stage, zBias: 2,
+      });
+      e.sprite = storyArt(id);
+      this.world.add(e);
+      this.stories.markPlaced(id, stage);
+      placed.push(spirit);
+    }
+    // Ein Hinweis, aber kein Wegweiser: die Insel hat 96 mal 96 Kacheln, ohne
+    // den Bereich waere das Suchen Zufall statt Erkundung.
+    if (placed.length && this.ui) {
+      const self = this;
+      const list = placed.slice();
+      setTimeout(function () {
+        for (let i = 0; i < list.length; i++) {
+          self.ui.toast(list[i].name + ' erinnert sich an etwas · ' +
+            REGION_NAMES[list[i].region], 'icon_sparkle');
+        }
+      }, 2000);
+    }
   }
 
   pickDecor(e) {
@@ -969,6 +1071,7 @@ export class Game {
     this.particles.clear();
     this.wildlife.clear();
     this._jitterSpirits(day);
+    this._placeStoryPieces(day);
     this.weather.setDay(this.world.seed, day);
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
