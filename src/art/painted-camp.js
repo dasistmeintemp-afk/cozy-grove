@@ -15,6 +15,36 @@ function quad(a, b, c, d, smooth) {
 }
 
 /**
+ * Rechteckige Flaeche, die rechteckig bleibt.
+ *
+ * Vier Punkte durch eine Catmull-Rom-Kurve ergeben immer einen Laib – fuer
+ * Bretter, Theken und Pfosten ist das falsch. Mit Stuetzpunkten auf den Kanten
+ * bleibt die Kurve dicht an der Geraden, und nur die Ecken werden weich. Ein
+ * kleiner Versatz je Punkt haelt das Ganze handgemalt statt technisch.
+ */
+function slab(x0, y0, x1, y1, seed, wob) {
+  const rng = makeRng((seed || 1) >>> 0);
+  const j = wob == null ? 1.6 : wob;
+  const nx = Math.max(3, Math.round(Math.abs(x1 - x0) / 26));
+  const ny = Math.max(2, Math.round(Math.abs(y1 - y0) / 26));
+  const pts = [];
+  function edge(ax, ay, bx, by, n) {
+    for (let i = 0; i < n; i++) {
+      const t = i / n;
+      pts.push([
+        ax + (bx - ax) * t + (rng() - 0.5) * j,
+        ay + (by - ay) * t + (rng() - 0.5) * j,
+      ]);
+    }
+  }
+  edge(x0, y0, x1, y0, nx);
+  edge(x1, y0, x1, y1, ny);
+  edge(x1, y1, x0, y1, nx);
+  edge(x0, y1, x0, y0, ny);
+  return smoothClosed(pts, 2);
+}
+
+/**
  * Seli – die Spielfigur. Blond, warme Erdtöne, ein Tupfen Türkis,
  * damit sie sich vom gelbgrünen Boden abhebt.
  */
@@ -185,18 +215,34 @@ export function paintStall(opts) {
   const cx = w / 2;
   const baseY = h - 14;
 
-  const counter = quad([cx - 128, baseY - 62], [cx + 128, baseY - 62], [cx + 122, baseY - 6], [cx - 122, baseY - 6]);
-  const postL = quad([cx - 130, baseY - 60], [cx - 116, baseY - 60], [cx - 116, 84], [cx - 130, 84]);
-  const postR = quad([cx + 116, baseY - 60], [cx + 130, baseY - 60], [cx + 130, 84], [cx + 116, 84]);
+  // Theke aus zwei Flaechen: eine Platte, auf die man von schraeg oben sieht,
+  // und die Front darunter. Als einzelner abgerundeter Kasten las sich das
+  // Ganze wie ein Brotlaib.
+  const topY = baseY - 66;
+  const frontY = baseY - 48;
+  const plate = smoothClosed([
+    [cx - 130, frontY + 2], [cx - 124, topY + 3], [cx - 60, topY],
+    [cx + 60, topY], [cx + 124, topY + 3], [cx + 130, frontY + 2],
+    [cx + 100, frontY + 9], [cx, frontY + 11], [cx - 100, frontY + 9],
+  ], 3);
+  const counter = slab(cx - 126, frontY - 2, cx + 126, baseY - 8, seed + 90, 2.2);
+  const postL = slab(cx - 132, frontY, cx - 114, 84, seed + 91, 1.4);
+  const postR = slab(cx + 114, frontY, cx + 132, 84, seed + 92, 1.4);
+  // Gewoelbtes Dach statt einer duennen Linse: oben in der Mitte am hoechsten,
+  // die Unterkante haengt leicht durch – so liest es sich als Markise, und die
+  // Streifen haben Platz.
   const roof = smoothClosed([
-    [cx - 152, 86], [cx - 140, 46], [cx + 140, 46], [cx + 152, 86],
-  ], 5);
+    [cx - 156, 94], [cx - 148, 54], [cx - 70, 40], [cx, 36], [cx + 70, 40],
+    [cx + 148, 54], [cx + 156, 94],
+    [cx + 80, 86], [cx, 82], [cx - 80, 86],
+  ], 4);
   // Die Zacken hängen an der Dachkante, sonst schweben sie wie eine Girlande
   const scallops = [];
   for (let i = 0; i < 8; i++) {
     const x = cx - 152 + i * 38 + 19;
+    const hang = 84 + Math.abs(x - cx) * 0.05;
     scallops.push(smoothClosed([
-      [x - 19, 78], [x + 19, 78], [x + 12, 104], [x, 110], [x - 12, 104],
+      [x - 19, hang - 6], [x + 19, hang - 6], [x + 12, hang + 20], [x, hang + 26], [x - 12, hang + 20],
     ], 6));
   }
 
@@ -207,9 +253,14 @@ export function paintStall(opts) {
     shadow: function (g) { groundShadow(g, cx, baseY - 3, 140, 20, seed, 0.16); },
     wash: function (g) {
       wash(g, postL, ink.wood, { seed: seed + 20 });
+      wash(g, offsetShape(postL, 6, 0, 0.5), ink.woodDark, { seed: seed + 25, alpha: 0.55 });
       wash(g, postR, ink.wood, { seed: seed + 21 });
-      wash(g, counter, ink.wood, { seed: seed + 22, scale: 1.03 });
-      wash(g, offsetShape(counter, 0, 22, 0.9), ink.woodDark, { seed: seed + 23, alpha: 0.6 });
+      wash(g, offsetShape(postR, 6, 0, 0.5), ink.woodDark, { seed: seed + 26, alpha: 0.55 });
+      // Front dunkler als die Platte – daher kommt die Tiefe
+      wash(g, counter, ink.woodDark, { seed: seed + 22, scale: 1.03 });
+      wash(g, offsetShape(counter, 0, 26, 0.92), '#9c7d4e', { seed: seed + 23, alpha: 0.55 });
+      wash(g, plate, '#e8cb9c', { seed: seed + 27, scale: 1.02 });
+      wash(g, offsetShape(plate, 0, 7, 0.96), ink.wood, { seed: seed + 28, alpha: 0.5 });
       wash(g, roof, '#f3ece0', { seed: seed + 24 });
       // Streifen laufen über das ganze Dach durch, nicht nur über die Zacken –
       // erst dadurch liest sich das Dach als Markise.
@@ -221,34 +272,57 @@ export function paintStall(opts) {
         const x = cx - 152 + i * 38;
         g.globalAlpha = 0.9;
         g.fillStyle = ink.berry;
-        pathFrom(g, [[x, 40], [x + 38, 40], [x + 38, 112], [x, 112]], true);
+        pathFrom(g, [[x, 30], [x + 38, 30], [x + 38, 118], [x, 118]], true);
         g.fill();
       }
       g.restore();
       for (let i = 0; i < scallops.length; i++) {
         wash(g, scallops[i], i % 2 ? '#f5eee2' : ink.berry, { seed: seed + 30 + i });
       }
-      // Ware auf der Theke
-      dot(g, null, cx - 76, baseY - 74, 15, ink.petalYellow, seed + 60);
-      dot(g, null, cx - 40, baseY - 72, 13, ink.leaf, seed + 61);
-      dot(g, null, cx + 52, baseY - 74, 14, ink.berry, seed + 62);
-      dot(g, null, cx + 84, baseY - 70, 11, ink.petalViolet, seed + 63);
+      // Ware liegt auf der Platte und wirft dort einen kleinen Schatten
+      const goods = [
+        [cx - 78, topY - 12, 17, ink.petalYellow, 60],
+        [cx - 40, topY - 9, 14, ink.leaf, 61],
+        [cx + 50, topY - 12, 16, ink.berry, 62],
+        [cx + 84, topY - 8, 12, ink.petalViolet, 63],
+      ];
+      g.save();
+      g.globalAlpha = 0.22;
+      g.fillStyle = '#6f5b3c';
+      for (let i = 0; i < goods.length; i++) {
+        const q = goods[i];
+        fill(g, smoothClosed(blob(q[0] + 6, q[1] + q[2] * 0.75, q[2] * 0.9, q[2] * 0.34,
+          seed + 200 + i, 0.14, 12), 4));
+      }
+      g.restore();
+      for (let i = 0; i < goods.length; i++) {
+        const q = goods[i];
+        dot(g, null, q[0], q[1], q[2], q[3], seed + q[4]);
+      }
     },
     shape: function (g) {
-      fill(g, postL); fill(g, postR); fill(g, counter); fill(g, roof);
+      fill(g, postL); fill(g, postR); fill(g, counter); fill(g, plate); fill(g, roof);
       for (let i = 0; i < scallops.length; i++) fill(g, scallops[i]);
     },
     ink: function (g) {
       for (let i = 0; i < scallops.length; i++) {
         inkStroke(g, scallops[i], { width: 1.8, vary: 0.3, seed: seed + 70 + i, color: ink.line, alpha: 0.5 });
       }
-      inkLine(g, cx - 150, 78, cx + 150, 78, { width: 2.4, bend: 0.01, seed: seed + 78, alpha: 0.8 });
-      inkStroke(g, counter, { width: 2.4, vary: 0.3, seed: seed + 80, color: ink.line, alpha: 0.75 });
-      inkLine(g, cx - 118, baseY - 34, cx + 118, baseY - 34, { width: 1.8, bend: 0.02, seed: seed + 81, alpha: 0.45 });
-      dot(null, g, cx - 76, baseY - 74, 15, ink.petalYellow, seed + 60);
-      dot(null, g, cx - 40, baseY - 72, 13, ink.leaf, seed + 61);
-      dot(null, g, cx + 52, baseY - 74, 14, ink.berry, seed + 62);
-      dot(null, g, cx + 84, baseY - 70, 11, ink.petalViolet, seed + 63);
+      inkLine(g, cx - 152, 88, cx + 152, 88, { width: 2.4, bend: -0.03, seed: seed + 78, alpha: 0.75 });
+      // Vorderkante der Platte – die Linie macht aus zwei Flaechen eine Theke
+      inkLine(g, cx - 126, frontY + 2, cx + 126, frontY + 2,
+        { width: 2.4, bend: 0.01, seed: seed + 80, alpha: 0.7 });
+      // Bretter der Front
+      for (let i = 1; i < 6; i++) {
+        const x = cx - 122 + i * 41;
+        inkLine(g, x, frontY + 6, x - 2, baseY - 10,
+          { width: 1.5, bend: 0.01, seed: seed + 84 + i, alpha: 0.32 });
+      }
+      inkLine(g, cx - 118, baseY - 22, cx + 118, baseY - 22, { width: 1.8, bend: 0.02, seed: seed + 81, alpha: 0.4 });
+      dot(null, g, cx - 78, baseY - 78, 17, ink.petalYellow, seed + 60);
+      dot(null, g, cx - 40, baseY - 75, 14, ink.leaf, seed + 61);
+      dot(null, g, cx + 50, baseY - 78, 16, ink.berry, seed + 62);
+      dot(null, g, cx + 84, baseY - 74, 12, ink.petalViolet, seed + 63);
     },
   });
   return made(res, w, h, cx, baseY);
@@ -262,10 +336,19 @@ export function paintWorkbench(opts) {
   const cx = w / 2;
   const baseY = h - 12;
 
-  const top = quad([cx - 96, baseY - 76], [cx + 96, baseY - 76], [cx + 92, baseY - 54], [cx - 92, baseY - 54]);
-  const legL = quad([cx - 84, baseY - 54], [cx - 66, baseY - 54], [cx - 62, baseY - 4], [cx - 80, baseY - 4]);
-  const legR = quad([cx + 66, baseY - 54], [cx + 84, baseY - 54], [cx + 80, baseY - 4], [cx + 62, baseY - 4]);
-  const vice = quad([cx + 40, baseY - 96], [cx + 76, baseY - 96], [cx + 76, baseY - 76], [cx + 40, baseY - 76]);
+  // Platte in zwei Flaechen: die Oberseite, auf die man schaut, und die
+  // Vorderkante darunter. Als eine gewoelbte Flaeche sah der Tisch aus wie ein
+  // Brett auf zwei Wuersten.
+  const plateY = baseY - 82;
+  const edgeY = baseY - 62;
+  const plate = smoothClosed([
+    [cx - 98, edgeY], [cx - 92, plateY + 3], [cx, plateY], [cx + 92, plateY + 3],
+    [cx + 98, edgeY], [cx + 60, edgeY + 6], [cx - 60, edgeY + 6],
+  ], 3);
+  const top = slab(cx - 98, edgeY - 2, cx + 98, baseY - 50, seed + 60, 1.8);
+  const legL = slab(cx - 84, baseY - 52, cx - 64, baseY - 4, seed + 61, 1.4);
+  const legR = slab(cx + 64, baseY - 52, cx + 84, baseY - 4, seed + 62, 1.4);
+  const vice = slab(cx + 40, baseY - 102, cx + 76, baseY - 82, seed + 63, 1.2);
   const sawBlade = smoothClosed([[cx - 84, baseY - 82], [cx - 26, baseY - 100], [cx - 20, baseY - 90], [cx - 80, baseY - 76]], 4);
 
   const res = paintObject(w, h, {
@@ -275,17 +358,31 @@ export function paintWorkbench(opts) {
     shadow: function (g) { groundShadow(g, cx, baseY - 3, 96, 15, seed, 0.15); },
     wash: function (g) {
       wash(g, legL, ink.woodDark, { seed: seed + 2 });
+      wash(g, offsetShape(legL, 7, 0, 0.5), '#95764a', { seed: seed + 8, alpha: 0.55 });
       wash(g, legR, ink.woodDark, { seed: seed + 3 });
-      wash(g, top, ink.wood, { seed: seed + 4, scale: 1.03 });
-      wash(g, offsetShape(top, 0, 8, 0.94), ink.woodDark, { seed: seed + 5, alpha: 0.55 });
+      wash(g, offsetShape(legR, 7, 0, 0.5), '#95764a', { seed: seed + 9, alpha: 0.55 });
+      wash(g, top, ink.woodDark, { seed: seed + 4, scale: 1.03 });
+      wash(g, plate, '#e3c692', { seed: seed + 5, scale: 1.02 });
+      wash(g, offsetShape(plate, 0, 6, 0.96), ink.wood, { seed: seed + 15, alpha: 0.5 });
       wash(g, vice, ink.iron, { seed: seed + 6 });
+      wash(g, offsetShape(vice, 6, 4, 0.6), ink.ironDark, { seed: seed + 16, alpha: 0.6 });
       wash(g, sawBlade, '#dfe4e8', { seed: seed + 7 });
     },
-    shape: function (g) { fill(g, legL); fill(g, legR); fill(g, top); fill(g, vice); fill(g, sawBlade); },
+    shape: function (g) {
+      fill(g, legL); fill(g, legR); fill(g, top); fill(g, plate); fill(g, vice); fill(g, sawBlade);
+    },
     ink: function (g) {
-      inkStroke(g, top, { width: 2.4, vary: 0.3, seed: seed + 10, color: ink.line, alpha: 0.7 });
+      // Vorderkante der Platte
+      inkLine(g, cx - 96, edgeY + 1, cx + 96, edgeY + 1,
+        { width: 2.3, bend: 0.01, seed: seed + 10, alpha: 0.7 });
       inkStroke(g, vice, { width: 2.0, vary: 0.3, seed: seed + 11, color: ink.line, alpha: 0.7 });
-      inkLine(g, cx - 80, baseY - 66, cx + 80, baseY - 66, { width: 1.5, bend: 0.02, seed: seed + 12, alpha: 0.4 });
+      // Bretter der Platte
+      for (let i = 1; i < 4; i++) {
+        const x = cx - 98 + i * 49;
+        inkLine(g, x, plateY + 3, x, edgeY - 1,
+          { width: 1.4, bend: 0, seed: seed + 30 + i, alpha: 0.32 });
+      }
+      inkLine(g, cx - 80, baseY - 54, cx + 80, baseY - 54, { width: 1.5, bend: 0.02, seed: seed + 12, alpha: 0.35 });
       // Sägezähne
       for (let i = 0; i < 8; i++) {
         const t = i / 8;
