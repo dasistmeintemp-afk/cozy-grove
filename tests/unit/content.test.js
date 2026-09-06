@@ -13,6 +13,7 @@ import { TOOLS } from '../../src/game/player.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, campfireLevelFor, nextCampfireLevel, missingFor, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
 import { SPIRITS, SPIRIT_IDS, friendshipLevel } from '../../src/game/spirits.js';
+import { STORIES, STAGES, storyLine, storyClose, storyIntro } from '../../src/game/stories.js';
 import { Inventory } from '../../src/game/inventory.js';
 import { TILE_SIZE, TILE_DEF, T, isWalkable } from '../../src/art/tiles.js';
 import { INK } from '../../src/art/painted.js';
@@ -267,4 +268,32 @@ test('Jedes Werkzeug hat Name, Symbol, Grafik und Taste', () => {
     assert.ok(!tasten[tool.key], 'Taste ' + tool.key + ' doppelt vergeben');
     tasten[tool.key] = true;
   }
+});
+
+
+test('Jeder Geist hat eine Geschichte: Vorstellung, vier Sätze, Abschluss', () => {
+  for (const id of Object.keys(STORIES)) {
+    assert.ok(storyIntro(id), id + ' braucht eine Vorstellung');
+    assert.ok(storyClose(id), id + ' braucht einen Abschluss');
+    for (let stufe = 0; stufe < STAGES; stufe++) {
+      const zeile = storyLine(id, stufe);
+      assert.ok(zeile, id + ' Stufe ' + stufe + ' braucht einen Satz');
+      // Kurz halten war die ganze Idee des Spiels. Eine Sprechblase, die
+      // länger ist als das hier, liest niemand mehr im Vorbeigehen.
+      assert.ok(zeile.length <= 90, id + ' Stufe ' + stufe + ': zu lang (' + zeile.length + ')');
+    }
+    assert.equal(storyLine(id, STAGES), null, id + ': keine Stufe über das Ende hinaus');
+    assert.equal(storyLine(id, -1), null, id + ': keine negative Stufe');
+  }
+  assert.equal(storyIntro('gibtesnicht'), null);
+  assert.equal(storyLine('gibtesnicht', 0), null);
+});
+
+test('Die Sätze sind alle verschieden', () => {
+  const alle = [];
+  for (const id of Object.keys(STORIES)) {
+    alle.push(storyIntro(id), storyClose(id));
+    for (let s = 0; s < STAGES; s++) alle.push(storyLine(id, s));
+  }
+  assert.equal(new Set(alle).size, alle.length, 'kein Satz darf doppelt vorkommen');
 });

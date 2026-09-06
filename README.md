@@ -4,8 +4,11 @@ Ein gemütliches Insel-Sammelspiel im Browser. Die Insel hat ihre Farben verlore
 **Seli** bringt sie zurück, indem sie sammelt, angelt, baut – und den Geistern hilft.
 
 **Die Änderung gegenüber dem Vorbild: fast keine Dialoge.** Was ein Geist möchte,
-zeigt eine Karte aus Symbolen. Gesprochen wird höchstens ein kurzer Satz, und der
-lässt sich in den Einstellungen komplett abschalten („Nur Symbole“).
+zeigt eine Karte aus Symbolen – kein Dialogbaum, kein Textblock. Gesprochen wird
+nur, wo es etwas zu erzählen gibt: ein Satz zur Vorstellung, ein Satz je
+Erinnerungsstück. Sechs Geister, je sechs Sätze; zusammen ergeben sie eine
+kleine Biografie. Alles davon lässt sich in den Einstellungen abschalten
+(„Nur Symbole“).
 
 Die Grafik ist **Tusche und Aquarell**, kein Pixelbrei – und sie entsteht
 komplett im Browser: wackelige Tuschelinien, Farbflächen, die absichtlich ein
@@ -130,10 +133,12 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   fehlt, steht als Schattenriss da.
 * **Erinnerungen.** Jeder Geist hat eine Geschichte aus vier Fundstücken, die
   sich über viele Tage aufdeckt. Ein Stück erscheint erst, wenn du ihm oft genug
-  geholfen hast, und liegt dann irgendwo in seinem Bereich. Vier Symbole
-  nebeneinander ergeben die Erinnerung – wer sie liest, liest sie selbst. Ist
-  eine Kette vollständig, schenkt der Geist sein Andenken: aufstellbare Deko,
-  die es auf keinem anderen Weg gibt.
+  geholfen hast, und liegt dann irgendwo in seinem Bereich. Zu jedem gehört
+  **ein Satz**, den er am Fundort sagt; im Fundbuch der Erinnerungen stehen sie
+  untereinander und lassen sich in Ruhe nachlesen. Käpt'n Kiesel war vierzig
+  Jahre auf See und ist nie angekommen; Mira hat Kräuter gesammelt, bis keine
+  Kinder mehr kamen. Ist eine Kette vollständig, schenkt der Geist sein
+  Andenken: aufstellbare Deko, die es auf keinem anderen Weg gibt.
 * **Freundschaft.** Alle drei erledigten Aufgaben steigt die Stufe bei einem
   Geist. Das bringt ein Geschenk, mehr Farbe ringsum und dauerhaft besseren
   Lohn für seine Aufgaben.
@@ -235,8 +240,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 89 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
-npm run test:browser   # 39 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 91 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
+npm run test:browser   # 40 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 
@@ -278,6 +283,13 @@ einen Speicher im Arbeitsspeicher zurück – die Einstellungen weisen darauf hi
   einen Ordner, der mitwandert, wandert der Spielstand mit. Braucht die File
   System Access API – heute Chrome und Edge, nicht Safari und Firefox; wo sie
   fehlt, erscheint der Abschnitt gar nicht erst.
+
+  Die **Verknüpfung bleibt gemerkt**, die Erlaubnis dazu nicht: Über `file://`
+  vergisst der Browser sie beim Schließen, aus Sicherheitsgründen. Damit das
+  nicht wie ein Datenverlust aussieht, steht die gemerkte Datei beim nächsten
+  Start mit einem Knopf „Bestätigen“ in den Einstellungen, und eine kurze
+  Meldung weist darauf hin. Ein Klick, dann läuft es weiter wie gehabt –
+  einrichten muss man nichts noch einmal.
 
 Was ein Browser **nicht** darf, ist ungefragt auf die Festplatte schreiben.
 Die erste Wahl der Datei ist deshalb immer ein Klick des Menschen; alles

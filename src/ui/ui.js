@@ -202,13 +202,16 @@ export class UI {
   /* ---------- Sprechblasen ---------- */
 
   /**
-   * Kurze Blase über einer Weltposition.
-   * Absichtlich knapp: ein paar Wörter oder nur Symbole.
+   * Blase über einer Weltposition.
+   *
+   * Im Alltag knapp: ein paar Wörter oder nur Symbole. Für die Sätze aus den
+   * Erinnerungen gibt es `wrap` – die sind ein ganzer Satz und liefen sonst
+   * als eine einzige Zeile aus dem Bild hinaus.
    */
-  bubble(x, y, text, icons, duration) {
+  bubble(x, y, text, icons, duration, wrap) {
     if (this.game.settings.talk === 'off' && !icons) return null;
     const el = document.createElement('div');
-    el.className = 'bubble';
+    el.className = wrap ? 'bubble wrap' : 'bubble';
     let html = '';
     if (icons) {
       for (let i = 0; i < icons.length; i++) {

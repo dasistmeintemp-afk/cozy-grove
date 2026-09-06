@@ -82,6 +82,12 @@ async function run() {
       'flower_yellow', 'flower_white', 'bone', 'shard', 'bottle', 'gem',
       'fish_sardine', 'fish_cod', 'fish_trout', 'lantern', 'bench', 'fence'];
     for (const id of ids) g.inventory.add(id, 4);
+    // Etwas Geschichte aufdecken, sonst zeigt das Erinnerungsfenster nur Schlösser
+    for (const [geist, n] of [['mira', 4], ['flamey', 2], ['kiesel', 1]]) {
+      for (let i = 0; i < n; i++) g.stories.collect(geist);
+      g.state.met = g.state.met || {};
+      g.state.met[geist] = 1;
+    }
     g.state.coins = 480;
     g.state.ember = 220;
     if (!pale) {

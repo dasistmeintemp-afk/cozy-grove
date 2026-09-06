@@ -302,17 +302,26 @@ async function run() {
       const e = g.world.spiritEntity(q.spirit);
       const coinsBefore = g.state.coins;
       const covBefore = g.colorField.coverage(g.world);
+
+      // Beim ersten Mal stellt sich der Geist vor – das ist Absicht: erst
+      // wissen, wer da steht, dann Geschäfte machen. Also zwei Ansprachen,
+      // und die erste darf noch nichts auszahlen.
+      g.talkTo(e);
+      const coinsNachVorstellung = g.state.coins;
       g.talkTo(e);
       for (let i = 0; i < 400; i++) g.colorField.update(0.05);
       return {
         ok: true,
         coinsBefore,
+        coinsNachVorstellung,
         coinsAfter: g.state.coins,
         covBefore,
         covAfter: g.colorField.coverage(g.world),
         done: g.quests.totalCompleted,
       };
     });
+    check('Erstes Treffen stellt vor, statt gleich abzurechnen',
+      quest.coinsNachVorstellung === quest.coinsBefore, JSON.stringify(quest));
     check('Aufgabe abgeben zahlt Münzen', quest.ok && quest.coinsAfter > quest.coinsBefore, JSON.stringify(quest));
     check('Abgabe bringt Farbe zurück', quest.ok && quest.covAfter > quest.covBefore,
       JSON.stringify({ vorher: quest.covBefore, nachher: quest.covAfter }));

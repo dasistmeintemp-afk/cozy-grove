@@ -17,7 +17,7 @@ import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing } from './fishing.js';
 import { SPIRITS, friendshipLevel, friendshipGift } from './spirits.js';
-import { StoryBook, STAGES, storyArt, keepsakeOf } from './stories.js';
+import { StoryBook, STAGES, storyArt, keepsakeOf, storyLine, storyClose, storyIntro } from './stories.js';
 import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
 import { getItem, itemName, CAT, CONDITIONAL } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
@@ -106,9 +106,17 @@ export class Game {
     this.syncCosiness(true);
     this.ui.refreshHud();
     this.ui.refreshQuests();
-    // Eine früher gewählte Datei zurückholen, falls die Erlaubnis noch steht.
-    // Still: klappt es nicht, bleibt es beim Browserspeicher.
-    savefile.restoreLink();
+    // Eine früher gewählte Datei zurückholen. Steht die Erlaubnis nicht mehr
+    // (über `file://` überlebt sie das Schließen nicht), einmal daran
+    // erinnern – sonst merkt niemand, dass sein eingerichtetes Speichern
+    // gerade nicht greift, und wundert sich später über einen alten Stand.
+    const self3 = this;
+    savefile.restoreLink().then(function (name) {
+      if (name || !savefile.pendingLinkName()) return;
+      setTimeout(function () {
+        self3.ui.toast('Speicherdatei bestätigen · Einstellungen', 'icon_star');
+      }, 2600);
+    });
     return this;
   }
 
@@ -620,6 +628,13 @@ export class Game {
     const spirit = SPIRITS[spiritId];
     this.ui.toast(spirit.name + ' · Erinnerung ' + n + '/' + STAGES, 'icon_sparkle', 'good');
 
+    // Der Satz zum Stück – direkt am Fundort, nicht erst beim Geist. Das ist
+    // der Moment, in dem man das Ding in der Hand hat.
+    const satz = storyLine(spiritId, n - 1);
+    if (satz && this.settings.talk !== 'off') {
+      this.ui.bubble(e.x, e.y - 120, satz, [{ icon: 'icon_ghost' }], 5.5, true);
+    }
+
     // Farbe blüht um den Geist auf, auch ohne Aufgabe
     const key = 'spirit_' + spiritId;
     const ent = this.world.spiritEntity(spiritId);
@@ -646,9 +661,13 @@ export class Game {
       this.particles.burst('heart', ent.x, ent.y - 90, 8);
     }
     this.audio.play('levelup');
+    const schluss = storyClose(spiritId);
     setTimeout(function () {
       self.ui.toast(spirit.name + ' · Geschichte ganz', 'icon_star', 'good');
       if (keep) self.ui.toast(itemName(keep) + ' erhalten', getItem(keep).icon, 'good');
+      if (ent && schluss && self.settings.talk !== 'off') {
+        self.ui.bubble(ent.x, ent.y - 190, schluss, [{ icon: 'icon_heart' }], 6, true);
+      }
     }, 900);
   }
 
@@ -896,6 +915,24 @@ export class Game {
   talkTo(e) {
     const spirit = SPIRITS[e.spiritId];
     if (!spirit) return;
+
+    // Einmal je Geist: wer er war. Ohne das bleiben sechs Fellknäuel mit
+    // Symbolkarten – man weiß, was sie wollen, aber nicht, warum sie hier
+    // sind. Der Satz kommt genau einmal und steht danach im Fundbuch der
+    // Erinnerungen zum Nachlesen.
+    if (!this.state.met) this.state.met = {};
+    if (!this.state.met[e.spiritId]) {
+      this.state.met[e.spiritId] = 1;
+      const intro = storyIntro(e.spiritId);
+      if (intro && this.settings.talk !== 'off') {
+        this.ui.bubble(e.x, e.y - 190, intro, [{ icon: 'icon_ghost' }], 5.5, true);
+        this.audio.play('ghost');
+        this.save();
+        return;
+      }
+      this.save();
+    }
+
     const open = this.quests.openForSpirit(e.spiritId);
     const ready = open.filter((q) => this.quests.isReady(q, this));
 

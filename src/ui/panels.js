@@ -3,9 +3,9 @@ import { iconUrl } from '../art/sprites.js';
 import { getItem, CAT_NAMES, CAT, ITEM_LIST } from '../game/items.js';
 import { RECIPES, missingFor, campfireLevelFor, nextCampfireLevel } from '../game/recipes.js';
 import { SPIRITS, friendshipLevel, friendshipProgress } from '../game/spirits.js';
-import { STAGES, storyIcon, keepsakeOf } from '../game/stories.js';
+import { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } from '../game/stories.js';
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
-import { canLink, linkedName, linkNew, linkExisting, unlink, openFile, suggestName } from '../core/savefile.js';
+import { canLink, linkedName, pendingLinkName, requestLinkPermission, linkNew, linkExisting, unlink, openFile, suggestName } from '../core/savefile.js';
 import { questTitle, questIcon, QTYPE } from '../game/quests.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
 import { TILE_DEF, TILE_SIZE } from '../art/tiles.js';
@@ -161,6 +161,16 @@ export class Panels {
       case 'saveUnlink':
         unlink().then(function () { self2.render(); });
         break;
+      case 'saveRelink':
+        // Muss aus dem Klick heraus laufen: Erlaubnis gibt es nur mit Geste.
+        requestLinkPermission().then(function (name) {
+          self2.render();
+          if (name) {
+            g.save();
+            g.ui.toast('Schreibt wieder in ' + name, 'icon_star', 'good');
+          }
+        });
+        break;
       case 'close':
         this.close();
         break;
@@ -238,7 +248,7 @@ export class Panels {
     const book = g.stories;
     // Kurz halten: das Spiel erklärt sich sonst zu Tode
     let html = '<p class="empty-note" style="padding-bottom:10px">' +
-      'Vier Fundstücke je Geist. Hilf ihm, dann taucht das nächste auf.</p>';
+      'Vier Fundstücke je Geist. Jedes erzählt ein Stück seiner Geschichte.</p>';
 
     html += '<div class="rows">';
     for (const id in SPIRITS) {
@@ -255,7 +265,23 @@ export class Panels {
         html += '<span class="story-card' + (got ? '' : ' unknown') + '">' +
           ico(got ? storyIcon(id, k) : 'icon_lock') + '</span>';
       }
-      html += '</div></div>';
+      html += '</div>';
+      // Die Sätze zu den gefundenen Stücken. Vier Symbole allein sagen einem
+      // nicht, wer dieser Geist war – hier steht seine Geschichte, so weit
+      // sie aufgedeckt ist, und man kann sie in Ruhe nachlesen.
+      if (known && n > 0) {
+        html += '<div class="story-text">';
+        if (storyIntro(id)) html += '<p class="intro">' + escapeHtml(storyIntro(id)) + '</p>';
+        for (let k = 0; k < n; k++) {
+          const zeile = storyLine(id, k);
+          if (zeile) html += '<p>' + escapeHtml(zeile) + '</p>';
+        }
+        if (done && storyClose(id)) {
+          html += '<p class="close">' + escapeHtml(storyClose(id)) + '</p>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
       html += '<span class="row-btn ghost">' + (known ? n + '/' + STAGES : '–') + '</span>';
       html += '</div>';
       if (known && book.placed[id] >= 0) {
@@ -758,17 +784,30 @@ export class Panels {
       '<button class="row-btn ghost" data-act="saveImport">Laden</button></div>';
 
     if (canLink()) {
-      html += '<div class="row"><div class="grow"><div class="title">' +
-        (verknuepft ? 'Schreibt in ' + escapeHtml(verknuepft) : 'Immer in eine Datei schreiben') +
-        '</div><div class="meta"><span>' + (verknuepft
-          ? 'Jedes Speichern geht zusätzlich in diese Datei.'
-          : 'Einmal eine Datei wählen – danach sichert das Spiel von selbst dorthin. ' +
-            'Am besten in einen Ordner, der mitwandert.') + '</span></div></div>' +
-        (verknuepft
-          ? '<button class="row-btn ghost" data-act="saveUnlink">Lösen</button>'
-          : '<button class="row-btn" data-act="saveLinkNew">Datei anlegen</button>' +
-            '<button class="row-btn ghost" data-act="saveLinkOpen">Vorhandene</button>') +
-        '</div>';
+      // Drei Zustände, und der mittlere ist der wichtigste: die Datei ist
+      // gemerkt, aber der Browser hat die Erlaubnis beim Schließen vergessen.
+      // Ohne ihn sähe es aus, als wäre die Einrichtung weg.
+      const wartend = pendingLinkName();
+      if (wartend) {
+        html += '<div class="row"><div class="grow"><div class="title">' +
+          escapeHtml(wartend) + ' ist noch gemerkt</div>' +
+          '<div class="meta"><span>Der Browser fragt aus Sicherheitsgründen bei ' +
+          'jedem Start einmal nach. Ein Klick, dann geht es weiter wie gehabt.</span></div></div>' +
+          '<button class="row-btn" data-act="saveRelink">Bestätigen</button>' +
+          '<button class="row-btn ghost" data-act="saveUnlink">Lösen</button></div>';
+      } else {
+        html += '<div class="row"><div class="grow"><div class="title">' +
+          (verknuepft ? 'Schreibt in ' + escapeHtml(verknuepft) : 'Immer in eine Datei schreiben') +
+          '</div><div class="meta"><span>' + (verknuepft
+            ? 'Jedes Speichern geht zusätzlich in diese Datei.'
+            : 'Einmal eine Datei wählen – danach sichert das Spiel von selbst dorthin. ' +
+              'Am besten in einen Ordner, der mitwandert.') + '</span></div></div>' +
+          (verknuepft
+            ? '<button class="row-btn ghost" data-act="saveUnlink">Lösen</button>'
+            : '<button class="row-btn" data-act="saveLinkNew">Datei anlegen</button>' +
+              '<button class="row-btn ghost" data-act="saveLinkOpen">Vorhandene</button>') +
+          '</div>';
+      }
     }
     html += '</div>';
 

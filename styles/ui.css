@@ -361,7 +361,13 @@ html, body {
   white-space: nowrap;
 }
 
-.bubble.wrap { white-space: normal; }
+/* Ein ganzer Satz braucht mehr Platz und eine Zeilenhöhe zum Lesen. */
+.bubble.wrap {
+  white-space: normal;
+  max-width: 300px;
+  line-height: 1.45;
+  text-align: left;
+}
 
 /* Zipfel: zwei Dreiecke übereinander – das untere ist die Tuschekante,
    das obere füllt sie mit Papier. */
@@ -608,6 +614,20 @@ html, body {
   border: 2px solid var(--edge);
   background: var(--paper-warm);
 }
+/* Die Geschichte eines Geistes, so weit sie aufgedeckt ist. Eingerückt und
+   kursiv: es ist seine Stimme, nicht die des Spiels. */
+.story-text { margin: 8px 0 2px; padding-left: 11px; border-left: 3px solid var(--edge-soft); }
+.story-text p {
+  margin: 0 0 5px;
+  font-size: 0.83em;
+  line-height: 1.5;
+  color: var(--ink);
+  font-style: italic;
+}
+.story-text p.intro { color: var(--ink-dim); font-style: normal; font-weight: 600; }
+.story-text p.close { color: var(--warm-deep); font-weight: 600; }
+.story-text p:last-child { margin-bottom: 0; }
+
 .story-card.unknown { border-color: var(--edge-soft); background: var(--paper-deep); opacity: 0.55; }
 .story-card .ico { width: 20px; height: 20px; }
 

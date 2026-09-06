@@ -139,10 +139,23 @@ function idbGet(key) {
 }
 
 let handle = null;
+let pendingName = null;
 
 /** Name der verknüpften Datei, oder null. */
 export function linkedName() {
   return handle ? handle.name : null;
+}
+
+/**
+ * Name einer gemerkten Datei, für die die Erlaubnis noch fehlt.
+ *
+ * Über `file://` überlebt die Erlaubnis das Schließen des Fensters nicht –
+ * der Zeiger schon. Ohne diesen Zwischenzustand hätte der Spieler beim
+ * nächsten Start das Gefühl, seine Einrichtung sei weg, und würde sie jedes
+ * Mal neu vornehmen. So steht sie da und braucht einen Klick.
+ */
+export function pendingLinkName() {
+  return handle ? null : pendingName;
 }
 
 /**
@@ -152,7 +165,8 @@ export function linkedName() {
 export function restoreLink() {
   if (!canLink()) return Promise.resolve(null);
   return idbGet(HANDLE_KEY).then(function (h) {
-    if (!h) return null;
+    if (!h) { pendingName = null; return null; }
+    pendingName = h.name || null;
     // Ohne Nutzergeste lässt sich Erlaubnis nur abfragen, nicht erbitten.
     if (!h.queryPermission) { handle = h; return h.name; }
     return h.queryPermission({ mode: 'readwrite' }).then(function (state) {
@@ -174,6 +188,7 @@ export function requestLinkPermission() {
     return h.requestPermission({ mode: 'readwrite' }).then(function (state) {
       if (state !== 'granted') return null;
       handle = h;
+      pendingName = null;
       return h.name;
     });
   }).catch(function () { return null; });
@@ -190,6 +205,7 @@ export function linkNew(suggested) {
     types: [{ description: 'Cozy-Grove-Spielstand', accept: { 'application/json': ['.json'] } }],
   }).then(function (h) {
     handle = h;
+    pendingName = null;
     return idbPut(HANDLE_KEY, h).then(function () { return h.name; });
   }).catch(function () { return null; });
 }
@@ -207,6 +223,7 @@ export function linkExisting() {
     const h = list[0];
     return h.getFile().then(function (f) { return f.text(); }).then(function (text) {
       handle = h;
+      pendingName = null;
       return idbPut(HANDLE_KEY, h).then(function () {
         return { name: h.name, text: text };
       });
@@ -231,6 +248,7 @@ export function readLinked() {
 /** Löst die Verknüpfung. Die Datei selbst bleibt liegen. */
 export function unlink() {
   handle = null;
+  pendingName = null;
   if (!canLink()) return Promise.resolve();
   return idbPut(HANDLE_KEY, null).catch(function () { /* egal */ });
 }
