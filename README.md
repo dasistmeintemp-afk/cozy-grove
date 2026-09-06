@@ -10,7 +10,10 @@ lässt sich in den Einstellungen komplett abschalten („Nur Symbole“).
 Die Grafik ist **Tusche und Aquarell**, kein Pixelbrei – und sie entsteht
 komplett im Browser: wackelige Tuschelinien, Farbflächen, die absichtlich ein
 Stück neben der Kontur liegen, Papierkorn. Im Projekt liegt keine einzige
-Bild- oder Audiodatei.
+Bild- oder Audiodatei; alles wird beim Start gerechnet. Die einzige Fremddatei
+ist die Schrift (`styles/fonts/`, 38 kB, freie Lizenz) – sie liegt lokal bei,
+damit die Oberfläche überall gleich aussieht und trotzdem nichts aus dem Netz
+nachgeladen wird.
 
 Der **Klang** ebenso: zwanzig Einzelgeräusche, eine Melodie in Pentatonik und
 ein Klangbett aus vier Rauschschichten – Brandung, Wind, Grillen, Regen. Das
@@ -113,6 +116,7 @@ noch blass ist.
 ```
 index.html            Gerüst und Startbildschirm
 styles/ui.css         Oberfläche – Papier und Tinte, dieselbe Palette wie die Welt
+styles/fonts/         Nunito (SIL OFL 1.1) – die einzige Datei, die nicht gerechnet wird
 src/core/             Zufall, Speichern, Eingabe, Klang, Hilfsfunktionen
 src/art/              Mal-Werkzeugkasten und alle Grafiken (im Code gemalt)
   brush.js              Formen, Tuschelinie, Silhouetten-Kontur, Weichzeichner
@@ -156,10 +160,15 @@ aus `INK` in `src/art/painted.js`. Von Hand gezeichnet ist nichts exakt rund:
 jede Ecke hat vier verschiedene Radien. Unter jeder Karte liegt ein harter
 Versatz statt eines weichen Schlagschattens, wie bei einem Aufkleber.
 
-Die Schrift ist rund und freundlich statt Systemgrau: `ui-rounded` gibt in
-Safari SF Pro Rounded, danach folgt das Wärmste, was ein System von Haus aus
-mitbringt (Avenir Next auf macOS, Candara auf Windows, Roboto auf Android).
-Nachgeladen wird nichts – das Spiel läuft weiter ohne Netz.
+**Die Schrift** ist rund und freundlich statt Systemgrau: **Nunito**, als
+Variable Font mit dem Gewichtsbereich 400–800 in einer einzigen 38-kB-Datei,
+nur im Lateinschnitt (der deckt ä ö ü ß ab). Sie liegt im Projekt und wird vom
+eigenen Server ausgeliefert – kein Aufruf bei Google, kein Netz zur Laufzeit,
+und überall dieselbe Optik statt „rund auf dem Mac, nüchtern auf Windows".
+`font-display: swap` sorgt dafür, dass sofort gelesen werden kann und die
+Datei nur nachrückt; dahinter steht trotzdem die volle Kette bis
+`sans-serif`, denn für Zeichen außerhalb des Schnitts (✕, ↻) greift der
+Browser zeichenweise zurück.
 
 Der Schleier hinter einem Fenster ist eine schlichte warme Fläche, kein
 `backdrop-filter`. Der kostet jedes Bild einen bildschirmfüllenden Durchgang,

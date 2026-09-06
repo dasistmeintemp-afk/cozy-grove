@@ -8,6 +8,11 @@
 <meta name="theme-color" content="#2b3a31">
 <meta name="color-scheme" content="light">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23f8f3e7'/%3E%3Cpath d='M8 2 L11.5 8 H4.5 Z M8 5.5 L12.5 12 H3.5 Z' fill='%239ec455' stroke='%234a4038' stroke-width='0.9' stroke-linejoin='round'/%3E%3Crect x='7.1' y='11' width='1.8' height='3.6' rx='0.6' fill='%23c19566' stroke='%234a4038' stroke-width='0.7'/%3E%3C/svg%3E">
+<!-- Die Schrift vorziehen: der Startbildschirm steht sofort da, und ohne das
+     hier läse man seinen ersten Moment in der Systemschrift.
+     `crossorigin` ist auch bei eigenen Dateien Pflicht – Schriften werden
+     immer anonym geholt, sonst lädt der Browser sie ein zweites Mal. -->
+<link rel="preload" href="./styles/fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="./styles/ui.css">
 </head>
 <body>
