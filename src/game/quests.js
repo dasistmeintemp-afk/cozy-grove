@@ -45,7 +45,47 @@ const CRAFTABLE_ASKS = ['fence', 'path_tile', 'lantern', 'flowerbed', 'bench', '
  */
 const MAX_ACTIVE_PER_SPIRIT = 3;
 
+/**
+ * Wie lange eine Bitte gilt, in Tagen.
+ *
+ * Ohne Ablauf blieb jeder Auftrag ewig stehen. Nach einer Woche standen
+ * fünfzehn halb angefangene Bitten in der Liste, und weil die Plätze belegt
+ * waren, kam nichts Neues nach: Wer eine Aufgabe nicht mochte, hatte sie für
+ * immer. Mit Ablauf rücken die Bitten weiter – wer eine liegen lässt, bekommt
+ * dafür eine andere.
+ *
+ * Was länger dauert, gilt länger: eine Erinnerung liegt irgendwo auf der
+ * Insel, ein bestimmter Nachtfalter fliegt nur nachts, und Deko muss erst
+ * gebaut werden.
+ */
+const LIFETIME = {
+  find: 4,
+  catch: 4,
+  decorate: 5,
+  craft: 4,
+  visit: 3,
+  gather: 3,
+  fish: 3,
+  burn: 3,
+};
+const LIFETIME_DEFAULT = 3;
+
+export function lifetimeOf(type) {
+  return LIFETIME[type] || LIFETIME_DEFAULT;
+}
+
+/** Verbleibende Tage einer Bitte – null, wenn sie nicht abläuft. */
+export function daysLeft(q, day) {
+  if (!q || q.expires == null) return null;
+  return Math.max(0, q.expires - day);
+}
+
 let questSeq = 1;
+
+/** Erkennungszeichen einer Bitte: Art plus Gegenstand. */
+function key(q) {
+  return q.type + ':' + (q.itemId || '');
+}
 
 export class QuestBook {
   constructor() {
@@ -73,12 +113,38 @@ export class QuestBook {
   }
 
   /**
+   * Zurückgezogene Bitten: alles, was abgelaufen ist und noch nicht erfüllt.
+   *
+   * Fertiges läuft NICHT ab. Wer die drei Muscheln beisammen hat und erst am
+   * nächsten Morgen zum Geist kommt, hat sie nicht umsonst gesucht – das wäre
+   * die eine Sorte Strafe, die in dieses Spiel nicht gehört.
+   *
+   * @returns {Array} die entfernten Aufträge
+   */
+  expire(day, world, ctx) {
+    const raus = [];
+    for (let i = this.quests.length - 1; i >= 0; i--) {
+      const q = this.quests[i];
+      if (q.turnedIn || q.expires == null || q.expires > day) continue;
+      if (ctx && this.progress(q, ctx) >= q.need) continue;
+      this.dropHidden(q, world);
+      this.quests.splice(i, 1);
+      raus.push(q);
+    }
+    return raus;
+  }
+
+  /**
    * Neue Tagesaufträge verteilen.
-   * Offene Aufträge bleiben bestehen – niemand wird bestraft, wenn er
-   * einen Tag nicht dazu kommt.
+   *
+   * Zuerst rücken abgelaufene Bitten ab, dann werden die frei gewordenen
+   * Plätze neu besetzt. Damit dreht sich die Liste, statt zu wachsen.
+   *
+   * @returns {Array} die zurückgezogenen Aufträge, für die Meldung am Morgen
    */
   newDay(day, world, state) {
     const rng = dailyRng(world.seed, day, 'quests');
+    const zurueck = this.expire(day, world, state);
     for (let i = 0; i < SPIRIT_IDS.length; i++) {
       const sid = SPIRIT_IDS[i];
       const spirit = SPIRITS[sid];
@@ -89,12 +155,26 @@ export class QuestBook {
       // ganze Sitzung. Mit nur einer Aufgabe je Geist war nach drei Minuten
       // Schluss, und das Spiel fühlte sich an, als müsste man warten.
       if (day <= 1) slots = Math.min(slots, 2);
+      // Was dieser Geist gerade schon will, kommt nicht noch einmal. Sonst
+      // stand dreimal „Holz bringen" untereinander – und nach dem Ablauf einer
+      // Bitte kam mit einiger Wahrscheinlichkeit genau dieselbe zurück.
+      const belegt = Object.create(null);
+      for (let k = 0; k < open.length; k++) belegt[key(open[k])] = 1;
       while (slots-- > 0) {
-        const q = this.generate(sid, day, world, state, rng);
-        if (q) this.quests.push(q);
+        let q = null;
+        for (let versuch = 0; versuch < 6; versuch++) {
+          const kandidat = this.generate(sid, day, world, state, rng);
+          if (!kandidat) continue;
+          if (!belegt[key(kandidat)]) { q = kandidat; break; }
+          // Verworfen: „Suche"-Aufträge haben schon Fundstücke ausgelegt.
+          this.dropHidden(kandidat, world);
+        }
+        if (!q) continue;
+        belegt[key(q)] = 1;
+        this.quests.push(q);
       }
     }
-    return this;
+    return zurueck;
   }
 
   generate(spiritId, day, world, state, rng) {
@@ -215,6 +295,7 @@ export class QuestBook {
       have: 0,
       turnedIn: false,
       day: day,
+      expires: day + lifetimeOf(type),
       rewards: { coins: 0, ember: 0, items: [] },
       hiddenIds: null,
     };
@@ -308,6 +389,13 @@ export class QuestBook {
     if (!data) return qb;
     questSeq = data.seq || 1;
     qb.quests = data.quests || [];
+    // Ältere Spielstände kennen noch keine Frist. Sie nachzutragen ist besser,
+    // als diese Aufträge für immer stehen zu lassen: sonst blieben die Plätze
+    // bei jedem, der schon gespielt hat, dauerhaft blockiert.
+    for (let i = 0; i < qb.quests.length; i++) {
+      const q = qb.quests[i];
+      if (q.expires == null) q.expires = (q.day || 1) + lifetimeOf(q.type);
+    }
     qb.completedBySpirit = data.done || qb.completedBySpirit;
     qb.totalCompleted = data.total || 0;
     return qb;

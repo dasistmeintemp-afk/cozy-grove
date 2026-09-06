@@ -112,7 +112,11 @@ export function paintGroundChunk(world, ctx0, cty0) {
   for (let i = 0; i < cells.length; i++) {
     const c = cells[i];
     wctx.fillStyle = TILE_DEF[c.t].base;
-    pathFrom(wctx, tilePatch(c.tx, c.ty), true);
+    // Weg und Brücke bleiben eng an ihrer Kachel: sie sind gelegt, nicht
+    // gewachsen. Mit dem üblichen Überstand würde eine einzelne Wegplatte als
+    // handtellergroßer heller Fleck über die Wiese laufen.
+    const grow = (c.t === T.PATH || c.t === T.BRIDGE) ? 0.16 : undefined;
+    pathFrom(wctx, tilePatch(c.tx, c.ty, grow), true);
     wctx.fill();
   }
 
@@ -304,6 +308,8 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
   const pebbles = [];
   const fronds = [];
   const swell = [];
+  const pathStones = [];
+  const planks = [];
 
   for (let ty = ty0 - 1; ty < ty0 + CHUNK_TILES + 1; ty++) {
     for (let tx = tx0 - 1; tx < tx0 + CHUNK_TILES + 1; tx++) {
@@ -353,6 +359,27 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
         if (rng() < 0.3) pebbles.push([bx + 6, by + 12, 3 + rng() * 2]);
       } else if (t === T.DIRT && rng() < 0.35) {
         pebbles.push([bx, by, 2.5 + rng() * 1.5]);
+      } else if (t === T.PATH) {
+        // Ein gelegter Weg braucht Tinte, sonst ist er nicht da.
+        //
+        // Bisher bestand er nur aus seiner Grundfarbe in der Farbschicht – und
+        // die verschwindet unkoloriert fast vollständig unter dem Papierschleier
+        // (0,76 Deckung). Wer im blassen Teil der Insel einen Steinweg legte,
+        // sah nichts und hielt das Aufstellen für kaputt.
+        for (let k = 0; k < 4; k++) {
+          const sx = (tx + 0.28 + (k % 2) * 0.44 + (rng() - 0.5) * 0.07) * TILE_SIZE;
+          const sy = (ty + 0.28 + ((k / 2) | 0) * 0.44 + (rng() - 0.5) * 0.07) * TILE_SIZE;
+          const seed = hashString('ps' + tx + ':' + ty + ':' + k);
+          pathStones.push({
+            pts: smoothClosed(blob(sx, sy, TILE_SIZE * 0.19, TILE_SIZE * 0.16, seed, 0.18, 12), 5),
+            seed: seed,
+          });
+        }
+      } else if (t === T.BRIDGE) {
+        for (let k = 0; k < 3; k++) {
+          const y = (ty + (k + 1) / 4) * TILE_SIZE + (rng() - 0.5) * 3;
+          planks.push([tx * TILE_SIZE - 1, y, (tx + 1) * TILE_SIZE + 1, y + (rng() - 0.5) * 4]);
+        }
       }
     }
   }
@@ -434,6 +461,40 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
       const w = waves[i];
       g.moveTo(w[0] + Math.cos(w[3]) * w[2], w[1] + Math.sin(w[3]) * w[2]);
       g.arc(w[0], w[1], w[2], w[3], w[4]);
+    }
+    g.stroke();
+  }
+
+  if (pathStones.length) {
+    // Heller Kern, dann die Kontur – so liest sich der Stein auch dort als
+    // Stein, wo der Papierschleier alle Farbe geschluckt hat.
+    g.globalAlpha = 0.62;
+    g.fillStyle = '#e2dac6';
+    g.beginPath();
+    for (let i = 0; i < pathStones.length; i++) {
+      const pts = pathStones[i].pts;
+      g.moveTo(pts[0][0], pts[0][1]);
+      for (let k = 1; k < pts.length; k++) g.lineTo(pts[k][0], pts[k][1]);
+      g.closePath();
+    }
+    g.fill();
+    g.globalAlpha = 1;
+    for (let i = 0; i < pathStones.length; i++) {
+      inkStroke(g, pathStones[i].pts, {
+        width: 1.9, vary: 0.3, seed: pathStones[i].seed, color: INK.line, alpha: 0.72,
+      });
+    }
+  }
+
+  if (planks.length) {
+    g.strokeStyle = INK.line;
+    g.globalAlpha = 0.6;
+    g.lineWidth = 2;
+    g.beginPath();
+    for (let i = 0; i < planks.length; i++) {
+      const p = planks[i];
+      g.moveTo(p[0], p[1]);
+      g.lineTo(p[2], p[3]);
     }
     g.stroke();
   }

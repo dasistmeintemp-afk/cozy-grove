@@ -97,10 +97,20 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Kein Warten auf die Uhr.** Ein Tag läuft von 6 bis 2 Uhr (Länge einstellbar),
   aber schlafen darfst du jederzeit – und bekommst sofort neue Aufgaben, neue
   Grabstellen, neues Ladenangebot. Wer eine Stunde am Stück spielen will, kann
-  das; wer zehn Minuten hat, auch. Offene Aufgaben verfallen nie.
+  das; wer zehn Minuten hat, auch.
 * **Achterlei Aufgaben.** Bringen, finden, angeln, einen *bestimmten* Fisch
   fangen, einen Ort aufsuchen, verbrennen, bauen, aufstellen. Nur knapp ein
   Drittel ist Hol-und-Bring; ein Test wacht darüber.
+* **Bitten rotieren.** Jede Bitte gilt drei bis fünf Tage – im Aufgabenfenster
+  steht, wie lange noch. Läuft eine ab, zieht der Geist sie am nächsten Morgen
+  zurück und stellt eine andere; wer eine Aufgabe nicht mag, ist sie los.
+  **Fertiges läuft nie ab**: Wer die drei Muscheln beisammen hat und erst
+  morgen vorbeikommt, hat sie nicht umsonst gesucht. Und derselbe Geist
+  verlangt nie zweimal gleichzeitig dasselbe.
+* **Mitbringsel.** Jeder Geist mag ein paar bestimmte Dinge. Hast du eines
+  davon dabei, schwebt ein Herz über ihm; ein Druck auf E, und er bekommt es.
+  Das gibt Glut und ein Stück Farbe – einmal je Geist und Tag. Was gerade für
+  eine offene Bitte gebraucht wird, bietet das Spiel nicht als Mitbringsel an.
 * **Werkzeuge.** Hand, Axt, Spitzhacke, Schaufel, Angel, Kescher – jeweils in
   mehreren Stufen. Bessere Werkzeuge geben mehr Ertrag, größere Reichweite und
   öffnen neue Bereiche.
@@ -144,13 +154,21 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Freundschaft.** Alle drei erledigten Aufgaben steigt die Stufe bei einem
   Geist. Das bringt ein Geschenk, mehr Farbe ringsum und dauerhaft besseren
   Lohn für seine Aufgaben.
+* **Tagesrückblick.** Nach dem Aufwachen steht kurz da, was gestern passiert
+  ist: erledigte Bitten, Fundstücke, Fische, Falter, Aufgestelltes,
+  Mitbringsel, Münzen, Glut – und ganz oben, wie viel Farbe dazugekommen ist.
+  Nach einem Tag, an dem nichts geschah, bleibt er weg.
+* **Fundstücke sind zu sehen.** Wo auf der Karte ein goldener Punkt liegt,
+  steht in der Welt ein Flämmchen über den Baumkronen, dazu ein warmer Schein
+  und ein Ring auf dem Boden. Der Punkt auf der Karte ist ein Versprechen, das
+  am Ort eingelöst wird.
 
 ## Die Geister
 
 Sechs Stück, alle wortkarg: Flämmchen (Lagerfeuer), Mira Moos (Wiese),
 Käpt'n Kiesel (Strand), Bruno Borke (Wald), Tobi Tüftler (Werkstatt),
-Nelly Nadel (Klippen). Jeder vergibt höchstens zwei Aufgaben gleichzeitig,
-offene Aufgaben verfallen nie.
+Nelly Nadel (Klippen). Jeder vergibt höchstens drei Bitten gleichzeitig, und
+jede davon gilt drei bis fünf Tage.
 
 ## Seli
 
@@ -242,8 +260,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 91 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
-npm run test:browser   # 44 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 98 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
+npm run test:browser   # 55 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

@@ -21,7 +21,7 @@ import { StoryBook, STAGES, storyArt, keepsakeOf, storyLine, storyClose, storyIn
 import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
 import { getItem, itemName, CAT, CONDITIONAL } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
-import { defOf, makeEntity } from '../world/entities.js';
+import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
 import { num } from '../core/util.js';
@@ -95,6 +95,10 @@ export class Game {
     this.weather.setDay(this.world.seed, this.day.day);
     this.weather.snap();
     this._placeStoryPieces(this.day.day);
+
+    // Strichliste für den Rückblick: neu anlegen, wenn es keine gibt oder sie
+    // noch von einem früheren Tag stammt (etwa aus einem alten Spielstand).
+    if (!this.state.daybook || this.state.daybook.day !== this.day.day) this._daybookStart();
 
     this.ui = new UI(this);
     this.panels = new Panels(this);
@@ -248,7 +252,7 @@ export class Game {
         if (c.o) {
           e.origin = c.o;
           e.kind = c.k;
-          e.sprite = defOf(c.k) ? defOf(c.k).sprite : e.sprite;
+          e.sprite = spriteFor(c.k, e.x, e.y) || e.sprite;
         }
         e.gone = !!c.g;
         e.respawnDay = c.r || 0;
@@ -556,6 +560,7 @@ export class Game {
         const coins = randInt(rng, item.opens[0], item.opens[1]) * got[i].n;
         this.inventory.remove('coin_pouch', got[i].n);
         this.state.coins += coins;
+        this._note('coins', coins);
         this.ui.toast('+' + coins + ' Münzen', 'icon_coin', 'good');
         this.particles.burst('coin', e.x, e.y - 48, 6);
         this.audio.play('coin');
@@ -569,7 +574,7 @@ export class Game {
     if (def.becomes) {
       e.origin = e.kind;
       e.kind = def.becomes;
-      e.sprite = defOf(def.becomes).sprite;
+      e.sprite = spriteFor(def.becomes, e.x, e.y) || e.sprite;
       e.hp = 0;
       e.respawnDay = this.day.day + (def.respawn || 1);
     } else if (def.respawn) {
@@ -596,6 +601,7 @@ export class Game {
   pickHidden(e) {
     if (e.storySpirit) { this._pickStoryPiece(e); return; }
     const q = e.questId ? this.quests.byId(e.questId) : null;
+    this._note('finds');
     this.world.remove(e);
     this.particles.burst('sparkle', e.x, e.y - 32, 10);
     this.audio.play('pickup');
@@ -618,6 +624,7 @@ export class Game {
    */
   _pickStoryPiece(e) {
     const spiritId = e.storySpirit;
+    this._note('finds');
     this.world.remove(e);
     this.particles.burst('sparkle', e.x, e.y - 32, 16);
     this.particles.burst('color', e.x, e.y - 40, 14);
@@ -818,6 +825,7 @@ export class Game {
     this.audio.play('pickup');
     this.ui.toast(item.name, item.icon, 'good');
     this.state.bugsCaught = (this.state.bugsCaught || 0) + 1;
+    this._note('bugs');
 
     if (this.quests.notify('catch', { id: item.id }, this)) this.ui.refreshQuests();
     this.save();
@@ -940,6 +948,10 @@ export class Game {
       this._turnIn(ready[0], e, spirit);
       return;
     }
+    // Mitbringsel vor der Wartezeile: „Noch nicht" ist eine Sackgasse, ein
+    // Mitbringsel bringt einen weiter. Ein Herz über dem Geist zeigt vorher an,
+    // dass gerade etwas Passendes in der Tasche liegt.
+    if (this.wantsGift(e.spiritId) && this.giveGiftTo(e)) return;
     if (open.length) {
       const q = open[0];
       const have = this.quests.progress(q, this);
@@ -965,6 +977,9 @@ export class Game {
 
     this.state.coins += rewards.coins;
     this.state.ember += rewards.ember;
+    this._note('quests');
+    this._note('coins', rewards.coins);
+    this._note('ember', rewards.ember);
     for (let i = 0; i < rewards.items.length; i++) {
       this.inventory.add(rewards.items[i].id, rewards.items[i].n);
     }
@@ -1026,6 +1041,8 @@ export class Game {
     if (!gift) return;
     this.state.coins += gift.coins;
     this.state.ember += gift.ember;
+    this._note('coins', gift.coins);
+    this._note('ember', gift.ember);
     const got = [];
     for (let i = 0; i < gift.items.length; i++) {
       const added = this.inventory.add(gift.items[i].id, gift.items[i].n);
@@ -1056,6 +1073,121 @@ export class Game {
     return out;
   }
 
+  /* ---------------- Tagebuch ---------------- */
+
+  /**
+   * Strichliste für den Tagesrückblick.
+   *
+   * Sie liegt in `state` und wandert damit in den Spielstand: Wer mitten am
+   * Tag aufhört und morgen weitermacht, soll am nächsten Morgen den ganzen
+   * Tag sehen, nicht nur den Rest nach dem Laden.
+   */
+  _daybookStart() {
+    this.state.daybook = {
+      day: this.day.day,
+      quests: 0, finds: 0, fish: 0, bugs: 0, decor: 0, gifts: 0,
+      coins: 0, ember: 0,
+      colorStart: this.colorField.coverage(this.world),
+    };
+  }
+
+  _note(feld, n) {
+    const b = this.state.daybook;
+    if (!b) return;
+    b[feld] = (b[feld] || 0) + (n == null ? 1 : n);
+  }
+
+  /* ---------------- Mitbringsel ---------------- */
+
+  /**
+   * Wird dieser Gegenstand gerade für einen Auftrag gebraucht?
+   *
+   * Ein Mitbringsel darf niemals etwas wegnehmen, das man für eine offene
+   * Bitte gesammelt hat. Sonst wäre das nette Gespräch mit Mira der Grund,
+   * warum Flämmchen sein Holz nicht bekommt.
+   */
+  _neededForQuest(itemId) {
+    const offen = this.quests.active();
+    for (let i = 0; i < offen.length; i++) {
+      const q = offen[i];
+      if (q.turnedIn || q.itemId !== itemId) continue;
+      if (q.type === QTYPE.GATHER || q.type === QTYPE.CRAFT) return true;
+    }
+    return false;
+  }
+
+  /** Was dieser Geist gern mag und gerade in der Tasche liegt – oder null. */
+  likedInBag(spiritId) {
+    const spirit = SPIRITS[spiritId];
+    if (!spirit || !spirit.likes) return null;
+    for (let i = 0; i < spirit.likes.length; i++) {
+      const id = spirit.likes[i];
+      if (this.inventory.count(id) <= 0) continue;
+      if (this._neededForQuest(id)) continue;
+      return id;
+    }
+    return null;
+  }
+
+  /** Jeder Geist nimmt ein Mitbringsel am Tag – sonst wäre es eine Münzquelle. */
+  giftedToday(spiritId) {
+    return this.state.gifted && this.state.gifted[spiritId] === this.day.day;
+  }
+
+  wantsGift(spiritId) {
+    return !this.giftedToday(spiritId) && !!this.likedInBag(spiritId);
+  }
+
+  /** Geister, denen man gerade etwas mitbringen könnte. */
+  spiritsWantingGift() {
+    const out = [];
+    for (let i = 0; i < this.world.entities.length; i++) {
+      const e = this.world.entities[i];
+      if (e.kind !== 'spirit') continue;
+      if (this.wantsGift(e.spiritId)) out.push(e);
+    }
+    return out;
+  }
+
+  /**
+   * Etwas mitbringen.
+   *
+   * `likes` stand seit Anfang an in den Geisterdaten und wurde nur benutzt,
+   * um zu bestimmen, was ein Geist einem SCHENKT. Andersherum ging nichts –
+   * die überzähligen Blumen und Muscheln hatten keine Verwendung außer dem
+   * Verkauf. Ein Mitbringsel kostet nichts als ein Stück und bringt Farbe:
+   * genau die Währung, um die es in diesem Spiel geht.
+   */
+  giveGiftTo(e) {
+    const spirit = SPIRITS[e.spiritId];
+    const id = spirit ? this.likedInBag(e.spiritId) : null;
+    if (!id) return false;
+
+    this.inventory.remove(id, 1);
+    if (!this.state.gifted) this.state.gifted = {};
+    this.state.gifted[e.spiritId] = this.day.day;
+
+    const item = getItem(id);
+    const ember = 2 + Math.floor((item && item.value ? item.value : 6) / 8);
+    this.state.ember += ember;
+    this._note('gifts');
+    this._note('ember', ember);
+
+    // Farbe: dauerhaft, wie bei einer erledigten Bitte – nur kleiner.
+    this.colorField.grow('spirit_' + e.spiritId, 34);
+    this.colorField.markDirty();
+
+    this.particles.burst('heart', e.x, e.y - 110, 7);
+    this.particles.burst('color', e.x, e.y - 60, 10);
+    this.audio.play('ghost');
+    this.ui.bubble(e.x, e.y - 190, pickLine(spirit.lines.thanks),
+      [{ icon: 'icon_' + id }, { icon: 'icon_heart' }], 2.8);
+    this.ui.toast('+' + ember + ' Glut · etwas mehr Farbe', 'icon_ember', 'good');
+    this.ui.refreshHud();
+    this.save();
+    return true;
+  }
+
   /* ---------------- Angeln ---------------- */
 
   _onFishEvent(ev) {
@@ -1080,6 +1212,7 @@ export class Game {
       this.particles.burst('splash', this.fishing.bobber.x, this.fishing.bobber.y, 10);
       if (added > 0) {
         this.state.caught++;
+        this._note('fish', added);
         this.quests.notify('fish', { id: res.fish.id }, this);
         this.ui.toast((res.perfect ? 'Perfekt! ' : '') + res.fish.name + ' ×' + added, res.fish.icon, 'good');
       } else {
@@ -1142,6 +1275,7 @@ export class Game {
 
     const gain = item.burn * take;
     this.state.ember += gain;
+    this._note('ember', gain);
     const beforeLevel = campfireLevelFor(this.state.campfireFuel).level;
     this.state.campfireFuel += gain;
     const afterLevel = campfireLevelFor(this.state.campfireFuel).level;
@@ -1213,6 +1347,7 @@ export class Game {
     this.inventory.remove(id, take);
     const total = price * take;
     this.state.coins += total;
+    this._note('coins', total);
     this.audio.play('coin');
     this.ui.toast('+' + num(total) + ' Münzen', 'icon_coin', 'good');
     this.ui.refreshHud();
@@ -1364,6 +1499,7 @@ export class Game {
       this.world.add(e);
     }
     this.audio.play('place');
+    this._note('decor');
     this.particles.burst('dust', p.x, p.y, 5);
     this.syncCosiness();
     this.ui.refreshQuests();
@@ -1403,15 +1539,30 @@ export class Game {
       setTimeout(function () {
         self._fadeEl.classList.remove('on');
         self.sleeping = false;
+        // Der Rückblick kommt erst, wenn das Bild wieder da ist – und nur,
+        // wenn gestern überhaupt etwas passiert ist. Nach einem Tag, an dem
+        // man nur herumgelaufen ist, wäre er eine leere Meldung.
+        if (self.lastDaybook && daybookHasContent(self.lastDaybook)) {
+          setTimeout(function () { self.panels.open('daybook'); }, 260);
+        }
       }, 620);
     }, 820);
   }
 
   nextDay() {
+    // Erst den vergangenen Tag abschließen, dann den neuen beginnen: die
+    // Farbdeckung nach dem Schlafen wäre schon die von morgen.
+    const buch = this.state.daybook;
+    if (buch) {
+      buch.colorEnd = this.colorField.coverage(this.world);
+      this.lastDaybook = buch;
+    }
+
     this.day.sleep();
     const day = this.day.day;
+    this._daybookStart();
     this.world.newDay(day);
-    this.quests.newDay(day, this.world, this);
+    const zurueckgezogen = this.quests.newDay(day, this.world, this);
     this.shop.refresh(day, this.world.seed);
     this.particles.clear();
     this.wildlife.clear();
@@ -1423,6 +1574,22 @@ export class Game {
     this.ui.refreshHud();
     this.ui.refreshQuests();
     this.ui.toast('Tag ' + day, 'icon_day');
+    // Abgelaufene Bitten sind kein Fehler, aber der Spieler muss merken, dass
+    // sie weg sind – sonst sucht er am Nachmittag weiter nach einer Muschel,
+    // die niemand mehr will.
+    if (zurueckgezogen && zurueckgezogen.length) {
+      const self = this;
+      const n = zurueckgezogen.length;
+      const wer = {};
+      for (let i = 0; i < n; i++) wer[zurueckgezogen[i].spirit] = 1;
+      const namen = Object.keys(wer).map(function (id) {
+        return SPIRITS[id] ? SPIRITS[id].name : id;
+      });
+      setTimeout(function () {
+        self.ui.toast(namen.join(', ') + ': ' + n + (n === 1 ? ' Bitte' : ' Bitten') +
+          ' zurückgezogen', 'icon_ghost');
+      }, 2600);
+    }
     if (this.weather.strength > 0) {
       const self = this;
       setTimeout(function () {
@@ -1596,7 +1763,10 @@ export class Game {
     if (def.category === 'spirit') {
       const open = this.quests.openForSpirit(t.entity.spiritId);
       const ready = open.filter((q) => this.quests.isReady(q, this));
-      this.ui.setPrompt(ready.length ? 'Abgeben' : 'Reden');
+      const id = ready.length ? null : this.likedInBag(t.entity.spiritId);
+      this.ui.setPrompt(ready.length ? 'Abgeben'
+        : (id && !this.giftedToday(t.entity.spiritId)) ? itemName(id) + ' schenken'
+          : 'Reden');
       return;
     }
     if (def.category === 'fox') { this.ui.setPrompt('Laden'); return; }
@@ -1658,6 +1828,13 @@ function ensureFade() {
     document.getElementById('stage').appendChild(el);
   }
   return el;
+}
+
+/** Lohnt sich ein Rückblick auf gestern? */
+export function daybookHasContent(b) {
+  if (!b) return false;
+  return !!(b.quests || b.finds || b.fish || b.bugs || b.decor || b.gifts ||
+    b.coins || b.ember || (b.colorEnd - b.colorStart) > 0.002);
 }
 
 function pickLine(list) {

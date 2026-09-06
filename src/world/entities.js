@@ -201,10 +201,26 @@ function variantAt(x, y, count) {
   return ((h >>> 3) % count + count) % count;
 }
 
+/**
+ * Der Grafikname für eine Art an einem Ort – inklusive Fassungsnummer.
+ *
+ * Wird nicht nur beim Erzeugen gebraucht, sondern auch, wenn ein Objekt seine
+ * Art wechselt und wieder zurückwechselt: Ein gefällter Ahorn wird zum Stumpf
+ * und drei Tage später wieder zum Ahorn. Setzte man dabei einfach `def.sprite`,
+ * stünde dort `tree_maple` – eine Grafik, die es gar nicht gibt, denn gemalt
+ * sind nur `tree_maple_0` bis `_2`. Der Baum wurde damit unsichtbar,
+ * blockierte aber weiter den Weg.
+ */
+export function spriteFor(kind, x, y) {
+  const def = ENTITY_DEFS[kind];
+  if (!def || !def.sprite) return null;
+  if (def.variants > 1) return def.sprite + '_' + variantAt(x, y, def.variants);
+  return def.sprite;
+}
+
 export function makeEntity(kind, x, y, extra) {
   const def = ENTITY_DEFS[kind];
-  let sprite = def && def.sprite ? def.sprite : null;
-  if (sprite && def.variants > 1) sprite = sprite + '_' + variantAt(x, y, def.variants);
+  const sprite = spriteFor(kind, x, y);
   const e = {
     id: nextId(),
     kind: kind,

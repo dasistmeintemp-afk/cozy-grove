@@ -56,6 +56,11 @@ export class Renderer {
     this.lightCanvas = makeCanvas(this.w, this.h);
     this.lightCtx = ctx2d(this.lightCanvas);
     this.lightCtx.imageSmoothingEnabled = true;
+    // Eigene Fläche für die Farbmaske. Sie muss getrennt liegen, weil mehrere
+    // Farbquellen sich VEREINIGEN müssen; siehe _drawColorPass().
+    this.maskCanvas = makeCanvas(this.w, this.h);
+    this.maskCtx = ctx2d(this.maskCanvas);
+    this.maskCtx.imageSmoothingEnabled = true;
     this._vignette = null;
   }
 
@@ -145,32 +150,13 @@ export class Renderer {
     game.ground.draw(ctx, camX, camY, this.viewW, this.viewH, true);
 
     const sources = game.colorField.visibleSources(camX, camY, this.viewW, this.viewH);
-    if (sources.length) {
-      // Nur der wirklich eingefärbte Ausschnitt wird zweimal gezeichnet.
-      const box = this._sourceBox(sources, camX, camY);
-      const cc = this.colorCtx;
-      this._screen(cc);
-      cc.clearRect(box.sx, box.sy, box.sw, box.sh);
-      cc.save();
-      cc.beginPath();
-      cc.rect(box.sx, box.sy, box.sw, box.sh);
-      cc.clip();
-      this._world(cc, camX, camY);
-      game.ground.draw(cc, camX, camY, this.viewW, this.viewH, false, false);
-      cc.globalCompositeOperation = 'destination-in';
-      game.colorField.drawMask(cc, sources);
-      cc.globalCompositeOperation = 'source-over';
-      cc.restore();
-      this._screen(ctx);
-      ctx.drawImage(this.colorCanvas, box.sx, box.sy, box.sw, box.sh,
-        box.sx, box.sy, box.sw, box.sh);
-      this._world(ctx, camX, camY);
-    }
+    if (sources.length) this._drawColorPass(ctx, game, sources, camX, camY);
 
     // 2 – Objekte in EINEM Durchgang. Wie farbig etwas ist, entscheidet die
     //     Farbquelle an seiner Position – das spart das zweite Malen der
     //     ganzen Szene und war der Grund für die schlechte Bildrate.
     const list = this._collectVisible(world, camX, camY);
+    this._lastVisible = list;
     this._drawEntities(ctx, game, list, time);
 
     // 3 – Tageszeit, Lichter und Randabdunklung in EINEM Überzug
@@ -205,6 +191,60 @@ export class Renderer {
       return (a.y + (a.zBias || 0)) - (b.y + (b.zBias || 0));
     });
     return out;
+  }
+
+  /**
+   * Blendet die kolorierte Fassung des Bodens durch die Farbmaske ein.
+   *
+   * Die Maske entsteht in einer EIGENEN Fläche und wird erst danach in einem
+   * Zug angewandt. Vorher wurde jede Farbquelle einzeln mit `destination-in`
+   * auf die Farbfläche gelegt – das multipliziert die Deckkraft, statt sie zu
+   * vereinigen: bei zwei Quellen blieb nur ihr Schnitt farbig, und weil jede
+   * Quelle ein Rechteck füllt, sprang die Kante sichtbar um, sobald eine
+   * Quelle in den Blick geriet oder ihn verließ. Genau das war das Flackern
+   * mit dem farbigen Rand rund um die Geister. Objekte fragen ihre Farbe
+   * dagegen über `colorField.at()` ab, das den GRÖSSTEN Wert nimmt – Boden und
+   * Bäume widersprachen sich also auch noch.
+   */
+  _drawColorPass(ctx, game, sources, camX, camY) {
+    const box = this._sourceBox(sources, camX, camY);
+    if (box.sw <= 0 || box.sh <= 0) return;
+
+    // 1 – Maske: alle Quellen übereinander, normal deckend. Weißes Weiß über
+    //     weißem Weiß addiert die Deckkraft (a1 + a2·(1-a1)) und ergibt damit
+    //     die Vereinigung der Kreise.
+    const mc = this.maskCtx;
+    this._screen(mc);
+    mc.clearRect(box.sx, box.sy, box.sw, box.sh);
+    mc.save();
+    mc.beginPath();
+    mc.rect(box.sx, box.sy, box.sw, box.sh);
+    mc.clip();
+    this._world(mc, camX, camY);
+    game.colorField.drawMask(mc, sources);
+    mc.restore();
+
+    // 2 – Der kolorierte Boden, auf denselben Ausschnitt begrenzt
+    const cc = this.colorCtx;
+    this._screen(cc);
+    cc.clearRect(box.sx, box.sy, box.sw, box.sh);
+    cc.save();
+    cc.beginPath();
+    cc.rect(box.sx, box.sy, box.sw, box.sh);
+    cc.clip();
+    this._world(cc, camX, camY);
+    game.ground.draw(cc, camX, camY, this.viewW, this.viewH, false, false);
+    this._screen(cc);
+    cc.globalCompositeOperation = 'destination-in';
+    cc.drawImage(this.maskCanvas, box.sx, box.sy, box.sw, box.sh,
+      box.sx, box.sy, box.sw, box.sh);
+    cc.globalCompositeOperation = 'source-over';
+    cc.restore();
+
+    this._screen(ctx);
+    ctx.drawImage(this.colorCanvas, box.sx, box.sy, box.sw, box.sh,
+      box.sx, box.sy, box.sw, box.sh);
+    this._world(ctx, camX, camY);
   }
 
   /** Sichtbarer Ausschnitt, in dem überhaupt Farbe liegt (Bildschirmpixel). */
@@ -294,13 +334,46 @@ export class Renderer {
         return;
       }
       case 'hidden': {
+        // Fundstücke müssen auf der ganzen Insel auffallen, auch im blassen
+        // Teil. Ein blasscremefarbener Kreis auf Papier tat das nicht: die
+        // Karte zeigte ein Flämmchen, am Ort stand scheinbar nichts. Jetzt
+        // steht dort wirklich ein Flämmchen – ein warmer Schein, ein paar
+        // aufsteigende Funken und ein Ring, der auf dem Boden liegt.
         const bob = Math.sin(time * 2.6 + e.phase) * 5;
+        const puls = 0.5 + Math.sin(time * 2.2 + e.phase) * 0.5;
         ctx.save();
-        ctx.globalAlpha = 0.3 + Math.sin(time * 3 + e.phase) * 0.14;
-        ctx.fillStyle = '#fff3c8';
+
+        // Ring am Boden: sagt, WO genau es liegt
+        ctx.globalAlpha = 0.3 + puls * 0.22;
+        ctx.strokeStyle = '#d8931f';
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
-        ctx.arc(x, y + bob - 26, 34, 0, Math.PI * 2);
+        ctx.ellipse(x, y + 4, 26 + puls * 5, 10 + puls * 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Schein: warm, mit hartem Kern – sonst verschwindet er im Papier
+        const glow = ctx.createRadialGradient(x, y + bob - 26, 2, x, y + bob - 26, 46);
+        glow.addColorStop(0, 'rgba(255,214,132,0.72)');
+        glow.addColorStop(0.45, 'rgba(255,196,104,0.34)');
+        glow.addColorStop(1, 'rgba(255,196,104,0)');
+        ctx.globalAlpha = 0.55 + puls * 0.3;
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(x, y + bob - 26, 46, 0, Math.PI * 2);
         ctx.fill();
+
+        // Funken: drei, mit versetzter Phase, steigen und verlöschen
+        ctx.globalAlpha = 1;
+        for (let k = 0; k < 3; k++) {
+          const t = ((time * 0.55 + e.phase * 0.3 + k * 0.34) % 1);
+          const fx = x + Math.sin((time + k * 2.1) * 1.7 + e.phase) * (7 + k * 3);
+          const fy = y + bob - 34 - t * 42;
+          ctx.globalAlpha = (1 - t) * 0.75;
+          ctx.fillStyle = k === 1 ? '#ffe6ac' : '#f5b34a';
+          ctx.beginPath();
+          ctx.arc(fx, fy, 2.6 - t * 1.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
         drawSprite(ctx, e.sprite, x, y + bob, false);
         return;
@@ -411,7 +484,58 @@ export class Renderer {
     if (game.weather) game.weather.draw(ctx, this.w, this.h);
   }
 
+  /**
+   * Das Flämmchen über einem Fundstück – hoch genug, um über Baumkronen zu
+   * stehen.
+   *
+   * Es wird bewusst NACH allen Objekten gezeichnet. Der Schein am Boden liegt
+   * in der Tiefenstaffelung und verschwindet deshalb hinter einem Baum, der
+   * ein Stück weiter unten steht; die Karte verspricht dann ein Flämmchen, das
+   * am Ort niemand sieht. Dieses hier ist immer da.
+   */
+  _drawFindWisps(ctx, game, time) {
+    const list = this._lastVisible;
+    if (!list) return;
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
+      if (e.kind !== 'hidden') continue;
+      const bob = Math.sin(time * 2.2 + e.phase) * 7;
+      const x = e.x;
+      const y = e.y - 132 + bob;
+      const flack = 1 + Math.sin(time * 9 + e.phase * 3) * 0.12;
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = '#ffcf7a';
+      ctx.beginPath();
+      ctx.arc(x, y, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.translate(x, y);
+      ctx.scale(1, flack);
+      // Tropfenform: unten rund, oben ausgezogen
+      ctx.beginPath();
+      ctx.moveTo(0, -17);
+      ctx.bezierCurveTo(8, -6, 10, 3, 0, 10);
+      ctx.bezierCurveTo(-10, 3, -8, -6, 0, -17);
+      ctx.closePath();
+      ctx.fillStyle = '#f0972a';
+      ctx.fill();
+      ctx.strokeStyle = INK.line;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -7);
+      ctx.bezierCurveTo(4, -2, 5, 2, 0, 5);
+      ctx.bezierCurveTo(-5, 2, -4, -2, 0, -7);
+      ctx.closePath();
+      ctx.fillStyle = '#ffe3a6';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   _drawMarkers(ctx, game, time) {
+    this._drawFindWisps(ctx, game, time);
     const t = game.target;
     if (t && t.entity) {
       const e = t.entity;
@@ -442,6 +566,31 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(x, y + 31, 4.4, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Herz: dieser Geist mag etwas, das gerade in der Tasche liegt. Ohne
+    // Zeichen bliebe das Mitbringen eine versteckte Regel – man müsste jeden
+    // Geist mit jedem Gegenstand ausprobieren.
+    const mag = game.spiritsWantingGift();
+    for (let i = 0; i < mag.length; i++) {
+      const e = mag[i];
+      const bob = Math.sin(time * 2.4 + e.phase + 1.1) * 4;
+      const x = e.x + 26;
+      const y = e.y - 150 + bob;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(0.9, 0.9);
+      ctx.beginPath();
+      ctx.moveTo(0, 9);
+      ctx.bezierCurveTo(-13, -1, -8, -13, 0, -6);
+      ctx.bezierCurveTo(8, -13, 13, -1, 0, 9);
+      ctx.closePath();
+      ctx.fillStyle = '#d4756b';
+      ctx.fill();
+      ctx.strokeStyle = INK.line;
+      ctx.lineWidth = 2;
       ctx.stroke();
       ctx.restore();
     }

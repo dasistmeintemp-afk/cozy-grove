@@ -135,7 +135,15 @@ export class ColorField {
     return out;
   }
 
-  /** Zeichnet die Maske (weiß = Farbe) in Weltkoordinaten. */
+  /**
+   * Zeichnet die Maske (weiß = Farbe) in Weltkoordinaten.
+   *
+   * Die Quellen werden normal übereinandergelegt und vereinigen sich dadurch.
+   * Der Verlauf ist bewusst genau derselbe wie in `at()`: linear von voller
+   * Deckung bei 0,55·r bis null am Rand. Vorher hatte die Maske bei 0,865·r
+   * noch 0,72 Deckung, `at()` dort aber nur 0,30 – der Boden war also viel
+   * farbiger als die Bäume, die darauf standen.
+   */
   drawMask(ctx, sources) {
     for (let i = 0; i < sources.length; i++) {
       const s = sources[i];
@@ -143,7 +151,6 @@ export class ColorField {
       const y = s.y;
       const grad = ctx.createRadialGradient(x, y, Math.max(1, s.r * 0.55), x, y, s.r);
       grad.addColorStop(0, 'rgba(255,255,255,1)');
-      grad.addColorStop(0.7, 'rgba(255,255,255,0.72)');
       grad.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = grad;
       ctx.fillRect(x - s.r, y - s.r, s.r * 2, s.r * 2);

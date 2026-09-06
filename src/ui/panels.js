@@ -6,7 +6,7 @@ import { SPIRITS, friendshipLevel, friendshipProgress } from '../game/spirits.js
 import { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } from '../game/stories.js';
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
 import { canLink, linkedName, pendingLinkName, requestLinkPermission, linkNew, linkExisting, unlink, openFile, suggestName } from '../core/savefile.js';
-import { questTitle, questIcon, QTYPE } from '../game/quests.js';
+import { questTitle, questIcon, QTYPE, daysLeft } from '../game/quests.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
 import { TILE_DEF, TILE_SIZE } from '../art/tiles.js';
 import { REGION_NAMES } from '../world/worldgen.js';
@@ -22,6 +22,7 @@ const TITLES = {
   stories: 'Erinnerungen',
   map: 'Karte',
   settings: 'Einstellungen',
+  daybook: 'Gestern auf der Insel',
 };
 
 function ico(name, cls) {
@@ -383,6 +384,12 @@ export class Panels {
         const spirit = SPIRITS[q.spirit];
         const have = g.quests.progress(q, g);
         const done = have >= q.need;
+        // Frist nur zeigen, solange sie noch offen ist: Fertiges läuft nicht
+        // ab, da wäre die Zahl eine Drohung ohne Grund.
+        const rest = done ? null : daysLeft(q, g.day.day);
+        const frist = rest == null ? ''
+          : '<span' + (rest <= 1 ? ' class="warn"' : '') + '>' + ico('icon_day') + ' ' +
+            (rest <= 0 ? 'heute' : rest === 1 ? 'noch 1 Tag' : 'noch ' + rest + ' Tage') + '</span>';
         html += '<div class="row' + (done ? '' : '') + '">' +
           ico(questIcon(q), 'lg') +
           '<div class="grow">' +
@@ -390,6 +397,7 @@ export class Panels {
           '<div class="meta"><span>' + escapeHtml(spirit.name) + '</span>' +
           '<span>' + ico('icon_coin') + ' ' + q.rewards.coins + '</span>' +
           '<span>' + ico('icon_ember') + ' ' + q.rewards.ember + '</span>' +
+          frist +
           (q.type === QTYPE.FIND ? '<span>' + escapeHtml(regionHint(spirit.region)) + '</span>' : '') +
           '</div></div>' +
           (done ? '<span class="row-btn ghost">' + ico('icon_check') + ' fertig</span>' : '') +
@@ -630,6 +638,60 @@ export class Panels {
       self.render();
       g.ui.toast('Schreibt jetzt in ' + name, 'icon_star', 'good');
     });
+  }
+
+  /* ---------------- Tagesrückblick ---------------- */
+
+  /**
+   * Was gestern passiert ist.
+   *
+   * Ein Tag in diesem Spiel endet mit einem Schnitt: man legt sich hin und
+   * wacht in einer veränderten Welt auf. Ohne Rückblick verschwindet dabei
+   * alles, was man getan hat – man sieht nur noch das Ergebnis und nicht den
+   * Weg. Die Insel färbt sich ohnehin langsam; ein „+0,8 %" ist der Beweis,
+   * dass der Tag etwas gebracht hat.
+   */
+  _daybook() {
+    const b = this.game.lastDaybook;
+    if (!b) return '<p class="empty-note">Noch kein Tag vergangen.</p>';
+
+    const zeilen = [
+      ['icon_check', b.quests, 'Bitte erfüllt', 'Bitten erfüllt'],
+      ['icon_sparkle', b.finds, 'Fundstück gehoben', 'Fundstücke gehoben'],
+      ['icon_fish_trout', b.fish, 'Fisch gefangen', 'Fische gefangen'],
+      ['icon_net', b.bugs, 'Falter gefangen', 'Falter gefangen'],
+      ['icon_flowerbed', b.decor, 'Stück aufgestellt', 'Stücke aufgestellt'],
+      ['icon_heart', b.gifts, 'Mitbringsel verschenkt', 'Mitbringsel verschenkt'],
+      ['icon_coin', b.coins, 'Münze verdient', 'Münzen verdient'],
+      ['icon_ember', b.ember, 'Glut gesammelt', 'Glut gesammelt'],
+    ].filter(function (z) { return z[1] > 0; });
+
+    // Die Farbe steht oben: sie ist das Maß, an dem dieses Spiel hängt.
+    // Weiter unten wäre sie beim Aufwachen unter der Fensterkante.
+    const dazu = Math.round((b.colorEnd - b.colorStart) * 1000) / 10;
+    let html = '<p class="empty-note" style="padding-bottom:10px">Tag ' + b.day + '</p>';
+    html += '<div class="rows"><div class="row">' + ico('icon_map', 'lg') +
+      '<div class="grow"><div class="title">Farbe auf der Insel · ' +
+      (Math.round(b.colorEnd * 1000) / 10) + ' %' +
+      (dazu > 0.05 ? ' <span style="color:#5c7d3e">(+' + dazu + ')</span>' : '') +
+      '</div><div class="meta"><span>' +
+      (dazu > 0.05 ? 'Gestern ist etwas zurückgekommen.' : 'Heute wartet noch Grau auf dich.') +
+      '</span></div></div></div></div>';
+
+    if (!zeilen.length) {
+      html += '<p class="empty-note">Ein ruhiger Tag. Auch die gibt es.</p>';
+    } else {
+      html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Was du getan hast</h3>';
+      html += '<div class="rows">';
+      for (let i = 0; i < zeilen.length; i++) {
+        const z = zeilen[i];
+        html += '<div class="row">' + ico(z[0], 'lg') +
+          '<div class="grow"><div class="title">' + num(z[1]) + ' ' +
+          escapeHtml(z[1] === 1 ? z[2] : z[3]) + '</div></div></div>';
+      }
+      html += '</div>';
+    }
+    return html;
   }
 
   /* ---------------- Karte ---------------- */

@@ -6,7 +6,7 @@ import {
   FORD_X0, FORD_X1, RIVER_Y0, RIVER_Y1,
   CHANNEL_X0, CHANNEL_X1, BRIDGE_Y0, BRIDGE_Y1,
 } from './worldgen.js';
-import { makeEntity, defOf } from './entities.js';
+import { makeEntity, defOf, spriteFor } from './entities.js';
 import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
 import { syncIdCounter } from '../core/util.js';
 
@@ -368,7 +368,7 @@ export class World {
       if (e.respawnDay && day >= e.respawnDay) {
         if (e.origin) {
           e.kind = e.origin;
-          e.sprite = defOf(e.origin).sprite;
+          e.sprite = spriteFor(e.origin, e.x, e.y) || e.sprite;
           e.origin = null;
         }
         e.gone = false;

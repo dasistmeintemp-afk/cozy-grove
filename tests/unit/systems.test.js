@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Inventory } from '../../src/game/inventory.js';
-import { QuestBook, QTYPE, questTitle, questIcon, QUEST_VERB } from '../../src/game/quests.js';
+import {
+  QuestBook, QTYPE, questTitle, questIcon, QUEST_VERB, lifetimeOf, daysLeft,
+} from '../../src/game/quests.js';
 import { World } from '../../src/world/world.js';
 import { DayCycle, DAY_START, DAY_END } from '../../src/game/daycycle.js';
 import { Fishing } from '../../src/game/fishing.js';
@@ -113,6 +115,79 @@ test('Nie mehr als drei offene Aufgaben pro Geist', () => {
   for (const id of Object.keys(perSpirit)) {
     assert.ok(perSpirit[id] <= 3, id + ' hat ' + perSpirit[id] + ' Aufgaben');
   }
+});
+
+test('Bitten laufen ab und machen Platz für neue', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  qb.newDay(1, ctx.world, ctx);
+  const ersteTag = qb.active().map((q) => q.id);
+  assert.ok(ersteTag.length > 0);
+  for (const q of qb.active()) {
+    assert.ok(q.expires > 1, 'jede Bitte braucht eine Frist');
+    assert.equal(q.expires, 1 + lifetimeOf(q.type));
+  }
+
+  // Weit genug in die Zukunft, dass alles vom ersten Tag abgelaufen ist
+  for (let day = 2; day <= 7; day++) qb.newDay(day, ctx.world, ctx);
+  const nochDa = qb.active().filter((q) => ersteTag.indexOf(q.id) >= 0);
+  assert.equal(nochDa.length, 0, 'liegengebliebene Bitten vom ersten Tag: ' + nochDa.length);
+  assert.ok(qb.active().length > 0, 'aber es gibt neue');
+});
+
+test('Fertige Bitten laufen NICHT ab', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  qb.newDay(1, ctx.world, ctx);
+  // Eine Sammelaufgabe erfüllen, aber nicht abgeben
+  const q = qb.active().filter((x) => x.type === QTYPE.GATHER)[0];
+  assert.ok(q, 'kein Sammelauftrag am ersten Tag');
+  ctx.inventory.add(q.itemId, q.need);
+  for (let day = 2; day <= 9; day++) qb.newDay(day, ctx.world, ctx);
+  assert.ok(qb.byId(q.id), 'die erfüllte Bitte wurde weggeworfen');
+});
+
+test('Abgelaufene Suchaufträge räumen ihre Fundstücke weg', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  let q = null;
+  for (let day = 1; day <= 12 && !q; day++) {
+    qb.newDay(day, ctx.world, ctx);
+    q = qb.active().filter((x) => x.type === QTYPE.FIND && x.hiddenIds && x.hiddenIds.length)[0];
+  }
+  assert.ok(q, 'kein Suchauftrag erzeugt');
+  const ids = q.hiddenIds.slice();
+  for (const id of ids) assert.ok(ctx.world.byId[id], 'Fundstück fehlt schon vorher');
+
+  const bis = q.expires;
+  for (let day = q.day + 1; day <= bis + 1; day++) qb.newDay(day, ctx.world, ctx);
+  assert.equal(qb.byId(q.id), null, 'der Auftrag läuft nicht ab');
+  for (const id of ids) {
+    assert.equal(ctx.world.byId[id], undefined, 'verwaistes Fundstück ' + id + ' liegt noch herum');
+  }
+});
+
+test('Ein Geist stellt nicht zweimal dieselbe Bitte gleichzeitig', () => {
+  const ctx = makeCtx();
+  for (let day = 1; day < 40; day++) {
+    const qb = new QuestBook();
+    qb.newDay(day, ctx.world, ctx);
+    const gesehen = Object.create(null);
+    for (const q of qb.active()) {
+      const k = q.spirit + '|' + q.type + '|' + (q.itemId || '');
+      assert.ok(!gesehen[k], 'doppelt an Tag ' + day + ': ' + k);
+      gesehen[k] = 1;
+    }
+  }
+});
+
+test('Alte Spielstände bekommen ihre Frist nachgetragen', () => {
+  const alt = { seq: 9, total: 0, done: {}, quests: [
+    { id: 'q1_3', spirit: 'mira', type: QTYPE.GATHER, itemId: 'berry', need: 3, have: 0,
+      turnedIn: false, day: 3, rewards: { coins: 1, ember: 1, items: [] }, hiddenIds: null },
+  ] };
+  const qb = QuestBook.fromJSON(alt);
+  assert.equal(qb.active()[0].expires, 3 + lifetimeOf(QTYPE.GATHER));
 });
 
 test('Aufgaben sind nicht überwiegend Hol-und-Bring', () => {
