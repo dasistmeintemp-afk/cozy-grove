@@ -5,6 +5,7 @@ import { RECIPES, missingFor, campfireLevelFor, nextCampfireLevel } from '../gam
 import { SPIRITS, friendshipLevel, friendshipProgress } from '../game/spirits.js';
 import { STAGES, storyIcon, keepsakeOf } from '../game/stories.js';
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
+import { canLink, linkedName, linkNew, linkExisting, unlink, openFile, suggestName } from '../core/savefile.js';
 import { questTitle, questIcon, QTYPE } from '../game/quests.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
 import { TILE_DEF, TILE_SIZE } from '../art/tiles.js';
@@ -92,6 +93,7 @@ export class Panels {
     const act = t.getAttribute('data-act');
     const arg = t.getAttribute('data-arg');
     const g = this.game;
+    const self2 = this;
 
     switch (act) {
       case 'tab':
@@ -143,6 +145,21 @@ export class Panels {
         break;
       case 'reset':
         g.confirmReset();
+        break;
+      case 'saveExport':
+        g.exportSave();
+        break;
+      case 'saveImport':
+        this._importSave();
+        break;
+      case 'saveLinkNew':
+        this._linkSave(false);
+        break;
+      case 'saveLinkOpen':
+        this._linkSave(true);
+        break;
+      case 'saveUnlink':
+        unlink().then(function () { self2.render(); });
         break;
       case 'close':
         this.close();
@@ -556,6 +573,39 @@ export class Panels {
     return html;
   }
 
+  /* ---------------- Spielstand als Datei ---------------- */
+
+  _importSave() {
+    const self = this;
+    openFile().then(function (text) {
+      if (text) self.game.applySaveText(text);
+    });
+  }
+
+  /**
+   * Verknüpft eine Datei. `vorhanden` heißt: eine schon bespielte auswählen –
+   * dann wird ihr Inhalt gleich übernommen, denn genau dafür holt man sie.
+   */
+  _linkSave(vorhanden) {
+    const self = this;
+    const g = this.game;
+    if (vorhanden) {
+      linkExisting().then(function (res) {
+        if (!res) return;
+        self.render();
+        if (res.text && res.text.trim()) g.applySaveText(res.text);
+        else { g.save(); g.ui.toast('Datei verknüpft', 'icon_star', 'good'); }
+      });
+      return;
+    }
+    linkNew(suggestName(g.day.day)).then(function (name) {
+      if (!name) return;
+      g.save();
+      self.render();
+      g.ui.toast('Schreibt jetzt in ' + name, 'icon_star', 'good');
+    });
+  }
+
   /* ---------------- Karte ---------------- */
 
   _map() {
@@ -691,11 +741,36 @@ export class Panels {
       '<span>F – schlafen (am Zelt)</span><span>R – drehen, X – abbrechen</span>' +
       '</div></div></div></div>';
 
+    // Der Browserspeicher hängt am Browser, am Rechner und am Profil. Wer
+    // wechselt oder aufräumt, ist den Fortschritt los – deshalb steht hier
+    // gleich daneben, wie man ihn als Datei mitnimmt.
+    const verknuepft = linkedName();
     html += '<h3 style="font-size:0.95em;margin:18px 0 8px">Spielstand</h3><div class="rows">' +
       '<div class="row"><div class="grow"><div class="title">Automatisch gespeichert</div>' +
       '<div class="meta"><span>' + (this.game.storagePersistent
         ? 'Im Browser gesichert' : 'Achtung: privater Modus – nur für diese Sitzung') + '</span></div></div>' +
-      '<button class="row-btn" data-act="reset">Neu anfangen</button></div></div>';
+      '<button class="row-btn ghost" data-act="reset">Neu anfangen</button></div>';
+
+    html += '<div class="row"><div class="grow"><div class="title">Als Datei mitnehmen</div>' +
+      '<div class="meta"><span>Sichern legt eine Datei an. Laden holt sie zurück – ' +
+      'auch in einem anderen Browser oder auf einem anderen Rechner.</span></div></div>' +
+      '<button class="row-btn" data-act="saveExport">Sichern</button>' +
+      '<button class="row-btn ghost" data-act="saveImport">Laden</button></div>';
+
+    if (canLink()) {
+      html += '<div class="row"><div class="grow"><div class="title">' +
+        (verknuepft ? 'Schreibt in ' + escapeHtml(verknuepft) : 'Immer in eine Datei schreiben') +
+        '</div><div class="meta"><span>' + (verknuepft
+          ? 'Jedes Speichern geht zusätzlich in diese Datei.'
+          : 'Einmal eine Datei wählen – danach sichert das Spiel von selbst dorthin. ' +
+            'Am besten in einen Ordner, der mitwandert.') + '</span></div></div>' +
+        (verknuepft
+          ? '<button class="row-btn ghost" data-act="saveUnlink">Lösen</button>'
+          : '<button class="row-btn" data-act="saveLinkNew">Datei anlegen</button>' +
+            '<button class="row-btn ghost" data-act="saveLinkOpen">Vorhandene</button>') +
+        '</div>';
+    }
+    html += '</div>';
 
     return html;
   }

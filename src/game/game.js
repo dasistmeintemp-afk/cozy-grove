@@ -29,6 +29,7 @@ import { audio } from '../core/audio.js';
 import { UI } from '../ui/ui.js';
 import { Panels } from '../ui/panels.js';
 import * as storage from '../core/storage.js';
+import * as savefile from '../core/savefile.js';
 
 const SAVE_VERSION = 1;
 const AUTOSAVE_SECONDS = 20;
@@ -51,6 +52,9 @@ export class Game {
     this.time = 0;
     this.autosaveTimer = AUTOSAVE_SECONDS;
     this.sleeping = false;
+    // Gesetzt, sobald ein fremder Spielstand übernommen wurde: ab dann
+    // schreibt dieses Spiel nichts mehr.
+    this.frozen = false;
     this.placing = null;
     this.target = null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, storage.loadSettings() || {});
@@ -102,6 +106,9 @@ export class Game {
     this.syncCosiness(true);
     this.ui.refreshHud();
     this.ui.refreshQuests();
+    // Eine früher gewählte Datei zurückholen, falls die Erlaubnis noch steht.
+    // Still: klappt es nicht, bleibt es beim Browserspeicher.
+    savefile.restoreLink();
     return this;
   }
 
@@ -272,13 +279,59 @@ export class Game {
   }
 
   save() {
+    // Nach dem Übernehmen eines fremden Spielstands darf dieses Spiel nichts
+    // mehr schreiben. Sonst überschreibt es beim Neuladen den gerade
+    // geladenen Stand: `location.reload()` löst `pagehide` aus, und der
+    // Sicherungshaken dort sichert noch das alte Spiel.
+    if (this.frozen) return false;
+    let json = null;
     try {
-      storage.writeSave(this.toJSON());
-      return true;
+      json = JSON.stringify(this.toJSON());
+      storage.writeSave(JSON.parse(json));
     } catch (err) {
       console.warn('Speichern fehlgeschlagen', err);
       return false;
     }
+    // Ist eine Datei verknüpft, geht derselbe Stand still dorthin. Ein Fehler
+    // dabei darf das Spiel nicht stören – der Browserspeicher hat schon.
+    if (json && savefile.linkedName()) savefile.writeLinked(json);
+    return true;
+  }
+
+  /* ---------------- Spielstand als Datei ---------------- */
+
+  /** Lädt den Spielstand als Datei herunter. */
+  exportSave() {
+    const json = JSON.stringify(this.toJSON());
+    const ok = savefile.download(json, savefile.suggestName(this.day.day));
+    this.ui.toast(ok ? 'Spielstand gesichert' : 'Sichern ging nicht',
+      'icon_star', ok ? 'good' : 'bad');
+    return ok;
+  }
+
+  /**
+   * Übernimmt einen Spielstand aus einer Datei.
+   * Die Seite lädt danach neu – ein laufendes Spiel mitten im Betrieb
+   * auszutauschen wäre die Sorte Fehlerquelle, die man nie ganz findet.
+   */
+  applySaveText(text) {
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      this.ui.toast('Datei nicht lesbar', 'icon_lock', 'bad');
+      return false;
+    }
+    if (!data || typeof data !== 'object' || data.version !== SAVE_VERSION || !data.seed) {
+      this.ui.toast('Das ist kein Spielstand', 'icon_lock', 'bad');
+      return false;
+    }
+    this.frozen = true;
+    storage.writeSave(data);
+    this.ui.toast('Spielstand geladen · Tag ' + ((data.day && data.day.day) || 1),
+      'icon_star', 'good');
+    setTimeout(function () { window.location.reload(); }, 900);
+    return true;
   }
 
   /* ================= Schleife ================= */

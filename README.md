@@ -236,7 +236,7 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 
 ```bash
 npm test               # 89 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
-npm run test:browser   # 36 Prüfungen im echten Browser, mit Bildschirmfotos
+npm run test:browser   # 39 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 
@@ -266,3 +266,24 @@ Prüfung gegen die Rechtecke im Boden.
 Wird automatisch im `localStorage` gesichert (alle 20 Sekunden, beim Schlafen und
 beim Verlassen der Seite). Im privaten Modus von Safari fällt das Spiel still auf
 einen Speicher im Arbeitsspeicher zurück – die Einstellungen weisen darauf hin.
+
+**Unabhängig vom Browser** geht es über die Einstellungen, Abschnitt
+„Spielstand“:
+
+* **Sichern / Laden** legt eine `.json`-Datei an bzw. holt sie zurück – auch
+  in einem anderen Browser oder auf einem anderen Rechner. Funktioniert
+  überall, auch per `file://`.
+* **Immer in eine Datei schreiben** verknüpft einmalig eine Datei; danach geht
+  jedes Speichern zusätzlich dorthin, ohne weiteres Zutun. Legt man sie in
+  einen Ordner, der mitwandert, wandert der Spielstand mit. Braucht die File
+  System Access API – heute Chrome und Edge, nicht Safari und Firefox; wo sie
+  fehlt, erscheint der Abschnitt gar nicht erst.
+
+Was ein Browser **nicht** darf, ist ungefragt auf die Festplatte schreiben.
+Die erste Wahl der Datei ist deshalb immer ein Klick des Menschen; alles
+Weitere geht dann von selbst.
+
+Beim Übernehmen einer Datei lädt die Seite neu. Das Spiel friert sich vorher
+selbst ein (`frozen`) – ohne das schrieb der Sicherungshaken an `pagehide`
+beim Neuladen noch den **alten** Stand über den gerade geladenen. Ein
+Browsertest wacht darüber.

@@ -402,6 +402,45 @@ async function run() {
 
     await page.screenshot({ path: join(SHOT_DIR, '06-nach-neuladen.png') });
 
+    /* ---- Spielstand als Datei: übernehmen und Neuladen überstehen ---- */
+    // Der Weg für „anderer Browser, anderer Rechner". Die heikle Stelle ist
+    // nicht das Schreiben, sondern das Neuladen danach: `location.reload()`
+    // löst `pagehide` aus, und der Sicherungshaken dort schrieb einmal das
+    // ALTE Spiel über den gerade geladenen Stand.
+    const fremd = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      const daten = g.toJSON();
+      daten.state.coins = 9191;
+      daten.day.day = 12;
+      return JSON.stringify(daten);
+    });
+    const geprueft = await page.evaluate((txt) => {
+      const g = window.CozyGrove.game;
+      return {
+        quatsch: g.applySaveText('kein json {{{'),
+        version: g.applySaveText('{"version":99,"seed":1}'),
+        leer: g.applySaveText(''),
+        gut: g.applySaveText(txt),
+      };
+    }, fremd);
+    check('Unbrauchbare Datei wird abgewiesen',
+      geprueft.quatsch === false && geprueft.version === false && geprueft.leer === false,
+      JSON.stringify(geprueft));
+    check('Spielstand aus Datei wird übernommen', geprueft.gut === true);
+
+    await page.waitForTimeout(1500);
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.ready), 60000, 'Grafik nach Übernahme');
+    await page.waitForSelector('#btn-continue', { state: 'visible' });
+    await page.click('#btn-continue');
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.game), 20000, 'Weiterspielen nach Übernahme');
+    await page.waitForTimeout(1000);
+    const uebernommen = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      return { coins: g.state.coins, day: g.day.day };
+    });
+    check('Übernommener Stand übersteht das Neuladen',
+      uebernommen.coins === 9191 && uebernommen.day === 12, JSON.stringify(uebernommen));
+
     // Bildrate grob prüfen
     const fps = await page.evaluate(async () => {
       let frames = 0;
