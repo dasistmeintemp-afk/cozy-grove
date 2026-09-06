@@ -1,7 +1,7 @@
 # Cozy Grove – Web Edition
 
 Ein gemütliches Insel-Sammelspiel im Browser. Die Insel hat ihre Farben verloren;
-du bringst sie zurück, indem du sammelst, angelst, baust – und den Geistern hilfst.
+**Seli** bringt sie zurück, indem sie sammelt, angelt, baut – und den Geistern hilft.
 
 **Die Änderung gegenüber dem Vorbild: fast keine Dialoge.** Was ein Geist möchte,
 zeigt eine Karte aus Symbolen. Gesprochen wird höchstens ein kurzer Satz, und der
@@ -72,6 +72,13 @@ Käpt'n Kiesel (Strand), Bruno Borke (Wald), Tobi Tüftler (Werkstatt),
 Nelly Nadel (Klippen). Jeder vergibt höchstens zwei Aufgaben gleichzeitig,
 offene Aufgaben verfallen nie.
 
+## Seli
+
+Die Spielfigur: blonde Frau, schulterlanger Bob unter einer Hutkrempe, blaues
+Oberteil, Halstuch, Rock, Stiefel. Neun Bilder – drei Blickrichtungen zu je drei
+Schritten. Sie und die anderen Lebewesen bleiben immer farbig, auch wo die Insel
+noch blass ist.
+
 ## Aufbau
 
 ```
@@ -88,6 +95,7 @@ src/render/           Kamera, Bodenschicht, Szenen-Renderer, Partikel, Kleintier
 src/ui/               HUD, Sprechblasen, modale Fenster
 tests/unit/           Node-Tests ohne Browser
 tests/browser/        Rauchtest im echten Chromium
+tools/                Werkzeuge zum Hinsehen (siehe Tests)
 ```
 
 **Wie der Stil entsteht.** Jedes Objekt wird in vier Durchgängen gemalt: weicher
@@ -97,6 +105,14 @@ der wichtigste: Die gefüllte Form wird ringsum versetzt kopiert und die Mitte
 ausgestanzt – so bekommt eine Baumkrone aus sechs Lappen *eine* Außenlinie statt
 sechs sich kreuzender Kringel. Jede Grafik fällt dabei zweimal an, koloriert und
 als blasse Zeichnung.
+
+Um jede Zeichenfläche liegt ein Rand. Ohne ihn schneidet die Leinwand die
+Malerei ab – am einzelnen Baum kaum zu sehen, aber wo sich viele überlagern,
+addieren sich die geraden Schnittkanten zu Rechtecken im Boden.
+
+**Die Küste** trägt den Saum des Vorbilds: Wasser dicht am Land wird fast weiß,
+eine Kachel weiter hell türkis, danach erst die Tiefe. Daneben läuft eine breite
+weiße Linie um die Insel – die Brandung.
 
 **Wie die Farbe zurückkommt.** Der Boden liegt in Stücken zwischengespeichert
 vor, getrennt nach Farbfläche und Tinte: Unkoloriert kommt ein Papierschleier
@@ -115,8 +131,20 @@ npm run test:all
 ```
 
 Der Browsertest legt Bildschirmfotos unter `.screenshots/` ab.
-`node tests/browser/atlas.mjs` rendert alle Grafiken als Übersichtsbild
-(`--line` zeigt die unkolorierte Fassung).
+
+Dazu drei Werkzeuge zum Hinsehen:
+
+```bash
+node tests/browser/atlas.mjs           # alle Grafiken als Übersichtsbild
+node tests/browser/atlas.mjs --only=player_ --zoom=2.5   # eine Auswahl, groß
+node tools/look.mjs                    # die Welt an vier Orten, in voller Farbe
+node tools/look.mjs --pale --hour=22   # unkoloriert, nachts
+node tools/edges.mjs                   # findet abgeschnittene Grafiken
+```
+
+`--line` beim Atlas zeigt die unkolorierte Fassung. `tools/edges.mjs` endet mit
+Rückgabewert 1, wenn eine Grafik an ihren Leinwandrand stößt – das ist die
+Prüfung gegen die Rechtecke im Boden.
 
 ## Speicherstand
 
