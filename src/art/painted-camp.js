@@ -938,6 +938,13 @@ export function paintTool(kind, opts) {
     shafts = [handle(cx - 34, cy + 44, cx + 30, cy - 42, 5)];
     heads = [];
     headColor = ink.wood;
+  } else if (kind === 'net') {
+    // Stiel schräg, oben ein Ring, darin der Beutel. Der Beutel ist eine
+    // eigene Form, damit die Silhouette einen Kescher ergibt und nicht
+    // eine Kelle.
+    shafts = [handle(cx - 30, cy + 46, cx + 4, cy - 8, 6)];
+    heads = [smoothClosed(blob(cx + 14, cy - 30, 27, 24, seed + 3, 0.07, 18), 6)];
+    headColor = ink.paper;
   } else { // hand
     heads = [smoothClosed(blob(cx, cy + 4, 26, 30, seed, 0.14, 16), 5)];
     headColor = ink.skin;
@@ -963,6 +970,18 @@ export function paintTool(kind, opts) {
       if (kind === 'rod') {
         inkLine(g, cx + 30, cy - 42, cx + 38, cy + 20, { width: 1.4, bend: 0.12, seed: seed + 40, alpha: 0.8 });
         dot(null, g, cx + 38, cy + 22, 5, ink.petalWhite, seed + 41);
+      }
+      if (kind === 'net') {
+        // Ring als kräftige Linie, darin ein Gitter aus dünnen Strichen:
+        // ohne das Gitter wäre der Beutel eine weiße Blase.
+        inkStroke(g, smoothClosed(blob(cx + 14, cy - 30, 27, 24, seed + 3, 0.07, 18), 6),
+          { width: 2.6, vary: 0.25, seed: seed + 45, color: ink.woodDark, alpha: 0.95 });
+        for (let i = -2; i <= 2; i++) {
+          inkLine(g, cx + 14 + i * 10, cy - 52, cx + 14 + i * 8, cy - 8,
+            { width: 1.1, bend: 0.05, seed: seed + 50 + i, color: ink.lineSoft, alpha: 0.42 });
+          inkLine(g, cx - 12, cy - 30 + i * 9, cx + 40, cy - 30 + i * 9,
+            { width: 1.1, bend: 0.08, seed: seed + 60 + i, color: ink.lineSoft, alpha: 0.42 });
+        }
       }
       if (kind === 'hand') {
         for (let i = 0; i < 3; i++) {

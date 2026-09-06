@@ -7,7 +7,7 @@
  */
 import { SPIRITS, SPIRIT_IDS, friendshipLevel } from './spirits.js';
 import { charmAround } from './cosiness.js';
-import { MEMORY_IDS, getItem, CAT, fishesOf } from './items.js';
+import { MEMORY_IDS, getItem, CAT, fishesOf, bugsOf } from './items.js';
 import { dailyRng, randInt, randPick } from '../core/rng.js';
 import { makeEntity } from '../world/entities.js';
 import { TILE_SIZE } from '../world/worldgen.js';
@@ -144,6 +144,18 @@ export class QuestBook {
       return q;
     }
 
+    // Dieselbe Mechanik wie beim Fisch, anderes Ziel: ein bestimmter Falter.
+    // Nachtfalter fliegen nur nachts – das ist ein Grund, abends draußen zu
+    // bleiben, statt sofort schlafen zu gehen.
+    if (type === 'catch_bug') {
+      const q = this._base(spiritId, QTYPE.CATCH, 1, day);
+      const pool = bugsOf(rng() < 0.4);
+      if (!pool.length) return null;
+      q.itemId = randPick(rng, pool).id;
+      q.rewards = rewardFor(QTYPE.CATCH, 1, scale, rng);
+      return q;
+    }
+
     if (type === 'visit') {
       const q = this._base(spiritId, QTYPE.VISIT, 1, day);
       const spiritEnt = world.spiritEntity(spiritId);
@@ -243,8 +255,8 @@ export class QuestBook {
       } else if (event === 'found' && q.type === QTYPE.FIND && payload.questId === q.id) {
         q.have++;
         changed = true;
-      } else if (event === 'fish' && q.type === QTYPE.CATCH && q.have < q.need &&
-                 payload && payload.id === q.itemId) {
+      } else if ((event === 'fish' || event === 'catch') && q.type === QTYPE.CATCH &&
+                 q.have < q.need && payload && payload.id === q.itemId) {
         q.have = q.need;
         changed = true;
       } else if (event === 'visit' && q.type === QTYPE.VISIT && q.have < q.need && q.spot) {

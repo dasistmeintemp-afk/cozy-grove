@@ -369,7 +369,7 @@ export class Game {
       else if (this.fishing.active) this.fishing.cancel();
       else this.openPanel('settings');
     }
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < TOOLS.length; i++) {
       if (inp.pressed('tool' + (i + 1))) this.selectTool(i);
     }
     if (inp.pressed('nextTool')) {
@@ -405,6 +405,12 @@ export class Game {
       else if (r === 'miss') this._onFishEvent('miss');
       return;
     }
+
+    // Der Kescher greift nur, wenn überhaupt ein Falter in der Nähe ist.
+    // Sonst würde er das Reden, Aufheben und den Laden blockieren – man
+    // müsste vor jedem Gespräch das Werkzeug wechseln. Knapp daneben zählt
+    // aber als Fehlschlag, sonst wäre Zielen belanglos.
+    if (this.player.tool.id === 'net' && this.bugNearby()) { this.swingNet(); return; }
 
     const t = this.target;
     if (t) {
@@ -687,6 +693,62 @@ export class Game {
         }
       }, 2000);
     }
+  }
+
+  /* ---------------- Kescher ---------------- */
+
+  /**
+   * Schlägt mit dem Kescher zu.
+   *
+   * Getroffen wird der nächste Falter im Umkreis – kein Zielen mit dem
+   * Mauszeiger, das Spiel wird auch mit Joystick gespielt. Ein Fehlschlag
+   * kostet: die Falter ringsum schrecken auf und fliegen zwei Sekunden lang
+   * doppelt so schnell. Ohne das wäre blindes Wischen die beste Taktik.
+   */
+  /** Reichweite des Kescher nach Stufe. */
+  netReach() {
+    return 74 + ((this.player.levels.net || 1) - 1) * 26;
+  }
+
+  /** Der nächste fangbare Falter vor der Figur, oder null. */
+  bugInReach() {
+    return this.wildlife.catchableNear(this.player.x, this.player.y - 42, this.netReach());
+  }
+
+  /** Ein Falter in Sichtweite – nah genug, dass ein Schlag sinnvoll wirkt. */
+  bugNearby() {
+    return this.wildlife.catchableNear(this.player.x, this.player.y - 42, this.netReach() + 90);
+  }
+
+  swingNet() {
+    this.player.startSwing();
+    this.audio.play('swing');
+    const reach = this.netReach();
+    const px = this.player.x;
+    const py = this.player.y - 42;
+
+    const bug = this.wildlife.catchableNear(px, py, reach);
+    if (!bug) {
+      this.wildlife.scare(px, py, reach + 90);
+      this.audio.play('fail');
+      return;
+    }
+
+    const item = getItem(bug.species);
+    if (!item) { this.wildlife.remove(bug); return; }
+    if (!this.inventory.add(item.id, 1)) {
+      this.ui.toast('Tasche ist voll!', 'icon_bag', 'bad');
+      return;
+    }
+
+    this.wildlife.remove(bug);
+    this.particles.burst('sparkle', bug.x, bug.y - bug.z, 10);
+    this.audio.play('pickup');
+    this.ui.toast(item.name, item.icon, 'good');
+    this.state.bugsCaught = (this.state.bugsCaught || 0) + 1;
+
+    if (this.quests.notify('catch', { id: item.id }, this)) this.ui.refreshQuests();
+    this.save();
   }
 
   pickDecor(e) {
@@ -1355,6 +1417,10 @@ export class Game {
   _updatePrompt() {
     if (this.placing) {
       this.ui.setPrompt(this.placing.valid ? 'Hier aufstellen' : 'Kein Platz');
+      return;
+    }
+    if (this.player.tool.id === 'net' && this.bugInReach()) {
+      this.ui.setPrompt('Fangen');
       return;
     }
     if (this.fishing.active) {

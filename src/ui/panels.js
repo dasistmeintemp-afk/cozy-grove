@@ -686,7 +686,7 @@ export class Panels {
 
     html += '<h3 style="font-size:0.95em;margin:18px 0 8px">Steuerung</h3>' +
       '<div class="rows"><div class="row"><div class="grow"><div class="meta">' +
-      '<span>WASD / Pfeile – laufen</span><span>E – benutzen</span><span>1–5 – Werkzeug</span>' +
+      '<span>WASD / Pfeile – laufen</span><span>E – benutzen</span><span>1–6 – Werkzeug</span>' +
       '<span>Tab – nächstes Werkzeug</span><span>I / Q / C / M – Fenster</span>' +
       '<span>F – schlafen (am Zelt)</span><span>R – drehen, X – abbrechen</span>' +
       '</div></div></div></div>';

@@ -5,12 +5,15 @@
  *   Nacht  Motten, die zum nächsten Licht streben
  *   immer  Fische, die im Wasser hochspringen
  *
- * Rein schmückend – sie greifen nicht ins Spiel ein, machen die Insel aber
- * deutlich lebendiger. Nachts war hier vorher gar nichts.
+ * Falter und Motten tragen eine Art (`species`) und lassen sich mit dem
+ * Kescher fangen; Vögel und Fischsprünge bleiben Schmuck. Vorher war hier
+ * alles nur Kulisse – man sah der Insel beim Leben zu, konnte aber nichts
+ * davon anfassen.
  */
 import { drawSprite } from '../art/sprites.js';
 import { randRange } from '../core/rng.js';
 import { isWalkable, isWater } from '../art/tiles.js';
+import { bugsOf } from '../game/items.js';
 
 const MAX = 9;
 
@@ -36,10 +39,14 @@ export class Wildlife {
       const c = this.list[i];
       c.life -= dt;
       c.t += dt;
+      // Nach einem Fehlschlag ist der Falter für zwei Sekunden hektisch:
+      // Zuschlagen ohne Ziel soll etwas kosten, sonst wischt man blind.
+      if (c.flee > 0) c.flee = Math.max(0, c.flee - dt);
+      const hast = c.flee > 0 ? 2.3 : 1;
 
       if (c.type === 'butterfly') {
-        c.x += Math.cos(c.dir) * c.speed * dt;
-        c.y += Math.sin(c.dir) * c.speed * dt + Math.sin(c.t * 4) * 24 * dt;
+        c.x += Math.cos(c.dir) * c.speed * hast * dt;
+        c.y += Math.sin(c.dir) * c.speed * hast * dt + Math.sin(c.t * 4) * 24 * dt;
         c.dir += Math.sin(c.t * 0.9 + c.phase) * 1.4 * dt;
         if (!isWalkable(world.tileAt(c.x, c.y))) c.dir += Math.PI * 0.6;
       } else if (c.type === 'moth') {
@@ -53,8 +60,8 @@ export class Wildlife {
           c.dir += diff * 1.1 * dt;
         }
         c.dir += Math.sin(c.t * 5.5 + c.phase) * 2.6 * dt;
-        c.x += Math.cos(c.dir) * c.speed * dt;
-        c.y += Math.sin(c.dir) * c.speed * dt + Math.sin(c.t * 7) * 22 * dt;
+        c.x += Math.cos(c.dir) * c.speed * hast * dt;
+        c.y += Math.sin(c.dir) * c.speed * hast * dt + Math.sin(c.t * 7) * 22 * dt;
       } else if (c.type === 'jump') {
         // Fischsprung: eine kurze Wurfparabel, danach ist er weg
         c.t += 0;
@@ -93,15 +100,18 @@ export class Wildlife {
       const x = camera.ox + randRange(rng, 40, viewW - 40);
       const y = camera.oy + randRange(rng, 40, viewH - 40);
       if (!isWalkable(world.tileAt(x, y))) continue;
+      const art = pickSpecies(rng, true);
       this.list.push({
         type: 'moth',
+        species: art.id,
         x: x, y: y,
         dir: randRange(rng, 0, Math.PI * 2),
-        speed: randRange(rng, 42, 78),
+        speed: randRange(rng, 42, 78) * (art.flight || 1),
         life: randRange(rng, 8, 16),
         t: 0,
         phase: randRange(rng, 0, 6.28),
         z: randRange(rng, 34, 76),
+        flee: 0,
       });
       return;
     }
@@ -138,15 +148,18 @@ export class Wildlife {
       const x = camera.ox + randRange(rng, 40, viewW - 40);
       const y = camera.oy + randRange(rng, 40, viewH - 40);
       if (!isWalkable(world.tileAt(x, y))) continue;
+      const art = pickSpecies(rng, false);
       this.list.push({
         type: 'butterfly',
+        species: art.id,
         x: x, y: y,
         dir: randRange(rng, 0, Math.PI * 2),
-        speed: randRange(rng, 34, 66),
+        speed: randRange(rng, 34, 66) * (art.flight || 1),
         life: randRange(rng, 9, 20),
         t: 0,
         phase: randRange(rng, 0, 6.28),
         z: randRange(rng, 30, 70),
+        flee: 0,
       });
       return;
     }
@@ -168,6 +181,45 @@ export class Wildlife {
     });
   }
 
+  /**
+   * Sucht den nächsten fangbaren Falter in einem Umkreis.
+   * @returns {object|null} der Falter, oder null
+   */
+  catchableNear(x, y, radius) {
+    let best = null;
+    let bestD = radius * radius;
+    for (let i = 0; i < this.list.length; i++) {
+      const c = this.list[i];
+      if (c.type !== 'butterfly' && c.type !== 'moth') continue;
+      const dx = c.x - x;
+      // Sie fliegen über dem Boden; für das Zielen zählt, wo sie zu sehen sind
+      const dy = (c.y - c.z) - y;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    return best;
+  }
+
+  /** Nimmt einen Falter aus der Welt. */
+  remove(c) {
+    const i = this.list.indexOf(c);
+    if (i >= 0) this.list.splice(i, 1);
+  }
+
+  /** Alle Falter im Umkreis schrecken auf. */
+  scare(x, y, radius) {
+    const r2 = radius * radius;
+    for (let i = 0; i < this.list.length; i++) {
+      const c = this.list[i];
+      if (c.type !== 'butterfly' && c.type !== 'moth') continue;
+      const dx = c.x - x;
+      const dy = c.y - y;
+      if (dx * dx + dy * dy > r2) continue;
+      c.flee = 2;
+      c.dir = Math.atan2(dy, dx);
+    }
+  }
+
   draw(ctx, camX, camY, time) {
     for (let i = 0; i < this.list.length; i++) {
       const c = this.list[i];
@@ -180,7 +232,7 @@ export class Wildlife {
       }
 
       const frame = Math.floor(time * (c.type === 'bird' ? 7 : 9) + c.phase) % 2;
-      const name = (c.type === 'bird' ? 'bird_' : 'butterfly_') + frame;
+      const name = (c.type === 'bird' ? 'bird' : (c.species || 'butterfly')) + '_' + frame;
       const flip = Math.cos(c.dir) < 0;
       // leichter Schatten am Boden
       ctx.save();
@@ -192,12 +244,12 @@ export class Wildlife {
       ctx.restore();
 
       if (c.type === 'moth') {
-        // Dieselbe Grafik, nur die blasse Fassung: nachts liest sie sich als
-        // Motte, ohne dass eine zweite Grafik nötig wäre. Additives Mischen
-        // liess sie zu weißen Klecksen ausbrennen.
+        // Nachtfalter etwas durchscheinend, aber in ihrer eigenen Farbe – der
+        // Mondfalter ist sonst nicht vom Abendfalter zu unterscheiden, und
+        // genau das soll man nachts sehen können.
         ctx.save();
-        ctx.globalAlpha = 0.8;
-        drawSprite(ctx, name, x, y - c.z, true, { flip: flip });
+        ctx.globalAlpha = 0.86;
+        drawSprite(ctx, name, x, y - c.z, false, { flip: flip });
         ctx.restore();
         continue;
       }
@@ -273,4 +325,21 @@ function nearestLight(lights, x, y) {
     if (d < bestD && d < 900 * 900) { bestD = d; best = L; }
   }
   return best;
+}
+
+/**
+ * Wählt eine Art nach Gewicht. Der Mondfalter ist selten – ohne Gewichtung
+ * wäre er so häufig wie der Zitronenfalter und damit nichts wert.
+ */
+function pickSpecies(rng, night) {
+  const pool = bugsOf(night);
+  if (!pool.length) return { id: 'butterfly', flight: 1 };
+  let total = 0;
+  for (let i = 0; i < pool.length; i++) total += pool[i].weight || 1;
+  let r = rng() * total;
+  for (let i = 0; i < pool.length; i++) {
+    r -= pool[i].weight || 1;
+    if (r <= 0) return pool[i];
+  }
+  return pool[pool.length - 1];
 }
