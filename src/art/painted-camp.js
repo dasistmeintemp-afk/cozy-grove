@@ -1472,8 +1472,15 @@ export function paintFox(frame, opts) {
   const furDark = '#c2703a';
   const light = '#f7ecd8';
 
-  const tail = smoothClosed(blob(cx - 44, baseY - 44 + bob, 20, 30, seed, 0.14, 16), 6);
-  const tailTip = smoothClosed(blob(cx - 50, baseY - 66 + bob, 13, 14, seed + 1, 0.12, 14), 5);
+  // Schweif: eine Sichel, die aus der Hüfte nach hinten oben schwingt und zur
+  // Spitze schmaler wird. Eine einzelne hohe Blase sah aus wie eine Platte.
+  const tail = smoothClosed([
+    [cx - 18, baseY - 58 + bob], [cx - 32, baseY - 70 + bob], [cx - 43, baseY - 83 + bob],
+    [cx - 52, baseY - 90 + bob],
+    [cx - 60, baseY - 81 + bob], [cx - 58, baseY - 66 + bob], [cx - 50, baseY - 51 + bob],
+    [cx - 38, baseY - 37 + bob], [cx - 24, baseY - 30 + bob], [cx - 15, baseY - 40 + bob],
+  ], 7);
+  const tailTip = smoothClosed(blob(cx - 51, baseY - 80 + bob, 12, 13, seed + 1, 0.12, 14), 5);
   const legL = smoothClosed([[cx - 20, baseY - 34 + bob], [cx - 22, baseY - 4], [cx - 8, baseY - 4], [cx - 8, baseY - 34 + bob]], 4);
   const legR = smoothClosed([[cx + 8, baseY - 34 + bob], [cx + 8, baseY - 4], [cx + 22, baseY - 4], [cx + 20, baseY - 34 + bob]], 4);
   const body = smoothClosed(blob(cx, baseY - 52 + bob, 32, 28, seed + 2, 0.07, 16), 5);
@@ -1492,13 +1499,20 @@ export function paintFox(frame, opts) {
     outline: 1.9,
     shadow: function (g) { groundShadow(g, cx, baseY - 2, 36, 11, seed + 5, 0.16); },
     wash: function (g) {
-      wash(g, tail, fur, { seed: seed + 10, scale: 1.05 });
+      wash(g, tail, fur, { seed: seed + 10, scale: 1.03 });
+      clipTo(g, [tail]);
+      wash(g, offsetShape(tail, -6, 6, 0.86), furDark, { seed: seed + 9, alpha: 0.45 });
+      g.restore();
       wash(g, tailTip, light, { seed: seed + 11 });
       wash(g, legL, furDark, { seed: seed + 12 });
       wash(g, legR, furDark, { seed: seed + 13 });
       wash(g, body, fur, { seed: seed + 14, scale: 1.05 });
       wash(g, offsetShape(body, 0, 12, 0.72), light, { seed: seed + 15, alpha: 0.8 });
+      // Weste auf den Koerper beschnitten – die Lasur liegt versetzt und stand
+      // sonst seitlich ueber das Fell hinaus
+      clipTo(g, [body]);
       wash(g, vest, ink.cloth, { seed: seed + 16 });
+      g.restore();
       for (let i = 0; i < 2; i++) {
         wash(g, i ? earR : earL, furDark, { seed: seed + 17 + i });
       }
@@ -1511,6 +1525,16 @@ export function paintFox(frame, opts) {
       fill(g, body); fill(g, earL); fill(g, earR); fill(g, head);
     },
     ink: function (g) {
+      // Grenze zwischen Schweif und weisser Spitze, dazu ein paar Fellstriche.
+      // Beschnitten, damit kein Strich neben dem Schweif in der Luft endet.
+      clipTo(g, [tail]);
+      inkLine(g, cx - 60, baseY - 72 + bob, cx - 42, baseY - 82 + bob,
+        { width: 1.6, bend: -0.3, seed: seed + 25, color: furDark, alpha: 0.55 });
+      for (let i = 0; i < 3; i++) {
+        inkLine(g, cx - 24 - i * 9, baseY - 40 - i * 12 + bob, cx - 36 - i * 8, baseY - 48 - i * 12 + bob,
+          { width: 1.4, bend: 0.2, seed: seed + 26 + i, color: furDark, alpha: 0.4 });
+      }
+      g.restore();
       inkStroke(g, vest, { width: 2.2, vary: 0.3, seed: seed + 30, color: ink.line, alpha: 0.85 });
       inkStroke(g, snout, { width: 2.0, vary: 0.3, seed: seed + 31, color: ink.line, alpha: 0.6 });
       inkStroke(g, earL, { width: 2.0, vary: 0.3, seed: seed + 32, color: ink.line, alpha: 0.5 });
@@ -1518,6 +1542,12 @@ export function paintFox(frame, opts) {
       g.fillStyle = ink.line;
       fill(g, smoothClosed(blob(cx - 12, headY - 2 + bob, 4, 5, seed + 40, 0.08, 10), 4));
       fill(g, smoothClosed(blob(cx + 12, headY - 2 + bob, 4, 5, seed + 41, 0.08, 10), 4));
+      g.fillStyle = '#fffdf6';
+      g.beginPath();
+      g.arc(cx - 13.2, headY - 3.6 + bob, 1.3, 0, 6.2832);
+      g.arc(cx + 10.8, headY - 3.6 + bob, 1.3, 0, 6.2832);
+      g.fill();
+      g.fillStyle = ink.line;
       fill(g, smoothClosed(blob(cx, headY + 12 + bob, 5.4, 4, seed + 42, 0.08, 10), 4));
       inkLine(g, cx, headY + 16 + bob, cx - 8, headY + 22 + bob, { width: 1.5, bend: 0.2, seed: seed + 43 });
       inkLine(g, cx, headY + 16 + bob, cx + 8, headY + 22 + bob, { width: 1.5, bend: -0.2, seed: seed + 44 });
