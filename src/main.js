@@ -78,7 +78,7 @@ function startGame(save) {
 
   if (!save) {
     setTimeout(function () {
-      game.ui.toast('Willkommen auf der Insel', 'icon_sparkle');
+      game.ui.toast('Willkommen auf der Insel, Seli', 'icon_sparkle');
     }, 500);
     setTimeout(function () {
       const c = game.world.campfire;

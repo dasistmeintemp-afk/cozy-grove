@@ -17,7 +17,7 @@ import {
   paintLantern, paintBench, paintFence, paintFlowerbed, paintBirdhouse,
   paintWindchime, paintRug, paintSignpost, paintCrate, paintChest,
   paintMemory, paintTool, paintButterfly, paintBird,
-  paintScout, paintSpirit, paintFlameSpirit, paintFox,
+  paintSeli, paintSpirit, paintFlameSpirit, paintFox,
 } from './painted-camp.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
@@ -244,7 +244,7 @@ export function initArt() {
   /* --- Figuren --- */
   const dirs = ['down', 'up', 'side'];
   for (let d = 0; d < dirs.length; d++) {
-    for (let f = 0; f < 3; f++) addArt('player_' + dirs[d] + '_' + f, paintScout(dirs[d], f));
+    for (let f = 0; f < 3; f++) addArt('player_' + dirs[d] + '_' + f, paintSeli(dirs[d], f));
   }
   for (const id in SPIRIT_LOOKS) {
     for (let f = 0; f < 2; f++) {

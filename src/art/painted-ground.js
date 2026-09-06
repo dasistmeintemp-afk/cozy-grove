@@ -54,6 +54,22 @@ function tilePatch(tx, ty, grow) {
 }
 
 /**
+ * Abstand einer Kachel zum nächsten Land (Schachbrett-Abstand, gedeckelt).
+ * Daraus entsteht der Flachwassersaum: je näher am Ufer, desto heller.
+ */
+function landDistance(world, tx, ty, max) {
+  for (let d = 1; d <= max; d++) {
+    for (let oy = -d; oy <= d; oy++) {
+      for (let ox = -d; ox <= d; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== d) continue;
+        if (isWalkable(world.tileAtTile(tx + ox, ty + oy))) return d;
+      }
+    }
+  }
+  return max + 1;
+}
+
+/**
  * Malt ein Bodenstück.
  * @param {object} world Weltmodell mit tileAtTile()
  * @param {number} ctx0 Stück-Spalte
@@ -98,6 +114,23 @@ export function paintGroundChunk(world, ctx0, cty0) {
     wctx.fillStyle = TILE_DEF[c.t].base;
     pathFrom(wctx, tilePatch(c.tx, c.ty), true);
     wctx.fill();
+  }
+
+  // Flachwassersaum: Wasser nah am Land wird heller, direkt am Ufer fast weiß.
+  // Das ist die auffälligste Eigenschaft der Vorlage – ohne diesen Saum stößt
+  // die Wiese hart ans Meer.
+  for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
+    for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
+      if (!isWater(world.tileAtTile(tx, ty))) continue;
+      const d = landDistance(world, tx, ty, 2);
+      if (d > 2) continue;
+      wctx.save();
+      wctx.globalAlpha = d === 1 ? 0.72 : 0.34;
+      wctx.fillStyle = d === 1 ? INK.foam : INK.waterLight;
+      pathFrom(wctx, tilePatch(tx, ty, d === 1 ? 0.32 : 0.42), true);
+      wctx.fill();
+      wctx.restore();
+    }
   }
 
   // Malerische Unruhe: größere, halbdurchsichtige Lasuren.
@@ -197,6 +230,10 @@ function contour(g, world, tx0, ty0, ring, classify, width, color, alpha, jitter
 /** Küstenlinie und Bodendetails. */
 function paintGroundInk(g, world, tx0, ty0, ring) {
   const r = Math.min(ring, 1);
+  // Brandung zuerst: eine breite weiße Linie, die um die Küste herumwandert.
+  // Der andere Zitterwert lässt sie neben der Tuschelinie laufen – so entsteht
+  // der Schaumsaum der Vorlage statt einer sauberen Doppellinie.
+  contour(g, world, tx0, ty0, r, isWalkable, 5.5, '#ffffff', 0.5, 19);
   contour(g, world, tx0, ty0, r, isWalkable, 3.2, INK.line, 0.9, 13);
   contour(g, world, tx0, ty0, r,
     function (t) { return t !== T.SAND && isWalkable(t); },

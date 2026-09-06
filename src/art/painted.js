@@ -105,9 +105,17 @@ export function fill(g, pts) {
   g.fill();
 }
 
-/** Ergebnis eines Malers mit Maßen und Fußpunkt. */
+/**
+ * Ergebnis eines Malers mit Maßen und Fußpunkt.
+ * `paintObject` legt einen Rand um die Zeichenfläche; Maße und Fußpunkt
+ * wandern entsprechend mit, damit das Objekt an derselben Stelle steht.
+ */
 export function made(res, w, h, ax, ay) {
-  return { color: res.color, line: res.line, w: w, h: h, ax: ax, ay: ay };
+  const m = res.margin || 0;
+  return {
+    color: res.color, line: res.line,
+    w: w + m * 2, h: h + m * 2, ax: ax + m, ay: ay + m,
+  };
 }
 
 /** Kleiner farbiger Punkt mit eigener Kontur (Beere, Frucht, Auge). */
@@ -229,7 +237,7 @@ export function paintTree(opts) {
 /** Nadelbaum: gestapelte, weiche Kegel. */
 export function paintPine(opts) {
   const o = opts || {};
-  const w = 158;
+  const w = 176;
   const h = 248;
   const seed = o.seed || 55;
   const cx = w / 2;

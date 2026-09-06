@@ -1,6 +1,7 @@
 /**
  * Hilfswerkzeug: rendert alle gemalten Grafiken als Übersichtsbild.
- *   node tests/browser/atlas.mjs [ziel.png] [--line]
+ *   node tests/browser/atlas.mjs [ziel.png] [--line] [--only=text] [--zoom=2]
+ * `--only` filtert nach Namensteil, `--zoom` vergrößert die Zellen.
  */
 import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -13,6 +14,8 @@ const PORT = Number(process.env.ATLAS_PORT || 8139);
 const args = process.argv.slice(2);
 const OUT = args.find((a) => !a.startsWith('--')) || join(ROOT, '.screenshots', 'atlas.png');
 const LINE = args.indexOf('--line') >= 0;
+const ONLY = (args.find((a) => a.startsWith('--only=')) || '').slice(7);
+const ZOOM = Number((args.find((a) => a.startsWith('--zoom=')) || '=1').split('=')[1]) || 1;
 
 function loadPlaywright() {
   const require = createRequire(import.meta.url);
@@ -36,12 +39,14 @@ import { initArt, spr, spriteNames } from '../src/art/sprites.js';
 initArt();
 const wrap = document.getElementById('wrap');
 const LINE = ${LINE ? 'true' : 'false'};
-const names = spriteNames().sort();
-const MAX = 150;
+const ONLY = ${JSON.stringify(ONLY)};
+const ZOOM = ${ZOOM};
+const names = spriteNames().sort().filter((n) => !ONLY || n.indexOf(ONLY) >= 0);
+const MAX = 150 * ZOOM;
 for (const name of names) {
   const s = spr(name);
   if (!s) continue;
-  const scale = Math.min(1, MAX / Math.max(s.w, s.h));
+  const scale = Math.min(ZOOM, MAX / Math.max(s.w, s.h));
   const cell = document.createElement('div');
   cell.className = 'cell';
   const c = document.createElement('canvas');

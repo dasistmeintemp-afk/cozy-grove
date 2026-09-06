@@ -278,6 +278,16 @@ export function blurCanvas(canvas, radius, passes) {
   ctx.putImageData(img, 0, 0);
 }
 
+/**
+ * Ein Kastendurchgang des Weichzeichners.
+ *
+ * Ausserhalb des Bildes wird mit „nichts“ gerechnet, nicht mit dem Randpixel.
+ * Wuerde der Rand fortgesetzt, bekaeme jede Grafik, deren Farbe bis an den
+ * Rand ihrer Leinwand reicht, einen blassen Streifen ringsherum – im Spiel
+ * standen dort rechteckige Schleier im Boden, wo sich Baeume ueberlagerten.
+ * Beim Boden ist das unkritisch: Dort liegt ein Malrand um jedes Stueck, und
+ * gezeichnet wird nur der Kern.
+ */
 function boxPass(src, dst, w, h, r, horizontal) {
   const outer = horizontal ? h : w;
   const inner = horizontal ? w : h;
@@ -290,8 +300,8 @@ function boxPass(src, dst, w, h, r, horizontal) {
     let s1 = 0;
     let s2 = 0;
     let s3 = 0;
-    for (let k = -r; k <= r; k++) {
-      const idx = base + clampIdx(k, inner) * stepIn;
+    for (let k = 0; k <= r && k < inner; k++) {
+      const idx = base + k * stepIn;
       s0 += src[idx]; s1 += src[idx + 1]; s2 += src[idx + 2]; s3 += src[idx + 3];
     }
     for (let i = 0; i < inner; i++) {
@@ -300,18 +310,18 @@ function boxPass(src, dst, w, h, r, horizontal) {
       dst[out + 1] = s1 / win;
       dst[out + 2] = s2 / win;
       dst[out + 3] = s3 / win;
-      const addIdx = base + clampIdx(i + r + 1, inner) * stepIn;
-      const subIdx = base + clampIdx(i - r, inner) * stepIn;
-      s0 += src[addIdx] - src[subIdx];
-      s1 += src[addIdx + 1] - src[subIdx + 1];
-      s2 += src[addIdx + 2] - src[subIdx + 2];
-      s3 += src[addIdx + 3] - src[subIdx + 3];
+      const add = i + r + 1;
+      if (add < inner) {
+        const a = base + add * stepIn;
+        s0 += src[a]; s1 += src[a + 1]; s2 += src[a + 2]; s3 += src[a + 3];
+      }
+      const sub = i - r;
+      if (sub >= 0) {
+        const b = base + sub * stepIn;
+        s0 -= src[b]; s1 -= src[b + 1]; s2 -= src[b + 2]; s3 -= src[b + 3];
+      }
     }
   }
-}
-
-function clampIdx(i, n) {
-  return i < 0 ? 0 : i >= n ? n - 1 : i;
 }
 
 /* -------------------------------------------------------------- Papierkorn */
@@ -414,6 +424,9 @@ export function paintLayered(w, h, paintWash, paintInk, opts) {
   return out;
 }
 
+/** Luft zwischen Malerei und Leinwandrand, in Bildpunkten. */
+export const DEFAULT_MARGIN = 20;
+
 /**
  * Vollständiger Bildaufbau eines gemalten Objekts.
  *
@@ -425,47 +438,68 @@ export function paintLayered(w, h, paintWash, paintInk, opts) {
  * Die aufwendigen Teile (Weichzeichnen, Kontur) werden dabei nur einmal
  * berechnet.
  *
- * @param {number} w
- * @param {number} h
+ * Um die angegebene Fläche liegt ein Rand (`margin`). Ohne ihn schneidet die
+ * Leinwand die Malerei ab: Farbflächen werden absichtlich etwas größer als die
+ * Form gemalt, und die Außenkontur liegt noch einmal davor. Am einzelnen Objekt
+ * fällt der gerade Schnitt kaum auf – wo sich viele Bäume überlagern, addieren
+ * sich die Schnittkanten aber zu Rechtecken im Boden.
+ *
+ * @param {number} w Breite der Zeichenfläche (ohne Rand)
+ * @param {number} h Höhe der Zeichenfläche (ohne Rand)
  * @param {object} o shadow, wash, shape, ink (Zeichenfunktionen),
- *                   outline (Strichstärke), blur, seed
- * @returns {{color: HTMLCanvasElement, line: HTMLCanvasElement}}
+ *                   outline (Strichstärke), blur, seed, margin
+ * @returns {{color: HTMLCanvasElement, line: HTMLCanvasElement, margin: number}}
  */
 export function paintObject(w, h, o) {
-  const washLayer = makeCanvas(w, h);
-  const wctx = ctx2d(washLayer);
-  wctx.imageSmoothingEnabled = true;
+  const m = o.margin == null ? DEFAULT_MARGIN : o.margin;
+  const W = w + m * 2;
+  const H = h + m * 2;
+
+  function layer() {
+    const c = makeCanvas(W, H);
+    const ctx = ctx2d(c);
+    ctx.imageSmoothingEnabled = true;
+    ctx.translate(m, m);
+    return [c, ctx];
+  }
+
+  const wl = layer();
+  const washLayer = wl[0];
+  const wctx = wl[1];
   if (o.shadow) o.shadow(wctx);
   if (o.wash) o.wash(wctx);
   blurCanvas(washLayer, o.blur == null ? 3 : o.blur, o.blurPasses || 2);
 
-  const paleWash = makeCanvas(w, h);
+  const paleWash = makeCanvas(W, H);
   const pctx = ctx2d(paleWash);
   pctx.drawImage(washLayer, 0, 0);
   toPaleGrey(paleWash);
 
   let ring = null;
   if (o.shape) {
-    const shapeLayer = makeCanvas(w, h);
-    const sctx = ctx2d(shapeLayer);
-    sctx.imageSmoothingEnabled = true;
-    sctx.fillStyle = '#000000';
-    o.shape(sctx);
-    ring = unionOutline(shapeLayer, o.outline == null ? 2.6 : o.outline,
+    const sl = layer();
+    sl[1].fillStyle = '#000000';
+    o.shape(sl[1]);
+    ring = unionOutline(sl[0], o.outline == null ? 2.6 : o.outline,
       o.outlineColor || '#4a4038', o.seed || 5);
   }
 
   function compose(washSource) {
-    const out = makeCanvas(w, h);
+    const out = makeCanvas(W, H);
     const ctx = ctx2d(out);
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(washSource, 0, 0);
     if (ring) ctx.drawImage(ring, 0, 0);
-    if (o.ink) o.ink(ctx);
+    if (o.ink) {
+      ctx.save();
+      ctx.translate(m, m);
+      o.ink(ctx);
+      ctx.restore();
+    }
     return out;
   }
 
-  return { color: compose(washLayer), line: compose(paleWash) };
+  return { color: compose(washLayer), line: compose(paleWash), margin: m };
 }
 
 /**

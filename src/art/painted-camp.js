@@ -14,6 +14,25 @@ function quad(a, b, c, d, smooth) {
   return smoothClosed([a, b, c, d], smooth || 4);
 }
 
+/**
+ * Seli – die Spielfigur. Blond, warme Erdtöne, ein Tupfen Türkis,
+ * damit sie sich vom gelbgrünen Boden abhebt.
+ */
+export const SELI = {
+  hair: '#f0cf7e',
+  hairShade: '#d3a94f',
+  hairLight: '#fbeaad',
+  top: '#7fb0bd',
+  topShade: '#5b8c9a',
+  skirt: '#e0836d',
+  skirtShade: '#bb6150',
+  tights: '#e8dcc2',
+  scarf: '#f2c063',
+  hat: '#c98a4c',
+  hatShade: '#a06a37',
+  boot: '#8c6a4a',
+};
+
 /* --------------------------------------------------------------- Lagerfeuer */
 
 export function paintCampfire(opts) {
@@ -76,7 +95,7 @@ export function paintCampfire(opts) {
 /** Flamme, vier Bilder. Sie bleibt auch im unkolorierten Zustand farbig. */
 export function paintFlame(frame, seedBase) {
   const w = 96;
-  const h = 130;
+  const h = 146;
   const seed = (seedBase || 900) + frame * 13;
   const cx = w / 2;
   const baseY = h - 8;
@@ -101,7 +120,7 @@ export function paintFlame(frame, seedBase) {
     },
   });
   // Die Flamme wird bewusst in beiden Fassungen farbig gezeichnet
-  return made({ color: res.color, line: res.color }, w, h, cx, baseY);
+  return made({ color: res.color, line: res.color, margin: res.margin }, w, h, cx, baseY);
 }
 
 /* ------------------------------------------------------------------ Bauten */
@@ -160,7 +179,7 @@ export function paintTent(opts) {
 
 export function paintStall(opts) {
   const o = opts || {};
-  const w = 348;
+  const w = 366;
   const h = 252;
   const seed = o.seed || 351;
   const cx = w / 2;
@@ -918,80 +937,171 @@ export function paintBird(frame, opts) {
  * @param {'down'|'up'|'side'} dir
  * @param {number} frame 0 = Stand, 1/2 = Schritt
  */
-export function paintScout(dir, frame, opts) {
+export function paintSeli(dir, frame, opts) {
   const o = opts || {};
   const w = 124;
   const h = 168;
   const seed = (o.seed || 301) + frame * 5;
   const cx = w / 2;
   const baseY = h - 10;
-  const headY = 58;
+  const headY = 56;
   const bob = frame === 0 ? 0 : -3;
-  const stepA = frame === 1 ? 6 : 0;
-  const stepB = frame === 2 ? 6 : 0;
+  const stepA = frame === 1 ? 7 : 0;
+  const stepB = frame === 2 ? 7 : 0;
   const side = dir === 'side';
+  const back = dir === 'up';
 
+  const hair = o.hair || SELI.hair;
+  const hairShade = o.hairShade || SELI.hairShade;
+  const hairLight = o.hairLight || SELI.hairLight;
+
+  // Beine schlank, Stiefel dunkel – helle Strümpfe allein verschwinden im Papier
   const legL = smoothClosed([
-    [cx - 17 - stepA * 0.4, baseY - 30 + bob], [cx - 19 - stepA * 0.6, baseY - 4],
-    [cx - 5 - stepA * 0.6, baseY - 3], [cx - 5, baseY - 30 + bob],
+    [cx - 12 - stepA * 0.4, baseY - 30 + bob], [cx - 13 - stepA * 0.6, baseY - 11],
+    [cx - 3 - stepA * 0.6, baseY - 11], [cx - 3, baseY - 30 + bob],
   ], 4);
   const legR = smoothClosed([
-    [cx + 5, baseY - 30 + bob], [cx + 5 + stepB * 0.6, baseY - 3],
-    [cx + 19 + stepB * 0.6, baseY - 4], [cx + 17 + stepB * 0.4, baseY - 30 + bob],
+    [cx + 3, baseY - 30 + bob], [cx + 3 + stepB * 0.6, baseY - 11],
+    [cx + 13 + stepB * 0.6, baseY - 11], [cx + 12 + stepB * 0.4, baseY - 30 + bob],
   ], 4);
-  const body = smoothClosed(blob(cx, baseY - 46 + bob, side ? 22 : 27, 24, seed + 1, 0.06, 16), 5);
-  const armL = smoothClosed(blob(cx - (side ? 20 : 28), baseY - 48 + bob + stepB, 9, 17, seed + 2, 0.08, 12), 5);
-  const armR = smoothClosed(blob(cx + (side ? 20 : 28), baseY - 48 + bob + stepA, 9, 17, seed + 3, 0.08, 12), 5);
-  const head = smoothClosed(blob(cx, headY + bob, 33, 31, seed + 4, 0.045, 20), 6);
-  const brim = smoothClosed(blob(cx, headY - 21 + bob, 45, 13, seed + 5, 0.07, 18), 6);
-  const crown = smoothClosed(blob(cx, headY - 34 + bob, 23, 16, seed + 6, 0.07, 14), 5);
-  const pack = smoothClosed(blob(cx, baseY - 48 + bob, 25, 22, seed + 7, 0.08, 16), 5);
+  const bootL = smoothClosed(blob(cx - 8 - stepA * 0.6, baseY - 7, 8.5, 6.5, seed + 62, 0.09, 12), 4);
+  const bootR = smoothClosed(blob(cx + 8 + stepB * 0.6, baseY - 7, 8.5, 6.5, seed + 63, 0.09, 12), 4);
+
+  // Rock: unten weiter als oben, das liest sich auch klein noch als Kleid
+  const skirtTop = baseY - 52 + bob;
+  const skirt = smoothClosed([
+    [cx - 13, skirtTop], [cx + 13, skirtTop],
+    [cx + 22, baseY - 30 + bob], [cx + 14, baseY - 26 + bob],
+    [cx, baseY - 29 + bob],
+    [cx - 14, baseY - 26 + bob], [cx - 22, baseY - 30 + bob],
+  ], 6);
+  const body = smoothClosed(blob(cx, baseY - 60 + bob, side ? 19 : 22, 18, seed + 1, 0.06, 16), 5);
+  const armL = smoothClosed(blob(cx - (side ? 15 : 22), baseY - 56 + bob + stepB, 7, 13, seed + 2, 0.08, 12), 5);
+  const armR = smoothClosed(blob(cx + (side ? 15 : 22), baseY - 56 + bob + stepA, 7, 13, seed + 3, 0.08, 12), 5);
+  const head = smoothClosed(blob(cx, headY + bob, 30, 29, seed + 4, 0.045, 20), 6);
+
+  // Haar: schulterlanger Bob mit zwei Strähnen, die neben dem Hals fallen.
+  // Der Einschnitt in der Mitte lässt Platz für Hals und Halstuch.
+  const hairSide = side ? 4 : 0;
+  const hairBack = back
+    ? smoothClosed([
+      [cx - 31, headY - 20 + bob], [cx + 31, headY - 20 + bob],
+      [cx + 35, headY + 8 + bob], [cx + 31, headY + 35 + bob],
+      [cx, headY + 39 + bob], [cx - 31, headY + 35 + bob], [cx - 35, headY + 8 + bob],
+    ], 6)
+    : smoothClosed([
+      [cx - 30, headY - 20 + bob], [cx + 30, headY - 20 + bob],
+      [cx + 35 - hairSide, headY + 8 + bob], [cx + 31 - hairSide, headY + 33 + bob],
+      [cx + 20 - hairSide, headY + 34 + bob], [cx + 21, headY + 12 + bob],
+      [cx, headY + 20 + bob],
+      [cx - 21, headY + 12 + bob], [cx - 20 + hairSide, headY + 34 + bob],
+      [cx - 31 + hairSide, headY + 33 + bob], [cx - 35 + hairSide, headY + 8 + bob],
+    ], 6);
+
+  const brim = smoothClosed(blob(cx, headY - 23 + bob, 43, 11, seed + 5, 0.07, 18), 6);
+  const crown = smoothClosed(blob(cx, headY - 34 + bob, 21, 14, seed + 6, 0.07, 14), 5);
+  const pack = smoothClosed(blob(cx, baseY - 62 + bob, 17, 15, seed + 7, 0.08, 16), 5);
+  // Halstuch: kleines Dreieck unterhalb des Kinns, kein Lätzchen vor dem Mund
+  const scarf = smoothClosed([
+    [cx - 10, headY + 31 + bob], [cx + 10, headY + 31 + bob],
+    [cx + 5, headY + 38 + bob], [cx, headY + 42 + bob], [cx - 5, headY + 38 + bob],
+  ], 5);
 
   const res = paintObject(w, h, {
     seed: seed,
-    blur: 2.5,
+    blur: 2.1,
     outline: 2.9,
-    shadow: function (g) { groundShadow(g, cx, baseY - 2, 32, 10, seed + 8, 0.17); },
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 30, 9, seed + 8, 0.17); },
     wash: function (g) {
-      wash(g, legL, ink.boot, { seed: seed + 10 });
-      wash(g, legR, ink.boot, { seed: seed + 11 });
-      wash(g, armL, ink.cloth, { seed: seed + 14 });
-      wash(g, armR, ink.cloth, { seed: seed + 15 });
-      if (dir === 'up') {
-        wash(g, body, ink.cloth, { seed: seed + 12, scale: 1.05 });
-        wash(g, pack, '#c08f5c', { seed: seed + 13, scale: 1.03 });
-        wash(g, offsetShape(pack, 8, 6, 0.6), '#a2744a', { seed: seed + 16, alpha: 0.6 });
+      // Haar hinter allem, damit Kopf und Arm davor liegen
+      wash(g, hairBack, hair, { seed: seed + 31, scale: 1.03 });
+      wash(g, offsetShape(hairBack, 8, 7, 0.62), hairShade, { seed: seed + 38, alpha: 0.5 });
+
+      wash(g, legL, SELI.tights, { seed: seed + 10 });
+      wash(g, legR, SELI.tights, { seed: seed + 11 });
+      wash(g, bootL, SELI.boot, { seed: seed + 64 });
+      wash(g, bootR, SELI.boot, { seed: seed + 65 });
+
+      // Oberteil zuerst, Rock darüber – sonst blutet das Blau ins Rot
+      wash(g, body, SELI.top, { seed: seed + 12, scale: 1.03 });
+      wash(g, offsetShape(body, 8, 5, 0.6), SELI.topShade, { seed: seed + 13, alpha: 0.6 });
+      wash(g, armL, SELI.top, { seed: seed + 14 });
+      wash(g, armR, SELI.top, { seed: seed + 15 });
+      wash(g, skirt, SELI.skirt, { seed: seed + 20, scale: 1.02 });
+      wash(g, offsetShape(skirt, 8, 4, 0.66), SELI.skirtShade, { seed: seed + 21, alpha: 0.6 });
+
+      if (back) {
+        wash(g, pack, '#c08f5c', { seed: seed + 16, scale: 1.03 });
+        wash(g, offsetShape(pack, 7, 5, 0.6), '#a2744a', { seed: seed + 17, alpha: 0.6 });
       } else {
-        wash(g, body, ink.cloth, { seed: seed + 12, scale: 1.05 });
-        wash(g, offsetShape(body, 10, 7, 0.6), ink.clothDark, { seed: seed + 13, alpha: 0.7 });
+        wash(g, scarf, SELI.scarf, { seed: seed + 18 });
+        wash(g, head, ink.skin, { seed: seed + 22, scale: 1.04 });
+        wash(g, offsetShape(head, 10, 8, 0.54), ink.skinShade, { seed: seed + 23, alpha: 0.4 });
       }
-      wash(g, head, ink.skin, { seed: seed + 16, scale: 1.05 });
-      wash(g, offsetShape(head, 12, 8, 0.58), ink.skinShade, { seed: seed + 17, alpha: 0.45 });
-      wash(g, brim, ink.hat, { seed: seed + 18, scale: 1.05 });
-      wash(g, crown, ink.hat, { seed: seed + 19 });
-      wash(g, offsetShape(crown, 6, 4, 0.7), '#cf8b38', { seed: seed + 21, alpha: 0.6 });
+
+      // Pony bzw. Hinterkopf
+      const fringe = back
+        ? smoothClosed(blob(cx, headY + 1 + bob, 29, 27, seed + 35, 0.06, 18), 6)
+        : smoothClosed([
+          [cx - 29, headY - 4 + bob], [cx - 21, headY - 17 + bob], [cx, headY - 21 + bob],
+          [cx + 23, headY - 15 + bob], [cx + 29, headY - 1 + bob],
+          [cx + 11, headY - 9 + bob], [cx - 8, headY - 5 + bob], [cx - 17, headY - 11 + bob],
+        ], 6);
+      wash(g, fringe, hair, { seed: seed + 36, scale: 1.02 });
+      wash(g, offsetShape(fringe, -7, -6, 0.55), hairLight, { seed: seed + 37, alpha: 0.7 });
+
+      wash(g, brim, SELI.hat, { seed: seed + 24, scale: 1.04 });
+      wash(g, crown, SELI.hat, { seed: seed + 25 });
+      wash(g, offsetShape(crown, 5, 4, 0.7), SELI.hatShade, { seed: seed + 26, alpha: 0.6 });
     },
     shape: function (g) {
+      fill(g, hairBack);
       fill(g, legL); fill(g, legR);
-      fill(g, armL); fill(g, armR);
+      fill(g, bootL); fill(g, bootR);
+      fill(g, skirt);
       fill(g, body);
-      if (dir === 'up') fill(g, pack);
+      fill(g, armL); fill(g, armR);
+      if (back) fill(g, pack);
       fill(g, head); fill(g, crown); fill(g, brim);
     },
     ink: function (g) {
       inkStroke(g, brim, { width: 2.3, vary: 0.35, seed: seed + 50, color: ink.line, alpha: 0.9 });
-      inkLine(g, cx - 5, baseY - 22 + bob, cx - 5, baseY - 4, { width: 1.8, bend: 0, seed: seed + 51, alpha: 0.65 });
-      if (dir === 'up') {
+      inkLine(g, cx - 20, headY - 26 + bob, cx + 20, headY - 26 + bob,
+        { width: 2.0, bend: 0.1, seed: seed + 57, color: SELI.hatShade, alpha: 0.85 });
+      inkStroke(g, skirt, { width: 2.1, vary: 0.3, seed: seed + 55, color: ink.line, alpha: 0.7 });
+      inkStroke(g, bootL, { width: 1.9, vary: 0.3, seed: seed + 68, color: ink.line, alpha: 0.7 });
+      inkStroke(g, bootR, { width: 1.9, vary: 0.3, seed: seed + 69, color: ink.line, alpha: 0.7 });
+      inkLine(g, cx, baseY - 26 + bob, cx, baseY - 13, { width: 1.5, bend: 0, seed: seed + 51, alpha: 0.45 });
+
+      if (back) {
         inkStroke(g, pack, { width: 2.2, vary: 0.3, seed: seed + 52, color: ink.line, alpha: 0.8 });
-        inkLine(g, cx, baseY - 62 + bob, cx, baseY - 36 + bob, { width: 1.6, bend: 0, seed: seed + 53, alpha: 0.5 });
+        inkLine(g, cx - 9, baseY - 72 + bob, cx - 6, baseY - 60 + bob,
+          { width: 1.6, bend: 0.1, seed: seed + 53, alpha: 0.5 });
+        inkLine(g, cx + 9, baseY - 72 + bob, cx + 6, baseY - 60 + bob,
+          { width: 1.6, bend: -0.1, seed: seed + 58, alpha: 0.5 });
+        // Haarwellen von hinten
+        for (let i = -1; i <= 1; i++) {
+          inkLine(g, cx + i * 13, headY - 10 + bob, cx + i * 15, headY + 30 + bob,
+            { width: 1.5, bend: 0.06, seed: seed + 60 + i, color: hairShade, alpha: 0.7 });
+        }
         return;
       }
+
+      inkStroke(g, scarf, { width: 2.0, vary: 0.3, seed: seed + 56, color: ink.line, alpha: 0.75 });
+
       // Gesicht
-      g.fillStyle = ink.line;
       const ex = side ? 9 : 0;
-      fill(g, smoothClosed(blob(cx - 11 + ex, headY + 4 + bob, 3.8, 4.8, seed + 40, 0.08, 10), 4));
-      if (!side) fill(g, smoothClosed(blob(cx + 11, headY + 4 + bob, 3.8, 4.8, seed + 41, 0.08, 10), 4));
-      else fill(g, smoothClosed(blob(cx + 19, headY + 4 + bob, 3.4, 4.4, seed + 41, 0.08, 10), 4));
+      g.fillStyle = ink.line;
+      fill(g, smoothClosed(blob(cx - 11 + ex, headY + 5 + bob, 3.6, 4.8, seed + 40, 0.08, 10), 4));
+      if (!side) fill(g, smoothClosed(blob(cx + 11, headY + 5 + bob, 3.6, 4.8, seed + 41, 0.08, 10), 4));
+      else fill(g, smoothClosed(blob(cx + 19, headY + 5 + bob, 3.2, 4.4, seed + 41, 0.08, 10), 4));
+      // Wimpern – machen das Gesicht auch winzig noch lesbar
+      inkLine(g, cx - 16 + ex, headY - 1 + bob, cx - 8 + ex, headY + 1 + bob,
+        { width: 1.5, bend: -0.25, seed: seed + 45, alpha: 0.8 });
+      if (!side) {
+        inkLine(g, cx + 8, headY + 1 + bob, cx + 16, headY - 1 + bob,
+          { width: 1.5, bend: -0.25, seed: seed + 46, alpha: 0.8 });
+      }
       inkLine(g, cx - 5 + ex, headY + 16 + bob, cx + 5 + ex, headY + 16 + bob,
         { width: 1.8, bend: 0.4, seed: seed + 42 });
       g.globalAlpha = 0.35;
@@ -1156,7 +1266,7 @@ export function paintFlameSpirit(frame, opts) {
     },
   });
   // Feuer bleibt farbig, auch wenn ringsum noch alles blass ist
-  return made({ color: res.color, line: res.color }, w, h, cx, baseY);
+  return made({ color: res.color, line: res.color, margin: res.margin }, w, h, cx, baseY);
 }
 
 /** Der Händler. */

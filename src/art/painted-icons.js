@@ -7,7 +7,7 @@ import {
   blob, teardrop, smoothClosed, offsetShape,
   inkStroke, inkLine, wash, paintObject,
 } from './brush.js';
-import { INK as ink, fill, made, dot } from './painted.js';
+import { INK as ink, fill, dot } from './painted.js';
 import { makeCanvas, ctx2d } from '../core/util.js';
 
 export const ICON_SIZE = 64;
@@ -34,6 +34,27 @@ export function iconFromArt(art, opts) {
   return { color: shrink(art.color), line: shrink(art.line), w: s, h: s, ax: s / 2, ay: s };
 }
 
+/**
+ * Symbole haben eine feste Kantenlänge, weil die Oberfläche damit rechnet.
+ * Gemalt wird trotzdem mit Rand – sonst schneidet die Leinwand die Kontur ab –
+ * und das Ergebnis anschließend wieder auf die Sollgröße gebracht.
+ */
+function fitIcon(res) {
+  const m = res.margin || 0;
+  const s = ICON_SIZE;
+  if (!m) return { color: res.color, line: res.line, w: s, h: s, ax: s / 2, ay: s };
+  const full = s + m * 2;
+  function shrink(src) {
+    const c = makeCanvas(s, s);
+    const ctx = ctx2d(c);
+    ctx.imageSmoothingEnabled = true;
+    if (ctx.imageSmoothingQuality) ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(src, 0, 0, full, full, 0, 0, s, s);
+    return c;
+  }
+  return { color: shrink(res.color), line: shrink(res.line), w: s, h: s, ax: s / 2, ay: s };
+}
+
 function icon(seed, washFn, shapeFn, inkFn, opts) {
   const o = opts || {};
   const res = paintObject(ICON_SIZE, ICON_SIZE, {
@@ -44,7 +65,7 @@ function icon(seed, washFn, shapeFn, inkFn, opts) {
     shape: shapeFn,
     ink: inkFn,
   });
-  return made(res, ICON_SIZE, ICON_SIZE, ICON_SIZE / 2, ICON_SIZE);
+  return fitIcon(res);
 }
 
 const C = ICON_SIZE / 2;
@@ -558,5 +579,5 @@ export function paintFishIcon(body, belly, fin, seed) {
       inkLine(g, cx - 20, cy + 4, cx - 12, cy + 5, { width: 1.6, bend: 0.3, seed: seed + 6, alpha: 0.6 });
     },
   });
-  return made(res, s, s, s / 2, s);
+  return fitIcon(res);
 }
