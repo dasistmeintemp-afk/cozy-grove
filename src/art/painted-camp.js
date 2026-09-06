@@ -211,6 +211,20 @@ export function paintStall(opts) {
       wash(g, counter, ink.wood, { seed: seed + 22, scale: 1.03 });
       wash(g, offsetShape(counter, 0, 22, 0.9), ink.woodDark, { seed: seed + 23, alpha: 0.6 });
       wash(g, roof, '#f3ece0', { seed: seed + 24 });
+      // Streifen laufen über das ganze Dach durch, nicht nur über die Zacken –
+      // erst dadurch liest sich das Dach als Markise.
+      g.save();
+      pathFrom(g, roof, true);
+      g.clip();
+      for (let i = 0; i < 8; i++) {
+        if (i % 2) continue;
+        const x = cx - 152 + i * 38;
+        g.globalAlpha = 0.9;
+        g.fillStyle = ink.berry;
+        pathFrom(g, [[x, 40], [x + 38, 40], [x + 38, 112], [x, 112]], true);
+        g.fill();
+      }
+      g.restore();
       for (let i = 0; i < scallops.length; i++) {
         wash(g, scallops[i], i % 2 ? '#f5eee2' : ink.berry, { seed: seed + 30 + i });
       }

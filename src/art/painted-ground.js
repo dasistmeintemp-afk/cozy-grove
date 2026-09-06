@@ -140,7 +140,7 @@ export function paintGroundChunk(world, ctx0, cty0) {
   for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
     for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
       const r = makeRng(hashString('lasur' + tx + ':' + ty));
-      if (r() > 0.3) continue;
+      if (r() > 0.55) continue;
       const t = world.tileAtTile(tx, ty);
       const water = isWater(t);
       const tone = water ? INK.waterDeep
@@ -148,13 +148,28 @@ export function paintGroundChunk(world, ctx0, cty0) {
           : t === T.GRASS ? (r() < 0.5 ? INK.grassLight : INK.grassDark)
             : t === T.ROCKFLOOR ? INK.rockShade : INK.dirtDark;
       wctx.save();
-      wctx.globalAlpha = water ? 0.3 : 0.24 + r() * 0.2;
+      wctx.globalAlpha = water ? 0.3 : 0.2 + r() * 0.2;
       wctx.fillStyle = tone;
       pathFrom(wctx, smoothClosed(blob(
         (tx + r()) * TILE_SIZE, (ty + r()) * TILE_SIZE,
         TILE_SIZE * (water ? 1.3 : 0.7 + r() * 0.8),
         TILE_SIZE * (water ? 0.9 : 0.5 + r() * 0.7),
         hashString('lb' + tx + ':' + ty), 0.24, 14), 5), true);
+      wctx.fill();
+      wctx.restore();
+
+      // Zweite, kleinere Lasur: das Gras bekommt dadurch die fleckige
+      // Buntheit der Vorlage statt einer glatten Fläche.
+      if (water || r() > 0.5) continue;
+      wctx.save();
+      wctx.globalAlpha = 0.16 + r() * 0.16;
+      wctx.fillStyle = t === T.GRASS
+        ? (r() < 0.55 ? INK.grassLight : INK.moss)
+        : t === T.SAND ? INK.sand : INK.dirtDark;
+      pathFrom(wctx, smoothClosed(blob(
+        (tx + r()) * TILE_SIZE, (ty + r()) * TILE_SIZE,
+        TILE_SIZE * (0.3 + r() * 0.35), TILE_SIZE * (0.24 + r() * 0.3),
+        hashString('lc' + tx + ':' + ty), 0.3, 12), 5), true);
       wctx.fill();
       wctx.restore();
     }
@@ -227,6 +242,40 @@ function contour(g, world, tx0, ty0, ring, classify, width, color, alpha, jitter
   }
 }
 
+/**
+ * Kurze senkrechte Striche unterhalb einer Felskante – die Stufe.
+ * Gezeichnet wird nur dort, wo unter dem Felsboden kein Felsboden mehr liegt.
+ */
+function rockStep(g, world, tx0, ty0, ring) {
+  const marks = [];
+  for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
+    for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
+      if (world.tileAtTile(tx, ty) !== T.ROCKFLOOR) continue;
+      if (world.tileAtTile(tx, ty + 1) === T.ROCKFLOOR) continue;
+      const rng = makeRng(hashString('step' + tx + ':' + ty));
+      const y = (ty + 1) * TILE_SIZE;
+      for (let i = 0; i < 4; i++) {
+        const x = (tx + (i + 0.5) / 4) * TILE_SIZE + (rng() - 0.5) * 7;
+        marks.push([x, y - 3, x + (rng() - 0.5) * 4, y + 7 + rng() * 7]);
+      }
+    }
+  }
+  if (!marks.length) return;
+  g.save();
+  g.lineCap = 'round';
+  g.strokeStyle = INK.rockDeep;
+  g.globalAlpha = 0.45;
+  g.lineWidth = 2.0;
+  g.beginPath();
+  for (let i = 0; i < marks.length; i++) {
+    const m = marks[i];
+    g.moveTo(m[0], m[1]);
+    g.lineTo(m[2], m[3]);
+  }
+  g.stroke();
+  g.restore();
+}
+
 /** Küstenlinie und Bodendetails. */
 function paintGroundInk(g, world, tx0, ty0, ring) {
   const r = Math.min(ring, 1);
@@ -238,6 +287,13 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
   contour(g, world, tx0, ty0, r,
     function (t) { return t !== T.SAND && isWalkable(t); },
     1.7, INK.lineSoft, 0.3, 9);
+  // Der Felsboden liegt höher als die Wiese. Eine kräftigere Kante plus kurze
+  // Striche darunter lassen ihn als flache Stufe lesen – wie die Kreidekanten
+  // der Vorlage, aber ohne eine Wand über begehbaren Boden zu malen.
+  contour(g, world, tx0, ty0, r,
+    function (t) { return t === T.ROCKFLOOR; },
+    2.6, INK.rockDeep, 0.65, 11);
+  rockStep(g, world, tx0, ty0, r);
 
   // Bodendetails: Grasbüschel, Kiesel, Wellenkringel.
   // Alles in wenigen Sammelpfaden – tausend einzelne stroke()-Aufrufe pro
@@ -246,6 +302,7 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
   const waves = [];
   const scratches = [];
   const pebbles = [];
+  const fronds = [];
 
   for (let ty = ty0 - 1; ty < ty0 + CHUNK_TILES + 1; ty++) {
     for (let tx = tx0 - 1; tx < tx0 + CHUNK_TILES + 1; tx++) {
@@ -253,18 +310,38 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
       const rng = makeRng(hashString('d' + tx + ':' + ty));
       const bx = (tx + 0.2 + rng() * 0.6) * TILE_SIZE;
       const by = (ty + 0.2 + rng() * 0.6) * TILE_SIZE;
-      if (t === T.GRASS && rng() < 0.5) {
-        for (let i = 0; i < 3; i++) {
-          const x = bx + (i - 1) * 6;
-          grass.push([x, by + 7, x + (rng() - 0.5) * 10, by - 9 - rng() * 7]);
+      if (t === T.GRASS) {
+        // Zwei Büschel je Kachel statt einem: die Wiese der Vorlage ist
+        // durchgehend bewachsen, nicht stellenweise.
+        for (let k = 0; k < 2; k++) {
+          if (rng() > 0.72) continue;
+          const gx = (tx + rng()) * TILE_SIZE;
+          const gy = (ty + rng()) * TILE_SIZE;
+          const blades = 2 + ((rng() * 3) | 0);
+          for (let i = 0; i < blades; i++) {
+            const x = gx + (i - (blades - 1) / 2) * 6;
+            grass.push([x, gy + 7, x + (rng() - 0.5) * 11, gy - 8 - rng() * 11]);
+          }
         }
-      } else if (t === T.SAND && rng() < 0.45) {
-        pebbles.push([bx, by, 3.5 + rng() * 1.5]);
-        pebbles.push([bx + 11, by + 5, 3 + rng()]);
-      } else if (isWater(t) && rng() < 0.35) {
-        waves.push([bx, by, 8 + rng() * 14, 0.5 + rng(), 3.2 + rng()]);
-      } else if (t === T.ROCKFLOOR && rng() < 0.4) {
-        scratches.push([bx - 9, by, bx + 10, by - 4]);
+        // Farnwedel: ein Bogen mit Fiedern, gibt der Wiese Struktur
+        if (rng() < 0.16) fronds.push([bx, by, rng() < 0.5 ? -1 : 1]);
+      } else if (t === T.SAND) {
+        if (rng() < 0.5) {
+          pebbles.push([bx, by, 3.5 + rng() * 1.5]);
+          pebbles.push([bx + 11, by + 5, 3 + rng()]);
+        }
+        // Rippelmarken im Sand
+        if (rng() < 0.4) {
+          const y = (ty + rng()) * TILE_SIZE;
+          scratches.push([(tx + 0.05) * TILE_SIZE, y, (tx + 0.85) * TILE_SIZE, y + (rng() - 0.5) * 9]);
+        }
+      } else if (isWater(t)) {
+        if (rng() < 0.35) waves.push([bx, by, 8 + rng() * 14, 0.5 + rng(), 3.2 + rng()]);
+      } else if (t === T.ROCKFLOOR) {
+        if (rng() < 0.45) scratches.push([bx - 9, by, bx + 10, by - 4]);
+        if (rng() < 0.3) pebbles.push([bx + 6, by + 12, 3 + rng() * 2]);
+      } else if (t === T.DIRT && rng() < 0.35) {
+        pebbles.push([bx, by, 2.5 + rng() * 1.5]);
       }
     }
   }
@@ -282,6 +359,31 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
       const b = grass[i];
       g.moveTo(b[0], b[1]);
       g.quadraticCurveTo((b[0] + b[2]) / 2 - 3, (b[1] + b[3]) / 2, b[2], b[3]);
+    }
+    g.stroke();
+  }
+
+  if (fronds.length) {
+    // Neutrale Tinte, kein Grün: die Tintenschicht bleibt auch im
+    // unkolorierten Zustand sichtbar und wäre sonst ein Farbfleck im Malbuch.
+    g.strokeStyle = INK.lineSoft;
+    g.globalAlpha = 0.5;
+    g.lineWidth = 1.8;
+    g.beginPath();
+    for (let i = 0; i < fronds.length; i++) {
+      const f = fronds[i];
+      const dir = f[2];
+      g.moveTo(f[0], f[1] + 9);
+      g.quadraticCurveTo(f[0] + dir * 6, f[1] - 4, f[0] + dir * 17, f[1] - 13);
+      for (let k = 1; k <= 3; k++) {
+        const t = k / 4;
+        const px = f[0] + dir * (6 * 2 * t * (1 - t) + 17 * t * t);
+        const py = f[1] + 9 + (-13 * 2 * t * (1 - t) - 22 * t * t);
+        g.moveTo(px, py);
+        g.lineTo(px + dir * 7, py - 5);
+        g.moveTo(px, py);
+        g.lineTo(px - dir * 4, py - 6);
+      }
     }
     g.stroke();
   }
