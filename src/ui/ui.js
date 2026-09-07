@@ -33,6 +33,7 @@ export class UI {
       fishingHint: document.getElementById('fishing-hint'),
       stage: document.getElementById('stage'),
       canvas: document.getElementById('game'),
+      hudTop: document.getElementById('hud-top'),
     };
     this.view = { left: 0, top: 0, scale: 1 };
     this.bubbles = [];
@@ -99,6 +100,27 @@ export class UI {
     // CSS-Pixel je Gerätepixel mal Zoom = Weltpixel -> Bildschirm
     const perDevice = this.el.canvas.width ? rect.width / this.el.canvas.width : 1;
     this.view.scale = perDevice * (this.game.renderer ? this.game.renderer.zoom : 1);
+    this.measureHud();
+  }
+
+  /**
+   * Sagt dem Stylesheet, wie hoch die Kopfzeile gerade wirklich ist.
+   *
+   * Sie bricht um: Auf einem schmalen Bildschirm rutschen die Knöpfe unter die
+   * Anzeigen, und ob sie das tun, hängt auch an der Zahl der Münzen. Ein fester
+   * Abstand für die Aufgabenleiste darunter kann das nicht treffen – sie lag
+   * dann quer über den Knöpfen. Gemessen wird nur, wenn sich etwas geändert
+   * hat: `getBoundingClientRect` erzwingt ein Neuberechnen des Layouts, und das
+   * gehört nicht in jedes Bild.
+   */
+  measureHud() {
+    const hud = this.el.hudTop;
+    if (!hud) return;
+    const stage = this.el.stage.getBoundingClientRect();
+    const unten = Math.round(hud.getBoundingClientRect().bottom - stage.top);
+    if (unten === this._hudBottom) return;
+    this._hudBottom = unten;
+    document.documentElement.style.setProperty('--hud-h', unten + 'px');
   }
 
   worldToScreen(wx, wy) {
@@ -118,6 +140,13 @@ export class UI {
     this.el.coins.textContent = num(g.state.coins);
     this.el.ember.textContent = num(g.state.ember);
     this.el.color.textContent = Math.round(g.colorField.coverage(g.world) * 100) + '%';
+    // Aus 999 werden 1.024 Münzen, und die Kopfzeile bricht um. Nur dann neu
+    // messen, nicht in jedem Bild.
+    const breite = this.el.coins.textContent.length + this.el.ember.textContent.length;
+    if (breite !== this._hudTextLen) {
+      this._hudTextLen = breite;
+      this.measureHud();
+    }
   }
 
   setPrompt(text) {
@@ -153,13 +182,21 @@ export class UI {
       card.type = 'button';
       card.className = 'qcard' + (done ? ' done' : '');
       card.title = spirit.name + ' – ' + questTitle(q) + ' (' + have + '/' + q.need + ')';
+      // Was gewollt ist, steht jetzt als Wort da.
+      //
+      // Vorher trug die Karte nur ein Symbol, „4/6" und den Namen des Geistes.
+      // Man sah, dass jemand etwas will und wie weit es ist – aber nicht, WAS.
+      // Bei sechs ähnlich aussehenden Sammelsymbolen half auch das Symbol
+      // nicht weiter, und der Titel stand nur im Mauszeiger-Hinweis, den man
+      // auf einem Telefon gar nicht bekommt.
       card.innerHTML =
-        '<span class="ico" style="background-image:url(' + iconUrl(questIcon(q)) + ')"></span>' +
+        '<span class="ico lg" style="background-image:url(' + iconUrl(questIcon(q)) + ')"></span>' +
         '<span class="who">' +
-        '<span class="goal"><span class="count">' + have + '/' + q.need + '</span>' +
-        (done ? '<span class="ico" style="width:12px;height:12px;background-image:url(' + iconUrl('icon_check') + ')"></span>' : '') +
+        '<span class="goal"><span class="what">' + escapeHtml(questTitle(q)) + '</span>' +
+        (done ? '<span class="ico" style="background-image:url(' + iconUrl('icon_check') + ')"></span>' : '') +
         '</span>' +
-        '<span class="name">' + spirit.name + '</span>' +
+        '<span class="name">' + escapeHtml(spirit.name) + ' · ' +
+        '<span class="count">' + have + '/' + q.need + '</span></span>' +
         '</span>';
       const self = this;
       card.addEventListener('click', function () {

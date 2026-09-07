@@ -819,8 +819,112 @@ async function run() {
     });
     check('Passt auf ein Telefon im Hochformat', mobile.fits && !mobile.overflowX, JSON.stringify(mobile));
     await page.screenshot({ path: join(SHOT_DIR, '07-hochformat.png') });
+
+    // Die Kopfzeile bricht auf schmalen Bildschirmen um. Lag die Aufgabenleiste
+    // auf einem festen Abstand, deckte sie danach die Fensterknöpfe zu.
+    const leiste = await page.evaluate(() => {
+      const hud = document.getElementById('hud-top').getBoundingClientRect();
+      const rail = document.getElementById('quest-rail').getBoundingClientRect();
+      return { hudUnten: Math.round(hud.bottom), leisteOben: Math.round(rail.top) };
+    });
+    check('Aufgabenleiste liegt unter der Kopfzeile, nicht darauf',
+      leiste.leisteOben >= leiste.hudUnten, JSON.stringify(leiste));
+
+    // Auch die größte Einstellung muss auf dem Telefon halten. Wer sie wählt,
+    // braucht sie – da darf nichts über den Rand laufen.
+    const grossAufKlein = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.changeSetting('uiScale', '1.32');
+      g.openPanel('inventory');
+      await new Promise((r) => setTimeout(r, 400));
+      const p = document.getElementById('panel').getBoundingClientRect();
+      const b = document.getElementById('panel-body');
+      const res = {
+        overflowX: document.documentElement.scrollWidth > window.innerWidth + 1,
+        fensterPasst: p.right <= window.innerWidth + 1 && p.bottom <= window.innerHeight + 1,
+        querScroll: b.scrollWidth > b.clientWidth + 1,
+      };
+      g.panels.close();
+      g.changeSetting('uiScale', '1');
+      return res;
+    });
+    check('Auch „Sehr groß" läuft auf dem Telefon nicht über',
+      !grossAufKlein.overflowX && grossAufKlein.fensterPasst && !grossAufKlein.querScroll,
+      JSON.stringify(grossAufKlein));
+
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.waitForTimeout(300);
+
+    /* ---- Größe der Oberfläche ---- */
+    // Sie hing an `--ui-scale`, das main.js bei jedem Bildwechsel neu setzte –
+    // die Einstellung war damit wirkungslos, und die Fenster wuchsen ohnehin
+    // nie mit: `body` stand fest auf 15 px, während nur die Anzeige über der
+    // Insel skaliert wurde.
+    const groesse = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      function messen() {
+        const ico = document.querySelector('.hud-chip .ico');
+        return {
+          body: parseFloat(getComputedStyle(document.body).fontSize),
+          hud: parseFloat(getComputedStyle(document.querySelector('.hud-chip')).fontSize),
+          ico: ico ? Math.round(ico.getBoundingClientRect().width) : 0,
+          knopf: Math.round(document.querySelector('.icon-btn').getBoundingClientRect().width),
+        };
+      }
+      const warten = () => new Promise((r) => setTimeout(r, 260));
+      g.changeSetting('uiScale', '1');
+      await warten();
+      const normal = messen();
+      g.changeSetting('uiScale', '1.32');
+      await warten();
+      const gross = messen();
+      g.changeSetting('uiScale', '0.85');
+      await warten();
+      const klein = messen();
+      g.changeSetting('uiScale', '1');
+      await warten();
+      return { normal, gross, klein, gespeichert: g.settings.uiScale };
+    });
+    check('Fenstertext ist deutlich größer als die alten 15 px',
+      groesse.normal.body >= 17, JSON.stringify(groesse.normal));
+    check('Symbole in der Kopfzeile wachsen mit',
+      groesse.gross.ico > groesse.normal.ico && groesse.normal.ico > groesse.klein.ico,
+      JSON.stringify([groesse.klein.ico, groesse.normal.ico, groesse.gross.ico]));
+    check('Die Einstellung ändert Schrift UND Knöpfe',
+      groesse.gross.body > groesse.normal.body * 1.2 &&
+      groesse.gross.knopf > groesse.normal.knopf * 1.2 &&
+      groesse.klein.body < groesse.normal.body,
+      JSON.stringify(groesse));
+
+    // Sie muss auch das Neuladen überstehen – sonst stellt man sie jedes Mal neu.
+    await page.evaluate(() => window.CozyGrove.game.changeSetting('uiScale', '1.15'));
+    await page.reload({ waitUntil: 'load' });
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.ready), 60000, 'Grafik nach Neuladen');
+    await page.click('#btn-continue');
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.game), 20000, 'Spiel nach Neuladen');
+    await page.waitForTimeout(700);
+    const nachher = await page.evaluate(() => ({
+      wert: window.CozyGrove.game.settings.uiScale,
+      user: getComputedStyle(document.documentElement).getPropertyValue('--ui-user').trim(),
+    }));
+    check('Die gewählte Größe übersteht das Neuladen',
+      nachher.wert === 1.15 && parseFloat(nachher.user) === 1.15, JSON.stringify(nachher));
+    await page.evaluate(() => window.CozyGrove.game.changeSetting('uiScale', '1'));
+
+    // Die Aufgabenkarte muss sagen, WAS gewollt ist – nicht nur, wie weit es ist.
+    const rail = await page.evaluate(() => {
+      const karte = document.querySelector('.qcard');
+      if (!karte) return { keine: true };
+      const was = karte.querySelector('.what');
+      return {
+        titel: was ? was.textContent.trim() : null,
+        sichtbar: was ? was.getBoundingClientRect().width > 30 : false,
+        abgeschnitten: was ? was.scrollWidth > was.clientWidth + 1 : false,
+      };
+    });
+    check('Aufgabenkarte nennt die Aufgabe beim Namen',
+      !rail.keine && !!rail.titel && rail.titel.length > 3 && rail.sichtbar,
+      JSON.stringify(rail));
   } catch (err) {
     check('Testlauf ohne Ausnahme', false, err && err.message);
     exitCode = 1;

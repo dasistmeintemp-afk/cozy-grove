@@ -7,6 +7,7 @@ import { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } from
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
 import { canLink, linkedName, pendingLinkName, requestLinkPermission, linkNew, linkExisting, unlink, openFile, suggestName } from '../core/savefile.js';
 import { questTitle, questIcon, QTYPE, daysLeft } from '../game/quests.js';
+import { UI_SCALES } from './uiscale.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
 import { TILE_DEF, TILE_SIZE } from '../art/tiles.js';
 import { REGION_NAMES } from '../world/worldgen.js';
@@ -823,6 +824,10 @@ export class Panels {
     html += '<div class="setting"><div class="grow"><label>Tageslänge</label>' +
       '<div class="hint">Ein Tag von 6 bis 2 Uhr in Echtzeit-Minuten.</div></div>' +
       seg('dayMinutes', [[9, '9'], [14, '14'], [22, '22']], s.dayMinutes) + '</div>';
+    html += '<div class="setting"><div class="grow"><label>Größe der Oberfläche</label>' +
+      '<div class="hint">Schrift, Symbole und Knöpfe zusammen. Auf kleinen ' +
+      'Fenstern rückt alles zusätzlich enger.</div></div>' +
+      seg('uiScale', UI_SCALES, s.uiScale == null ? 1 : s.uiScale) + '</div>';
     html += '<div class="setting"><div class="grow"><label>Bilddarstellung</label>' +
       '<div class="hint">„Pixelgenau“ hält die Kanten scharf, „Füllen“ nutzt das ganze Fenster.</div></div>' +
       seg('scaling', [['crisp', 'Pixelgenau'], ['fill', 'Füllen']], s.scaling) + '</div>';

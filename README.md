@@ -154,6 +154,12 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Freundschaft.** Alle drei erledigten Aufgaben steigt die Stufe bei einem
   Geist. Das bringt ein Geschenk, mehr Farbe ringsum und dauerhaft besseren
   Lohn für seine Aufgaben.
+* **Lesbare Oberfläche.** Schrift, Symbole, Knöpfe und Fächer hängen an einer
+  einzigen Zahl. Sie setzt sich aus zwei Faktoren zusammen: der Anpassung an
+  das Fenster (misst main.js an der echten Bühne) und der Einstellung
+  „Größe der Oberfläche“ mit vier Stufen von Klein bis Sehr groß. Die
+  Aufgabenkarten am Rand nennen die Aufgabe beim Namen, statt nur ein Symbol
+  und „4/6“ zu zeigen.
 * **Tagesrückblick.** Nach dem Aufwachen steht kurz da, was gestern passiert
   ist: erledigte Bitten, Fundstücke, Fische, Falter, Aufgestelltes,
   Mitbringsel, Münzen, Glut – und ganz oben, wie viel Farbe dazugekommen ist.
@@ -261,7 +267,7 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 
 ```bash
 npm test               # 98 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
-npm run test:browser   # 55 Prüfungen im echten Browser, mit Bildschirmfotos
+npm run test:browser   # 62 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

@@ -66,7 +66,20 @@
   --shadow: 0 3px 0 rgba(74, 64, 56, 0.15), 0 7px 16px rgba(74, 64, 56, 0.16);
   --shadow-lift: 0 5px 0 rgba(74, 64, 56, 0.16), 0 16px 40px rgba(74, 64, 56, 0.26);
 
-  --ui-scale: 1;
+  /* Größe der Oberfläche.
+   *
+   * Alles, was eine feste Pixelgröße hat – Schrift, Symbole, Knöpfe, Fächer –
+   * geht durch `--ui-scale`. Vorher stand die Zahl an dreißig Stellen einzeln;
+   * wer die Schrift größer wollte, bekam sie neben gleich groß gebliebenen
+   * Symbolen, und die Abstände passten nicht mehr.
+   *
+   * Zwei Faktoren, damit sie sich nicht gegenseitig überschreiben:
+   *   --ui-user  die Einstellung im Spiel (Klein … Sehr groß)
+   *   --ui-fit   die Anpassung an kleine Fenster, siehe ganz unten
+   */
+  --ui-user: 1;
+  --ui-fit: 1;
+  --ui-scale: calc(var(--ui-user) * var(--ui-fit));
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px);
@@ -93,7 +106,7 @@ html, body {
   font-family: "Nunito", ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN",
     Quicksand, "Varela Round", "Avenir Next", Candara,
     "Segoe UI Variable Text", "Segoe UI", Roboto, Cantarell, system-ui, sans-serif;
-  font-size: 15px;
+  font-size: calc(18px * var(--ui-scale));
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
@@ -121,7 +134,9 @@ html, body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  font-size: calc(15px * var(--ui-scale));
+  /* Etwas größer als in den Fenstern: Diese Schrift liegt über der Insel und
+     wird im Vorbeigehen gelesen, nicht in Ruhe. */
+  font-size: calc(21px * var(--ui-scale));
 }
 
 .layer { position: absolute; }
@@ -167,8 +182,8 @@ html, body {
 .hud-chip b { font-weight: 800; letter-spacing: 0.01em; }
 
 .icon-btn {
-  width: 36px;
-  height: 36px;
+  width: calc(42px * var(--ui-scale));
+  height: calc(42px * var(--ui-scale));
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -178,7 +193,7 @@ html, body {
   color: var(--ink);
   cursor: pointer;
   box-shadow: var(--shadow);
-  font-size: 15px;
+  font-size: calc(18px * var(--ui-scale));
   font-family: inherit;
   padding: 0;
   transition: transform 0.08s ease, background 0.15s ease;
@@ -194,23 +209,27 @@ html, body {
 
 /* Symbole kommen als data-URL aus den gemalten Grafiken */
 .ico {
-  width: 18px;
-  height: 18px;
+  width: calc(22px * var(--ui-scale));
+  height: calc(22px * var(--ui-scale));
   display: inline-block;
   background-repeat: no-repeat;
   background-size: contain;
   background-position: center;
   flex: 0 0 auto;
 }
-.ico.lg { width: 28px; height: 28px; }
-.ico.xl { width: 40px; height: 40px; }
+.ico.lg { width: calc(34px * var(--ui-scale)); height: calc(34px * var(--ui-scale)); }
+.ico.xl { width: calc(48px * var(--ui-scale)); height: calc(48px * var(--ui-scale)); }
 
 /* ---------- Aufgabenleiste (ikonisch) ---------- */
 
 #quest-rail {
-  top: calc(58px + var(--safe-t));
+  /* Direkt unter die Kopfzeile – wie hoch die wirklich ist, misst ui.js und
+     legt es in `--hud-h` ab. Ein fester Wert traf es nicht: auf schmalen
+     Bildschirmen bricht die Kopfzeile um, und die Leiste lag quer über den
+     Knöpfen. Der Rückfallwert gilt nur für das erste Bild. */
+  top: calc(var(--hud-h, 56px) + 10px);
   right: calc(8px + var(--safe-r));
-  width: 210px;
+  width: calc(252px * var(--ui-scale));
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -227,7 +246,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.8em;
+  font-size: 0.85em;
   cursor: pointer;
   text-align: left;
   color: var(--ink);
@@ -238,16 +257,26 @@ html, body {
 .qcard:hover { background: var(--paper); }
 .qcard.done { border-left-color: var(--good); background: rgba(121, 168, 62, 0.14); }
 .qcard .who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.qcard .goal { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-.qcard .count { font-variant-numeric: tabular-nums; font-weight: 800; }
-.qcard .name { color: var(--ink-dim); font-size: 0.85em; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+.qcard .goal { display: flex; align-items: center; gap: 5px; min-width: 0; }
+/* Die eine Zeile, die sagt, worum es geht – deshalb fett und zuerst. Passt
+   sie nicht, wird sie gekürzt, nicht umgebrochen: zwei Zeilen je Karte und
+   fünf Karten übereinander wären eine Textwand am Bildrand. */
+.qcard .what {
+  font-weight: 800;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  min-width: 0;
+}
+.qcard .count { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--ink); }
+.qcard .name { color: var(--ink-dim); font-size: 0.86em; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 .qcard .dist { color: var(--warm-deep); font-size: 0.8em; font-variant-numeric: tabular-nums; font-weight: 700; }
 
 /* ---------- Kontext-Hinweis ---------- */
 
 #prompt {
   left: 50%;
-  bottom: calc(96px + var(--safe-b));
+  bottom: calc(112px * var(--ui-scale) + var(--safe-b));
   transform: translateX(-50%);
   background: var(--paper-warm);
   border: 2px solid var(--edge);
@@ -267,8 +296,8 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 24px;
+  min-width: calc(27px * var(--ui-scale));
+  height: calc(27px * var(--ui-scale));
   padding: 0 5px;
   border-radius: 8px 6px 8px 6px;
   background: var(--warm);
@@ -294,8 +323,8 @@ html, body {
 }
 
 .tool {
-  width: 48px;
-  height: 48px;
+  width: calc(56px * var(--ui-scale));
+  height: calc(56px * var(--ui-scale));
   border-radius: var(--r-slot);
   border: 2px solid transparent;
   background: var(--paper-deep);
@@ -322,7 +351,7 @@ html, body {
   position: absolute;
   top: 2px;
   left: 5px;
-  font-size: 9px;
+  font-size: calc(11px * var(--ui-scale));
   font-weight: 700;
   color: var(--ink-dim);
 }
@@ -331,7 +360,7 @@ html, body {
   position: absolute;
   bottom: 2px;
   right: 5px;
-  font-size: 9px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--warm-deep);
   font-weight: 800;
 }
@@ -352,7 +381,7 @@ html, body {
   color: var(--ink);
   font-size: 0.82em;
   font-weight: 600;
-  max-width: 220px;
+  max-width: calc(248px * var(--ui-scale));
   box-shadow: var(--shadow);
   display: flex;
   align-items: center;
@@ -402,7 +431,7 @@ html, body {
    Hinweis „Hier aufstellen" die einzige Anleitung ist. */
 #toasts {
   left: 50%;
-  bottom: calc(140px + var(--safe-b));
+  bottom: calc(162px * var(--ui-scale) + var(--safe-b));
   transform: translateX(-50%);
   display: flex;
   flex-direction: column-reverse;
@@ -438,15 +467,15 @@ html, body {
 
 #fishing {
   left: 50%;
-  bottom: calc(120px + var(--safe-b));
+  bottom: calc(138px * var(--ui-scale) + var(--safe-b));
   transform: translateX(-50%);
-  width: 230px;
+  width: calc(252px * var(--ui-scale));
   text-align: center;
 }
 
 #fishing-bar {
   position: relative;
-  height: 22px;
+  height: calc(25px * var(--ui-scale));
   background: var(--paper-deep);
   border: 2px solid var(--edge-strong);
   border-radius: 999px;
@@ -520,13 +549,13 @@ html, body {
 }
 
 .round-btn {
-  width: 76px;
-  height: 76px;
+  width: calc(82px * var(--ui-scale));
+  height: calc(82px * var(--ui-scale));
   border-radius: 50%;
   border: 2px solid var(--edge-strong);
   background: var(--warm);
   color: #3a2409;
-  font-size: 22px;
+  font-size: calc(24px * var(--ui-scale));
   font-weight: 800;
   font-family: inherit;
   cursor: pointer;
@@ -534,7 +563,7 @@ html, body {
   box-shadow: var(--shadow);
 }
 
-.round-btn.small { width: 54px; height: 54px; font-size: 18px; background: var(--paper-warm); color: var(--ink); }
+.round-btn.small { width: calc(58px * var(--ui-scale)); height: calc(58px * var(--ui-scale)); font-size: calc(20px * var(--ui-scale)); background: var(--paper-warm); color: var(--ink); }
 .round-btn:active { transform: translateY(2px) scale(0.96); box-shadow: 0 1px 0 rgba(74, 64, 56, 0.15); }
 
 /* ---------- Modale Fenster ---------- */
@@ -605,14 +634,14 @@ html, body {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(calc(90px * var(--ui-scale)), 1fr));
   gap: 8px;
 }
 
 /* Erinnerungskette: vier Symbole nebeneinander, offene Stufen verschattet */
 .story-cards { display: flex; gap: 6px; margin-top: 5px; }
 .story-card {
-  width: 32px; height: 32px;
+  width: calc(38px * var(--ui-scale)); height: calc(38px * var(--ui-scale));
   display: flex; align-items: center; justify-content: center;
   border-radius: 9px 7px 10px 8px;
   border: 2px solid var(--edge);
@@ -633,7 +662,7 @@ html, body {
 .story-text p:last-child { margin-bottom: 0; }
 
 .story-card.unknown { border-color: var(--edge-soft); background: var(--paper-deep); opacity: 0.55; }
-.story-card .ico { width: 20px; height: 20px; }
+.story-card .ico { width: calc(24px * var(--ui-scale)); height: calc(24px * var(--ui-scale)); }
 
 /* Noch nicht Gefundenes: als Schattenriss, damit man sieht, DASS es etwas gibt */
 .slot.unknown {
@@ -651,7 +680,7 @@ html, body {
 .slot {
   position: relative;
   aspect-ratio: 1 / 1;
-  min-height: 62px;
+  min-height: calc(84px * var(--ui-scale));
   border-radius: var(--r-slot);
   border: 2px solid var(--edge-soft);
   background: var(--paper-warm);
@@ -669,15 +698,40 @@ html, body {
 .slot:hover { background: var(--paper-deep); border-color: var(--edge); }
 .slot .qty {
   position: absolute;
-  right: 5px;
-  bottom: 3px;
-  font-size: 10px;
+  right: calc(3px * var(--ui-scale));
+  top: calc(3px * var(--ui-scale));
+  min-width: calc(19px * var(--ui-scale));
+  padding: 0 calc(4px * var(--ui-scale));
+  border-radius: 999px;
+  background: var(--paper-deep);
+  border: 1px solid var(--edge-soft);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
+  text-align: center;
   font-weight: 800;
-  text-shadow: 0 1px 0 var(--paper-warm), 0 -1px 0 var(--paper-warm),
-    1px 0 0 var(--paper-warm), -1px 0 0 var(--paper-warm);
   font-variant-numeric: tabular-nums;
 }
-.slot .cap { font-size: 9px; color: var(--ink-dim); line-height: 1.1; text-align: center; max-width: 100%; overflow: hidden; }
+/* Zwei Zeilen statt einer: „Pflanzenfaser" und „Nebelkristall" passen in
+   kein Fach von 84 px. Abgeschnitten wurde vorher mitten im Wort, und was
+   übrig blieb, war nicht mehr zu erkennen. */
+.slot .cap {
+  font-size: calc(12px * var(--ui-scale));
+  color: var(--ink-dim);
+  line-height: 1.15;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  /* Trennen statt abschneiden: „Pflanzenfaser" wird zu „Pflanzen-faser",
+     nicht zu „Pflanzenfase" plus einem einsamen „r" auf der zweiten Zeile.
+     Braucht lang="de" am <html>, das steht dort. `break-word` bleibt als
+     Rückfall für Browser ohne deutsche Trennmuster. */
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  overflow-wrap: break-word;
+}
 .slot.empty { opacity: 0.4; cursor: default; }
 .slot.sel { border-color: var(--edge-strong); background: var(--warm-wash); }
 
@@ -704,8 +758,8 @@ html, body {
    liest sich schneller als eine Zahl und braucht kein Wort dazu. */
 .cosy-bar { display: flex; gap: 4px; margin-top: 5px; }
 .cosy-bar .pip {
-  width: 9px;
-  height: 9px;
+  width: calc(10px * var(--ui-scale));
+  height: calc(10px * var(--ui-scale));
   border-radius: 50%;
   border: 2px solid var(--edge-soft);
   background: transparent;
@@ -770,7 +824,7 @@ html, body {
 
 .legend { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 10px; font-size: 0.76em; color: var(--ink-dim); }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
-.legend i { width: 11px; height: 11px; border-radius: 4px; border: 1px solid var(--edge); display: inline-block; }
+.legend i { width: calc(13px * var(--ui-scale)); height: calc(13px * var(--ui-scale)); border-radius: 4px; border: 1px solid var(--edge); display: inline-block; }
 
 /* ---------- Startbildschirm ---------- */
 
@@ -873,12 +927,14 @@ html, body {
 
 /* ---------- Kleine Bildschirme ---------- */
 
-@media (max-width: 720px) {
-  #quest-rail { width: 168px; }
-  .hud-chip { padding: 4px 9px 4px 6px; font-size: 0.78em; }
-  .icon-btn { width: 32px; height: 32px; }
+/* Die Größe stellt `--ui-fit` aus main.js ein – dort ist die echte Bühne
+   bekannt, nicht nur die Fensterbreite. Hier steht nur, was sich auf kleinen
+   Bildschirmen zusätzlich ändert: Die Aufgabenleiste wird schmaler, weil sie
+   sonst ein Drittel der Breite frisst, und der Werkzeuggurt rückt an den
+   unteren Rand. */
+@media (max-width: 620px) {
+  #quest-rail { width: calc(186px * var(--ui-scale)); }
   #toolbelt { bottom: calc(6px + var(--safe-b)); }
-  .tool { width: 42px; height: 42px; }
 }
 
 @media (max-height: 480px) {

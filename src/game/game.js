@@ -28,6 +28,7 @@ import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { UI } from '../ui/ui.js';
 import { Panels } from '../ui/panels.js';
+import { applyUiScale } from '../ui/uiscale.js';
 import * as storage from '../core/storage.js';
 import * as savefile from '../core/savefile.js';
 
@@ -42,6 +43,7 @@ export const DEFAULT_SETTINGS = {
   talk: 'short',
   dayMinutes: DEFAULT_DAY_MINUTES,
   scaling: 'crisp',
+  uiScale: 1,
 };
 
 export class Game {
@@ -1806,6 +1808,7 @@ export class Game {
     this.audio.setAmbience(this.settings.ambience !== false);
     this.audio.setVolume(this.settings.volume);
     this.day.dayMinutes = this.settings.dayMinutes;
+    applyUiScale(this.settings.uiScale);
     if (this.onSettingsChanged) this.onSettingsChanged(this.settings);
   }
 

@@ -27,8 +27,18 @@ function fitCanvas() {
   canvas.style.width = w + 'px';
   canvas.style.height = h + 'px';
 
-  const uiScale = Math.max(0.85, Math.min(1.35, Math.min(w, h * 1.6) / 900 + 0.8));
-  document.documentElement.style.setProperty('--ui-scale', uiScale.toFixed(2));
+  // Anpassung an das Fenster – NUR sie, nicht die ganze Größe.
+  //
+  // Vorher stand hier `--ui-scale`, und damit war die Einstellung im Spiel
+  // wirkungslos: Sie wurde bei jedem Bildwechsel überschrieben. Jetzt gibt es
+  // zwei Faktoren, `--ui-fit` (hier) und `--ui-user` (Einstellungen), die das
+  // Stylesheet miteinander multipliziert.
+  //
+  // Die Zahl ist auf 1,0 bei einem üblichen Fenster (etwa 1280 breit) geeicht;
+  // die Grundgrößen im Stylesheet sind die, die man dort sieht. Nach unten geht
+  // es bis 0,84, damit auf einem Telefon nichts über den Rand läuft.
+  const fit = Math.max(0.84, Math.min(1.08, 0.55 + Math.min(w, h * 1.6) / 2900));
+  document.documentElement.style.setProperty('--ui-fit', fit.toFixed(3));
 
   if (game) game.syncViewport();
 }
