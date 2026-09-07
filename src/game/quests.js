@@ -24,6 +24,24 @@ export const QTYPE = {
   BURN: 'burn',
   CRAFT: 'craft',
   DECORATE: 'decorate',
+  /**
+   * Drei VERSCHIEDENE Dinge einer Sorte.
+   *
+   * Der wichtigste Zusatz gegen die Eintönigkeit: „Sechs Beeren bringen" wird
+   * an einem Busch erledigt, „von jeder Blume eine" schickt einen über die
+   * halbe Insel. Und die Karte ist kombinatorisch – aus neun Sammelgütern
+   * gibt es vierundachtzig Dreiergruppen statt neun Einzelbitten.
+   */
+  SET: 'set',
+  /**
+   * Botengang: bei einem Geist angenommen, bei einem anderen abgegeben.
+   *
+   * Die einzige Bitte, bei der es darauf ankommt, WO man hingeht. Sie
+   * verbindet die Insel – vorher stand jeder Geist für sich.
+   */
+  DELIVER: 'deliver',
+  /** Aus dem eigenen Beet – bindet den Garten an die Geister. */
+  GROW: 'grow',
 };
 
 const POOLS = {
@@ -35,6 +53,33 @@ const POOLS = {
 };
 
 const CRAFTABLE_ASKS = ['fence', 'path_tile', 'lantern', 'flowerbed', 'bench', 'birdhouse'];
+
+/**
+ * Vorräte für Sammelbitten: drei VERSCHIEDENE aus einer Gruppe.
+ *
+ * Genau hier steckt die Abwechslung: Aus neun Sammelgütern gibt es
+ * vierundachtzig Dreiergruppen. Eine Bitte um sechs Beeren erledigt man an
+ * einem Busch – „von jeder eine" schickt einen über die halbe Insel.
+ */
+const SET_POOLS = {
+  blumen: ['flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'],
+  wald: ['berry', 'mushroom', 'herb', 'resin', 'fiber'],
+  strand: ['shell', 'driftwood', 'fiber', 'bottle'],
+  stein: ['stone', 'copper_ore', 'clay', 'shard'],
+  bauholz: ['wood', 'hardwood', 'resin', 'fiber'],
+};
+const SET_NAMES = {
+  blumen: 'Ein Strauß',
+  wald: 'Aus dem Wald',
+  strand: 'Vom Strand',
+  stein: 'Aus dem Fels',
+  bauholz: 'Vom Holzplatz',
+};
+const SET_KEYS = Object.keys(SET_POOLS);
+
+/** Was ein Geist gern von einem anderen geschickt bekommt. */
+const DELIVER_POOL = ['berry', 'herb', 'mushroom', 'shell', 'driftwood', 'resin',
+  'wood', 'stone', 'clay', 'feather', 'flower_pink', 'flower_yellow'];
 
 /**
  * Wie viele Aufträge ein Geist gleichzeitig offen hat.
@@ -59,6 +104,11 @@ const MAX_ACTIVE_PER_SPIRIT = 3;
  * gebaut werden.
  */
 const LIFETIME = {
+  set: 4,
+  deliver: 3,
+  // Säen, wachsen lassen, ernten: Die schnellste Saat braucht zwei Tage, und
+  // danach muss man noch hinlaufen.
+  grow: 6,
   find: 4,
   catch: 4,
   decorate: 5,
@@ -82,9 +132,15 @@ export function daysLeft(q, day) {
 
 let questSeq = 1;
 
-/** Erkennungszeichen einer Bitte: Art plus Gegenstand. */
+/**
+ * Erkennungszeichen einer Bitte: Art plus Gegenstand.
+ *
+ * Bei Sammelbitten zählt die Gruppe, nicht die gezogene Liste. Sonst standen
+ * zweimal „Aus dem Wald sammeln" nebeneinander, nur mit leicht anderen
+ * Zutaten – für den Spieler dieselbe Karte doppelt.
+ */
 function key(q) {
-  return q.type + ':' + (q.itemId || '');
+  return q.type + ':' + (q.setKey || q.itemId || '');
 }
 
 export class QuestBook {
@@ -209,6 +265,46 @@ export class QuestBook {
       return q;
     }
 
+    // Drei verschiedene Dinge einer Gruppe
+    if (type === 'set') {
+      const gruppe = randPick(rng, SET_KEYS);
+      const pool = SET_POOLS[gruppe].slice();
+      const wieviele = Math.min(pool.length, rng() < 0.35 ? 4 : 3);
+      const items = [];
+      for (let i = 0; i < wieviele && pool.length; i++) {
+        items.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+      }
+      const q = this._base(spiritId, QTYPE.SET, items.length, day);
+      q.items = items;
+      q.setKey = gruppe;
+      q.setName = SET_NAMES[gruppe];
+      q.rewards = rewardFor(QTYPE.SET, items.length, scale, rng);
+      return q;
+    }
+
+    // Botengang zu einem anderen Geist
+    if (type === 'deliver') {
+      const andere = SPIRIT_IDS.filter(function (id) {
+        return id !== spiritId && world.isUnlocked(SPIRITS[id].region);
+      });
+      if (!andere.length) return null;
+      const ziel = randPick(rng, andere);
+      const q = this._base(spiritId, QTYPE.DELIVER, randInt(rng, 2, 4), day);
+      q.itemId = randPick(rng, DELIVER_POOL);
+      q.turnInAt = ziel;
+      q.rewards = rewardFor(QTYPE.DELIVER, q.need, scale, rng);
+      return q;
+    }
+
+    // Aus dem eigenen Beet
+    if (type === 'grow') {
+      const q = this._base(spiritId, QTYPE.GROW, randInt(rng, 2, 4), day);
+      q.itemId = randPick(rng, ['berry', 'herb', 'flower_pink', 'flower_yellow',
+        'flower_violet', 'flower_white']);
+      q.rewards = rewardFor(QTYPE.GROW, q.need, scale, rng);
+      return q;
+    }
+
     if (type === 'fish') {
       const count = randInt(rng, 2, 4);
       const q = this._base(spiritId, QTYPE.FISH, count, day);
@@ -298,6 +394,12 @@ export class QuestBook {
       expires: day + lifetimeOf(type),
       rewards: { coins: 0, ember: 0, items: [] },
       hiddenIds: null,
+      // Nur bei Sammelbitten belegt: die geforderten Sorten und ihre Gruppe.
+      items: null,
+      setKey: null,
+      setName: null,
+      // Nur beim Botengang belegt: wo abgegeben wird.
+      turnInAt: null,
     };
   }
 
@@ -308,12 +410,36 @@ export class QuestBook {
     switch (q.type) {
       case QTYPE.GATHER:
       case QTYPE.CRAFT:
+      case QTYPE.DELIVER:
+      case QTYPE.GROW:
         return Math.min(q.need, ctx.inventory.count(q.itemId));
+      case QTYPE.SET: {
+        // Gezählt wird, wie viele der geforderten Sorten überhaupt dabei sind –
+        // nicht die Stückzahl. Ein Sack voll Beeren erfüllt nichts, wenn die
+        // Sternblume fehlt.
+        let da = 0;
+        for (let i = 0; i < q.items.length; i++) {
+          if (ctx.inventory.count(q.items[i]) > 0) da++;
+        }
+        return Math.min(q.need, da);
+      }
       case QTYPE.DECORATE:
         return Math.min(q.need, charmAround(ctx.world, q.spirit, getItem));
       default:
         return Math.min(q.need, q.have);
     }
+  }
+
+  /**
+   * Bitten, die bei DIESEM Geist abgegeben werden.
+   *
+   * Bei einem Botengang ist das nicht der, der sie gestellt hat – und genau
+   * darum geht es: Man muss wissen, wohin.
+   */
+  openAtSpirit(id) {
+    return this.quests.filter(function (q) {
+      return !q.turnedIn && (q.turnInAt || q.spirit) === id;
+    });
   }
 
   isReady(q, ctx) {
@@ -354,8 +480,12 @@ export class QuestBook {
     if (q.turnedIn) return null;
     if (!this.isReady(q, ctx)) return null;
 
-    if (q.type === QTYPE.GATHER || q.type === QTYPE.CRAFT) {
+    if (q.type === QTYPE.GATHER || q.type === QTYPE.CRAFT ||
+        q.type === QTYPE.DELIVER || q.type === QTYPE.GROW) {
       ctx.inventory.remove(q.itemId, q.need);
+    } else if (q.type === QTYPE.SET) {
+      // Von jeder Sorte genau eines – nicht der ganze Stapel.
+      for (let i = 0; i < q.items.length; i++) ctx.inventory.remove(q.items[i], 1);
     }
     q.turnedIn = true;
     this.completedBySpirit[q.spirit] = (this.completedBySpirit[q.spirit] || 0) + 1;
@@ -405,6 +535,13 @@ export class QuestBook {
 function rewardFor(type, count, scale, rng, item) {
   const perUnit = {
     gather: item ? Math.max(6, item.value * 1.6) : 10,
+    // Eine Sammelbitte kostet mehr Wege als eine Holbitte – das muss sich
+    // lohnen, sonst nimmt man lieber dreimal Holz.
+    set: 34,
+    // Ein Botengang kostet vor allem Laufweg.
+    deliver: 26,
+    // Ein Beet steht zwei bis vier Tage, bevor es etwas hergibt.
+    grow: 32,
     find: 26,
     fish: 20,
     catch: 70,
@@ -426,6 +563,9 @@ function rewardFor(type, count, scale, rng, item) {
 /** Kurzbeschreibung für die Oberfläche – Symbol + Zahl, kein Fließtext. */
 export function questIcon(q) {
   switch (q.type) {
+    case QTYPE.SET: return 'icon_' + q.items[0];
+    case QTYPE.DELIVER: return 'icon_' + q.itemId;
+    case QTYPE.GROW: return 'icon_seed_berry';
     case QTYPE.FIND: return 'icon_' + q.itemId;
     case QTYPE.FISH: return 'icon_fish_trout';
     case QTYPE.CATCH: return 'icon_' + q.itemId;
@@ -438,6 +578,9 @@ export function questIcon(q) {
 }
 
 export const QUEST_VERB = {
+  set: 'sammeln',
+  deliver: 'überbringen',
+  grow: 'anbauen',
   gather: 'bringen',
   find: 'finden',
   fish: 'angeln',
@@ -451,6 +594,12 @@ export const QUEST_VERB = {
 export function questTitle(q) {
   const item = q.itemId ? getItem(q.itemId) : null;
   switch (q.type) {
+    case QTYPE.SET: return (q.setName || 'Allerlei') + ' sammeln';
+    case QTYPE.DELIVER: {
+      const zu = SPIRITS[q.turnInAt];
+      return (item ? item.name : 'Etwas') + ' zu ' + (zu ? zu.name : 'jemandem');
+    }
+    case QTYPE.GROW: return (item ? item.name : 'Etwas') + ' anbauen';
     case QTYPE.FIND: return (item ? item.name : 'Erinnerung') + ' finden';
     case QTYPE.FISH: return 'Fische angeln';
     case QTYPE.CATCH: return (item ? item.name : 'Fisch') + ' fangen';

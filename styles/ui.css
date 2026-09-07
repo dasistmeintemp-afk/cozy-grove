@@ -754,6 +754,18 @@ html, body {
 .row .meta .warn { color: #a8542a; font-weight: 700; }
 .row.dim { opacity: 0.55; }
 
+/* Die Sorten einer Sammelbitte: was dabei ist, ist abgehakt und blass –
+   was fehlt, steht kräftig da. „2/4" allein sagt nicht, welche zwei. */
+.row .parts { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+.row .parts .part {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.74em; font-weight: 700;
+  padding: 2px calc(7px * var(--ui-scale)) 2px 4px;
+  border: 2px solid var(--edge-soft); border-radius: 999px;
+  background: var(--paper-warm);
+}
+.row .parts .part.got { opacity: 0.45; text-decoration: line-through; }
+
 /* Gemütlichkeitsstufe: vier Punkte, gefüllte in Lagerfeuerfarbe. Eine Reihe
    liest sich schneller als eine Zahl und braucht kein Wort dazu. */
 .cosy-bar { display: flex; gap: 4px; margin-top: 5px; }

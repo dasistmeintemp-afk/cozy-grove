@@ -14,7 +14,7 @@ export const SPIRITS = {
     role: 'Lagerfeuer',
     colorStart: 312,
     colorPerQuest: 88,
-    questTypes: ['burn', 'burn', 'gather_wood', 'visit', 'craft'],
+    questTypes: ['burn', 'burn', 'gather_wood', 'visit', 'craft', 'set', 'deliver'],
     likes: ['wood', 'hardwood', 'resin'],
     lines: {
       greet: ['Knister.', 'Kalt hier.', 'Ich glimme.'],
@@ -31,7 +31,7 @@ export const SPIRITS = {
     role: 'Wiese',
     colorStart: 240,
     colorPerQuest: 104,
-    questTypes: ['gather_forage', 'find', 'decorate', 'catch_bug', 'visit'],
+    questTypes: ['gather_forage', 'find', 'decorate', 'catch_bug', 'visit', 'set', 'grow', 'deliver'],
     likes: ['flower_pink', 'flower_yellow', 'flower_white', 'herb', 'berry'],
     lines: {
       greet: ['Es duftet.', 'Hallo!', 'Schau mal.'],
@@ -49,7 +49,7 @@ export const SPIRITS = {
     water: 'sea',
     colorStart: 240,
     colorPerQuest: 104,
-    questTypes: ['catch', 'catch', 'fish', 'gather_beach', 'visit'],
+    questTypes: ['catch', 'catch', 'fish', 'gather_beach', 'visit', 'set', 'deliver'],
     likes: ['shell', 'driftwood', 'fish_cod', 'fish_mackerel'],
     lines: {
       greet: ['Moin.', 'Ruhige See.', 'Wind dreht.'],
@@ -67,7 +67,7 @@ export const SPIRITS = {
     water: 'fresh',
     colorStart: 256,
     colorPerQuest: 112,
-    questTypes: ['gather_wood', 'find', 'visit', 'catch_bug', 'burn'],
+    questTypes: ['gather_wood', 'find', 'visit', 'catch_bug', 'burn', 'set', 'grow', 'deliver'],
     likes: ['hardwood', 'resin', 'mushroom'],
     lines: {
       greet: ['Hmpf.', 'Du wieder.', 'Na gut.'],
@@ -84,7 +84,7 @@ export const SPIRITS = {
     role: 'Werkstatt',
     colorStart: 240,
     colorPerQuest: 112,
-    questTypes: ['craft', 'craft', 'gather_ore', 'visit', 'decorate'],
+    questTypes: ['craft', 'craft', 'gather_ore', 'visit', 'decorate', 'set', 'deliver'],
     likes: ['copper_ore', 'stone', 'shard'],
     lines: {
       greet: ['Interessant!', 'Moment...', 'Schraube fehlt.'],
@@ -101,7 +101,7 @@ export const SPIRITS = {
     role: 'Klippen',
     colorStart: 240,
     colorPerQuest: 120,
-    questTypes: ['find', 'visit', 'decorate', 'craft', 'gather'],
+    questTypes: ['find', 'visit', 'decorate', 'craft', 'gather', 'set', 'grow', 'deliver'],
     likes: ['fiber', 'flower_violet', 'gem'],
     lines: {
       greet: ['Oh, Besuch.', 'Hier oben!', 'Puh, windig.'],

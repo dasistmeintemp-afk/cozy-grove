@@ -199,7 +199,10 @@ test('Ein Geist stellt nicht zweimal dieselbe Bitte gleichzeitig', () => {
     qb.newDay(day, ctx.world, ctx);
     const gesehen = Object.create(null);
     for (const q of qb.active()) {
-      const k = q.spirit + '|' + q.type + '|' + (q.itemId || '');
+      // Maßstab ist die Karte, die im Spiel steht: zwei Bitten mit derselben
+      // Überschrift sind für den Spieler dieselbe Bitte, auch wenn intern
+      // andere Zutaten dranhängen.
+      const k = q.spirit + '|' + questTitle(q);
       assert.ok(!gesehen[k], 'doppelt an Tag ' + day + ': ' + k);
       gesehen[k] = 1;
     }
@@ -255,6 +258,107 @@ test('Sammelaufgabe: Fortschritt aus der Tasche, Abgabe verbraucht', () => {
   assert.equal(qb.active().length, 0);
   assert.equal(qb.completedBySpirit.mira, 1);
   assert.equal(qb.totalCompleted, 1);
+});
+
+test('Sammelbitte zählt Sorten, nicht Stückzahl', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const q = {
+    id: 'set1', spirit: 'mira', type: QTYPE.SET, itemId: null,
+    items: ['berry', 'herb', 'resin'], setKey: 'wald', setName: 'Aus dem Wald',
+    need: 3, have: 0, turnedIn: false, day: 1,
+    rewards: { coins: 90, ember: 4, items: [] }, hiddenIds: null,
+  };
+  qb.quests.push(q);
+
+  // Ein Sack voll Beeren erfüllt nichts – es fehlen zwei Sorten.
+  ctx.inventory.add('berry', 20);
+  assert.equal(qb.progress(q, ctx), 1, 'zwanzig Beeren sind trotzdem eine Sorte');
+  assert.equal(qb.isReady(q, ctx), false);
+
+  ctx.inventory.add('herb', 1);
+  ctx.inventory.add('resin', 1);
+  assert.equal(qb.progress(q, ctx), 3);
+
+  assert.ok(qb.turnIn(q, ctx));
+  // Von jeder Sorte genau eines, nicht der ganze Stapel.
+  assert.equal(ctx.inventory.count('berry'), 19, 'der Beerenvorrat bleibt');
+  assert.equal(ctx.inventory.count('herb'), 0);
+  assert.equal(ctx.inventory.count('resin'), 0);
+});
+
+test('Botengang wird beim Ziel abgegeben, nicht beim Auftraggeber', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const q = {
+    id: 'del1', spirit: 'mira', type: QTYPE.DELIVER, itemId: 'shell',
+    turnInAt: 'flamey', need: 2, have: 0, turnedIn: false, day: 1,
+    rewards: { coins: 50, ember: 3, items: [] }, hiddenIds: null,
+  };
+  qb.quests.push(q);
+  ctx.inventory.add('shell', 2);
+
+  assert.deepEqual(qb.openAtSpirit('flamey').map((x) => x.id), ['del1'],
+    'abgegeben wird bei Flamey');
+  assert.deepEqual(qb.openAtSpirit('mira'), [],
+    'bei Mira steht nichts zum Abgeben');
+  // Der Auftrag gehört aber weiter zu Mira – sie hat ihn gestellt.
+  assert.deepEqual(qb.openForSpirit('mira').map((x) => x.id), ['del1']);
+
+  assert.ok(qb.turnIn(q, ctx));
+  assert.equal(ctx.inventory.count('shell'), 0);
+  assert.equal(qb.completedBySpirit.mira, 1, 'die Freundschaft zählt beim Auftraggeber');
+});
+
+test('Botengang schickt nie zum Auftraggeber selbst zurück', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const rng = makeRng(7);
+  let gesehen = 0;
+  for (let i = 0; i < 400; i++) {
+    const q = qb.generate('mira', 5, ctx.world, ctx, rng);
+    if (!q || q.type !== QTYPE.DELIVER) continue;
+    gesehen++;
+    assert.notEqual(q.turnInAt, 'mira');
+    assert.ok(ctx.world.isUnlocked(SPIRITS[q.turnInAt].region),
+      'Ziel muss erreichbar sein: ' + q.turnInAt);
+  }
+  assert.ok(gesehen > 0, 'keine einzige Botengang-Bitte erzeugt');
+});
+
+test('Jede Sammel- und Botengangsorte ist ein echter Gegenstand', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const rng = makeRng(31);
+  let geprueft = 0;
+  for (let i = 0; i < 900; i++) {
+    const q = qb.generate('flamey', 9, ctx.world, ctx, rng);
+    if (!q) continue;
+    const ids = q.type === QTYPE.SET ? q.items
+      : (q.type === QTYPE.DELIVER || q.type === QTYPE.GROW) ? [q.itemId] : null;
+    if (!ids) continue;
+    for (const id of ids) {
+      assert.ok(getItem(id), 'kein Gegenstand: ' + id);
+      geprueft++;
+    }
+  }
+  assert.ok(geprueft > 20, 'zu wenig geprüft: ' + geprueft);
+});
+
+test('Sammelbitte fordert lauter verschiedene Sorten', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const rng = makeRng(5);
+  let gesehen = 0;
+  for (let i = 0; i < 600; i++) {
+    const q = qb.generate('kiesel', 9, ctx.world, ctx, rng);
+    if (!q || q.type !== QTYPE.SET) continue;
+    gesehen++;
+    assert.equal(new Set(q.items).size, q.items.length, 'doppelt: ' + q.items);
+    assert.equal(q.need, q.items.length);
+    assert.ok(q.items.length >= 3);
+  }
+  assert.ok(gesehen > 0, 'keine einzige Sammelbitte erzeugt');
 });
 
 test('Suchaufgabe legt versteckte Fundstücke in der Welt ab', () => {
@@ -791,7 +895,13 @@ test('Neue Aufgabenarten: Hingehen zählt erst am Ziel', () => {
 test('Jede Aufgabenart hat Titel, Verb und Symbol', () => {
   for (const key of Object.keys(QTYPE)) {
     const type = QTYPE[key];
-    const q = { type: type, itemId: 'wood', need: 2, have: 0, spot: { x: 0, y: 0 } };
+    // Eine Attrappe mit allen Feldern, die irgendeine Art liest – so fällt
+    // auf, wenn eine neue Art einen Titel ohne passendes Feld baut.
+    const q = {
+      type: type, itemId: 'wood', need: 2, have: 0, spot: { x: 0, y: 0 },
+      items: ['berry', 'herb', 'resin'], setKey: 'wald', setName: 'Aus dem Wald',
+      turnInAt: 'flamey',
+    };
     const titel = questTitle(q);
     assert.ok(titel && titel.length > 0, type + ' braucht einen Titel');
     assert.ok(titel.length <= 34, type + ': Titel zu lang – "' + titel + '"');

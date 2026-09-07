@@ -1443,6 +1443,89 @@ async function run() {
     check('Aufgabenkarte nennt die Aufgabe beim Namen',
       !rail.keine && !!rail.titel && rail.titel.length > 3 && rail.sichtbar,
       JSON.stringify(rail));
+
+    // Ein Botengang zählt nur, wenn man ihn wirklich hintragen muss.
+    const bote = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      const auf = g.world.entities.filter((e) => e.kind === 'spirit' &&
+        g.world.isUnlocked(g.world.regionAtPixel(e.x, e.y)));
+      const geister = (auf.length >= 2 ? auf
+        : g.world.entities.filter((e) => e.kind === 'spirit')).slice(0, 2);
+      const von = geister[0], zu = geister[1];
+      // Vorstellung und Mitbringsel aus dem Weg räumen – geprüft wird die
+      // Abgabe, nicht die Begrüßung.
+      g.state.met[von.spiritId] = 1;
+      g.state.met[zu.spiritId] = 1;
+      if (!g.state.gifted) g.state.gifted = {};
+      g.state.gifted[von.spiritId] = g.day.day;
+      g.state.gifted[zu.spiritId] = g.day.day;
+      // Alles andere beiseite: sonst zahlt ein fertiger Nebenauftrag mit und
+      // das Ausrufezeichen stünde ohnehin überall.
+      const beiseite = g.quests.quests;
+      g.quests.quests = [];
+      const q = {
+        id: 'smoke_deliver', spirit: von.spiritId, type: 'deliver', itemId: 'stone',
+        turnInAt: zu.spiritId, need: 2, have: 0, turnedIn: false, day: g.day.day,
+        expires: g.day.day + 3, items: null, setKey: null, setName: null,
+        rewards: { coins: 55, ember: 3, items: [] }, hiddenIds: null,
+      };
+      g.quests.quests.push(q);
+      g.inventory.add('stone', 2);
+
+      const muenzenVorher = g.state.coins;
+      g.talkTo(von);                       // beim Auftraggeber: nichts abgeben
+      const beimAuftraggeber = g.state.coins;
+      const nochDaBeimAuftraggeber = !!g.quests.byId('smoke_deliver');
+      const markiert = g.spiritsWithReadyQuest().map((e) => e.spiritId);
+      g.talkTo(zu);                        // beim Ziel: jetzt zählt es
+      const beimZiel = g.state.coins;
+      const nochOffen = !!g.quests.byId('smoke_deliver');
+      g.quests.quests = beiseite;
+      return {
+        von: von.spiritId, zu: zu.spiritId, muenzenVorher, beimAuftraggeber, beimZiel,
+        markiert, nochDaBeimAuftraggeber, nochOffen, steine: g.inventory.count('stone'),
+      };
+    });
+    check('Botengang lässt sich beim Auftraggeber nicht abgeben',
+      bote.beimAuftraggeber === bote.muenzenVorher && bote.nochDaBeimAuftraggeber,
+      JSON.stringify(bote));
+    check('Botengang wird beim Ziel abgegeben',
+      bote.beimZiel > bote.beimAuftraggeber && !bote.nochOffen && bote.steine === 0,
+      JSON.stringify(bote));
+    check('Das Ausrufezeichen steht über dem Ziel, nicht über dem Auftraggeber',
+      bote.markiert.length === 1 && bote.markiert[0] === bote.zu,
+      JSON.stringify(bote.markiert));
+
+    // Bei „Aus dem Wald sammeln 1/3" muss dastehen, welche zwei fehlen.
+    const sorten = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const q = {
+        id: 'smoke_set', spirit: 'mira', type: 'set', itemId: null,
+        items: ['berry', 'herb', 'resin'], setKey: 'wald', setName: 'Aus dem Wald',
+        need: 3, have: 0, turnedIn: false, day: g.day.day, expires: g.day.day + 4,
+        turnInAt: null, rewards: { coins: 90, ember: 4, items: [] }, hiddenIds: null,
+      };
+      g.quests.quests.unshift(q);
+      g.inventory.add('berry', 1);
+      g.openPanel('quests');
+      await new Promise((r) => setTimeout(r, 300));
+      const reihe = Array.from(document.querySelectorAll('#panel .row'))
+        .find((r) => r.querySelector('.parts'));
+      const teile = reihe ? Array.from(reihe.querySelectorAll('.part')) : [];
+      const erg = {
+        gefunden: !!reihe,
+        namen: teile.map((t) => t.textContent.trim()),
+        abgehakt: teile.filter((t) => t.classList.contains('got')).map((t) => t.textContent.trim()),
+        lesbar: teile.every((t) => t.getBoundingClientRect().width > 20),
+      };
+      g.panels.close();
+      g.quests.quests = g.quests.quests.filter((x) => x.id !== 'smoke_set');
+      return erg;
+    });
+    check('Sammelbitte zeigt jede geforderte Sorte einzeln',
+      sorten.gefunden && sorten.namen.length === 3 && sorten.lesbar, JSON.stringify(sorten));
+    check('Was schon in der Tasche liegt, ist abgehakt',
+      sorten.abgehakt.length === 1, JSON.stringify(sorten));
   } catch (err) {
     check('Testlauf ohne Ausnahme', false, err && err.message);
     exitCode = 1;

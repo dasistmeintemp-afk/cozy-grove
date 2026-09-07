@@ -98,9 +98,23 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   aber schlafen darfst du jederzeit – und bekommst sofort neue Aufgaben, neue
   Grabstellen, neues Ladenangebot. Wer eine Stunde am Stück spielen will, kann
   das; wer zehn Minuten hat, auch.
-* **Achterlei Aufgaben.** Bringen, finden, angeln, einen *bestimmten* Fisch
-  fangen, einen Ort aufsuchen, verbrennen, bauen, aufstellen. Nur knapp ein
-  Drittel ist Hol-und-Bring; ein Test wacht darüber.
+* **Elferlei Aufgaben.** Bringen, finden, angeln, einen *bestimmten* Fisch
+  fangen, einen Ort aufsuchen, verbrennen, bauen, aufstellen – und drei, bei
+  denen es nicht um die Stückzahl geht:
+  * **Sammelbitte:** drei oder vier *verschiedene* Dinge einer Gruppe. „Sechs
+    Beeren" erledigt man an einem Busch, „von jeder Waldsorte eine" schickt
+    einen über die halbe Insel. Im Aufgabenfenster steht jede Sorte einzeln;
+    was schon in der Tasche liegt, ist abgehakt. Abgegeben wird von jeder
+    Sorte genau eines – der Vorrat bleibt.
+  * **Botengang:** ein Geist gibt ihn auf, ein *anderer* nimmt ihn an. Die
+    einzige Bitte, bei der es darauf ankommt, wohin man geht; das
+    Ausrufezeichen steht über dem Ziel, nicht über dem Auftraggeber.
+  * **Anbau:** aus dem eigenen Beet. Bindet den Garten an die Geister, statt
+    ihn danebenstehen zu lassen.
+
+  Nur knapp ein Drittel ist Hol-und-Bring; ein Test wacht darüber. Über
+  sechzig Tage gemessen kommen so 117 verschiedene Aufgabenkarten zusammen,
+  und noch an Tag 59 taucht eine auf, die es vorher nicht gab.
 * **Bitten rotieren.** Jede Bitte gilt drei bis fünf Tage – im Aufgabenfenster
   steht, wie lange noch. Läuft eine ab, zieht der Geist sie am nächsten Morgen
   zurück und stellt eine andere; wer eine Aufgabe nicht mag, ist sie los.
@@ -320,8 +334,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 129 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
-npm run test:browser   # 87 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 134 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
+npm run test:browser   # 92 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

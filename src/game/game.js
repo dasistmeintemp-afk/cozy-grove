@@ -1094,8 +1094,10 @@ export class Game {
       this.save();
     }
 
-    const open = this.quests.openForSpirit(e.spiritId);
-    const ready = open.filter((q) => this.quests.isReady(q, this));
+    // Abgegeben wird, was hierher gehört: die eigenen Bitten dieses Geistes
+    // und die Botengänge, die ein anderer hierher schickt.
+    const hier = this.quests.openAtSpirit(e.spiritId);
+    const ready = hier.filter((q) => this.quests.isReady(q, this));
 
     if (ready.length) {
       this._turnIn(ready[0], e, spirit);
@@ -1105,6 +1107,9 @@ export class Game {
     // Mitbringsel bringt einen weiter. Ein Herz über dem Geist zeigt vorher an,
     // dass gerade etwas Passendes in der Tasche liegt.
     if (this.wantsGift(e.spiritId) && this.giveGiftTo(e)) return;
+    // „Noch nicht" sagt ein Geist auch zu dem Botengang, den er selbst
+    // aufgegeben hat – sonst stünde er stumm da, bis man zurück ist.
+    const open = hier.length ? hier : this.quests.openForSpirit(e.spiritId);
     if (open.length) {
       const q = open[0];
       const have = this.quests.progress(q, this);
@@ -1215,7 +1220,7 @@ export class Game {
     for (let i = 0; i < this.world.entities.length; i++) {
       const e = this.world.entities[i];
       if (e.kind !== 'spirit') continue;
-      const open = this.quests.openForSpirit(e.spiritId);
+      const open = this.quests.openAtSpirit(e.spiritId);
       for (let j = 0; j < open.length; j++) {
         if (this.quests.isReady(open[j], this)) {
           out.push(e);
@@ -2083,7 +2088,7 @@ export class Game {
     }
     const def = t.def;
     if (def.category === 'spirit') {
-      const open = this.quests.openForSpirit(t.entity.spiritId);
+      const open = this.quests.openAtSpirit(t.entity.spiritId);
       const ready = open.filter((q) => this.quests.isReady(q, this));
       const id = ready.length ? null : this.likedInBag(t.entity.spiritId);
       this.ui.setPrompt(ready.length ? 'Abgeben'

@@ -412,11 +412,29 @@ export class Panels {
         const frist = rest == null ? ''
           : '<span' + (rest <= 1 ? ' class="warn"' : '') + '>' + ico('icon_day') + ' ' +
             (rest <= 0 ? 'heute' : rest === 1 ? 'noch 1 Tag' : 'noch ' + rest + ' Tage') + '</span>';
+        // Bei einer Sammelbitte sagt „2/4" nicht, WELCHE zwei noch fehlen.
+        // Darum stehen die Sorten einzeln da, erledigte blass.
+        let sorten = '';
+        if (q.type === QTYPE.SET && q.items) {
+          sorten = '<div class="parts">';
+          for (let k = 0; k < q.items.length; k++) {
+            const da = g.inventory.count(q.items[k]) > 0;
+            const it = getItem(q.items[k]);
+            sorten += '<span class="part' + (da ? ' got' : '') + '">' +
+              ico('icon_' + q.items[k]) + ' ' + escapeHtml(it ? it.name : q.items[k]) + '</span>';
+          }
+          sorten += '</div>';
+        }
+        // Beim Botengang ist der Weg die Aufgabe: von wem, zu wem.
+        const wer = q.type === QTYPE.DELIVER && SPIRITS[q.turnInAt]
+          ? escapeHtml(spirit.name) + ' → ' + escapeHtml(SPIRITS[q.turnInAt].name)
+          : escapeHtml(spirit.name);
         html += '<div class="row' + (done ? '' : '') + '">' +
           ico(questIcon(q), 'lg') +
           '<div class="grow">' +
           '<div class="title">' + escapeHtml(questTitle(q)) + ' · ' + have + '/' + q.need + '</div>' +
-          '<div class="meta"><span>' + escapeHtml(spirit.name) + '</span>' +
+          sorten +
+          '<div class="meta"><span>' + wer + '</span>' +
           '<span>' + ico('icon_coin') + ' ' + q.rewards.coins + '</span>' +
           '<span>' + ico('icon_ember') + ' ' + q.rewards.ember + '</span>' +
           frist +
