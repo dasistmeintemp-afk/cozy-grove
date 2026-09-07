@@ -6,6 +6,7 @@ import { Input } from './core/input.js';
 import { audio } from './core/audio.js';
 import { Game } from './game/game.js';
 import * as storage from './core/storage.js';
+import { makeClock, advance, FIXED_DT } from './core/clock.js';
 
 const canvas = document.getElementById('game');
 const stage = document.getElementById('stage');
@@ -18,8 +19,7 @@ let game = null;
 let input = null;
 let rafId = 0;
 let lastTime = 0;
-let accumulator = 0;
-const FIXED_DT = 1 / 60;
+const clock = makeClock();
 
 function fitCanvas() {
   const w = stage.clientWidth;
@@ -48,28 +48,24 @@ function loop(now) {
   if (!game) return;
 
   if (!lastTime) lastTime = now;
-  let dt = (now - lastTime) / 1000;
+  const dt = (now - lastTime) / 1000;
   lastTime = now;
-  if (dt > 0.25) dt = 0.25;
 
-  accumulator += dt;
-  let steps = 0;
   // endFrame() gehört hinter JEDEN Simulationsschritt – sonst sähen mehrere
   // Schritte im selben Bild denselben Tastendruck.
-  while (accumulator >= FIXED_DT && steps < 5) {
+  const steps = advance(clock, dt);
+  for (let i = 0; i < steps; i++) {
     game.update(FIXED_DT);
     input.endFrame();
-    accumulator -= FIXED_DT;
-    steps++;
-  }
-  if (steps === 0 && accumulator > 0) {
-    game.update(accumulator);
-    input.endFrame();
-    accumulator = 0;
   }
 
+  // Der angebrochene Schritt wird NICHT simuliert, sondern gezeichnet: das
+  // Bild zeigt den Zwischenstand. Vorher lief hier ein zusätzlicher Schritt
+  // von der Länge des Rests, und der Rest wurde danach weggeworfen. Auf einem
+  // 60-Hz-Bildschirm fiel das kaum auf; auf 120 oder 144 Hz war fast jeder
+  // Schritt kürzer als 1/60 s, und die Figur lief mit ungleichmäßigem Takt.
   const drawStart = performance.now();
-  game.draw();
+  game.draw(clock.alpha);
   const drawMs = performance.now() - drawStart;
   if (game.renderer.adapt(drawMs, game.camera)) {
     game.ui.layout();
@@ -105,7 +101,8 @@ function startGame(save) {
   }
 
   lastTime = 0;
-  accumulator = 0;
+  clock.accumulator = 0;
+  clock.alpha = 0;
   if (!rafId) rafId = requestAnimationFrame(loop);
 }
 

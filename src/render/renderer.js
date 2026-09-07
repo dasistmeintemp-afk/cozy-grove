@@ -398,7 +398,10 @@ export class Renderer {
 
   _drawPlayer(ctx, game, time) {
     const p = game.player;
-    drawSprite(ctx, p.spriteName(), p.x, p.y, false, { flip: p.flipped() });
+    // Gezeichnet wird der Zwischenstand, nicht der letzte fertige Schritt –
+    // sonst zappelte die Figur gegen die weich mitlaufende Kamera.
+    const pos = p.renderPos(game.camera.alpha);
+    drawSprite(ctx, p.spriteName(), pos.x, pos.y, false, { flip: p.flipped() });
 
     if (p.swing > 0 && p.tool.sprite && p.tool.id !== 'hand') {
       const t = 1 - p.swing;
@@ -406,7 +409,7 @@ export class Renderer {
       const offX = p.dir === 'left' ? -26 : p.dir === 'right' ? 26 : (p.dir === 'up' ? 18 : -18);
       const offY = p.dir === 'up' ? -54 : -46;
       ctx.save();
-      ctx.translate(p.x + offX, p.y + offY);
+      ctx.translate(pos.x + offX, pos.y + offY);
       ctx.rotate(angle);
       drawSprite(ctx, p.tool.sprite, 0, 0, false, { scale: 0.72 });
       ctx.restore();
@@ -418,7 +421,7 @@ export class Renderer {
       ctx.strokeStyle = 'rgba(74,64,56,0.7)';
       ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.moveTo(p.x, p.y - 62);
+      ctx.moveTo(pos.x, pos.y - 62);
       ctx.lineTo(f.bobber.x, f.bobber.y);
       ctx.stroke();
       const bob = Math.sin(time * 5) * 4;

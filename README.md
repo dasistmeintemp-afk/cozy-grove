@@ -154,6 +154,11 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Freundschaft.** Alle drei erledigten Aufgaben steigt die Stufe bei einem
   Geist. Das bringt ein Geschenk, mehr Farbe ringsum und dauerhaft besseren
   Lohn für seine Aufgaben.
+* **Weniger Handgriffe.** Das passende Werkzeug nimmt sich das Spiel selbst –
+  statt „Dafür brauchst du: Axt" wird gefällt. Die Taste gedrückt halten
+  arbeitet weiter, bis der Baum liegt (nur Werkzeugarbeit: Geister redet man
+  weiterhin einzeln an). Und die Angel hat vor der Ernte Vorrang, wenn Wasser
+  vor dir liegt – vorher gewann der Busch am Ufer.
 * **Lesbare Oberfläche.** Schrift, Symbole, Knöpfe und Fächer hängen an einer
   einzigen Zahl. Sie setzt sich aus zwei Faktoren zusammen: der Anpassung an
   das Fenster (misst main.js an der echten Bühne) und der Einstellung
@@ -256,6 +261,17 @@ vor, getrennt nach Farbfläche und Tinte: Unkoloriert kommt ein Papierschleier
 zwischen beide, die Zeichnung bleibt. Objekte werden je nach Position überblendet
 – dadurch muss die Szene nicht zweimal gezeichnet werden.
 
+**Ruhiges Bild.** Die Simulation läuft in festen Schritten von 1/60 s,
+gezeichnet wird, wann der Browser Zeit hat. Passen mal ein, mal zwei Schritte
+in ein Bild, bewegte sich die Welt abwechselnd um 4 und 8 Pixel – die Figur
+schien zu springen, obwohl sie völlig gleichmäßig lief. Das Bild zeigt jetzt
+den Zwischenstand (`camera.alpha`), und nach einem Aussetzer wird nicht
+nachgeholt, sondern weitergespielt: Sonst schoss die Figur nach jedem langen
+Bild ein Stück über die Wiese. Gemessen an 900 Bildern mit realistischem
+Zittern: Abweichung zwischen gezeigtem Weg und verstrichener Zeit vorher
+median 0,06 und bis zu 0,97 Schritte, jetzt exakt 0. Die Rechnung dahinter
+steht in `src/core/clock.js` und ist ohne Browser geprüft.
+
 **Leistung.** Die interne Auflösung passt sich der Bildrate an: Wird es eng,
 rechnet das Spiel etwas gröber, statt zu ruckeln. Weichgezeichnet wird über
 `ctx.filter`, wo der Browser das kann – einmal wirklich ausprobiert, nicht nur
@@ -266,8 +282,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 98 Tests: Welt, Wetter, Aufgaben, Tasche, Erinnerungen …
-npm run test:browser   # 62 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 105 Tests: Welt, Wetter, Aufgaben, Uhr, Tasche, Erinnerungen …
+npm run test:browser   # 66 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

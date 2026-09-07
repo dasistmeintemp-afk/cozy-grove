@@ -63,6 +63,13 @@ export const SELI = {
   boot: '#8c6a4a',
   pack: '#9fa877',
   packShade: '#7d8659',
+  // Blaue Augen. Der Ton ist bewusst tief und leicht grünstichig statt
+  // leuchtend: Das Auge ist sieben mal zehn Pixel groß, und ein helles Blau
+  // auf dieser Fläche verliert gegen die dunkle Kontur ringsum – man sähe nur
+  // einen grauen Fleck. So bleibt es dunkel genug, um als Auge zu lesen, und
+  // hell genug, um blau zu sein.
+  eye: '#3d6f9e',
+  eyeDeep: '#24405c',
 };
 
 /* --------------------------------------------------------------- Lagerfeuer */
@@ -1235,11 +1242,38 @@ export function paintSeli(dir, frame, opts) {
       inkStroke(g, scarf, { width: 2.0, vary: 0.3, seed: seed + 56, color: ink.line, alpha: 0.75 });
 
       // Gesicht
+      //
+      // Das Auge in drei Lagen: dunkle Kontur, blaue Iris, schwarze Pupille.
+      // Nur eine blaue Fläche wäre auf zehn Pixeln kein Auge mehr, sondern ein
+      // Fleck – der dunkle Rand hält die Form, die Pupille den Blick.
       const ex = side ? 9 : 0;
+      const augeL = { x: cx - 11 + ex, y: headY + 5 + bob, rx: 3.6, ry: 4.8 };
+      const augeR = side
+        ? { x: cx + 19, y: headY + 5 + bob, rx: 3.2, ry: 4.4 }
+        : { x: cx + 11, y: headY + 5 + bob, rx: 3.6, ry: 4.8 };
+      const augen = side ? [augeL, augeR] : [augeL, augeR];
+
       g.fillStyle = ink.line;
-      fill(g, smoothClosed(blob(cx - 11 + ex, headY + 5 + bob, 3.6, 4.8, seed + 40, 0.08, 10), 4));
-      if (!side) fill(g, smoothClosed(blob(cx + 11, headY + 5 + bob, 3.6, 4.8, seed + 41, 0.08, 10), 4));
-      else fill(g, smoothClosed(blob(cx + 19, headY + 5 + bob, 3.2, 4.4, seed + 41, 0.08, 10), 4));
+      for (let i = 0; i < augen.length; i++) {
+        const a = augen[i];
+        fill(g, smoothClosed(blob(a.x, a.y, a.rx, a.ry, seed + 40 + i, 0.08, 10), 4));
+      }
+      // Iris: etwas kleiner als die Kontur, minimal nach unten gesetzt –
+      // dadurch bleibt oben ein dunkler Lidschatten stehen.
+      g.fillStyle = SELI.eye;
+      for (let i = 0; i < augen.length; i++) {
+        const a = augen[i];
+        g.beginPath();
+        g.ellipse(a.x, a.y + 0.5, a.rx * 0.74, a.ry * 0.72, 0, 0, 6.2832);
+        g.fill();
+      }
+      g.fillStyle = SELI.eyeDeep;
+      for (let i = 0; i < augen.length; i++) {
+        const a = augen[i];
+        g.beginPath();
+        g.ellipse(a.x, a.y + 0.9, a.rx * 0.4, a.ry * 0.42, 0, 0, 6.2832);
+        g.fill();
+      }
       // Lichtpunkt oben links im Auge – erst damit schaut sie wirklich
       g.fillStyle = '#fffdf6';
       g.beginPath();

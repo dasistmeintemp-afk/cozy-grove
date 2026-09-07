@@ -25,6 +25,8 @@ export class Player {
     this.moving = false;
     this.toolIndex = 0;
     this.levels = { hand: 1, axe: 1, pickaxe: 1, shovel: 1, rod: 1, net: 1 };
+    this.prevX = x;
+    this.prevY = y;
     this.swing = 0;        // 0..1, läuft nach einem Einsatz ab
     this.swingDur = 0.34;
     this.busy = false;     // z. B. während des Angelns
@@ -33,6 +35,21 @@ export class Player {
 
   get tool() {
     return TOOLS[this.toolIndex];
+  }
+
+  /**
+   * Wo die Figur GEZEICHNET wird.
+   *
+   * Nicht `x`/`y`: die gehören der Simulation und dürfen nie zwischen zwei
+   * Schritten liegen, sonst zielt und stößt die Figur an Orten, an denen sie
+   * gar nicht steht. Fürs Bild wird gemischt, für alles andere nicht.
+   */
+  renderPos(alpha) {
+    const a = alpha == null ? 1 : alpha;
+    return {
+      x: this.prevX + (this.x - this.prevX) * a,
+      y: this.prevY + (this.y - this.prevY) * a,
+    };
   }
 
   get toolLevel() {
@@ -49,6 +66,10 @@ export class Player {
   }
 
   update(dt, move, world) {
+    // Stand vor diesem Schritt – die Anzeige mischt zwischen beiden, siehe
+    // `renderPos` und Camera.alpha.
+    this.prevX = this.x;
+    this.prevY = this.y;
     if (this.swing > 0) this.swing = Math.max(0, this.swing - dt / this.swingDur);
 
     let mx = 0;

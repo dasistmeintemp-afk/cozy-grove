@@ -6,6 +6,15 @@ import { pickWeighted, clamp } from '../core/util.js';
 import { fishesOf } from './items.js';
 import { randRange } from '../core/rng.js';
 
+/**
+ * Wurfweite: So weit vor der Figur landet der Schwimmer.
+ *
+ * Steht hier und nicht im Spiel, weil das Angeln entscheidet, was ein Wurf
+ * ist. Der Hinweis „Angeln" und der Vorrang vor der Ernte lesen denselben
+ * Wert – vorher rechnete das Spiel mit 26 px und das Angeln mit 104.
+ */
+export const CAST_REACH = 104;
+
 export const FISH_STATE = {
   IDLE: 'idle',
   CAST: 'cast',
@@ -37,7 +46,7 @@ export class Fishing {
   /** Wirft aus. Gibt false zurück, wenn dort kein Wasser ist. */
   cast(world, player, rng, night, rodLevel) {
     if (this.active) return false;
-    const p = player.facingPoint(104);
+    const p = player.facingPoint(CAST_REACH);
     if (!world.waterAt(p.x, p.y)) return false;
 
     const kind = world.waterKind(p.x, p.y);

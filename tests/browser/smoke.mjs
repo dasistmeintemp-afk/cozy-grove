@@ -163,16 +163,23 @@ async function run() {
       g.player.dir = 'up';
       g.player.selectTool(1);
       const woodBefore = g.inventory.count('wood');
-      for (let i = 0; i < 6; i++) {
-        g.target = g.player.findTarget(g.world);
+      // Geprüft wird das Objekt, das findTarget WIRKLICH wählt. Vorher stand
+      // hier ein selbst herausgesuchter Baum, und auf mancher Zufallsinsel lag
+      // ein anderes Objekt näher – dann schlug der Test ins Leere.
+      const t = g.player.findTarget(g.world);
+      if (!t) return { ok: false, why: 'nichts anvisierbar' };
+      const ziel = t.entity;
+      for (let i = 0; i < 8 && ziel.kind !== 'tree_stump' && !ziel.gone; i++) {
+        g.target = t;
         g.onInteract();
       }
       return {
         ok: true,
         woodBefore,
         woodAfter: g.inventory.count('wood'),
-        kind: tree.kind,
-        respawn: tree.respawnDay,
+        art: ziel.kind,
+        kind: ziel.kind,
+        respawn: ziel.respawnDay,
       };
     });
     check('Baum fällen gibt Holz', chopped.ok && chopped.woodAfter > chopped.woodBefore, JSON.stringify(chopped));
@@ -209,6 +216,121 @@ async function run() {
     });
     check('Kein Objekt zeigt auf eine fehlende Grafik',
       ohneBild.length === 0, ohneBild.join(', '));
+
+    /* ---- Bequemlichkeiten ---- */
+    const bequem = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+
+      // 1) Passendes Werkzeug wird selbst genommen
+      // Irgendein Objekt suchen, das ein anderes Werkzeug als die Hand braucht
+      // und das findTarget auch wirklich anvisiert. Sich einen Stein
+      // auszusuchen und zu hoffen reicht nicht: Auf mancher Zufallsinsel liegt
+      // etwas anderes näher.
+      let ziel = null;
+      const kandidaten = g.world.entities.filter((e) => !e.gone &&
+        (e.kind.indexOf('rock_') === 0 || e.kind.indexOf('tree_') === 0));
+      for (const k of kandidaten.slice(0, 60)) {
+        g.player.x = k.x; g.player.y = k.y + 50; g.player.dir = 'up';
+        g.player.selectTool(0); // Hand – falsch für Stein und Baum
+        const t = g.player.findTarget(g.world);
+        if (t && t.entity === k && t.def.tool && t.def.tool !== 'hand') { ziel = { k, t }; break; }
+      }
+      if (ziel) {
+        g.target = ziel.t;
+        const vorher = g.player.tool.id;
+        const hp = ziel.k.hp;
+        g.onInteract();
+        r.werkzeug = {
+          art: ziel.k.kind, braucht: ziel.t.def.tool,
+          vorher: vorher, nachher: g.player.tool.id,
+          hpVorher: hp, hpNachher: ziel.k.hp,
+        };
+      }
+
+      // 2) Taste halten arbeitet weiter, aber nur bei Werkzeugarbeit
+      const baum = g.world.entities.find((e) => e.kind === 'tree_birch' && !e.gone);
+      if (baum) {
+        g.player.x = baum.x; g.player.y = baum.y + 56; g.player.dir = 'up';
+        g.player.selectTool(1);
+        g.target = g.player.findTarget(g.world);
+        const start = baum.hp;
+        // Taste gedrueckt halten, ohne sie neu zu druecken
+        let schlaege = 0;
+        for (let i = 0; i < 40; i++) {
+          g.player.swing = 0;              // Schwung ist durch
+          g.target = g.player.findTarget(g.world);
+          const vor = baum.hp;
+          g._keepWorking();
+          if (baum.hp !== vor) schlaege++;
+          if (baum.kind === 'tree_stump') break;
+        }
+        r.halten = { start: start, schlaege: schlaege, kind: baum.kind };
+      }
+
+      // 3) Beim Geist darf Halten NICHTS tun
+      const geist = g.world.entities.find((e) => e.kind === 'spirit' &&
+        g.world.isUnlocked(e.region));
+      if (geist) {
+        g.player.x = geist.x; g.player.y = geist.y + 60; g.player.dir = 'up';
+        g.target = g.player.findTarget(g.world);
+        const zielIstGeist = !!(g.target && g.target.entity === geist);
+        let gerufen = 0;
+        const echt = g.talkTo.bind(g);
+        g.talkTo = function (e) { gerufen++; echt(e); };
+        for (let i = 0; i < 10; i++) { g.player.swing = 0; g._keepWorking(); }
+        g.talkTo = echt;
+        r.geist = { zielIstGeist: zielIstGeist, gerufen: gerufen };
+      }
+      return r;
+    });
+    check('Passendes Werkzeug wird selbst genommen',
+      !!bequem.werkzeug && bequem.werkzeug.vorher === 'hand' &&
+      bequem.werkzeug.nachher === bequem.werkzeug.braucht &&
+      bequem.werkzeug.hpNachher < bequem.werkzeug.hpVorher,
+      JSON.stringify(bequem.werkzeug));
+    check('Taste halten arbeitet weiter',
+      bequem.halten && bequem.halten.schlaege >= 3 && bequem.halten.kind === 'tree_stump',
+      JSON.stringify(bequem.halten));
+    check('Halten redet einen Geist nicht in Grund und Boden',
+      bequem.geist && bequem.geist.zielIstGeist && bequem.geist.gerufen === 0,
+      JSON.stringify(bequem.geist));
+
+    // Angeln muss auch neben Gestrüpp gehen
+    const angelnAmUfer = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      // Uferkachel mit Wasser davor suchen und einen Busch danebenstellen
+      let ort = null;
+      for (let ty = 4; ty < 92 && !ort; ty++) {
+        for (let tx = 4; tx < 92; tx++) {
+          if (g.world.tileAtTile(tx, ty) !== 2 && g.world.tileAtTile(tx, ty) !== 3) continue;
+          if (!g.world.waterAt(tx * 64 + 32, (ty - 1) * 64 + 32)) continue;
+          ort = { x: tx * 64 + 32, y: ty * 64 + 32 };
+          break;
+        }
+      }
+      if (!ort) return { keinUfer: true };
+      g.player.x = ort.x; g.player.y = ort.y; g.player.dir = 'up';
+      // Einen Busch direkt daneben – er soll das Angeln NICHT verhindern.
+      // Danach wird alles zurückgestellt: Der Test darf die Welt für die
+      // folgenden Prüfungen nicht verändern.
+      const busch = g.world.entities.find((e) => e.kind === 'bush_berry' && !e.gone);
+      const alt = busch ? { x: busch.x, y: busch.y } : null;
+      if (busch) { busch.x = ort.x + 30; busch.y = ort.y; g.world.reindex(busch); }
+      const werkzeugVorher = g.player.toolIndex;
+      g.player.selectTool(4); // Angel
+      g.fishing.cancel();
+      g.target = g.player.findTarget(g.world);
+      const zielArt = g.target ? g.target.entity.kind : null;
+      g.onInteract();
+      const ergebnis = { zielArt: zielArt, angelt: g.fishing.active };
+      g.fishing.cancel();
+      g.player.selectTool(werkzeugVorher);
+      if (busch && alt) { busch.x = alt.x; busch.y = alt.y; g.world.reindex(busch); }
+      return ergebnis;
+    });
+    check('Angeln geht auch mit einem Busch daneben',
+      !angelnAmUfer.keinUfer && angelnAmUfer.angelt === true, JSON.stringify(angelnAmUfer));
 
     // Sammeln
     const foraged = await page.evaluate(() => {
@@ -641,6 +763,9 @@ async function run() {
     // wirkte kaputt.
     const weg = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
+      // Uhrzeit festnageln: Der Kontrast am Boden hängt sonst daran, wie weit
+      // die Spieluhr während des Testlaufs gekommen ist.
+      g.day.hour = 13;
       // Freie Graskachel suchen und die Figur daneben stellen
       let ziel = null;
       for (let ty = 4; ty < 92 && !ziel; ty++) {
@@ -655,36 +780,63 @@ async function run() {
       g.player.y = ziel.y * 64 + 32 + 250;
       g.camera.snapTo(g.player.x, g.player.y);
       const warten = () => new Promise((r) => setTimeout(r, 700));
-      function spanne() {
+      // Gemessen wird, wie stark sich DIESELBEN Bildpunkte ändern. Der reine
+      // Kontrast im Kästchen taugt nicht: Liegt zufällig eine Küstenlinie
+      // darin, ist er schon vorher hoch, und die Steine gehen darin unter.
+      function pixel() {
         const R = g.renderer;
         const sx = Math.round((ziel.x * 64 + 32 - g.camera.ox) * R.zoom);
         const sy = Math.round((ziel.y * 64 + 32 - g.camera.oy) * R.zoom);
-        const d = R.ctx.getImageData(sx - 20, sy - 20, 40, 40).data;
-        let min = 255; let max = 0;
-        for (let i = 0; i < d.length; i += 4) {
-          const l = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
-          if (l < min) min = l;
-          if (l > max) max = l;
-        }
-        return Math.round(max - min);
+        return R.ctx.getImageData(sx - 20, sy - 20, 40, 40).data;
       }
       await warten();
-      const vorher = spanne();
+      const a = pixel();
       g.world.setTile(ziel.x, ziel.y, 5);
       g.ground.markTileDirty(ziel.x, ziel.y);
       await warten();
-      return { vorher, nachher: spanne() };
+      const b = pixel();
+      let geaendert = 0;
+      let summe = 0;
+      for (let i = 0; i < a.length; i += 4) {
+        const la = a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11;
+        const lb = b[i] * 0.3 + b[i + 1] * 0.59 + b[i + 2] * 0.11;
+        const d = Math.abs(la - lb);
+        summe += d;
+        if (d > 12) geaendert++;
+      }
+      const n = a.length / 4;
+      return {
+        anteilGeaendert: Math.round(geaendert / n * 100),
+        mittlereAenderung: Math.round(summe / n),
+      };
     });
     check('Gelegter Steinweg hebt sich vom Boden ab',
-      !weg.keinPlatz && weg.nachher > weg.vorher * 1.8, JSON.stringify(weg));
+      !weg.keinPlatz && weg.anteilGeaendert >= 25 && weg.mittlereAenderung >= 8,
+      JSON.stringify(weg));
 
     /* ---- Fundstücke fallen auf ---- */
     // Die Karte zeigt ein Flämmchen. Am Ort stand ein blassgelber Kreis, den
     // man auf Papier nicht sah.
     const fund = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
-      const e = g.world.entities.filter((x) => x.kind === 'hidden' && !x.gone)[0];
-      if (!e) return { keins: true };
+      let e = g.world.entities.filter((x) => x.kind === 'hidden' && !x.gone)[0];
+      if (!e) {
+        // Ob an diesem Tag ein Suchauftrag gewürfelt wurde, ist Zufall. Für
+        // diese Prüfung wird deshalb notfalls eines von Hand ausgelegt – die
+        // Frage ist, ob der Zeiger sichtbar ist, nicht ob es heute einen gibt.
+        const baum = g.world.entities.filter((x) => x.kind && x.kind.indexOf('tree_') === 0 && !x.gone)[0];
+        if (!baum) return { keins: true };
+        e = {
+          id: 990001, kind: 'hidden', x: baum.x - 8, y: baum.y - 60,
+          sprite: 'memory_shell', itemId: 'memory_shell',
+          hp: 1, hidden: false, respawnDay: 0, phase: 1.2, zBias: 2,
+        };
+        g.world.add(e);
+      }
+      // Uhrzeit festnageln: Nachts liegt ein blauer Schleier über allem, und
+      // „warme Pixel" zählen wäre dann eine Messung der Tageszeit statt der
+      // Sichtbarkeit. Die Spieluhr läuft während des Testlaufs weiter.
+      g.day.hour = 13;
       g.player.x = e.x;
       g.player.y = e.y + 230;
       g.camera.snapTo(g.player.x, g.player.y);
@@ -701,10 +853,23 @@ async function run() {
         }
         return Math.round(treffer / n * 100);
       }
-      return { amOrt: warm(e.x, e.y - 26, 40), daneben: warm(e.x + 520, e.y - 26, 40) };
+      // Gemessen wird DIESELBE Stelle einmal ohne und einmal mit Fundstück.
+      // Ein zweiter Ort als Vergleich taugt nicht: Herbstbäume, Sand und das
+      // Lagerfeuer sind auch warm, und je nach Zufallsinsel liegt dort mehr
+      // Farbe als beim Fundstück.
+      //
+      // Das Kästchen reicht von der Kachel bis über die Baumkronen (y-132),
+      // denn dort schwebt das Flämmchen – der Teil, der immer zu sehen ist.
+      e.gone = true;
+      await new Promise((r) => setTimeout(r, 500));
+      const ohne = warm(e.x, e.y - 80, 70);
+      e.gone = false;
+      await new Promise((r) => setTimeout(r, 500));
+      const mit = warm(e.x, e.y - 80, 70);
+      return { ohne: ohne, mit: mit };
     });
     check('Fundstück ist im Bild zu erkennen',
-      !fund.keins && fund.amOrt >= 6 && fund.amOrt > fund.daneben + 4, JSON.stringify(fund));
+      !fund.keins && fund.mit >= fund.ohne + 5, JSON.stringify(fund));
 
     /* ---- Mitbringsel ---- */
     const mitbringsel = await page.evaluate(() => {

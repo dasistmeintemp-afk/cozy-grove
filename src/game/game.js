@@ -15,7 +15,7 @@ import { Inventory } from './inventory.js';
 import { QuestBook, QTYPE } from './quests.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
-import { Fishing } from './fishing.js';
+import { Fishing, CAST_REACH } from './fishing.js';
 import { SPIRITS, friendshipLevel, friendshipGift } from './spirits.js';
 import { StoryBook, STAGES, storyArt, keepsakeOf, storyLine, storyClose, storyIntro } from './stories.js';
 import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
@@ -377,6 +377,7 @@ export class Game {
     this._updatePrompt();
 
     if (this.input.pressed('interact')) this.onInteract();
+    else if (this.input.isDown('interact')) this._keepWorking();
     if (this.input.pressed('cancelPlace') && this.placing) this.cancelPlacing();
     if (this.input.pressed('rotate') && this.placing) this._rotatePlacing();
 
@@ -418,7 +419,11 @@ export class Game {
     }
   }
 
-  draw() {
+  draw(alpha) {
+    // Zwischenstand zwischen zwei Simulationsschritten. Steht er auf der
+    // Kamera, bekommt ihn jeder, der `camera.ox` liest – Boden, Objekte,
+    // Sprechblasen –, ohne dass die Zahl durch zehn Aufrufe gereicht wird.
+    this.camera.alpha = alpha == null ? 1 : alpha;
     this.renderer.draw(this, this.time);
   }
 
@@ -460,6 +465,25 @@ export class Game {
 
   /* ================= Aktionen ================= */
 
+  /**
+   * Taste gehalten: weiterarbeiten, bis das Objekt weg ist.
+   *
+   * Eine Kiefer braucht vier Schläge, ein Findling drei. Für jeden einzeln zu
+   * tippen ist keine Entscheidung, sondern Arbeit an der Tastatur. Der Takt
+   * kommt aus der Schwungdauer – schneller als von Hand wird es dadurch nicht.
+   *
+   * Nur für Werkzeugarbeit. Reden, Aufheben, Einpacken und Läden bleiben beim
+   * einzelnen Druck: Sonst redete man einen Geist im Halbsekundentakt an.
+   */
+  _keepWorking() {
+    if (this.placing || this.fishing.active || this.sleeping) return;
+    if (this.player.swing > 0) return;
+    const t = this.target;
+    if (!t || !t.def || !t.def.tool || t.def.station) return;
+    if (t.def.category === 'hidden' || t.def.category === 'decor') return;
+    this.useTool(t);
+  }
+
   onInteract() {
     if (this.placing) {
       this.confirmPlacing();
@@ -479,6 +503,12 @@ export class Game {
     // aber als Fehlschlag, sonst wäre Zielen belanglos.
     if (this.player.tool.id === 'net' && this.bugNearby()) { this.swingNet(); return; }
 
+    // Dasselbe für die Angel: Liegt Wasser vor der Figur, wird geangelt – auch
+    // wenn zufällig ein Busch in Reichweite steht. Vorher gewann der Busch,
+    // und am Ufer war Angeln neben Gestrüpp schlicht nicht möglich; man bekam
+    // stattdessen „Dafür brauchst du: Hand".
+    if (this.player.tool.id === 'rod' && this._waterAhead()) { this._castRod(); return; }
+
     const t = this.target;
     if (t) {
       const def = t.def;
@@ -491,28 +521,55 @@ export class Game {
     }
 
     // Nichts in Reichweite: Angel auswerfen, wenn Wasser vor uns liegt
-    if (this.player.tool.id === 'rod') {
-      const ok = this.fishing.cast(
-        this.world, this.player, Math.random, this.day.isNight(), this.player.levels.rod
-      );
-      if (ok) {
-        this.player.startSwing();
-        this.audio.play('cast');
-      } else {
-        this.ui.toast('Hier ist kein Wasser', 'icon_rod');
-      }
+    if (this.player.tool.id === 'rod') this._castRod();
+  }
+
+  /**
+   * Würde ein Wurf hier im Wasser landen?
+   *
+   * Dieselbe Reichweite wie `Fishing.cast` – sonst sagen Hinweis und Wurf
+   * etwas Verschiedenes. Genau das war der Fall: Der Hinweis „Angeln" erschien
+   * erst 26 px vor dem Wasser, geworfen werden konnte aber schon aus 104 px.
+   * Wer am Ufer stand, sah keinen Hinweis und probierte es gar nicht erst.
+   */
+  _waterAhead() {
+    const p = this.player.facingPoint(CAST_REACH);
+    return this.world.waterAt(p.x, p.y);
+  }
+
+  _castRod() {
+    const ok = this.fishing.cast(
+      this.world, this.player, Math.random, this.day.isNight(), this.player.levels.rod
+    );
+    if (ok) {
+      this.player.startSwing();
+      this.audio.play('cast');
+    } else {
+      this.ui.toast('Hier ist kein Wasser', 'icon_rod');
     }
   }
 
   useTool(t) {
     const e = t.entity;
     const def = t.def;
-    const tool = this.player.tool;
+    let tool = this.player.tool;
 
+    // Das passende Werkzeug wird selbst genommen.
+    //
+    // Vorher stand vor jedem Baum, jedem Stein und jeder Grabstelle erst eine
+    // Meldung „Dafür brauchst du: Axt", und man drückte eine Zifferntaste. Bei
+    // hunderten Bäumen ist das kein Anspruch, sondern eine Handbewegung, die
+    // nichts entscheidet. Die Angel und der Kescher greifen vorher (siehe
+    // onInteract), es kann also nicht passieren, dass ein Busch das Angeln
+    // verhindert.
     if (def.tool !== tool.id) {
-      const need = TOOLS.filter(function (x) { return x.id === def.tool; })[0];
-      this.ui.toast('Dafür brauchst du: ' + (need ? need.name : def.tool), need ? need.icon : 'icon_star');
-      return;
+      const idx = TOOLS.map(function (x) { return x.id; }).indexOf(def.tool);
+      if (idx < 0) {
+        this.ui.toast('Dafür brauchst du: ' + def.tool, 'icon_star');
+        return;
+      }
+      this.selectTool(idx);
+      tool = this.player.tool;
     }
     const level = this.player.levels[tool.id] || 1;
     if (def.minLevel && level < def.minLevel) {
@@ -1751,14 +1808,15 @@ export class Game {
       this.ui.setPrompt(null);
       return;
     }
+    // Wie in onInteract: Die Angel hat vor der Ernte Vorrang, wenn Wasser vor
+    // der Figur liegt. Der Hinweis muss dasselbe sagen wie die Taste tut.
+    if (this.player.tool.id === 'rod' && this._waterAhead()) {
+      this.ui.setPrompt('Angeln');
+      return;
+    }
     const t = this.target;
     if (!t) {
-      if (this.player.tool.id === 'rod') {
-        const p = this.player.facingPoint(26);
-        this.ui.setPrompt(this.world.waterAt(p.x, p.y) ? 'Angeln' : null);
-      } else {
-        this.ui.setPrompt(null);
-      }
+      this.ui.setPrompt(null);
       return;
     }
     const def = t.def;
