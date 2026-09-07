@@ -2,7 +2,7 @@
  * Spielkern: hält alles zusammen und verbindet Eingabe, Welt und Oberfläche.
  */
 import { World, TILE_SIZE, REGION } from '../world/world.js';
-import { isWater } from '../art/tiles.js';
+import { isWater, T } from '../art/tiles.js';
 import { GroundLayer } from '../render/ground.js';
 import { ColorField } from '../world/colorfield.js';
 import { Renderer } from '../render/renderer.js';
@@ -13,6 +13,7 @@ import { Weather } from '../render/weather.js';
 import { Player, TOOLS } from './player.js';
 import { Inventory } from './inventory.js';
 import { QuestBook, QTYPE } from './quests.js';
+import { CROPS, cropOfSeed, stageOf, daysToRipe, growthPerDay, harvestOf } from './crops.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
@@ -180,6 +181,11 @@ export class Game {
    * Der Zoom hält den sichtbaren Ausschnitt weitgehend konstant, damit das
    * Spiel auf einem großen Bildschirm nicht plötzlich weit weg wirkt.
    */
+  /** Nächstes Bild auf jeden Fall neu zeichnen, auch hinter einem Fenster. */
+  invalidate() {
+    this._pausedDrawn = false;
+  }
+
   syncViewport() {
     const stage = this.canvas.parentNode || document.body;
     const cssW = stage.clientWidth || window.innerWidth || 960;
@@ -188,6 +194,9 @@ export class Game {
     this.renderer.resize(cssW, cssH, dpr);
     this.camera.resize(this.renderer.viewW, this.renderer.viewH);
     if (this.ui) this.ui.layout();
+    // Die Leinwand ist womöglich neu und damit leer – hinter einem offenen
+    // Fenster muss deshalb noch einmal gezeichnet werden.
+    this.invalidate();
   }
 
   /* ================= Speichern ================= */
@@ -220,11 +229,12 @@ export class Game {
     const added = [];
     for (let i = 0; i < this.world.entities.length; i++) {
       const e = this.world.entities[i];
-      if (e.kind === 'decor' || e.kind === 'hidden') {
+      if (e.kind === 'decor' || e.kind === 'hidden' || e.kind === 'crop') {
         added.push({
           id: e.id, k: e.kind, x: Math.round(e.x), y: Math.round(e.y),
           s: e.sprite, item: e.itemId || null, q: e.questId || null, flat: !!e.flat,
           sp: e.storySpirit || null, st: e.storyStage != null ? e.storyStage : null,
+          c: e.cropId || null, gw: e.grown != null ? e.grown : null,
         });
       } else if (e.gone || e.origin || (e.hp != null && defOf(e.kind) && defOf(e.kind).hits && e.hp < defOf(e.kind).hits)) {
         changed.push({ id: e.id, k: e.kind, g: e.gone ? 1 : 0, o: e.origin || null, r: e.respawnDay || 0, hp: e.hp });
@@ -279,6 +289,7 @@ export class Game {
         const e = makeEntity(a.k, a.x, a.y, {
           itemId: a.item, questId: a.q, flat: a.flat, zBias: a.k === 'hidden' ? 2 : 0,
           storySpirit: a.sp || null, storyStage: a.st != null ? a.st : null,
+          cropId: a.c || null, grown: a.gw != null ? a.gw : 0,
         });
         e.id = a.id;
         e.sprite = a.s;
@@ -419,12 +430,36 @@ export class Game {
     }
   }
 
+  /**
+   * Ein Bild zeichnen.
+   *
+   * Ist ein Fenster offen, steht die Welt still: `update()` kehrt dann früh
+   * zurück, nichts bewegt sich mehr. Trotzdem wurde die ganze Szene weiter
+   * dreißigmal je Sekunde neu gemalt – gemessen 78 Zeichnungen in 2,5
+   * Sekunden für ein Bild, das sich nicht ändern kann. Diese Arbeit lief
+   * gegen das Aufbauen des Fensters selbst, und genau das hat man als Ruckeln
+   * beim Öffnen der Tasche gesehen.
+   *
+   * Jetzt wird hinter einem offenen Fenster genau EIN Bild gezeichnet. Ändert
+   * sich die Zeichenfläche (Fenstergröße, Auflösungsstufe), setzt
+   * `invalidate()` das zurück – sonst bliebe eine frisch angelegte, leere
+   * Leinwand hinter dem Fenster stehen.
+   *
+   * @returns {boolean} ob wirklich gezeichnet wurde
+   */
   draw(alpha) {
     // Zwischenstand zwischen zwei Simulationsschritten. Steht er auf der
     // Kamera, bekommt ihn jeder, der `camera.ox` liest – Boden, Objekte,
     // Sprechblasen –, ohne dass die Zahl durch zehn Aufrufe gereicht wird.
     this.camera.alpha = alpha == null ? 1 : alpha;
+    if (this.panels && this.panels.isOpen()) {
+      if (this._pausedDrawn) return false;
+      this._pausedDrawn = true;
+    } else {
+      this._pausedDrawn = false;
+    }
     this.renderer.draw(this, this.time);
+    return true;
   }
 
   _handleUiKeys() {
@@ -515,6 +550,7 @@ export class Game {
       if (def.category === 'spirit') { this.talkTo(t.entity); return; }
       if (def.category === 'fox') { this.openPanel('shop'); return; }
       if (def.category === 'hidden') { this.pickHidden(t.entity); return; }
+      if (def.category === 'crop') { this.harvestCrop(t.entity); return; }
       if (def.category === 'decor') { this.pickDecor(t.entity); return; }
       if (def.station) { this.useStation(def.station, t.entity); return; }
       if (def.tool) { this.useTool(t); return; }
@@ -1132,6 +1168,80 @@ export class Game {
     return out;
   }
 
+  /* ---------------- Garten ---------------- */
+
+  /**
+   * Ein Beet abernten – oder sagen, wie lange es noch braucht.
+   *
+   * Die unreife Pflanze auszureißen wäre die naheliegende Alternative, und
+   * genau die will man nicht: Wer aus Versehen E drückt, soll nicht drei Tage
+   * Warten verlieren. Deshalb passiert dann gar nichts außer einer Auskunft.
+   */
+  harvestCrop(e) {
+    const crop = CROPS[e.cropId];
+    if (!crop) { this.world.remove(e); return; }
+    const rest = daysToRipe(crop, e.grown || 0);
+    if (rest > 0) {
+      this.ui.toast(crop.name + ' wächst · noch ' + rest + (rest === 1 ? ' Tag' : ' Tage'),
+        'icon_' + crop.seed);
+      this.audio.play('forage');
+      return;
+    }
+
+    const got = harvestOf(crop, Math.random);
+    const wirklich = [];
+    for (let i = 0; i < got.length; i++) {
+      const n = this.inventory.add(got[i].id, got[i].n);
+      if (n > 0) wirklich.push({ id: got[i].id, n: n });
+    }
+    if (!wirklich.length) {
+      this.ui.toast('Tasche ist voll!', 'icon_bag', 'bad');
+      return;
+    }
+    this.world.remove(e);
+    this.particles.burst('sparkle', e.x, e.y - 30, 10);
+    this.particles.burst('color', e.x, e.y - 24, 6);
+    this.audio.play('pickup');
+    this.ui.toastItems(wirklich);
+    this._note('harvest');
+    // Sammelaufträge lesen die Tasche direkt, es reicht, die Anzeige
+    // nachzuziehen. Ein `notify` wäre hier eine Meldung ohne Empfänger.
+    this.ui.refreshQuests();
+    this.save();
+  }
+
+  /** Alle Beete einen Tag weiterwachsen lassen. */
+  growCrops(regen) {
+    const zuwachs = growthPerDay(regen);
+    let reif = 0;
+    for (let i = 0; i < this.world.entities.length; i++) {
+      const e = this.world.entities[i];
+      if (e.kind !== 'crop') continue;
+      const crop = CROPS[e.cropId];
+      if (!crop) continue;
+      const vorher = stageOf(e.grown || 0, crop.days);
+      e.grown = Math.min(crop.days, (e.grown || 0) + zuwachs);
+      const jetzt = stageOf(e.grown, crop.days);
+      if (jetzt !== vorher) e.sprite = 'crop_' + crop.id + '_' + jetzt;
+      if (jetzt === 2 && vorher !== 2) reif++;
+    }
+    return reif;
+  }
+
+  /** Wie viele Beete stehen, und wie viele davon sind erntereif? */
+  cropCount() {
+    let gesamt = 0;
+    let reif = 0;
+    for (let i = 0; i < this.world.entities.length; i++) {
+      const e = this.world.entities[i];
+      if (e.kind !== 'crop') continue;
+      gesamt++;
+      const crop = CROPS[e.cropId];
+      if (crop && daysToRipe(crop, e.grown || 0) === 0) reif++;
+    }
+    return { gesamt: gesamt, reif: reif };
+  }
+
   /* ---------------- Tagebuch ---------------- */
 
   /**
@@ -1145,6 +1255,7 @@ export class Game {
     this.state.daybook = {
       day: this.day.day,
       quests: 0, finds: 0, fish: 0, bugs: 0, decor: 0, gifts: 0,
+      planted: 0, harvest: 0,
       coins: 0, ember: 0,
       colorStart: this.colorField.coverage(this.world),
     };
@@ -1428,8 +1539,11 @@ export class Game {
       valid: false,
       flat: !!item.flat,
       tile: !!item.tile,
+      plant: item.plant || null,
     };
-    this.ui.toast('Platz wählen · E setzen · X abbrechen', item.icon);
+    this.ui.toast(item.plant
+      ? 'Platz wählen · E säen · X abbrechen'
+      : 'Platz wählen · E setzen · X abbrechen', item.icon);
   }
 
   /**
@@ -1483,6 +1597,10 @@ export class Game {
 
   /** Warum geht es hier nicht? Für den Hinweis unten am Bild. */
   _placeReason(x, y) {
+    if (this.placing && this.placing.plant) {
+      const t = this.world.tileAt(x, y);
+      if (t !== T.GRASS && t !== T.DIRT) return 'Hier wächst nichts';
+    }
     if (!this.world.canStand(x, y, 12, 8)) return 'Hier ist kein Platz frei';
     if (this.world.regionAtPixel(x, y) == null) return 'Nicht auf der Insel';
     const near = this.world.queryNear(x, y, 120);
@@ -1512,6 +1630,13 @@ export class Game {
   _canPlaceAt(x, y) {
     if (!this.world.canStand(x, y, 12, 8)) return false;
     if (this.world.regionAtPixel(x, y) == null) return false;
+    // Gesät wird nur auf Wiese und Erde. Auf Sand, Fels, Weg oder Brücke
+    // wächst nichts, und das soll man beim Setzen sehen, nicht erst am
+    // nächsten Morgen an einem Beet, das sich nie rührt.
+    if (this.placing && this.placing.plant) {
+      const t = this.world.tileAt(x, y);
+      if (t !== T.GRASS && t !== T.DIRT) return false;
+    }
     const near = this.world.queryNear(x, y, 90);
     for (let i = 0; i < near.length; i++) {
       const e = near[i];
@@ -1527,6 +1652,13 @@ export class Game {
         const dx = e.x - x;
         const dy = e.y - y;
         if (dx * dx + dy * dy < 52 * 52) return false;
+      }
+      // Beete dürfen dichter stehen als Deko – ein Garten soll ein Garten
+      // sein und keine Reihe einzelner Pflanzen mit Lücken dazwischen.
+      if (e.kind === 'crop') {
+        const dx = e.x - x;
+        const dy = e.y - y;
+        if (dx * dx + dy * dy < 44 * 44) return false;
       }
     }
     return true;
@@ -1546,7 +1678,17 @@ export class Game {
     }
     this.inventory.remove(p.itemId, 1);
 
-    if (p.tile) {
+    if (p.plant) {
+      const crop = CROPS[p.plant];
+      const e = makeEntity('crop', p.x, p.y, {
+        cropId: crop.id, grown: 0, plantedDay: this.day.day,
+      });
+      e.sprite = 'crop_' + crop.id + '_0';
+      this.world.add(e);
+      this._note('planted');
+      this.ui.toast(crop.name + ' gesetzt · reif in ' + crop.days +
+        (crop.days === 1 ? ' Tag' : ' Tagen'), 'icon_' + crop.seed, 'good');
+    } else if (p.tile) {
       const tx = Math.floor(p.x / TILE_SIZE);
       const ty = Math.floor(p.y / TILE_SIZE);
       this.world.setTile(tx, ty, 5);
@@ -1621,13 +1763,16 @@ export class Game {
     const day = this.day.day;
     this._daybookStart();
     this.world.newDay(day);
+    // Erst das Wetter des neuen Tages, dann wachsen lassen: Regen zählt
+    // doppelt, und das soll der Regen von heute sein, nicht der von gestern.
+    this.weather.setDay(this.world.seed, day);
+    const frischReif = this.growCrops(this.weather.kind);
     const zurueckgezogen = this.quests.newDay(day, this.world, this);
     this.shop.refresh(day, this.world.seed);
     this.particles.clear();
     this.wildlife.clear();
     this._jitterSpirits(day);
     this._placeStoryPieces(day);
-    this.weather.setDay(this.world.seed, day);
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
     this.ui.refreshHud();
@@ -1655,6 +1800,14 @@ export class Game {
         self.ui.toast(self.weather.kind === 'rain' ? 'Es regnet' : 'Nebel liegt über der Insel',
           self.weather.kind === 'rain' ? 'icon_bottle' : 'icon_ghost');
       }, 1400);
+    }
+    // Der eigentliche Grund, morgens aufzustehen.
+    if (frischReif > 0) {
+      const self2 = this;
+      setTimeout(function () {
+        self2.ui.toast(frischReif + (frischReif === 1 ? ' Beet ist reif' : ' Beete sind reif'),
+          'icon_seed_berry', 'good');
+      }, 2000);
     }
     this.save();
   }
@@ -1796,7 +1949,7 @@ export class Game {
   _updatePrompt() {
     if (this.placing) {
       this.ui.setPrompt(this.placing.valid
-        ? 'Hier aufstellen · X abbrechen'
+        ? (this.placing.plant ? 'Hier säen · X abbrechen' : 'Hier aufstellen · X abbrechen')
         : (this.placing.reason || 'Kein Platz') + ' · X abbrechen');
       return;
     }
@@ -1831,6 +1984,14 @@ export class Game {
     }
     if (def.category === 'fox') { this.ui.setPrompt('Laden'); return; }
     if (def.category === 'hidden') { this.ui.setPrompt('Aufheben'); return; }
+    if (def.category === 'crop') {
+      const crop = CROPS[t.entity.cropId];
+      const rest = crop ? daysToRipe(crop, t.entity.grown || 0) : 0;
+      this.ui.setPrompt(rest > 0
+        ? 'Noch ' + rest + (rest === 1 ? ' Tag' : ' Tage')
+        : 'Ernten');
+      return;
+    }
     if (def.category === 'decor') { this.ui.setPrompt('Einpacken'); return; }
     if (def.station === 'campfire') { this.ui.setPrompt('Lagerfeuer'); return; }
     if (def.station === 'craft') { this.ui.setPrompt('Werkbank'); return; }
@@ -1895,7 +2056,7 @@ function ensureFade() {
 export function daybookHasContent(b) {
   if (!b) return false;
   return !!(b.quests || b.finds || b.fish || b.bugs || b.decor || b.gifts ||
-    b.coins || b.ember || (b.colorEnd - b.colorStart) > 0.002);
+    b.planted || b.harvest || b.coins || b.ember || (b.colorEnd - b.colorStart) > 0.002);
 }
 
 function pickLine(list) {

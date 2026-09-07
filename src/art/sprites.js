@@ -12,6 +12,7 @@ import {
   paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft,
   paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot,
   paintMoonflower, paintRainmushroom, paintFogcrystal,
+  paintCrop, paintSeedPouch,
 } from './painted.js';
 import {
   paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench,
@@ -23,6 +24,7 @@ import {
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
 import { BUGS } from '../game/items.js';
+import { CROPS, CROP_IDS } from '../game/crops.js';
 
 /**
  * Die Maler arbeiten in bequemen Maßen; beim Ablegen wird alles einmal
@@ -219,6 +221,17 @@ export function initArt() {
   addArt('driftwood', paintDriftwood({ seed: 281 }));
   addArt('digspot', paintDigspot({ seed: 301 }));
 
+  // Beete: je Art drei Wachstumsstufen
+  for (let i = 0; i < CROP_IDS.length; i++) {
+    const c = CROPS[CROP_IDS[i]];
+    for (let st = 0; st < 3; st++) {
+      addArt('crop_' + c.id + '_' + st, paintCrop({
+        stage: st, leaf: c.leaf, fruit: c.fruit, form: c.form, seed: 401 + i * 37 + st * 5,
+      }));
+    }
+    addArt('seed_' + c.id, paintSeedPouch({ band: c.fruit, seed: 451 + i * 13 }), 1);
+  }
+
   /* --- Nur bei Nacht, Regen oder Nebel --- */
   addArt('moonflower', paintMoonflower({ seed: 811 }));
   addArt('rainmushroom', paintRainmushroom({ seed: 821 }));
@@ -328,6 +341,16 @@ function buildIcons() {
     addArt('icon_memory_' + MEMORY_KINDS[i], art, 1);
     // Das Andenken am Ende einer Erinnerungskette trägt dasselbe Bild
     addArt('icon_keepsake_' + MEMORY_KINDS[i], art, 1);
+  }
+  // Saatbeutel: die Schnur trägt die Farbe der Pflanze
+  for (let i = 0; i < CROP_IDS.length; i++) {
+    const c = CROPS[CROP_IDS[i]];
+    const target = registry['seed_' + c.id];
+    if (target) {
+      addArt('icon_' + c.seed, iconFromArt({
+        color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
+      }), 1);
+    }
   }
   const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'net', 'hand'];
   for (let i = 0; i < tools.length; i++) {

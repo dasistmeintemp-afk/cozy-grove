@@ -8,6 +8,7 @@ import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
 import { canLink, linkedName, pendingLinkName, requestLinkPermission, linkNew, linkExisting, unlink, openFile, suggestName } from '../core/savefile.js';
 import { questTitle, questIcon, QTYPE, daysLeft } from '../game/quests.js';
 import { UI_SCALES } from './uiscale.js';
+import { CROPS } from '../game/crops.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
 import { TILE_DEF, TILE_SIZE } from '../art/tiles.js';
 import { REGION_NAMES } from '../world/worldgen.js';
@@ -222,9 +223,15 @@ export class Panels {
           '<div class="meta"><span>Anzahl: ' + inv.count(item.id) + '</span>' +
           (item.value ? '<span>' + ico('icon_coin') + ' ' + item.value + '</span>' : '') +
           (item.burn ? '<span>' + ico('icon_ember') + ' ' + item.burn + '</span>' : '') +
+          (item.plant && CROPS[item.plant]
+            ? '<span>' + ico('icon_day') + ' reif in ' + CROPS[item.plant].days + ' Tagen</span>' +
+              '<span>' + ico('icon_' + CROPS[item.plant].yields[0]) + ' ' +
+              CROPS[item.plant].amount[0] + '–' + CROPS[item.plant].amount[1] + '</span>'
+            : '') +
           '</div></div>';
         if (item.prop) {
-          html += '<button class="row-btn" data-act="place" data-arg="' + item.id + '">Aufstellen</button>';
+          html += '<button class="row-btn" data-act="place" data-arg="' + item.id + '">' +
+            (item.plant ? 'Säen' : 'Aufstellen') + '</button>';
         }
         if (item.special === 'bridge') {
           html += '<span class="meta">Beim Kanal einsetzen</span>';
@@ -318,7 +325,7 @@ export class Panels {
   _found() {
     const g = this.game;
     const inv = g.inventory;
-    const cats = [CAT.MATERIAL, CAT.FORAGE, CAT.FISH, CAT.RELIC, CAT.MEMORY, CAT.DECOR];
+    const cats = [CAT.MATERIAL, CAT.FORAGE, CAT.SEED, CAT.FISH, CAT.RELIC, CAT.MEMORY, CAT.DECOR];
     const tab = this.tab && cats.indexOf(this.tab) >= 0 ? this.tab : cats[0];
 
     let known = 0;
@@ -662,6 +669,8 @@ export class Panels {
       ['icon_fish_trout', b.fish, 'Fisch gefangen', 'Fische gefangen'],
       ['icon_net', b.bugs, 'Falter gefangen', 'Falter gefangen'],
       ['icon_flowerbed', b.decor, 'Stück aufgestellt', 'Stücke aufgestellt'],
+      ['icon_seed_berry', b.planted, 'Beet gesät', 'Beete gesät'],
+      ['icon_berry', b.harvest, 'Beet geerntet', 'Beete geerntet'],
       ['icon_heart', b.gifts, 'Mitbringsel verschenkt', 'Mitbringsel verschenkt'],
       ['icon_coin', b.coins, 'Münze verdient', 'Münzen verdient'],
       ['icon_ember', b.ember, 'Glut gesammelt', 'Glut gesammelt'],

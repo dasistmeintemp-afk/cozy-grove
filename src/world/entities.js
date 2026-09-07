@@ -185,6 +185,11 @@ export const ENTITY_DEFS = {
 
   // Vom Spieler aufgestellte Deko
   decor: { solid: true, blockR: 28, reachR: 80, category: 'decor' },
+
+  // Ein Beet. Nicht fest: Man soll darüberlaufen können, sonst wäre ein
+  // angelegter Garten eine Mauer aus Pflanzen. Die Grafik hängt an Art und
+  // Wachstumsstufe und wird beim Setzen gesetzt, nicht hier.
+  crop: { solid: false, reachR: 72, tool: TOOL.HAND, hits: 1, category: 'crop' },
 };
 
 export function defOf(kind) {

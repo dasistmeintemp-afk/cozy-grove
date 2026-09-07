@@ -8,6 +8,16 @@ const BUY_POOL = [
   'wood', 'stone', 'fiber', 'clay', 'resin', 'hardwood', 'copper_ore',
 ];
 
+/**
+ * Saat steht IMMER im Regal, nicht nur wenn der Zufall es will.
+ *
+ * Ein Garten, für den man tagelang auf das richtige Angebot warten muss, ist
+ * kein Garten. Die Mondsaat ist die Ausnahme – sie kommt nur an manchen Tagen
+ * und ist teuer genug, dass man sich freut, wenn sie da ist.
+ */
+const SEED_ALWAYS = ['seed_berry', 'seed_herb', 'seed_flower'];
+const SEED_RARE = 'seed_moon';
+
 const WANTED_POOL = ITEM_LIST
   .filter(function (i) { return i.value > 0 && i.cat !== CAT.MEMORY && i.cat !== CAT.DECOR; })
   .map(function (i) { return i.id; });
@@ -42,6 +52,17 @@ export class Shop {
         price: buyPrice(id),
       });
     }
+    // Saat zuerst, damit sie nicht von der Höchstzahl verdrängt wird
+    for (let i = 0; i < SEED_ALWAYS.length; i++) {
+      const it = getItem(SEED_ALWAYS[i]);
+      if (!it) continue;
+      this.stock.unshift({ id: it.id, left: randInt(rng, 2, 5), price: buyPrice(it.id) });
+    }
+    if (rng() < 0.34) {
+      const mond = getItem(SEED_RARE);
+      if (mond) this.stock.unshift({ id: mond.id, left: 1, price: buyPrice(mond.id) });
+    }
+
     this.wanted = randPick(rng, WANTED_POOL);
     this.wantedBonus = 2 + (rng() < 0.25 ? 1 : 0);
     this.day = day;

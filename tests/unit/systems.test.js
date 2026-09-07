@@ -417,9 +417,31 @@ test('Laden wechselt täglich, aber reproduzierbar', () => {
   const s2 = new Shop().refresh(3, SEED);
   const s3 = new Shop().refresh(4, SEED);
   assert.deepEqual(s1.stock, s2.stock, 'gleicher Tag, gleiches Angebot');
-  assert.ok(s1.stock.length >= 4 && s1.stock.length <= 6);
+  // Vier bis sechs wechselnde Waren plus die Saat, die immer liegt
+  const wechselnd = s1.stock.filter((x) => getItem(x.id).cat !== CAT.SEED);
+  assert.ok(wechselnd.length >= 4 && wechselnd.length <= 6,
+    'wechselnde Waren: ' + wechselnd.length);
   assert.notDeepEqual(s1.stock.map((s) => s.id), s3.stock.map((s) => s.id));
   assert.ok(s1.wanted);
+});
+
+test('Saat gibt es jeden Tag zu kaufen', () => {
+  // Ein Garten, für den man auf das richtige Tagesangebot warten muss, ist
+  // keiner. Deshalb liegen die drei einfachen Saaten immer im Regal.
+  for (let day = 1; day <= 30; day++) {
+    const shop = new Shop().refresh(day, SEED);
+    const ids = shop.stock.map((x) => x.id);
+    for (const id of ['seed_berry', 'seed_herb', 'seed_flower']) {
+      assert.ok(ids.indexOf(id) >= 0, 'Tag ' + day + ': ' + id + ' fehlt');
+    }
+  }
+  // Die Mondsaat kommt nur manchmal – sonst wäre sie nichts Besonderes
+  let mondTage = 0;
+  for (let day = 1; day <= 60; day++) {
+    const shop = new Shop().refresh(day, SEED);
+    if (shop.stock.some((x) => x.id === 'seed_moon')) mondTage++;
+  }
+  assert.ok(mondTage > 5 && mondTage < 40, 'Mondsaat an ' + mondTage + ' von 60 Tagen');
 });
 
 test('Tagesgesuch zahlt mehr', () => {

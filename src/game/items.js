@@ -8,6 +8,7 @@ export const CAT = {
   RELIC: 'relic',
   MEMORY: 'memory',
   DECOR: 'decor',
+  SEED: 'seed',
 };
 
 export const CAT_NAMES = {
@@ -18,6 +19,7 @@ export const CAT_NAMES = {
   relic: 'Fundstücke',
   memory: 'Erinnerungen',
   decor: 'Deko',
+  seed: 'Saat',
 };
 
 function it(id, name, cat, value, burn, extra) {
@@ -112,6 +114,15 @@ const LIST = [
   it('path_tile', 'Steinweg', CAT.DECOR, 8, 0, { prop: 'path_tile', charm: 1, tile: true }),
   it('signpost', 'Wegweiser', CAT.DECOR, 30, 0, { prop: 'signpost', charm: 2 }),
   it('bridge_kit', 'Brückenbausatz', CAT.DECOR, 0, 0, { special: 'bridge' }),
+
+  // Saat. `plant` sagt dem Aufstellen, dass hier ein Beet entsteht und keine
+  // Deko; `prop` ist die reife Pflanze – so sieht man beim Setzen schon, was
+  // daraus wird. Nicht verbrennbar: Saat ins Feuer zu werfen wäre die eine
+  // Handlung, die in diesem Spiel wirklich schade wäre.
+  it('seed_berry', 'Beerensaat', CAT.SEED, 9, 0, { plant: 'berry', prop: 'crop_berry_2' }),
+  it('seed_herb', 'Krautsaat', CAT.SEED, 8, 0, { plant: 'herb', prop: 'crop_herb_2' }),
+  it('seed_flower', 'Blumensaat', CAT.SEED, 12, 0, { plant: 'flower', prop: 'crop_flower_2' }),
+  it('seed_moon', 'Mondsaat', CAT.SEED, 40, 0, { plant: 'moon', prop: 'crop_moon_2' }),
 
   // Andenken – das Geschenk am Ende einer Erinnerungskette. Nicht käuflich,
   // nicht herstellbar, nicht verbrennbar: der einzige Weg dahin ist die

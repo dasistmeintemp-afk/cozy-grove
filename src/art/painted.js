@@ -1121,3 +1121,241 @@ export function paintDigspot(opts) {
   });
   return made(res, w, h, cx, baseY);
 }
+
+/* ------------------------------------------------------------------ Anbau */
+
+/**
+ * Eine Pflanze im Beet, in drei Stufen.
+ *
+ * Stufe 0 ist ein Keimling, 1 eine junge Pflanze, 2 die reife. Alle drei
+ * stehen auf demselben Fleck umgegrabener Erde: Damit ist auch der Keimling
+ * als „hier wurde gepflanzt" zu erkennen und nicht als zufälliges Gras. Ohne
+ * das Beet sähe ein frisch gesäter Fleck aus wie nichts, und man liefe am
+ * eigenen Garten vorbei.
+ *
+ * @param {object} opts stage 0..2, leaf, fruit, form 'beere'|'blatt'|'blüte'|'mond'
+ */
+export function paintCrop(opts) {
+  const o = opts || {};
+  const stage = o.stage == null ? 2 : o.stage;
+  const w = 78;
+  const h = 88;
+  const seed = o.seed || 401;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const leafColor = o.leaf || ink.leaf;
+  const fruitColor = o.fruit || ink.berry;
+  const form = o.form || 'beere';
+
+  // Beet: ein flacher Hügel aus dunkler Erde, in allen Stufen gleich
+  const beet = smoothClosed(blob(cx, baseY - 5, 25, 9, seed + 1, 0.22, 14), 5);
+
+  const hoehe = stage === 0 ? 16 : stage === 1 ? 32 : 44;
+  const stemTop = baseY - 6 - hoehe;
+  const stem = smoothClosed([
+    [cx - 2.6, baseY - 6], [cx - 3.2, stemTop + 4], [cx + 3.2, stemTop + 4], [cx + 2.6, baseY - 6],
+  ], 4);
+
+  // Blätter: paarweise, nach oben hin kleiner und schräg nach oben gestellt.
+  //
+  // Waagerechte Ovale übereinander sahen aus wie eine kleine Tanne. Erst der
+  // Winkel macht daraus eine Pflanze, die aus dem Boden strebt.
+  function dreh(pts, ox, oy, winkel) {
+    const c = Math.cos(winkel);
+    const si = Math.sin(winkel);
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const dx = pts[i][0] - ox;
+      const dy = pts[i][1] - oy;
+      out.push([ox + dx * c - dy * si, oy + dx * si + dy * c]);
+    }
+    return out;
+  }
+  const blaetter = [];
+  const paare = stage === 0 ? 1 : stage === 1 ? 2 : 3;
+  for (let p = 0; p < paare; p++) {
+    const y = baseY - 10 - (hoehe * (p + 0.65)) / (paare + 0.25);
+    const gr = (stage === 0 ? 10 : 13) - p * 1.8;
+    const neigung = 0.42 - p * 0.06;
+    for (let seite = -1; seite <= 1; seite += 2) {
+      const lx = cx + seite * (7 + p * 0.8);
+      const roh = blob(lx + seite * gr * 0.55, y, gr, gr * 0.46, seed + 10 + p * 7 + (seite > 0 ? 3 : 0), 0.2, 12);
+      blaetter.push(smoothClosed(dreh(roh, lx, y, -seite * neigung), 4));
+    }
+  }
+  // Kraut trägt keine Beeren, sondern mehr Blattwerk: ein Büschel obenauf.
+  if (stage === 2 && form === 'blatt') {
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI / 2 + (i - 1) * 0.5;
+      const lx = cx + Math.cos(a) * 8;
+      const ly = stemTop + 8 + Math.sin(a) * 3;
+      const roh = blob(lx + Math.cos(a) * 7, ly + Math.sin(a) * 7, 11, 5, seed + 70 + i, 0.2, 12);
+      blaetter.push(smoothClosed(dreh(roh, lx, ly, a + Math.PI / 2), 4));
+    }
+  }
+
+  // Früchte nur in der reifen Stufe – daran erkennt man auf zwanzig Meter,
+  // ob sich das Hinlaufen lohnt.
+  const fruchtR = form === 'mond' ? 11 : form === 'blüte' ? 10 : 7;
+  const fruechte = [];
+  if (stage === 2 && form !== 'blatt') {
+    const rng = makeRng(seed + 33);
+    const n = form === 'blüte' || form === 'mond' ? 1 : 3;
+    for (let i = 0; i < n; i++) {
+      const a = n === 1 ? -Math.PI / 2 : (i / n) * Math.PI * 2 + 0.7;
+      // Die einzelne Blüte sitzt ÜBER den obersten Blättern, nicht dazwischen:
+      // sonst verschwindet sie zwischen dem Grün und die reife Pflanze ist von
+      // weitem nicht von der jungen zu unterscheiden.
+      fruechte.push([
+        cx + Math.cos(a) * (n === 1 ? 0 : 11),
+        (n === 1 ? stemTop - 1 : stemTop + 7 + Math.sin(a) * 8) + rng() * 2,
+      ]);
+    }
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.25,
+    shadow: function (g) { groundShadow(g, cx + 2, baseY - 3, 26, 8, seed + 4, 0.13); },
+    wash: function (g) {
+      wash(g, beet, ink.dirtDark, { seed: seed + 5, alpha: 0.9 });
+      wash(g, smoothClosed(blob(cx - 4, baseY - 7, 15, 5, seed + 6, 0.26, 12), 4),
+        ink.dirt, { seed: seed + 7, alpha: 0.7 });
+      wash(g, stem, ink.grassDark, { seed: seed + 8 });
+      for (let i = 0; i < blaetter.length; i++) {
+        wash(g, blaetter[i], leafColor, { seed: seed + 40 + i, scale: 1.05 });
+      }
+      if (blaetter.length) {
+        washGroup(g, blaetter.map(function (b) {
+          return offsetShape(b, -LIGHT.x * 5, -LIGHT.y * 4, 0.78);
+        }), ink.leafDeep, { alpha: 0.42 });
+      }
+      for (let i = 0; i < fruechte.length; i++) {
+        dot(g, null, fruechte[i][0], fruechte[i][1], fruchtR,
+          fruitColor, seed + 60 + i);
+      }
+    },
+    shape: function (g) {
+      fill(g, beet);
+      fill(g, stem);
+      for (let i = 0; i < blaetter.length; i++) fill(g, blaetter[i]);
+      for (let i = 0; i < fruechte.length; i++) {
+        const f = fruechte[i];
+        g.moveTo(f[0] + fruchtR, f[1]);
+        g.ellipse(f[0], f[1], fruchtR, fruchtR * 0.94, 0, 0, Math.PI * 2);
+      }
+    },
+    ink: function (g) {
+      // Blattadern – ohne sie sind die Blätter nur grüne Ovale. Sie laufen
+      // vom Stängel in die Blattspitze, also mit demselben Winkel.
+      for (let p = 0; p < paare; p++) {
+        const y = baseY - 10 - (hoehe * (p + 0.65)) / (paare + 0.25);
+        const gr = (stage === 0 ? 10 : 13) - p * 1.8;
+        const neigung = 0.42 - p * 0.06;
+        for (let seite = -1; seite <= 1; seite += 2) {
+          const lx = cx + seite * (7 + p * 0.8);
+          const spitze = gr * 1.5;
+          inkLine(g, lx, y,
+            lx + seite * spitze * Math.cos(neigung), y - spitze * Math.sin(neigung),
+            { width: 1.1, bend: seite * 0.14, seed: seed + 80 + p * 3 + (seite > 0 ? 1 : 0),
+              color: ink.lineSoft, alpha: 0.5 });
+        }
+      }
+      // Krümel am Beetrand
+      const rng = makeRng(seed + 90);
+      g.save();
+      g.globalAlpha = 0.42;
+      g.fillStyle = ink.dirtDark;
+      g.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const x = cx - 20 + rng() * 40;
+        const y = baseY - 8 + rng() * 6;
+        g.moveTo(x + 2, y);
+        g.ellipse(x, y, 2 + rng(), 1.4 + rng() * 0.6, 0, 0, Math.PI * 2);
+      }
+      g.fill();
+      g.restore();
+      for (let i = 0; i < fruechte.length; i++) {
+        dot(null, g, fruechte[i][0], fruechte[i][1], fruchtR,
+          fruitColor, seed + 60 + i);
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Saatbeutel – das Symbol für eine Saat.
+ *
+ * Ein Leinenbeutel mit farbiger Schnur; die Farbe sagt, was daraus wird. Die
+ * reife Pflanze als Symbol zu nehmen wäre naheliegend gewesen, aber dann sähe
+ * die Saat in der Tasche genauso aus wie die Ernte daneben.
+ */
+export function paintSeedPouch(opts) {
+  const o = opts || {};
+  const w = 64;
+  const h = 68;
+  const seed = o.seed || 451;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const band = o.band || ink.berry;
+
+  const sack = smoothClosed(blob(cx, baseY - 18, 18, 17, seed, 0.14, 14), 5);
+  const hals = smoothClosed([
+    [cx - 7, baseY - 33], [cx - 5, baseY - 42], [cx + 5, baseY - 42], [cx + 7, baseY - 33],
+  ], 4);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.1,
+    outline: 1.6,
+    shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 19, 7, seed + 1, 0.14); },
+    wash: function (g) {
+      wash(g, sack, '#e0d3b2', { seed: seed + 2, scale: 1.05 });
+      wash(g, offsetShape(sack, -LIGHT.x * 8, -LIGHT.y * 7, 0.72), '#c3b28c', { alpha: 0.55 });
+      wash(g, hals, '#d6c8a4', { seed: seed + 3 });
+      // Ein breites farbiges Band quer über den Beutel.
+      //
+      // Erst nur eine dünne Schnur am Hals – bei Symbolgröße zwei Pixel, und
+      // die vier Saaten sahen in der Tasche alle gleich aus. Die Farbe muss
+      // Fläche haben, sonst sagt sie nichts.
+      // Auf den Beutel, nicht daneben: die Lasur ist weichgezeichnet und
+      // stünde sonst als farbiger Hof über der Kontur.
+      clipTo(g, [sack]);
+      wash(g, smoothClosed([
+        [cx - 19, baseY - 22], [cx + 19, baseY - 24],
+        [cx + 19, baseY - 13], [cx - 19, baseY - 11],
+      ], 4), band, { seed: seed + 4, alpha: 0.92 });
+      g.restore();
+      // Und ein Büschel derselben Farbe schaut oben heraus
+      const buschel = smoothClosed(blob(cx, baseY - 44, 9, 6, seed + 5, 0.24, 12), 4);
+      clipTo(g, [buschel]);
+      wash(g, buschel, band, { seed: seed + 6, alpha: 0.85 });
+      g.restore();
+    },
+    shape: function (g) {
+      fill(g, sack);
+      fill(g, hals);
+      fill(g, smoothClosed(blob(cx, baseY - 44, 9, 6, seed + 5, 0.24, 12), 4));
+    },
+    ink: function (g) {
+      // Die Schnur, die das Band zusammenhält
+      g.save();
+      g.strokeStyle = ink.line;
+      g.globalAlpha = 0.7;
+      g.lineWidth = 2.6;
+      g.lineCap = 'round';
+      g.beginPath();
+      g.moveTo(cx - 8, baseY - 34);
+      g.quadraticCurveTo(cx, baseY - 31, cx + 8, baseY - 34);
+      g.stroke();
+      g.restore();
+      inkLine(g, cx - 9, baseY - 24, cx - 4, baseY - 12,
+        { width: 1.3, bend: 0.2, seed: seed + 10, color: ink.lineSoft, alpha: 0.5 });
+      inkLine(g, cx + 8, baseY - 26, cx + 3, baseY - 13,
+        { width: 1.3, bend: -0.2, seed: seed + 11, color: ink.lineSoft, alpha: 0.45 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}

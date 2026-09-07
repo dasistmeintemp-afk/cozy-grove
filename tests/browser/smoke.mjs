@@ -217,6 +217,196 @@ async function run() {
     check('Kein Objekt zeigt auf eine fehlende Grafik',
       ohneBild.length === 0, ohneBild.join(', '));
 
+    /* ---- Hinter einem offenen Fenster steht die Welt ---- */
+    // `update()` kehrt bei offenem Fenster früh zurück – es kann sich nichts
+    // ändern. Trotzdem wurde die ganze Szene weiter dreißigmal je Sekunde
+    // gemalt (gemessen: 78 Zeichnungen in 2,5 s). Diese Arbeit lief gegen den
+    // Aufbau des Fensters, und genau das hat beim Öffnen der Tasche geruckelt.
+    const ruhe = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      let echt = 0;
+      const orig = g.renderer.draw.bind(g.renderer);
+      g.renderer.draw = function (a, b) { echt++; return orig(a, b); };
+      const warten = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      g.panels.close();
+      await warten(1000);
+      const offen0 = echt;
+      const ohne = echt;
+      await warten(0);
+
+      echt = 0;
+      g.openPanel('inventory');
+      await warten(1200);
+      const mitFenster = echt;
+
+      // Wird die Zeichenfläche neu angelegt, MUSS trotzdem noch einmal
+      // gezeichnet werden – sonst stünde hinter dem Fenster eine leere Fläche.
+      echt = 0;
+      g.syncViewport();
+      await warten(400);
+      const nachGroessenwechsel = echt;
+
+      g.panels.close();
+      await warten(600);
+      const wiederOhne = echt;
+
+      g.renderer.draw = orig;
+      return { ohne: ohne, mitFenster: mitFenster,
+        nachGroessenwechsel: nachGroessenwechsel, wiederOhne: wiederOhne, offen0: offen0 };
+    });
+    check('Hinter einem offenen Fenster wird nicht weitergemalt',
+      ruhe.ohne > 10 && ruhe.mitFenster <= 2, JSON.stringify(ruhe));
+    check('Nach einem Größenwechsel wird trotzdem neu gezeichnet',
+      ruhe.nachGroessenwechsel >= 1, JSON.stringify(ruhe));
+    check('Nach dem Schließen läuft es wieder',
+      ruhe.wiederOhne > 10, JSON.stringify(ruhe));
+
+    // Und hinter dem Fenster darf keine leere Fläche stehen
+    const nichtLeer = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.openPanel('inventory');
+      await new Promise((r) => setTimeout(r, 400));
+      g.syncViewport();
+      await new Promise((r) => setTimeout(r, 500));
+      const R = g.renderer;
+      const d = R.ctx.getImageData(10, Math.round(R.h / 2), 200, 40).data;
+      let min = 255; let max = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const l = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+        if (l < min) min = l;
+        if (l > max) max = l;
+      }
+      g.panels.close();
+      return { spanne: Math.round(max - min), hell: Math.round(max) };
+    });
+    check('Die Welt steht noch hinter dem Fenster',
+      nichtLeer.spanne > 5 && nichtLeer.hell > 40, JSON.stringify(nichtLeer));
+
+    /* ---- Der Garten ---- */
+    // Der ganze Kreislauf an einem Stück: säen, Tage vergehen lassen, ernten.
+    // Das ist die eine Sache im Spiel, die von gestern abhängt – wenn sie
+    // still kaputtgeht, merkt es niemand, bis jemand drei Tage gewartet hat.
+    const garten = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      g.inventory.add('seed_berry', 3);
+
+      // Freie Wiese neben der Figur
+      let ort = null;
+      for (const luft of [110, 80, 60]) {
+        for (let ty = 4; ty < 92 && !ort; ty++) {
+          for (let tx = 4; tx < 92; tx++) {
+            if (g.world.tileAtTile(tx, ty) !== 3) continue;
+            if (g.world.queryNear(tx * 64 + 32, ty * 64 + 32, luft).filter((e) => !e.gone).length) continue;
+            ort = { x: tx * 64 + 32, y: ty * 64 + 32 }; break;
+          }
+        }
+        if (ort) break;
+      }
+      if (!ort) return { keinPlatz: true };
+      g.player.x = ort.x; g.player.y = ort.y + 70; g.player.dir = 'up';
+      g.camera.snapTo(g.player.x, g.player.y);
+
+      const vorher = g.world.entities.filter((e) => e.kind === 'crop').length;
+      g.startPlacing('seed_berry');
+      g._updatePlacing();
+      r.setzenGueltig = g.placing ? g.placing.valid : false;
+      g.confirmPlacing();
+      const beete = g.world.entities.filter((e) => e.kind === 'crop');
+      r.neu = beete.length - vorher;
+      const beet = beete[beete.length - 1];
+      if (!beet) return r;
+      r.frisch = { sprite: beet.sprite, grown: beet.grown, cropId: beet.cropId };
+
+      // Unreif ernten darf nichts kosten
+      const taschenVorher = g.inventory.count('berry');
+      g.target = { entity: beet, def: { category: 'crop' } };
+      g.harvestCrop(beet);
+      r.unreif = {
+        nochDa: g.world.entities.indexOf(beet) >= 0,
+        beeren: g.inventory.count('berry') - taschenVorher,
+      };
+
+      // Tage vergehen lassen – ohne Regen
+      const wetterAlt = g.weather.kind;
+      g.weather.kind = 'clear';
+      const verlauf = [];
+      for (let i = 0; i < 3; i++) {
+        g.growCrops('clear');
+        verlauf.push({ grown: beet.grown, sprite: beet.sprite });
+      }
+      r.verlauf = verlauf;
+      r.stufen = verlauf.map((v) => v.sprite).filter((v, i, a) => a.indexOf(v) === i).length;
+
+      // Jetzt ernten
+      const vorErnte = g.inventory.count('berry');
+      g.harvestCrop(beet);
+      r.ernte = {
+        weg: g.world.entities.indexOf(beet) < 0,
+        beeren: g.inventory.count('berry') - vorErnte,
+      };
+      g.weather.kind = wetterAlt;
+      return r;
+    });
+    check('Saat lässt sich auf Wiese setzen',
+      garten.setzenGueltig === true && garten.neu === 1, JSON.stringify(garten.frisch || garten));
+    check('Frisch gesät ist ein Keimling',
+      !!garten.frisch && garten.frisch.sprite === 'crop_berry_0' && garten.frisch.grown === 0,
+      JSON.stringify(garten.frisch));
+    check('Unreif ernten kostet das Beet nicht',
+      !!garten.unreif && garten.unreif.nochDa === true && garten.unreif.beeren === 0,
+      JSON.stringify(garten.unreif));
+    check('Das Beet durchläuft sichtbar drei Stufen',
+      garten.stufen >= 2 &&
+      garten.verlauf[garten.verlauf.length - 1].sprite === 'crop_berry_2',
+      JSON.stringify(garten.verlauf));
+    check('Reif ernten gibt mehr als ein Busch',
+      !!garten.ernte && garten.ernte.weg === true && garten.ernte.beeren >= 2,
+      JSON.stringify(garten.ernte));
+
+    // Regen zählt doppelt – das Wetter bekommt damit zum ersten Mal Folgen
+    const regen = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      const beet = g.world.entities.filter((e) => e.kind === 'crop')[0] ||
+        (function () {
+          g.inventory.add('seed_flower', 1);
+          g.startPlacing('seed_flower');
+          g._updatePlacing();
+          g.confirmPlacing();
+          return g.world.entities.filter((e) => e.kind === 'crop')[0];
+        })();
+      if (!beet) return { keins: true };
+      beet.grown = 0;
+      g.growCrops('clear');
+      const trocken = beet.grown;
+      beet.grown = 0;
+      g.growCrops('rain');
+      return { trocken: trocken, regen: beet.grown };
+    });
+    check('Regen lässt Beete schneller wachsen',
+      !regen.keins && regen.regen === regen.trocken * 2, JSON.stringify(regen));
+
+    // Und über einen Neustart hinweg muss das Beet stehenbleiben
+    const gartenSpeichern = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      for (const e of g.world.entities.filter((x) => x.kind === 'crop')) g.world.remove(e);
+      g.inventory.add('seed_herb', 1);
+      g.startPlacing('seed_herb');
+      g._updatePlacing();
+      g.confirmPlacing();
+      const beet = g.world.entities.filter((e) => e.kind === 'crop')[0];
+      if (!beet) return { keins: true };
+      beet.grown = 1;
+      const delta = g._worldDelta();
+      const eintrag = delta.added.filter((a) => a.k === 'crop')[0] || null;
+      return { eintrag: eintrag, id: beet.id };
+    });
+    check('Beete stehen im Spielstand',
+      !!gartenSpeichern.eintrag && gartenSpeichern.eintrag.c === 'herb' &&
+      gartenSpeichern.eintrag.gw === 1,
+      JSON.stringify(gartenSpeichern.eintrag));
+
     /* ---- Bequemlichkeiten ---- */
     const bequem = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
@@ -767,13 +957,19 @@ async function run() {
       // die Spieluhr während des Testlaufs gekommen ist.
       g.day.hour = 13;
       // Freie Graskachel suchen und die Figur daneben stellen
+      // Auf einer engen Zufallsinsel gibt es nicht immer eine Kachel mit 120 px
+      // Luft ringsum. Dann tut es auch weniger – gemessen wird ohnehin nur die
+      // Kachelmitte.
       let ziel = null;
-      for (let ty = 4; ty < 92 && !ziel; ty++) {
-        for (let tx = 4; tx < 92; tx++) {
-          if (g.world.tileAtTile(tx, ty) !== 3) continue;
-          if (g.world.queryNear(tx * 64 + 32, ty * 64 + 32, 120).filter((e) => !e.gone).length) continue;
-          ziel = { x: tx, y: ty }; break;
+      for (const luft of [120, 90, 70]) {
+        for (let ty = 4; ty < 92 && !ziel; ty++) {
+          for (let tx = 4; tx < 92; tx++) {
+            if (g.world.tileAtTile(tx, ty) !== 3) continue;
+            if (g.world.queryNear(tx * 64 + 32, ty * 64 + 32, luft).filter((e) => !e.gone).length) continue;
+            ziel = { x: tx, y: ty }; break;
+          }
         }
+        if (ziel) break;
       }
       if (!ziel) return { keinPlatz: true };
       g.player.x = ziel.x * 64 + 32;

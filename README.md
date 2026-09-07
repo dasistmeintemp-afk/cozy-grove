@@ -154,6 +154,16 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Freundschaft.** Alle drei erledigten Aufgaben steigt die Stufe bei einem
   Geist. Das bringt ein Geschenk, mehr Farbe ringsum und dauerhaft besseren
   Lohn für seine Aufgaben.
+* **Der Garten.** Die eine Sache im Spiel, die von *gestern* abhängt: Saat
+  kaufst du beim Händler (drei Sorten liegen immer im Regal, die Mondsaat nur
+  manchmal), säst sie auf Wiese oder Erde, und in zwei bis vier Tagen steht
+  dort etwas. Drei sichtbare Wachstumsstufen – jeden Morgen ist das Beet
+  anders. **Regen zählt doppelt**; damit hat das Wetter zum ersten Mal Folgen,
+  die über das Bild hinausgehen. Geerntet wird mehr, als eine wilde Fundstelle
+  hergibt, und ein Teil sät sich selbst nach. Nichts verdorrt, nichts muss
+  gegossen werden: Wer eine Woche wegbleibt, findet seine Ernte vor. Und weil
+  die Geister ohnehin Beeren, Kräuter und Blumen wollen, kannst du zum ersten
+  Mal für morgen planen statt nur zu suchen.
 * **Weniger Handgriffe.** Das passende Werkzeug nimmt sich das Spiel selbst –
   statt „Dafür brauchst du: Axt" wird gefällt. Die Taste gedrückt halten
   arbeitet weiter, bis der Baum liegt (nur Werkzeugarbeit: Geister redet man
@@ -261,6 +271,14 @@ vor, getrennt nach Farbfläche und Tinte: Unkoloriert kommt ein Papierschleier
 zwischen beide, die Zeichnung bleibt. Objekte werden je nach Position überblendet
 – dadurch muss die Szene nicht zweimal gezeichnet werden.
 
+**Nichts malen, was sich nicht ändert.** Ist ein Fenster offen, steht die
+Welt – `update()` kehrt früh zurück. Gemalt wurde sie trotzdem weiter, 78 Mal
+in 2,5 Sekunden. Diese Arbeit lief gegen den Aufbau des Fensters selbst; das
+war das Ruckeln beim Öffnen der Tasche. Jetzt wird hinter einem offenen
+Fenster genau ein Bild gezeichnet (Zeichenzeit 9–12 ms auf 0,0 ms, Bildabstand
+von schwankenden ~32 ms auf glatte 16,7 ms). Ändert sich die Zeichenfläche,
+setzt `game.invalidate()` das zurück – sonst stünde dort eine leere Leinwand.
+
 **Ruhiges Bild.** Die Simulation läuft in festen Schritten von 1/60 s,
 gezeichnet wird, wann der Browser Zeit hat. Passen mal ein, mal zwei Schritte
 in ein Bild, bewegte sich die Welt abwechselnd um 4 und 8 Pixel – die Figur
@@ -282,8 +300,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 105 Tests: Welt, Wetter, Aufgaben, Uhr, Tasche, Erinnerungen …
-npm run test:browser   # 66 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 114 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Tasche …
+npm run test:browser   # 77 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

@@ -65,8 +65,15 @@ function loop(now) {
   // 60-Hz-Bildschirm fiel das kaum auf; auf 120 oder 144 Hz war fast jeder
   // Schritt kürzer als 1/60 s, und die Figur lief mit ungleichmäßigem Takt.
   const drawStart = performance.now();
-  game.draw(clock.alpha);
+  const gezeichnet = game.draw(clock.alpha);
   const drawMs = performance.now() - drawStart;
+
+  // Hinter einem offenen Fenster wird nichts gezeichnet – dann darf auch die
+  // Auflösung nicht nachgeregelt und kein Bodenstück vorgemalt werden. Sonst
+  // hielte das Spiel die kurze Bildzeit für Leistungsreserve und finge an,
+  // ausgerechnet dort zu arbeiten, wo man gerade in Ruhe etwas ansieht.
+  if (!gezeichnet) return;
+
   if (game.renderer.adapt(drawMs, game.camera)) {
     game.ui.layout();
     game.ground.prewarm(game.camera.ox, game.camera.oy,

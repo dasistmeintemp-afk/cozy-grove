@@ -80,7 +80,8 @@ async function run() {
     const ids = ['wood', 'hardwood', 'stone', 'copper_ore', 'fiber', 'resin', 'clay',
       'shell', 'feather', 'driftwood', 'berry', 'mushroom', 'herb', 'flower_pink',
       'flower_yellow', 'flower_white', 'bone', 'shard', 'bottle', 'gem',
-      'fish_sardine', 'fish_cod', 'fish_trout', 'lantern', 'bench', 'fence'];
+      'fish_sardine', 'fish_cod', 'fish_trout', 'lantern', 'bench', 'fence',
+      'seed_berry', 'seed_herb', 'seed_flower', 'seed_moon'];
     for (const id of ids) g.inventory.add(id, 4);
     // Etwas Geschichte aufdecken, sonst zeigt das Erinnerungsfenster nur Schlösser
     for (const [geist, n] of [['mira', 4], ['flamey', 2], ['kiesel', 1]]) {
