@@ -4,7 +4,8 @@
 import { initArt, hasSprite, spriteNames } from './art/sprites.js';
 import { Input } from './core/input.js';
 import { audio } from './core/audio.js';
-import { Game } from './game/game.js';
+import { Game, parseSave } from './game/game.js';
+import { openFile } from './core/savefile.js';
 import * as storage from './core/storage.js';
 import { makeClock, advance, FIXED_DT } from './core/clock.js';
 import { applySeason } from './art/season.js';
@@ -16,6 +17,8 @@ const boot = document.getElementById('boot');
 const bootCard = document.getElementById('boot-card');
 const btnNew = document.getElementById('btn-new');
 const btnContinue = document.getElementById('btn-continue');
+const btnLoad = document.getElementById('btn-load');
+const bootNote = document.getElementById('boot-note');
 
 let game = null;
 let input = null;
@@ -217,6 +220,27 @@ function main() {
       if (save && !window.confirm('Der alte Spielstand wird überschrieben. Fortfahren?')) return;
       storage.clearSave();
       startGame(null);
+    });
+
+    // Spielstand aus einer Datei – direkt auf dem Startbildschirm.
+    //
+    // Genau hier braucht man ihn: Wer eine neuere Fassung des Spiels bekommt
+    // und sie öffnet, sieht womöglich nur „Neues Spiel", weil der Browser den
+    // Speicher an die alte Datei gebunden hat. Der Weg über die Einstellungen
+    // führt durch ein Spiel, das man dafür erst anfangen müsste – und wer
+    // dafür „Neues Spiel" drückt, hat den alten Stand überschrieben.
+    btnLoad.addEventListener('click', function () {
+      openFile().then(function (text) {
+        if (!text) return;
+        const geprueft = parseSave(text);
+        if (!geprueft.ok) {
+          bootNote.hidden = false;
+          bootNote.textContent = geprueft.reason + '. Es wurde nichts überschrieben.';
+          return;
+        }
+        storage.writeSave(geprueft.data);
+        startGame(geprueft.data);
+      });
     });
 
     window.addEventListener('keydown', function (e) {

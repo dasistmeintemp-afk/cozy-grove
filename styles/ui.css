@@ -884,6 +884,17 @@ html, body {
 }
 
 .big-btn.primary { background: var(--warm); border-color: var(--edge-strong); color: #3a2409; }
+/* Der dritte Knopf am Start: da, wenn man ihn braucht, aber nicht so laut wie
+   die beiden, mit denen man üblicherweise weitermacht. */
+.big-btn.quiet {
+  background: transparent;
+  border-color: var(--edge-soft);
+  color: var(--ink-dim);
+  box-shadow: none;
+  font-size: 0.86em;
+  padding: 9px 14px;
+}
+.big-btn.quiet:hover { color: var(--ink); border-color: var(--edge); }
 .big-btn:hover { filter: brightness(1.04); }
 .big-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(74, 64, 56, 0.2); }
 

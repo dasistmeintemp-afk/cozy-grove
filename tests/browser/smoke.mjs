@@ -7,7 +7,7 @@
  *   node tests/browser/smoke.mjs [--headed] [--shots <verzeichnis>]
  */
 import { spawn, execSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -282,6 +282,75 @@ async function run() {
     });
     check('Die Welt steht noch hinter dem Fenster',
       nichtLeer.spanne > 5 && nichtLeer.hell > 40, JSON.stringify(nichtLeer));
+
+    /* ---- Ein Spielstand aus einer Datei, direkt am Start ---- */
+    // Wer eine neuere Fassung des Spiels bekommt, öffnet eine andere Datei –
+    // und der Browser bindet seinen Speicher womöglich an die alte. Dann steht
+    // man vor „Neues Spiel" und hat den Eindruck, alles sei weg. Der Weg über
+    // die Einstellungen hilft nicht: Dafür müsste man erst ein Spiel anfangen.
+    const startLaden = await page.evaluate(() => {
+      const knopf = document.getElementById('btn-load');
+      return {
+        vorhanden: !!knopf,
+        beschriftet: knopf ? knopf.textContent.trim() : '',
+      };
+    });
+    check('Der Startbildschirm bietet „Spielstand laden" an',
+      startLaden.vorhanden && /Datei/.test(startLaden.beschriftet),
+      JSON.stringify(startLaden));
+
+
+    // Der ganze Weg, so wie ihn jemand geht, der eine neuere Fassung bekommt:
+    // Stand aus dem laufenden Spiel herausschreiben, Browserspeicher leeren
+    // (als wäre es eine andere Datei), Seite neu laden – und am Startbildschirm
+    // die Datei einlesen.
+    const merkmal = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      g.state.coins = 31337;
+      const stand = g.toJSON();
+      return { text: JSON.stringify(stand), tag: stand.day.day, muenzen: 31337 };
+    });
+    const standDatei = join(SHOT_DIR, 'pruef-spielstand.json');
+    writeFileSync(standDatei, merkmal.text);
+
+    await page.evaluate(() => {
+      // So, als hätte der Browser den Speicher an die alte Datei gebunden.
+      //
+      // `frozen` muss dabei sein: Beim Neuladen feuert `pagehide`, und der
+      // Sicherungshaken dort schriebe den Stand sofort wieder hin – dann
+      // prüfte der Test gar nichts.
+      window.CozyGrove.game.frozen = true;
+      for (const k of Object.keys(localStorage)) {
+        if (k.indexOf('cozy-grove:save') === 0) localStorage.removeItem(k);
+      }
+    });
+    await page.reload({ waitUntil: 'load' });
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.ready), 60000, 'Grafik nach Neuladen');
+
+    const ohneStand = await page.evaluate(() => ({
+      weiter: !document.getElementById('btn-continue').hidden,
+      laden: !document.getElementById('btn-load').hidden,
+    }));
+    check('Ohne Browserspeicher steht „Weiterspielen" nicht da – „Laden" schon',
+      ohneStand.weiter === false && ohneStand.laden === true, JSON.stringify(ohneStand));
+
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.click('#btn-load'),
+    ]);
+    await chooser.setFiles(standDatei);
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.game), 20000, 'Spiel nach Dateiladen');
+    await page.waitForTimeout(900);
+    const geladen = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      return { tag: g.day.day, muenzen: g.state.coins, gespeichert: !!localStorage.getItem('cozy-grove:save:v1') };
+    });
+    check('Spielstand aus der Datei startet das Spiel dort weiter',
+      geladen.tag === merkmal.tag && geladen.muenzen === merkmal.muenzen,
+      JSON.stringify({ erwartet: merkmal.tag + '/' + merkmal.muenzen, bekommen: geladen }));
+    check('Der geladene Stand liegt danach wieder im Browserspeicher',
+      geladen.gespeichert === true, JSON.stringify(geladen));
+    rmSync(standDatei, { force: true });
 
     /* ---- Jahreszeit und Tagesereignis ---- */
     // Beides hängt am Kalender des Rechners. Geprüft wird nicht, WELCHER Tag
@@ -562,8 +631,13 @@ async function run() {
       bequem.werkzeug.nachher === bequem.werkzeug.braucht &&
       bequem.werkzeug.hpNachher < bequem.werkzeug.hpVorher,
       JSON.stringify(bequem.werkzeug));
+    // Geprüft wird das Verhalten, nicht eine Zahl: So viele Schläge wie der
+    // Baum Trefferpunkte hatte, ohne dass die Taste dazwischen losgelassen
+    // wird. Wie viele das sind, hängt davon ab, ob schon jemand an ihm war.
     check('Taste halten arbeitet weiter',
-      bequem.halten && bequem.halten.schlaege >= 3 && bequem.halten.kind === 'tree_stump',
+      bequem.halten && bequem.halten.schlaege >= 2 &&
+      bequem.halten.schlaege === bequem.halten.start &&
+      bequem.halten.kind === 'tree_stump',
       JSON.stringify(bequem.halten));
     check('Halten redet einen Geist nicht in Grund und Boden',
       bequem.geist && bequem.geist.zielIstGeist && bequem.geist.gerufen === 0,

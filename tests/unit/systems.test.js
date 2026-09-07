@@ -15,6 +15,7 @@ import { SPIRITS, SPIRIT_IDS, friendshipLevel, friendshipGift } from '../../src/
 import { charmAround, cosyLevel, pointsToNext, cosyRadius, rewardFactor, COSY_STEPS, COSY_MAX, COSY_RADIUS } from '../../src/game/cosiness.js';
 import { weatherFor, WEATHER } from '../../src/render/weather.js';
 import { getItem, ITEM_LIST, CAT } from '../../src/game/items.js';
+import { parseSave, SAVE_VERSION } from '../../src/game/game.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES } from '../../src/game/recipes.js';
 import {
@@ -70,6 +71,30 @@ test('Tasche lässt sich sichern und laden', () => {
   // Unbekannte Gegenstände aus alten Ständen werden verworfen
   const dirty = Inventory.fromJSON({ capacity: 10, slots: [{ id: 'gibt_es_nicht', n: 3 }, { id: 'wood', n: 1 }] });
   assert.equal(dirty.slots.length, 1);
+});
+
+/* ---------------- Spielstand ---------------- */
+
+test('Spielstandprüfung nimmt Gültiges an und weist Unfug ab', () => {
+  assert.equal(parseSave('{').ok, false);
+  assert.equal(parseSave('null').ok, false);
+  assert.equal(parseSave('{"version":1}').ok, false, 'ohne Samen ist es keiner');
+  assert.equal(parseSave('{"version":99,"seed":5}').ok, false, 'fremde Fassung');
+  const gut = parseSave('{"version":' + SAVE_VERSION + ',"seed":5,"day":{"day":3}}');
+  assert.equal(gut.ok, true);
+  assert.equal(gut.data.seed, 5);
+  // Jede Ablehnung muss sagen, WAS los ist – sonst steht man vor einem
+  // stummen Knopf und weiß nicht, ob der Stand kaputt oder nur alt ist.
+  for (const text of ['{', 'null', '{"version":99,"seed":5}']) {
+    assert.ok(parseSave(text).reason.length > 8, text);
+  }
+});
+
+test('Die Fassungsnummer des Spielstands bleibt, solange nur ergänzt wird', () => {
+  // Alles, was seither dazugekommen ist – Beete, Saat, Fristen, Tagebuch,
+  // Oberflächengröße –, ist zusätzlich. Ein alter Stand darf deshalb weiter
+  // gelesen werden, und genau dafür steht diese Zahl still.
+  assert.equal(SAVE_VERSION, 1);
 });
 
 /* ---------------- Aufgaben ---------------- */

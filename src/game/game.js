@@ -34,7 +34,33 @@ import { applyUiScale } from '../ui/uiscale.js';
 import * as storage from '../core/storage.js';
 import * as savefile from '../core/savefile.js';
 
-const SAVE_VERSION = 1;
+export const SAVE_VERSION = 1;
+
+/**
+ * Prüft einen Spielstand aus einer Datei.
+ *
+ * Steht hier und nicht in der Spielklasse, weil der Startbildschirm sie
+ * braucht – dort gibt es noch kein Spiel, an dem eine Methode hängen könnte.
+ * Und weil eine Prüfung, die an zwei Stellen gebraucht wird, nicht zweimal
+ * geschrieben gehört: Sonst wird die eine irgendwann strenger als die andere.
+ *
+ * @returns {{ok: boolean, data: object|null, reason: string}}
+ */
+export function parseSave(text) {
+  let data = null;
+  try {
+    data = JSON.parse(text);
+  } catch (err) {
+    return { ok: false, data: null, reason: 'Datei nicht lesbar' };
+  }
+  if (!data || typeof data !== 'object' || !data.seed) {
+    return { ok: false, data: null, reason: 'Das ist kein Spielstand' };
+  }
+  if (data.version !== SAVE_VERSION) {
+    return { ok: false, data: null, reason: 'Spielstand aus einer anderen Fassung' };
+  }
+  return { ok: true, data: data, reason: '' };
+}
 const AUTOSAVE_SECONDS = 20;
 
 export const DEFAULT_SETTINGS = {
@@ -352,17 +378,12 @@ export class Game {
    * auszutauschen wäre die Sorte Fehlerquelle, die man nie ganz findet.
    */
   applySaveText(text) {
-    let data = null;
-    try {
-      data = JSON.parse(text);
-    } catch (err) {
-      this.ui.toast('Datei nicht lesbar', 'icon_lock', 'bad');
+    const geprueft = parseSave(text);
+    if (!geprueft.ok) {
+      this.ui.toast(geprueft.reason, 'icon_lock', 'bad');
       return false;
     }
-    if (!data || typeof data !== 'object' || data.version !== SAVE_VERSION || !data.seed) {
-      this.ui.toast('Das ist kein Spielstand', 'icon_lock', 'bad');
-      return false;
-    }
+    const data = geprueft.data;
     this.frozen = true;
     storage.writeSave(data);
     this.ui.toast('Spielstand geladen · Tag ' + ((data.day && data.day.day) || 1),

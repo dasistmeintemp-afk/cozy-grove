@@ -320,8 +320,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 127 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
-npm run test:browser   # 83 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 129 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
+npm run test:browser   # 87 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 
@@ -351,6 +351,19 @@ Prüfung gegen die Rechtecke im Boden.
 Wird automatisch im `localStorage` gesichert (alle 20 Sekunden, beim Schlafen und
 beim Verlassen der Seite). Im privaten Modus von Safari fällt das Spiel still auf
 einen Speicher im Arbeitsspeicher zurück – die Einstellungen weisen darauf hin.
+
+**Ein Spielstand überlebt neue Fassungen.** Die Fassungsnummer steht auf 1
+und bleibt dort, solange nur ergänzt wird – Beete, Saat, Fristen, Tagebuch,
+Oberflächengröße sind alles zusätzliche Felder, die ein alter Stand einfach
+nicht hat. Nachgemessen mit einem echten Spielstand aus einer älteren Fassung:
+Tag, Münzen, Glut, Tasche, Deko, gelegte Wege, gefällte Bäume mitsamt
+Nachwachstag, freigeschaltete Bereiche, Farbquellen, Aufträge, Erinnerungen,
+Werkzeugstufen und Standort kommen unverändert an.
+
+**Am Startbildschirm steht „Spielstand aus Datei laden“.** Genau dort braucht
+man ihn: Wer eine neuere Fassung bekommt, öffnet eine andere Datei, und der
+Browser bindet den Speicher womöglich an die alte. Dann sähe man nur „Neues
+Spiel“ – und wer das drückt, hat den alten Stand überschrieben.
 
 **Unabhängig vom Browser** geht es über die Einstellungen, Abschnitt
 „Spielstand“:
