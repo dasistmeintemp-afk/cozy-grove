@@ -1213,11 +1213,22 @@ async function run() {
       //
       // Das Kästchen reicht von der Kachel bis über die Baumkronen (y-132),
       // denn dort schwebt das Flämmchen – der Teil, der immer zu sehen ist.
+      // Auf ein wirklich neu gezeichnetes Bild warten statt auf die Uhr:
+      // Seit das Spiel hinter offenen Fenstern und im Leerlauf Bilder
+      // überspringt, sagt eine halbe Sekunde nichts darüber, ob das, was auf
+      // dem Schirm steht, den geänderten Zustand schon zeigt. Diese Prüfung
+      // maß darum unter Last einmal beide Male dasselbe Bild.
+      async function neuZeichnen() {
+        g.invalidate();
+        for (let i = 0; i < 4; i++) {
+          await new Promise((r) => requestAnimationFrame(() => r()));
+        }
+      }
       e.gone = true;
-      await new Promise((r) => setTimeout(r, 500));
+      await neuZeichnen();
       const ohne = warm(e.x, e.y - 80, 70);
       e.gone = false;
-      await new Promise((r) => setTimeout(r, 500));
+      await neuZeichnen();
       const mit = warm(e.x, e.y - 80, 70);
       return { ohne: ohne, mit: mit };
     });
@@ -1507,6 +1518,10 @@ async function run() {
       };
       g.quests.quests.unshift(q);
       g.inventory.add('berry', 1);
+      // Was von den drei Sorten wirklich in der Tasche liegt – an dieser
+      // Stelle im Durchlauf ist sie nicht mehr leer, und „genau eine ist
+      // abgehakt" wäre eine Behauptung über den Verlauf, nicht über die Regel.
+      const imBeutel = q.items.filter((id) => g.inventory.count(id) > 0);
       g.openPanel('quests');
       await new Promise((r) => setTimeout(r, 300));
       const reihe = Array.from(document.querySelectorAll('#panel .row'))
@@ -1515,7 +1530,11 @@ async function run() {
       const erg = {
         gefunden: !!reihe,
         namen: teile.map((t) => t.textContent.trim()),
-        abgehakt: teile.filter((t) => t.classList.contains('got')).map((t) => t.textContent.trim()),
+        abgehakt: teile.filter((t) => t.classList.contains('got')).length,
+        sollAbgehakt: imBeutel.length,
+        beeren: g.inventory.count('berry') > 0,
+        beereAbgehakt: teile.some((t) => t.classList.contains('got') &&
+          t.textContent.indexOf('Waldbeeren') >= 0),
         lesbar: teile.every((t) => t.getBoundingClientRect().width > 20),
       };
       g.panels.close();
@@ -1525,7 +1544,248 @@ async function run() {
     check('Sammelbitte zeigt jede geforderte Sorte einzeln',
       sorten.gefunden && sorten.namen.length === 3 && sorten.lesbar, JSON.stringify(sorten));
     check('Was schon in der Tasche liegt, ist abgehakt',
-      sorten.abgehakt.length === 1, JSON.stringify(sorten));
+      sorten.abgehakt === sorten.sollAbgehakt && sorten.abgehakt >= 1 &&
+      sorten.abgehakt < 3 && sorten.beereAbgehakt,
+      JSON.stringify(sorten));
+
+    // Die Gießkanne muss aussehen wie eine Gießkanne, nicht wie eine Hand.
+    const kanne = await page.evaluate(() => {
+      function pixel(name) {
+        const art = window.CozyGrove.art.of(name);
+        if (!art || !art.c) return null;
+        const g = art.c.getContext('2d');
+        const d = g.getImageData(0, 0, art.c.width, art.c.height).data;
+        let deckend = 0;
+        for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 24) deckend++;
+        return { w: art.c.width, h: art.c.height, deckend };
+      }
+      return { kanne: pixel('tool_can'), symbol: pixel('icon_can'), hand: pixel('tool_hand') };
+    });
+    check('Die Gießkanne ist wirklich gezeichnet',
+      !!kanne.kanne && kanne.kanne.deckend > 200, JSON.stringify(kanne.kanne));
+    check('Ihr Symbol ist gezeichnet und nicht leer',
+      !!kanne.symbol && kanne.symbol.deckend > 60, JSON.stringify(kanne.symbol));
+    check('Sie sieht anders aus als die Hand',
+      !!kanne.kanne && !!kanne.hand &&
+      Math.abs(kanne.kanne.deckend - kanne.hand.deckend) > 60,
+      JSON.stringify([kanne.kanne, kanne.hand]));
+
+    // Gießen: ein Beet wächst dadurch einen Tag schneller, und nur einmal.
+    const giessen = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      g.player.levels.can = 1;
+
+      // Ein frisches Beet direkt vor die Figur setzen. Ein vorhandenes zu
+      // verschieben ginge schief: der Suchraster kennt es dann noch an der
+      // alten Stelle, und findTarget fände es nie.
+      const beet = g.world.add({
+        id: 990001, kind: 'crop', x: g.player.x + 40, y: g.player.y,
+        sprite: 'crop_berry_0', cropId: 'berry', grown: 0, hp: 1, phase: 0,
+      });
+      g.player.dir = 'right';
+      g.selectTool(6);
+      const gewaehlt = g.player.tool.id;
+
+      g.target = g.player.findTarget(g.world);
+      const gefunden = g.target ? g.target.entity.kind : null;
+      g._updatePrompt();
+      const el = document.getElementById('prompt-text');
+      const hinweis = el ? el.textContent : '';
+
+      g.onInteract();
+      const nachErstem = beet.watered;
+      g.onInteract();                       // zweimal am Tag zählt nicht
+      const nachZweitem = beet.watered;
+
+      // Ein Morgen vergeht
+      const vorher = beet.grown;
+      g.growCrops('clear');
+      const mitGiessen = beet.grown - vorher;
+      const zurueckgesetzt = beet.watered;
+
+      // Und ein Morgen ohne Gießen zum Vergleich
+      beet.grown = 0;
+      beet.watered = 0;
+      g.growCrops('clear');
+      const ohneGiessen = beet.grown;
+
+      g.world.remove(beet);
+      g.selectTool(0);
+      return {
+        gewaehlt, gefunden, hinweis, nachErstem, nachZweitem,
+        mitGiessen, ohneGiessen, zurueckgesetzt,
+      };
+    });
+    check('Taste 7 wählt die gebaute Gießkanne',
+      giessen.gewaehlt === 'can', JSON.stringify(giessen.gewaehlt));
+    check('Vor einem Beet steht „Gießen"',
+      giessen.hinweis.indexOf('ießen') >= 0, JSON.stringify(giessen.hinweis));
+    check('Gegossen wird einmal am Tag',
+      giessen.nachErstem > 0 && giessen.nachZweitem === giessen.nachErstem,
+      JSON.stringify(giessen));
+    check('Ein gegossenes Beet wächst einen Schritt mehr',
+      giessen.mitGiessen === giessen.ohneGiessen + 1, JSON.stringify(giessen));
+    check('Am Morgen danach ist das Beet wieder trocken',
+      giessen.zurueckgesetzt === 0, JSON.stringify(giessen.zurueckgesetzt));
+
+    // Nicht gebaute Werkzeuge stehen nicht in der Leiste.
+    const gurt = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      function sichtbar() {
+        return Array.from(document.querySelectorAll('#toolbelt .tool'))
+          .filter((b) => !b.hidden).length;
+      }
+      g.player.levels.can = 1;
+      g.ui.refreshToolbelt();
+      const mit = sichtbar();
+      g.selectTool(0);
+      g.player.levels.can = 0;
+      g.ui.refreshToolbelt();
+      const ohne = sichtbar();
+      // Und der Rundlauf überspringt sie
+      const besucht = [];
+      for (let i = 0; i < 8; i++) { g.player.nextTool(); besucht.push(g.player.tool.id); }
+      g.player.levels.can = 1;
+      g.ui.refreshToolbelt();
+      return { mit, ohne, besucht };
+    });
+    check('Ungebaute Werkzeuge stehen nicht in der Leiste',
+      gurt.ohne === gurt.mit - 1 && gurt.mit === 7, JSON.stringify(gurt));
+    check('Der Werkzeug-Rundlauf überspringt sie',
+      gurt.besucht.indexOf('can') < 0, JSON.stringify(gurt.besucht));
+
+    // Meilensteine: fällig heißt vergeben, mit Beigabe und dauerhafter Wirkung.
+    const meilen = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      g.state.milestones = Object.create(null);
+      g._perksChanged();
+      const preisVorher = g.shop.sellPrice('wood');
+      const muenzenVorher = g.state.coins;
+
+      // Die Insel von Hand einfärben: ein sehr großer Kreis um das Lagerfeuer.
+      const c = g.world.campfire;
+      const s = g.colorField.addSource(c.x, c.y, 9000, 'test_gross');
+      s.r = 9000;
+      g.colorField.markDirty();
+      const deckung = g.colorField.coverage(g.world);
+
+      g._checkMilestones();
+      const erreicht = Object.keys(g.state.milestones);
+      const preisNachher = g.shop.sellPrice('wood');
+      const muenzenNachher = g.state.coins;
+
+      // Ein zweiter Durchlauf darf nichts noch einmal geben
+      const nochmal = g.state.coins;
+      g._checkMilestones();
+      const doppelt = g.state.coins !== nochmal;
+
+      // Und ein Bauplan, der vorher nicht dastand, steht jetzt da. Die Kanne
+      // muss dafür ungebaut sein – Gebautes steht nicht mehr an der Werkbank.
+      const hatte = g.player.levels.can;
+      g.player.levels.can = 0;
+      g.openPanel('craft');
+      const bauplaene = document.getElementById('panel-body').innerText.indexOf('Gießkanne') >= 0;
+      g.panels.close();
+      g.player.levels.can = hatte;
+
+      g.colorField.sources = g.colorField.sources.filter((x) => x.key !== 'test_gross');
+      g.colorField.markDirty();
+      return {
+        deckung: Math.round(deckung * 100), anzahl: erreicht.length,
+        preisVorher, preisNachher, muenzenVorher, muenzenNachher, doppelt, bauplaene,
+      };
+    });
+    check('Volle Deckung vergibt alle Meilensteine',
+      meilen.deckung >= 99 && meilen.anzahl === 10, JSON.stringify(meilen));
+    check('Ihre Wirkung greift sofort: der Händler zahlt mehr',
+      meilen.preisNachher > meilen.preisVorher, JSON.stringify(meilen));
+    check('Die Beigabe kommt an', meilen.muenzenNachher > meilen.muenzenVorher,
+      JSON.stringify(meilen));
+    check('Kein Meilenstein wird zweimal vergeben', !meilen.doppelt, JSON.stringify(meilen));
+    check('Ein freigeschalteter Bauplan steht danach an der Werkbank',
+      meilen.bauplaene, JSON.stringify(meilen.bauplaene));
+
+    // Die Leiter muss im Aufgabenfenster stehen – ein Ziel, das man nicht
+    // sieht, ist kein Ziel.
+    const leiter = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.milestones = Object.create(null);
+      g._perksChanged();
+      g.openPanel('quests');
+      await new Promise((r) => setTimeout(r, 250));
+      const text = document.getElementById('panel-body').innerText;
+      const balken = document.querySelector('#panel-body .bar i');
+      const erg = {
+        ueberschrift: text.indexOf('Die Insel') >= 0,
+        nennt: text.indexOf('Der erste Fleck') >= 0,
+        prozent: /\d+% wieder bunt/.test(text),
+        balken: balken ? balken.getBoundingClientRect().width : 0,
+        weit: text.indexOf('Noch zu weit weg') >= 0,
+      };
+      g.panels.close();
+      return erg;
+    });
+    check('Das Aufgabenfenster zeigt die Meilensteine',
+      leiter.ueberschrift && leiter.nennt && leiter.prozent, JSON.stringify(leiter));
+    check('Ferne Meilensteine verraten noch nichts', leiter.weit, JSON.stringify(leiter));
+
+    // Ein Spielstand von VOR den Meilensteinen und der Gießkanne muss laufen,
+    // ohne dass jemand etwas verliert. Das ist die eine Prüfung, an der ein
+    // gespieltes Spiel hängt: Wer drei Wochen gesammelt hat, darf durch ein
+    // neues Feld nicht bei null landen. Absichtlich über den echten Weg –
+    // schreiben, neu laden, weiterspielen –, nicht über einen Abkürzungsaufruf.
+    const altGeschrieben = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      // Tiefe Kopie: `toJSON` gibt lebende Verweise heraus, ein `delete`
+      // darauf würde dem laufenden Spiel die Felder wegnehmen.
+      const daten = JSON.parse(JSON.stringify(g.toJSON()));
+      delete daten.state.milestones;
+      delete daten.player.levels.can;
+      daten.state.coins = 4242;
+      daten.state.bagUpgrades = 1;
+      daten.day.day = 21;
+      // Farbe wie nach ein paar Wochen Spiel: groß genug für Meilensteine.
+      const c = daten.color.filter((s) => s.k === 'campfire')[0];
+      if (c) { c.r = 1500; c.t = 1500; }
+      g.frozen = true;
+      window.localStorage.setItem('cozy-grove:save:v1', JSON.stringify(daten));
+      return { geschrieben: true, farbeVorher: c ? c.r : 0 };
+    });
+    check('Alter Spielstand liegt bereit', altGeschrieben.geschrieben);
+
+    await page.reload({ waitUntil: 'load' });
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.ready), 60000, 'Grafik nach altem Stand');
+    await page.waitForSelector('#btn-continue', { state: 'visible' });
+    await page.click('#btn-continue');
+    await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.game), 20000, 'Spiel nach altem Stand');
+    // Meilensteine werden einmal je Sekunde geprüft – kurz Zeit geben.
+    await page.waitForTimeout(2200);
+
+    const alt = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      return {
+        muenzen: g.state.coins,
+        tag: g.day.day,
+        taschen: g.state.bagUpgrades,
+        kanne: g.player.levels.can,
+        werkzeug: g.player.tool.id,
+        inLeiste: Array.from(document.querySelectorAll('#toolbelt .tool')).filter((b) => !b.hidden).length,
+        farbe: Math.round(g.colorField.coverage(g.world) * 100),
+        meilensteine: Object.keys(g.state.milestones || {}).length,
+        verkauf: g.perks().sell,
+      };
+    });
+    // Mehr Münzen als gespeichert sind in Ordnung und sogar gewollt: die
+    // nachgeholten Meilensteine zahlen ihre Beigabe aus. Weniger wäre der
+    // Fehler, den diese Prüfung sucht.
+    check('Ein Spielstand ohne die neuen Felder lädt vollständig',
+      alt.muenzen >= 4242 && alt.tag === 21 && alt.taschen === 1, JSON.stringify(alt));
+    check('Die Gießkanne fehlt darin, statt kaputt zu sein',
+      alt.kanne === 0 && alt.werkzeug !== 'can' && alt.inLeiste === 6, JSON.stringify(alt));
+    check('Ein alter Stand holt seine Meilensteine nach',
+      alt.farbe >= 10 && alt.meilensteine >= 1, JSON.stringify(alt));
+    check('Und ihre Wirkung gilt danach auch für ihn',
+      alt.meilensteine < 5 || alt.verkauf > 1, JSON.stringify(alt));
   } catch (err) {
     check('Testlauf ohne Ausnahme', false, err && err.message);
     exitCode = 1;

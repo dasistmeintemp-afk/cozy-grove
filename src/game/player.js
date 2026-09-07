@@ -11,7 +11,24 @@ export const TOOLS = [
   { id: TOOL.SHOVEL, name: 'Schaufel', icon: 'icon_shovel', sprite: 'tool_shovel', key: '4' },
   { id: TOOL.ROD, name: 'Angel', icon: 'icon_rod', sprite: 'tool_rod', key: '5' },
   { id: TOOL.NET, name: 'Kescher', icon: 'icon_net', sprite: 'tool_net', key: '6' },
+  /**
+   * Das erste Werkzeug, das man NICHT von Anfang an hat.
+   *
+   * `optional` heißt: Stufe 0 bedeutet „noch nicht gebaut". Solange steht die
+   * Kanne nicht in der Leiste und `nextTool` überspringt sie – sonst hätte man
+   * vom ersten Tag an einen leeren Platz, für den es keine Erklärung gibt.
+   */
+  { id: TOOL.CAN, name: 'Gießkanne', icon: 'icon_can', sprite: 'tool_can', key: '7', optional: true },
 ];
+
+/**
+ * Die Namen, unter denen die Werkzeuggrafiken im Register liegen.
+ *
+ * Abgeleitet statt abgeschrieben: Vorher stand dieselbe Liste in `sprites.js`
+ * und noch einmal im Test. Ein siebtes Werkzeug hätte an drei Stellen
+ * nachgetragen werden müssen – und wäre an einer davon vergessen worden.
+ */
+export const TOOL_ART = TOOLS.map(function (t) { return t.id; });
 
 export class Player {
   constructor(x, y) {
@@ -24,7 +41,8 @@ export class Player {
     this.frame = 0;
     this.moving = false;
     this.toolIndex = 0;
-    this.levels = { hand: 1, axe: 1, pickaxe: 1, shovel: 1, rod: 1, net: 1 };
+    // Stufe 0 = noch nicht gebaut. Nur die Gießkanne beginnt dort.
+    this.levels = { hand: 1, axe: 1, pickaxe: 1, shovel: 1, rod: 1, net: 1, can: 0 };
     this.prevX = x;
     this.prevY = y;
     this.swing = 0;        // 0..1, läuft nach einem Einsatz ab
@@ -56,13 +74,25 @@ export class Player {
     return this.levels[this.tool.id] || 1;
   }
 
+  /** Hat die Figur dieses Werkzeug überhaupt? */
+  owns(i) {
+    const t = TOOLS[i];
+    if (!t) return false;
+    return !t.optional || (this.levels[t.id] || 0) >= 1;
+  }
+
   selectTool(i) {
     if (i < 0 || i >= TOOLS.length) return;
+    if (!this.owns(i)) return;
     this.toolIndex = i;
   }
 
   nextTool() {
-    this.toolIndex = (this.toolIndex + 1) % TOOLS.length;
+    // Was noch nicht gebaut ist, wird übersprungen statt angezeigt.
+    for (let n = 1; n <= TOOLS.length; n++) {
+      const i = (this.toolIndex + n) % TOOLS.length;
+      if (this.owns(i)) { this.toolIndex = i; return; }
+    }
   }
 
   update(dt, move, world) {
@@ -159,8 +189,12 @@ export class Player {
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d > reach) continue;
 
+      // Ein Beet ist etwas, mit dem man umgeht, nicht etwas, das man abbaut.
+      // Ohne diese Zeile gewann jeder Baum in der Nähe gegen das Beet, sobald
+      // man etwas anderes als die Hand trug – mit der Gießkanne also immer.
       const interactive = def.category === 'station' || def.category === 'spirit' ||
-        def.category === 'fox' || def.category === 'hidden' || def.category === 'decor';
+        def.category === 'fox' || def.category === 'hidden' || def.category === 'decor' ||
+        def.category === 'crop';
       const matches = def.tool && def.tool === toolId;
       if (!interactive && !def.tool) continue;
 
@@ -198,7 +232,10 @@ export class Player {
     const p = new Player(d.x, d.y);
     p.dir = d.dir || 'down';
     p.toolIndex = d.tool || 0;
-    if (d.levels) p.levels = d.levels;
+    // Ein Spielstand von vor der Gießkanne kennt ihre Stufe nicht – dann ist
+    // sie eben noch nicht gebaut, statt undefined zu sein.
+    if (d.levels) p.levels = Object.assign({ can: 0 }, d.levels);
+    if (!p.owns(p.toolIndex)) p.toolIndex = 0;
     return p;
   }
 }

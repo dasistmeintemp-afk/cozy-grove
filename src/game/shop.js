@@ -36,6 +36,10 @@ export class Shop {
     this.wantedBonus = 2;
     /** Aufschlag aus dem Tagesereignis; 1 heißt: ein ganz normaler Tag. */
     this.dayBonus = 1;
+    /** Dauerhafter Aufschlag aus dem Meilenstein „Guter Ruf". */
+    this.bonus = 1;
+    /** Führt der Laden jede Saat jeden Tag? Meilenstein „Die Insel ist ganz". */
+    this.allSeeds = false;
     this.day = 0;
   }
 
@@ -60,9 +64,11 @@ export class Shop {
       if (!it) continue;
       this.stock.unshift({ id: it.id, left: randInt(rng, 2, 5), price: buyPrice(it.id) });
     }
-    if (rng() < 0.34) {
+    if (this.allSeeds || rng() < 0.34) {
       const mond = getItem(SEED_RARE);
-      if (mond) this.stock.unshift({ id: mond.id, left: 1, price: buyPrice(mond.id) });
+      if (mond) {
+        this.stock.unshift({ id: mond.id, left: this.allSeeds ? 3 : 1, price: buyPrice(mond.id) });
+      }
     }
 
     this.wanted = randPick(rng, WANTED_POOL);
@@ -83,7 +89,7 @@ export class Shop {
     const it = getItem(id);
     if (!it || it.value <= 0) return 0;
     const basis = id === this.wanted ? it.value * this.wantedBonus : it.value;
-    return Math.round(basis * (this.dayBonus || 1));
+    return Math.round(basis * (this.dayBonus || 1) * (this.bonus || 1));
   }
 
   entry(id) {

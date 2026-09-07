@@ -3,6 +3,12 @@
  *
  * Bewusst wortkarg: jede Figur hat nur eine Handvoll sehr kurzer Zeilen.
  * Was sie wollen, sagen Symbole – nicht Absätze.
+ *
+ * `colorStart` ist der Radius, mit dem sein Farbkreis beginnt; `colorArea` die
+ * FLÄCHE in Pixeln, die eine erfüllte Bitte dazu einfärbt. Vorher stand hier
+ * ein Radiuszuwachs – damit färbte der hundertste Auftrag ein Vielfaches
+ * dessen ein, was der erste einfärbte, und die Anzeige stand nach zwei Wochen
+ * auf hundert Prozent. Siehe `ColorField.growByArea`.
  */
 
 export const SPIRITS = {
@@ -13,7 +19,7 @@ export const SPIRITS = {
     region: 0,
     role: 'Lagerfeuer',
     colorStart: 312,
-    colorPerQuest: 88,
+    colorArea: 131000,
     questTypes: ['burn', 'burn', 'gather_wood', 'visit', 'craft', 'set', 'deliver'],
     likes: ['wood', 'hardwood', 'resin'],
     lines: {
@@ -30,7 +36,7 @@ export const SPIRITS = {
     region: 0,
     role: 'Wiese',
     colorStart: 240,
-    colorPerQuest: 104,
+    colorArea: 127000,
     questTypes: ['gather_forage', 'find', 'decorate', 'catch_bug', 'visit', 'set', 'grow', 'deliver'],
     likes: ['flower_pink', 'flower_yellow', 'flower_white', 'herb', 'berry'],
     lines: {
@@ -48,7 +54,7 @@ export const SPIRITS = {
     role: 'Strand',
     water: 'sea',
     colorStart: 240,
-    colorPerQuest: 104,
+    colorArea: 127000,
     questTypes: ['catch', 'catch', 'fish', 'gather_beach', 'visit', 'set', 'deliver'],
     likes: ['shell', 'driftwood', 'fish_cod', 'fish_mackerel'],
     lines: {
@@ -66,7 +72,7 @@ export const SPIRITS = {
     role: 'Wald',
     water: 'fresh',
     colorStart: 256,
-    colorPerQuest: 112,
+    colorArea: 146000,
     questTypes: ['gather_wood', 'find', 'visit', 'catch_bug', 'burn', 'set', 'grow', 'deliver'],
     likes: ['hardwood', 'resin', 'mushroom'],
     lines: {
@@ -83,7 +89,7 @@ export const SPIRITS = {
     region: 1,
     role: 'Werkstatt',
     colorStart: 240,
-    colorPerQuest: 112,
+    colorArea: 139000,
     questTypes: ['craft', 'craft', 'gather_ore', 'visit', 'decorate', 'set', 'deliver'],
     likes: ['copper_ore', 'stone', 'shard'],
     lines: {
@@ -100,7 +106,7 @@ export const SPIRITS = {
     region: 2,
     role: 'Klippen',
     colorStart: 240,
-    colorPerQuest: 120,
+    colorArea: 151000,
     questTypes: ['find', 'visit', 'decorate', 'craft', 'gather', 'set', 'grow', 'deliver'],
     likes: ['fiber', 'flower_violet', 'gem'],
     lines: {

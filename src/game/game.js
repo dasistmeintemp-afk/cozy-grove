@@ -23,6 +23,7 @@ import { StoryBook, STAGES, storyArt, keepsakeOf, storyLine, storyClose, storyIn
 import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
 import { getItem, itemName, CAT, CONDITIONAL, fishesOf } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
+import { dueAt, perksOf } from './milestones.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
@@ -136,7 +137,8 @@ export class Game {
     this.panels = new Panels(this);
     this.ui.layout();
     this.applySettings();
-    this._syncCampfireColor();
+    // Vor `_syncCampfireColor`: der Feuerkreis hängt an einem Meilenstein.
+    this._perksChanged();
     // Still: beim Laden steht die Deko ja schon da, da wäre eine Meldung
     // für jede Stufe eine Meldungslawine beim Spielstart.
     this.syncCosiness(true);
@@ -183,6 +185,7 @@ export class Game {
       bagUpgrades: 0,
       crafted: Object.create(null),
       caught: 0,
+      milestones: Object.create(null),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -206,8 +209,12 @@ export class Game {
     this.state = Object.assign({
       coins: 0, ember: 0, campfireFuel: 0, bagUpgrades: 0,
       crafted: Object.create(null), caught: 0,
+      milestones: Object.create(null),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
+    // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
+    // nach, was seine Farbe schon hergibt – siehe `_checkMilestones`.
+    if (!this.state.milestones) this.state.milestones = Object.create(null);
 
     this.world.unlocked = save.unlocked || [true, false, false];
     if (save.bridgeBuilt) this.world.buildBridge();
@@ -272,7 +279,7 @@ export class Game {
           id: e.id, k: e.kind, x: Math.round(e.x), y: Math.round(e.y),
           s: e.sprite, item: e.itemId || null, q: e.questId || null, flat: !!e.flat,
           sp: e.storySpirit || null, st: e.storyStage != null ? e.storyStage : null,
-          c: e.cropId || null, gw: e.grown != null ? e.grown : null,
+          c: e.cropId || null, gw: e.grown != null ? e.grown : null, wt: e.watered || 0,
         });
       } else if (e.gone || e.origin || (e.hp != null && defOf(e.kind) && defOf(e.kind).hits && e.hp < defOf(e.kind).hits)) {
         changed.push({ id: e.id, k: e.kind, g: e.gone ? 1 : 0, o: e.origin || null, r: e.respawnDay || 0, hp: e.hp });
@@ -330,6 +337,7 @@ export class Game {
           cropId: a.c || null, grown: a.gw != null ? a.gw : 0,
         });
         e.id = a.id;
+        if (a.wt) e.watered = a.wt;
         e.sprite = a.s;
         this.world.add(e);
       }
@@ -442,6 +450,7 @@ export class Game {
     this._syncConditionalSpawns();
     this._shootingStars(dt);
     this._checkVisits(dt);
+    this._checkMilestones(dt);
 
     const mustSleep = this.day.update(dt);
     if (mustSleep) this.sleep(true);
@@ -584,7 +593,14 @@ export class Game {
       if (def.category === 'spirit') { this.talkTo(t.entity); return; }
       if (def.category === 'fox') { this.openPanel('shop'); return; }
       if (def.category === 'hidden') { this.pickHidden(t.entity); return; }
-      if (def.category === 'crop') { this.harvestCrop(t.entity); return; }
+      if (def.category === 'crop') {
+        // Mit der Kanne in der Hand wird gegossen, solange etwas zu gießen ist.
+        // Ist das Beet reif, wird geerntet – Gießen wäre dann nur ein Klick,
+        // der nichts tut, und man hätte erst das Werkzeug wechseln müssen.
+        if (this.player.tool.id === 'can' && this.waterCrop(t.entity)) return;
+        this.harvestCrop(t.entity);
+        return;
+      }
       if (def.category === 'decor') { this.pickDecor(t.entity); return; }
       if (def.station) { this.useStation(def.station, t.entity); return; }
       if (def.tool) { this.useTool(t); return; }
@@ -776,7 +792,7 @@ export class Game {
     const ent = this.world.spiritEntity(spiritId);
     if (ent) {
       if (!this.colorField.find(key)) this.colorField.addSource(ent.x, ent.y, 160, key);
-      else this.colorField.grow(key, 90);
+      else this.colorField.growByArea(key, 160000);
       this.colorField.markDirty();
     }
 
@@ -792,7 +808,7 @@ export class Game {
     const self = this;
     if (keep) this.inventory.add(keep, 1);
     if (ent) {
-      this.colorField.grow('spirit_' + spiritId, 300);
+      this.colorField.growByArea('spirit_' + spiritId, 520000);
       this.colorField.markDirty();
       this.particles.burst('heart', ent.x, ent.y - 90, 8);
     }
@@ -1129,7 +1145,7 @@ export class Game {
     // Bewusst hier und nicht bei der Vergabe: es zählt, wie es jetzt aussieht,
     // nicht wie es aussah, als er die Aufgabe stellte.
     const cosy = this.cosyOf(spirit.id);
-    const factor = rewardFactor(cosy.level);
+    const factor = rewardFactor(cosy.level) * this.perks().reward;
     rewards.coins = Math.round(rewards.coins * factor);
     rewards.ember = Math.round(rewards.ember * factor);
 
@@ -1148,7 +1164,7 @@ export class Game {
     if (!this.colorField.find(key)) {
       this.colorField.addSource(e.x, e.y, spirit.colorStart, key);
     } else {
-      this.colorField.grow(key, spirit.colorPerQuest);
+      this.colorField.growByArea(key, spirit.colorArea);
     }
     this.colorField.markDirty();
 
@@ -1167,7 +1183,7 @@ export class Game {
       const level = friendshipLevel(doneN);
       this.ui.toast(spirit.name + ' · Freundschaft ' + level, 'icon_heart', 'good');
       this.audio.play('levelup');
-      this.colorField.grow(key, 72);
+      this.colorField.growByArea(key, 100000);
       this._giveGift(spirit, level, e);
     }
 
@@ -1231,6 +1247,86 @@ export class Game {
     return out;
   }
 
+  /* ---------------- Meilensteine ---------------- */
+
+  /** Steht dieser Meilenstein schon? */
+  hasMilestone(id) {
+    return !!(this.state.milestones && this.state.milestones[id]);
+  }
+
+  /**
+   * Die dauerhaften Wirkungen aller erreichten Meilensteine.
+   *
+   * Gepuffert, weil das in jedem Verkauf, jeder Abgabe und jedem Bild steckt.
+   * Die Liste ändert sich nur beim Erreichen – dann wird der Puffer geleert.
+   */
+  perks() {
+    if (!this._perks) this._perks = perksOf(this.state.milestones);
+    return this._perks;
+  }
+
+  _perksChanged() {
+    this._perks = null;
+    const p = this.perks();
+    this.shop.bonus = p.sell;
+    this.shop.allSeeds = p.seeds;
+    this._syncCampfireColor();
+  }
+
+  /**
+   * Ist ein Meilenstein fällig?
+   *
+   * Einmal je Sekunde statt in jedem Bild: `coverage` tastet die halbe Karte
+   * ab, und die Farbe blüht ohnehin über Sekunden auf. Der Fund kommt also
+   * genau dann, wenn man die Farbe ankommen sieht.
+   */
+  _checkMilestones(dt) {
+    this._milestoneT = (this._milestoneT || 0) - (dt || 0);
+    if (dt && this._milestoneT > 0) return;
+    this._milestoneT = 1;
+
+    if (!this.state.milestones) this.state.milestones = Object.create(null);
+    const faellig = dueAt(this.colorField.coverage(this.world), this.state.milestones);
+    if (!faellig.length) return;
+
+    for (let i = 0; i < faellig.length; i++) {
+      this.state.milestones[faellig[i].id] = this.day.day;
+      this._giveMilestone(faellig[i]);
+    }
+    this._perksChanged();
+    this._note('milestones', faellig.length);
+
+    // Mehrere auf einmal gibt es nur beim ersten Start eines alten
+    // Spielstands. Dann ist eine Sammelmeldung ehrlicher als acht Türmchen.
+    if (faellig.length > 1) {
+      this.ui.toast(faellig.length + ' Meilensteine erreicht', 'icon_star', 'good');
+    } else {
+      this.ui.toast(faellig[0].name, faellig[0].icon || 'icon_star', 'good');
+    }
+    this.audio.play('levelup');
+    if (this.world.campfire) {
+      this.particles.burst('color', this.world.campfire.x, this.world.campfire.y - 60, 28);
+    }
+    this.ui.refreshHud();
+    this.save();
+  }
+
+  /** Die einmalige Beigabe eines Meilensteins. */
+  _giveMilestone(m) {
+    const gift = m.gift;
+    if (!gift) return;
+    if (gift.coins) { this.state.coins += gift.coins; this._note('coins', gift.coins); }
+    if (gift.ember) { this.state.ember += gift.ember; this._note('ember', gift.ember); }
+    if (!gift.items) return;
+    const got = [];
+    for (let i = 0; i < gift.items.length; i++) {
+      const it = gift.items[i];
+      const added = this.inventory.add(it.id, it.n);
+      if (added > 0) got.push({ id: it.id, n: added });
+    }
+    if (got.length) this.ui.toastItems(got);
+  }
+
   /* ---------------- Der Kalender ---------------- */
 
   /**
@@ -1281,6 +1377,33 @@ export class Game {
    * genau die will man nicht: Wer aus Versehen E drückt, soll nicht drei Tage
    * Warten verlieren. Deshalb passiert dann gar nichts außer einer Auskunft.
    */
+  /**
+   * Ein Beet gießen – der einzige Grund, morgens noch einmal hinzugehen.
+   *
+   * Bewusst ohne Strafe, wie der ganze Garten: Nicht gegossen heißt langsamer,
+   * nie verdorrt. Und nur einmal am Tag, sonst wäre die Kanne eine Taste, die
+   * man zwanzigmal drückt, statt einer kleinen Morgenrunde.
+   *
+   * @returns {boolean} ob wirklich gegossen wurde
+   */
+  waterCrop(e) {
+    const crop = CROPS[e.cropId];
+    if (!crop) return false;
+    if (daysToRipe(crop, e.grown || 0) <= 0) return false;
+    if (e.watered === this.day.day) {
+      this.ui.toast('Schon gegossen', 'icon_can');
+      return true;
+    }
+    e.watered = this.day.day;
+    this.player.startSwing();
+    this.particles.burst('splash', e.x, e.y - 18, 7);
+    this.audio.play('splash');
+    this.ui.toast(crop.name + ' gegossen · wächst schneller', 'icon_can', 'good');
+    this._note('watered');
+    this.save();
+    return true;
+  }
+
   harvestCrop(e) {
     const crop = CROPS[e.cropId];
     if (!crop) { this.world.remove(e); return; }
@@ -1316,13 +1439,16 @@ export class Game {
 
   /** Alle Beete einen Tag weiterwachsen lassen. */
   growCrops(regen) {
-    const zuwachs = growthPerDay(regen);
+    const grund = growthPerDay(regen) + this.perks().grow;
     let reif = 0;
     for (let i = 0; i < this.world.entities.length; i++) {
       const e = this.world.entities[i];
       if (e.kind !== 'crop') continue;
       const crop = CROPS[e.cropId];
       if (!crop) continue;
+      // Gegossen zählt einen Schritt extra – und nur für diesen einen Morgen.
+      const zuwachs = grund + (e.watered === this.day.day ? 1 : 0);
+      e.watered = 0;
       const vorher = stageOf(e.grown || 0, crop.days);
       e.grown = Math.min(crop.days, (e.grown || 0) + zuwachs);
       const jetzt = stageOf(e.grown, crop.days);
@@ -1359,7 +1485,7 @@ export class Game {
     this.state.daybook = {
       day: this.day.day,
       quests: 0, finds: 0, fish: 0, bugs: 0, decor: 0, gifts: 0,
-      planted: 0, harvest: 0,
+      planted: 0, harvest: 0, watered: 0, milestones: 0,
       coins: 0, ember: 0,
       colorStart: this.colorField.coverage(this.world),
     };
@@ -1448,7 +1574,7 @@ export class Game {
     this._note('ember', ember);
 
     // Farbe: dauerhaft, wie bei einer erledigten Bitte – nur kleiner.
-    this.colorField.grow('spirit_' + e.spiritId, 34);
+    this.colorField.growByArea('spirit_' + e.spiritId, 45000);
     this.colorField.markDirty();
 
     this.particles.burst('heart', e.x, e.y - 110, 7);
@@ -1504,6 +1630,10 @@ export class Game {
     const fire = campfireLevelFor(this.state.campfireFuel).level;
     if (fire < (rec.fire || 1)) {
       this.ui.toast('Das Feuer ist noch zu klein', 'icon_campfire', 'bad');
+      return;
+    }
+    if (rec.needs && !this.hasMilestone(rec.needs)) {
+      this.ui.toast('Die Insel muss erst bunter werden', 'icon_star', 'bad');
       return;
     }
     const miss = missingFor(rec, this.inventory, this.state.ember);
@@ -1579,9 +1709,11 @@ export class Game {
     const fire = campfireLevelFor(this.state.campfireFuel);
     const c = this.world.campfire;
     if (!c) return;
+    // „Das große Feuer" wirkt hier: derselbe Brennstoff, ein größerer Kreis.
+    const radius = fire.radius * this.perks().fire;
     const src = this.colorField.find('campfire');
-    if (!src) this.colorField.addSource(c.x, c.y, fire.radius, 'campfire');
-    else if (src.target < fire.radius) src.target = fire.radius;
+    if (!src) this.colorField.addSource(c.x, c.y, radius, 'campfire');
+    else if (src.target < radius) src.target = radius;
     this.colorField.markDirty();
   }
 
@@ -2033,7 +2165,7 @@ export class Game {
     const c = this.world.campfire;
     if (c) {
       const flicker = 1 + Math.sin(time * 7.3) * 0.03 + Math.sin(time * 3.1) * 0.02;
-      out.push({ x: c.x, y: c.y - 34, r: fire.light * flicker, a: 0.98 });
+      out.push({ x: c.x, y: c.y - 34, r: fire.light * this.perks().fire * flicker, a: 0.98 });
     }
     out.push({ x: this.player.x, y: this.player.y - 42, r: 170, a: 0.6 });
 
@@ -2101,6 +2233,10 @@ export class Game {
     if (def.category === 'crop') {
       const crop = CROPS[t.entity.cropId];
       const rest = crop ? daysToRipe(crop, t.entity.grown || 0) : 0;
+      if (rest > 0 && this.player.tool.id === 'can') {
+        this.ui.setPrompt(t.entity.watered === this.day.day ? 'Schon gegossen' : 'Gießen');
+        return;
+      }
       this.ui.setPrompt(rest > 0
         ? 'Noch ' + rest + (rest === 1 ? ' Tag' : ' Tage')
         : 'Ernten');

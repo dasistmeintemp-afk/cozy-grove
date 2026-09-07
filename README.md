@@ -77,7 +77,7 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | --- | --- |
 | `WASD` / Pfeiltasten | laufen |
 | `E` / Leertaste | Werkzeug benutzen, reden, abgeben |
-| `1`–`6`, `Tab` | Werkzeug wählen |
+| `1`–`7`, `Tab` | Werkzeug wählen (7 = Gießkanne, sobald gebaut) |
 | `I` `Q` `C` `M` | Tasche · Aufgaben · Werkbank · Karte |
 | `B` | Fundbuch |
 | `G` | Erinnerungen |
@@ -94,6 +94,23 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Geist und um das Lagerfeuer wächst ein farbiger Kreis. Die Prozentanzeige oben
   zeigt, wie viel der Insel wieder Farbe hat. Was lebt (du, die Geister, der
   Händler, das Feuer), ist immer farbig.
+
+  **Jede Bitte färbt gleich viel Boden ein**, nicht gleich viel Radius. Das
+  klingt nach Rechnerei und ist der Unterschied zwischen zwei Wochen und zwei
+  Monaten: Mit festem Radiuszuwachs färbt der hundertste Auftrag ein
+  Vielfaches dessen ein, was der erste einfärbte – gemessen stand die Anzeige
+  nach rund 130 Aufträgen auf 100 %. Nach gleicher Fläche sind es rund 330,
+  und die ersten Tage fühlen sich fast unverändert an (Auftrag 1: 5,3 % vorher,
+  4,7 % jetzt).
+* **Meilensteine.** An der Farbanzeige hängen zehn Stationen von 10 % bis
+  100 %. Jede gibt entweder etwas Neues zu **bauen** oder etwas dauerhaft
+  Besseres – nie nur eine Urkunde: die Gießkanne, eine dritte Taschen-
+  erweiterung, vierte Werkzeugstufen, ein Händler, der dauerhaft mehr zahlt,
+  Beete, die schneller wachsen, ein größerer Feuerkreis. Im Aufgabenfenster
+  steht die ganze Leiter mit Balken; der nächste Schritt steht vollständig da,
+  weit Entferntes bleibt stumm. Gemessen liegen die zehn Stationen bei
+  8/25/45/69/99/130/172/222/244/357 erledigten Aufträgen – bei fünfzehn am Tag
+  gut drei Wochen, mit etwas Neuem alle ein bis drei Tage.
 * **Kein Warten auf die Uhr.** Ein Tag läuft von 6 bis 2 Uhr (Länge einstellbar),
   aber schlafen darfst du jederzeit – und bekommst sofort neue Aufgaben, neue
   Grabstellen, neues Ladenangebot. Wer eine Stunde am Stück spielen will, kann
@@ -127,7 +144,13 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   eine offene Bitte gebraucht wird, bietet das Spiel nicht als Mitbringsel an.
 * **Werkzeuge.** Hand, Axt, Spitzhacke, Schaufel, Angel, Kescher – jeweils in
   mehreren Stufen. Bessere Werkzeuge geben mehr Ertrag, größere Reichweite und
-  öffnen neue Bereiche.
+  öffnen neue Bereiche. Die vierten Stufen hängen an Meilensteinen und kosten
+  Edelsteine; darauf arbeitet man hin.
+* **Die Gießkanne.** Das einzige Werkzeug, das du nicht von Anfang an hast –
+  gebaut wird sie beim ersten Meilenstein. Ein gegossenes Beet wächst einen Tag
+  schneller, einmal am Tag, ohne Strafe fürs Auslassen: Wie der ganze Garten
+  ist sie ein Angebot, keine Pflicht. Solange sie nicht gebaut ist, steht sie
+  auch nicht in der Werkzeugleiste.
 * **Lagerfeuer.** Verbrannte Fundstücke geben Glut (Handwerkswährung) und lassen
   das Feuer wachsen – und mit ihm den farbigen Kreis und die Rezeptliste.
 * **Drei Bereiche.** Lager & Strand (Start) → Wald (umgestürzter Baumstamm,
@@ -334,8 +357,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 134 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
-npm run test:browser   # 92 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 147 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
+npm run test:browser   # 114 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

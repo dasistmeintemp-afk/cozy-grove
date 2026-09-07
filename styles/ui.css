@@ -778,6 +778,18 @@ html, body {
 }
 .cosy-bar .pip.on { background: var(--warm); border-color: var(--edge); }
 
+/* Der lange Bogen: wie viel der Insel wieder Farbe hat. Ein Balken statt einer
+   zweiten Zahl – der Abstand zum nächsten Meilenstein soll man sehen. */
+.row .bar {
+  margin-top: 6px;
+  height: calc(9px * var(--ui-scale));
+  border: 2px solid var(--edge-soft);
+  border-radius: 999px;
+  background: var(--paper-shade);
+  overflow: hidden;
+}
+.row .bar i { display: block; height: 100%; background: var(--warm); }
+
 .row-btn {
   border: 2px solid var(--edge);
   background: var(--warm);

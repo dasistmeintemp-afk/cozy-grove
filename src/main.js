@@ -1,7 +1,7 @@
 /**
  * Einstiegspunkt: Startbildschirm, Bildgröße, Spielschleife.
  */
-import { initArt, hasSprite, spriteNames } from './art/sprites.js';
+import { initArt, hasSprite, spriteNames, spr } from './art/sprites.js';
 import { Input } from './core/input.js';
 import { audio } from './core/audio.js';
 import { Game, parseSave } from './game/game.js';
@@ -204,7 +204,10 @@ function main() {
     start: startGame,
     ready: false,
     get game() { return game; },
-    art: { has: hasSprite, names: spriteNames },
+    // `of` gibt den Registereintrag heraus: { c, g, w, h, ... }. Nur zum
+    // Hinsehen gedacht – die Prüfungen im Browser messen damit, ob eine
+    // Grafik wirklich gemalt wurde und nicht nur einen Namen hat.
+    art: { has: hasSprite, names: spriteNames, of: spr },
     version: '2.0.0',
   };
 

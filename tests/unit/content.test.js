@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { BUGS, CONDITIONAL, ITEM_LIST, getItem, CAT, MEMORY_IDS, fishesOf, bugsOf } from '../../src/game/items.js';
-import { TOOLS } from '../../src/game/player.js';
+import { TOOLS, TOOL_ART } from '../../src/game/player.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, campfireLevelFor, nextCampfireLevel, missingFor, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
 import { SPIRITS, SPIRIT_IDS, friendshipLevel } from '../../src/game/spirits.js';
@@ -43,10 +43,9 @@ const SPRITE_NAMES = (function () {
     names.push('memory_' + memories[i]);
     names.push('icon_memory_' + memories[i]);
   }
-  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'net', 'hand'];
-  for (let i = 0; i < tools.length; i++) {
-    names.push('tool_' + tools[i]);
-    names.push('icon_' + tools[i]);
+  for (let i = 0; i < TOOL_ART.length; i++) {
+    names.push('tool_' + TOOL_ART[i]);
+    names.push('icon_' + TOOL_ART[i]);
   }
   for (let f = 0; f < 2; f++) {
     names.push('butterfly_' + f);
@@ -142,7 +141,12 @@ test('Rezepte verweisen nur auf echte Gegenstände', () => {
       const bekannt = TOOLS.map(function (x) { return x.id; });
       assert.ok(bekannt.indexOf(rec.tool) >= 0, rec.id + ': unbekanntes Werkzeug ' + rec.tool);
       assert.ok(rec.tool !== 'hand', 'die Hand lässt sich nicht bauen');
-      assert.ok(rec.level >= 2);
+      // Ein Bauplan muss weiterbringen: Werkzeuge, die man von Anfang an hat,
+      // erst ab Stufe 2 – ein erst zu bauendes ab Stufe 1.
+      const werkzeug = TOOLS.filter(function (x) { return x.id === rec.tool; })[0];
+      const mindestens = werkzeug && werkzeug.optional ? 1 : 2;
+      assert.ok(rec.level >= mindestens,
+        rec.id + ': Stufe ' + rec.level + ' bringt nichts Neues');
     }
   }
 });

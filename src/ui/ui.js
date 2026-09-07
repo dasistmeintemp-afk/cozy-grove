@@ -9,7 +9,7 @@ import { SPIRITS } from '../game/spirits.js';
 import { questIcon, questTitle } from '../game/quests.js';
 import { getItem } from '../game/items.js';
 
-const TOOL_KEYS = ['1', '2', '3', '4', '5', '6'];
+const TOOL_KEYS = ['1', '2', '3', '4', '5', '6', '7'];
 const ROMAN = { 1: '', 2: 'II', 3: 'III', 4: 'IV' };
 
 export class UI {
@@ -80,11 +80,15 @@ export class UI {
 
   refreshToolbelt() {
     const p = this.game.player;
-    const sig = p.toolIndex + ':' + p.levels.axe + p.levels.pickaxe + p.levels.shovel + p.levels.rod;
+    let sig = p.toolIndex + ':';
+    for (let i = 0; i < TOOLS.length; i++) sig += (p.levels[TOOLS[i].id] || 0) + '.';
     if (sig === this._toolSig) return;
     this._toolSig = sig;
     for (let i = 0; i < this.toolButtons.length; i++) {
       const btn = this.toolButtons[i];
+      // Was noch nicht gebaut ist, steht auch nicht in der Leiste. Ein leerer
+      // Platz mit Fragezeichen wäre ein Rätsel ohne Hinweis.
+      btn.hidden = !p.owns(i);
       btn.setAttribute('aria-pressed', String(i === p.toolIndex));
       const lvl = p.levels[TOOLS[i].id] || 1;
       btn.querySelector('.lvl').textContent = ROMAN[lvl] || '';

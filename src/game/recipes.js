@@ -89,6 +89,49 @@ export const RECIPES = [
   // Tasche
   r('bag2', 'Größere Tasche (+10)', null, [{ id: 'fiber', n: 10 }, { id: 'resin', n: 3 }],
     { ember: 8, kind: 'bag', slots: 10, fire: 2, max: 2 }),
+
+  /* ----------------------------------------------------------------------
+   * Was erst die Farbe der Insel hergibt.
+   *
+   * `needs` nennt den Meilenstein (siehe milestones.js). Das ist die zweite
+   * Hälfte des langen Bogens: Die Anzeige oben steigt jetzt über Wochen statt
+   * über Tage, und unterwegs kommt regelmäßig etwas Neues an die Werkbank.
+   * Preise absichtlich hoch – das sind die Stücke, auf die man hinarbeitet.
+   * -------------------------------------------------------------------- */
+
+  // Die Gießkanne: das erste Werkzeug, das man nicht von Anfang an hat.
+  r('can1', 'Gießkanne', null,
+    [{ id: 'copper_ore', n: 6 }, { id: 'wood', n: 4 }, { id: 'clay', n: 3 }],
+    {
+      ember: 10, kind: 'tool', tool: 'can', level: 1, fire: 2, needs: 'fleck',
+      note: 'Ein gegossenes Beet wächst einen Tag schneller.',
+    }),
+
+  r('bag3', 'Noch größere Tasche (+12)', null,
+    [{ id: 'fiber', n: 16 }, { id: 'resin', n: 6 }, { id: 'hardwood', n: 4 }],
+    { ember: 20, kind: 'bag', slots: 12, fire: 3, min: 2, max: 3, needs: 'tasche' }),
+
+  r('shovel3', 'Schaufel · Stufe 3', null,
+    [{ id: 'hardwood', n: 5 }, { id: 'copper_ore', n: 6 }, { id: 'shard', n: 2 }],
+    { ember: 14, kind: 'tool', tool: 'shovel', level: 3, fire: 3, needs: 'werkzeugtag' }),
+  r('rod3', 'Angel · Stufe 3', null,
+    [{ id: 'hardwood', n: 5 }, { id: 'fiber', n: 12 }, { id: 'shell', n: 6 }],
+    { ember: 14, kind: 'tool', tool: 'rod', level: 3, fire: 3, needs: 'werkzeugtag' }),
+
+  r('axe4', 'Axt · Stufe 4', null,
+    [{ id: 'hardwood', n: 12 }, { id: 'copper_ore', n: 10 }, { id: 'gem', n: 2 }],
+    { ember: 30, kind: 'tool', tool: 'axe', level: 4, fire: 4, needs: 'wald' }),
+  r('pickaxe4', 'Spitzhacke · Stufe 4', null,
+    [{ id: 'hardwood', n: 10 }, { id: 'copper_ore', n: 12 }, { id: 'gem', n: 2 }],
+    { ember: 30, kind: 'tool', tool: 'pickaxe', level: 4, fire: 4, needs: 'wald' }),
+
+  r('net4', 'Kescher · Stufe 4', null,
+    [{ id: 'hardwood', n: 8 }, { id: 'fiber', n: 20 }, { id: 'fogcrystal', n: 2 }],
+    { ember: 26, kind: 'tool', tool: 'net', level: 4, fire: 4, needs: 'daumen' }),
+
+  r('rod4', 'Angel · Stufe 4', null,
+    [{ id: 'hardwood', n: 8 }, { id: 'moonflower', n: 3 }, { id: 'gem', n: 2 }],
+    { ember: 34, kind: 'tool', tool: 'rod', level: 4, fire: 4, needs: 'see' }),
 ];
 
 export function recipeById(id) {

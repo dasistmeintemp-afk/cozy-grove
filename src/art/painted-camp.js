@@ -926,6 +926,13 @@ export function paintTool(kind, opts) {
   let shafts = [];
   let heads = [];
   let headColor = ink.iron;
+  /** Die Wassertropfen der Gießkanne – gefüllt gewaschen, dann umrandet. */
+  let kanneTropfen = null;
+
+  /** Ein runder Klecks als Form, ohne ihn gleich zu zeichnen. */
+  function blobDot(x, y, r, s) {
+    return smoothClosed(blob(x, y, r, r, s, 0.12, 10), 4);
+  }
 
   if (kind === 'axe') {
     shafts = [handle(cx - 22, cy + 44, cx + 4, cy - 30, 7)];
@@ -952,6 +959,44 @@ export function paintTool(kind, opts) {
     shafts = [handle(cx - 30, cy + 46, cx + 4, cy - 8, 6)];
     heads = [smoothClosed(blob(cx + 14, cy - 30, 27, 24, seed + 3, 0.07, 18), 6)];
     headColor = ink.paper;
+  } else if (kind === 'can') {
+    // Bauch, Tülle und Bügel – alles aus einem Stück Blech, darum alles in
+    // `heads`. Als die Tülle noch ein „Stiel" war, wurde sie holzfarben
+    // gewaschen, und die Kanne sah aus wie ein Stein mit einem Kochlöffel.
+    const bx = cx - 12;
+    const by = cy + 6;
+    // Die Tropfen fallen unter der Tüllenspitze – darum zeigt die Tülle nach
+    // schräg unten. Zeigte sie nach oben, standen Kanne und Wasser in zwei
+    // verschiedene Richtungen und das Bild erzählte nichts.
+    kanneTropfen = [
+      blobDot(bx + 47, by + 33, 4.4, seed + 71),
+      blobDot(bx + 54, by + 42, 3.4, seed + 72),
+      blobDot(bx + 40, by + 43, 2.8, seed + 73),
+    ];
+    // Der Bügel: außen herum und innen zurück, das ergibt ein Band statt
+    // eines Klumpens. Ein gerader Strich darüber sah aus wie eine Latte.
+    const buegel = [];
+    for (let i = 0; i <= 12; i++) {
+      const a = Math.PI + (i / 12) * Math.PI;
+      buegel.push([bx + Math.cos(a) * 27, (by - 22) + Math.sin(a) * 24]);
+    }
+    for (let i = 12; i >= 0; i--) {
+      const a = Math.PI + (i / 12) * Math.PI;
+      buegel.push([bx + Math.cos(a) * 19, (by - 22) + Math.sin(a) * 15]);
+    }
+    heads = [
+      smoothClosed(blob(bx - 2, by + 2, 27, 24, seed + 5, 0.07, 18), 6),
+      // Tülle: am Bauch breit, zur Brause hin schmal, schräg nach unten.
+      smoothClosed([
+        [bx + 14, by - 12], [bx + 16, by + 6],
+        [bx + 52, by + 22], [bx + 49, by + 12],
+      ], 4),
+      // Die Brause sitzt als eigener Kopf am Ende. Ohne sie läuft die Tülle
+      // spitz aus, und die Kanne bekommt einen Schnabel statt einer Brause.
+      smoothClosed(blob(bx + 50, by + 18, 8, 9, seed + 9, 0.1, 12), 4),
+      smoothClosed(buegel, 4),
+    ];
+    headColor = ink.iron;
   } else { // hand
     heads = [smoothClosed(blob(cx, cy + 4, 26, 30, seed, 0.14, 16), 5)];
     headColor = ink.skin;
@@ -967,6 +1012,13 @@ export function paintTool(kind, opts) {
         wash(g, heads[i], headColor, { seed: seed + 20 + i, scale: 1.05 });
         wash(g, offsetShape(heads[i], 6, 5, 0.6), kind === 'hand' ? ink.skinShade : ink.ironDark,
           { seed: seed + 30 + i, alpha: 0.6 });
+      }
+      // Die Tropfen liegen NICHT in der Silhouette: sonst klebten sie als
+      // Blechnasen an der Tülle, statt zu fallen.
+      if (kanneTropfen) {
+        for (let i = 0; i < kanneTropfen.length; i++) {
+          wash(g, kanneTropfen[i], ink.water, { seed: seed + 60 + i, scale: 1.02 });
+        }
       }
     },
     shape: function (g) {
@@ -988,6 +1040,20 @@ export function paintTool(kind, opts) {
             { width: 1.1, bend: 0.05, seed: seed + 50 + i, color: ink.lineSoft, alpha: 0.42 });
           inkLine(g, cx - 12, cy - 30 + i * 9, cx + 40, cy - 30 + i * 9,
             { width: 1.1, bend: 0.08, seed: seed + 60 + i, color: ink.lineSoft, alpha: 0.42 });
+        }
+      }
+      if (kind === 'can' && kanneTropfen) {
+        // Der Rand der Brause, ein Naht­strich über dem Bauch – und die
+        // Tropfen. Erst sie sagen, dass hier gegossen und nicht geschöpft
+        // wird; ohne sie ist es eine Kanne wie jede andere.
+        // Brausenrand quer zur Tülle, dazu eine Naht über dem Bauch.
+        inkLine(g, cx + 34, cy + 16, cx + 42, cy + 30,
+          { width: 2.6, bend: 0.04, seed: seed + 46, color: ink.ironDark, alpha: 0.9 });
+        inkLine(g, cx - 34, cy - 4, cx + 2, cy - 4,
+          { width: 1.4, bend: 0.09, seed: seed + 48, color: ink.ironDark, alpha: 0.5 });
+        for (let i = 0; i < kanneTropfen.length; i++) {
+          inkStroke(g, kanneTropfen[i],
+            { width: 1.3, vary: 0.3, seed: seed + 50 + i, color: ink.waterDeep, alpha: 0.85 });
         }
       }
       if (kind === 'hand') {

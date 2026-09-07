@@ -25,6 +25,7 @@ import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
 import { BUGS } from '../game/items.js';
 import { CROPS, CROP_IDS } from '../game/crops.js';
+import { TOOL_ART } from '../game/player.js';
 
 /**
  * Die Maler arbeiten in bequemen Maßen; beim Ablegen wird alles einmal
@@ -268,7 +269,7 @@ export function initArt() {
   }
 
   /* --- Werkzeuge --- */
-  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'net', 'hand'];
+  const tools = TOOL_ART;
   for (let i = 0; i < tools.length; i++) {
     addArt('tool_' + tools[i], paintTool(tools[i], { seed: 651 + i * 13 }));
   }
@@ -352,7 +353,7 @@ function buildIcons() {
       }), 1);
     }
   }
-  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'net', 'hand'];
+  const tools = TOOL_ART;
   for (let i = 0; i < tools.length; i++) {
     const target = registry['tool_' + tools[i]];
     addArt('icon_' + tools[i], iconFromArt({

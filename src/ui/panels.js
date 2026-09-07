@@ -7,6 +7,7 @@ import { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } from
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
 import { canLink, linkedName, pendingLinkName, requestLinkPermission, linkNew, linkExisting, unlink, openFile, suggestName } from '../core/savefile.js';
 import { questTitle, questIcon, QTYPE, daysLeft } from '../game/quests.js';
+import { MILESTONES, nextOpen } from '../game/milestones.js';
 import { UI_SCALES } from './uiscale.js';
 import { CROPS } from '../game/crops.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
@@ -447,6 +448,8 @@ export class Panels {
       html += '<p class="empty-note">Fertige Aufgaben gibst du beim Geist ab (Taste E).</p>';
     }
 
+    html += this._milestones();
+
     html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Die Geister</h3><div class="rows">';
     for (const id in SPIRITS) {
       const s = SPIRITS[id];
@@ -471,6 +474,55 @@ export class Panels {
     return html;
   }
 
+  /* ---------------- Meilensteine ---------------- */
+
+  /**
+   * Der lange Bogen, sichtbar gemacht.
+   *
+   * Ohne diese Liste wäre die Prozentzahl oben nur eine Zahl. Erst wenn
+   * danebensteht, was bei 45 % passiert, ist sie ein Ziel. Darum steht auch
+   * der nächste Schritt vollständig da – verdeckte Belohnungen sind eine
+   * Überraschung für einen Abend und ein Rätsel für alle anderen.
+   */
+  _milestones() {
+    const g = this.game;
+    const anteil = g.colorField.coverage(g.world);
+    const erreicht = g.state.milestones || {};
+    const offen = nextOpen(erreicht);
+
+    let html = '<h3 style="font-size:0.95em;margin:16px 0 8px">Die Insel</h3>';
+    html += '<div class="rows"><div class="row">' + ico('icon_star', 'lg') +
+      '<div class="grow"><div class="title">' + Math.round(anteil * 100) + '% wieder bunt</div>' +
+      '<div class="meta"><span>' +
+      (offen
+        ? escapeHtml(offen.name) + ' bei ' + Math.round(offen.at * 100) + '%'
+        : 'Alle Meilensteine stehen.') +
+      '</span></div>' +
+      '<div class="bar" aria-hidden="true"><i style="width:' +
+      Math.round(Math.min(1, anteil) * 100) + '%"></i></div></div></div></div>';
+
+    html += '<div class="rows" style="margin-top:8px">';
+    for (let i = 0; i < MILESTONES.length; i++) {
+      const m = MILESTONES[i];
+      const da = !!erreicht[m.id];
+      // Weit entferntes bleibt stumm: alles ab dem übernächsten Schritt steht
+      // als Zeile da, aber ohne Text – sonst liest man zehn Versprechen und
+      // findet den nächsten Schritt nicht mehr.
+      const naeher = da || (offen && m.at <= offen.at + 0.13);
+      html += '<div class="row' + (da ? '' : ' dim') + '">' +
+        ico(m.icon || 'icon_star', 'lg') +
+        '<div class="grow"><div class="title">' + Math.round(m.at * 100) + '% · ' +
+        escapeHtml(m.name) + '</div>' +
+        '<div class="meta"><span>' +
+        (naeher ? escapeHtml(m.hint) : 'Noch zu weit weg, um etwas darüber zu sagen.') +
+        '</span></div></div>' +
+        (da ? '<span class="row-btn ghost">' + ico('icon_check') + '</span>' : '') +
+        '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
   /* ---------------- Werkbank ---------------- */
 
   _craft() {
@@ -481,10 +533,18 @@ export class Panels {
 
     for (let i = 0; i < RECIPES.length; i++) {
       const rec = RECIPES[i];
-      if (rec.kind === 'tool' && (g.player.levels[rec.tool] || 1) >= rec.level) continue;
-      if (rec.kind === 'tool' && (g.player.levels[rec.tool] || 1) < rec.level - 1) continue;
+      // Stufe 0 heißt „noch gar nicht gebaut". Mit `|| 1` galt die ungebaute
+      // Gießkanne als Stufe 1 – ihr eigener Bauplan verschwand damit aus der
+      // Liste, kaum dass der Meilenstein ihn freigegeben hatte.
+      const stufe = g.player.levels[rec.tool] || 0;
+      if (rec.kind === 'tool' && stufe >= rec.level) continue;
+      if (rec.kind === 'tool' && stufe < rec.level - 1) continue;
       if (rec.kind === 'bag' && g.state.bagUpgrades >= (rec.max || 1)) continue;
+      if (rec.kind === 'bag' && g.state.bagUpgrades < (rec.min || 0)) continue;
       if (rec.once && g.state.crafted[rec.id]) continue;
+      // Was ein Meilenstein freigibt, steht vorher gar nicht da. Ein Bauplan,
+      // den man nur ansehen darf, ist keine Vorfreude, sondern eine Sperre.
+      if (rec.needs && !g.hasMilestone(rec.needs)) continue;
 
       const locked = fire < (rec.fire || 1);
       const miss = missingFor(rec, g.inventory, g.state.ember);
@@ -703,7 +763,9 @@ export class Panels {
       ['icon_flowerbed', b.decor, 'Stück aufgestellt', 'Stücke aufgestellt'],
       ['icon_seed_berry', b.planted, 'Beet gesät', 'Beete gesät'],
       ['icon_berry', b.harvest, 'Beet geerntet', 'Beete geerntet'],
+      ['icon_can', b.watered, 'Beet gegossen', 'Beete gegossen'],
       ['icon_heart', b.gifts, 'Mitbringsel verschenkt', 'Mitbringsel verschenkt'],
+      ['icon_star', b.milestones, 'Meilenstein erreicht', 'Meilensteine erreicht'],
       ['icon_coin', b.coins, 'Münze verdient', 'Münzen verdient'],
       ['icon_ember', b.ember, 'Glut gesammelt', 'Glut gesammelt'],
     ].filter(function (z) { return z[1] > 0; });
