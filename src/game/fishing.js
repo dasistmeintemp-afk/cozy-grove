@@ -35,6 +35,8 @@ export class Fishing {
     this.zoneStart = 0.4;
     this.zoneSize = 0.24;
     this.fish = null;
+    /** Fisch-Kennung, die heute besonders oft beißt – oder null. */
+    this.boost = null;
     this.result = null;
     this.hint = '';
   }
@@ -53,8 +55,13 @@ export class Fishing {
     const pool = fishesOf(kind, night);
     if (!pool.length) return false;
 
+    // Am Fischschwarmtag steht eine Art dick vor der Küste. Das ist der
+    // einzige Weg, an einen sehr seltenen Fisch verlässlich heranzukommen –
+    // sonst hängt er allein am Glück.
+    const boost = this.boost;
     const weighted = pool.map(function (f) {
-      return { f: f, weight: 1 / (f.rarity * f.rarity) };
+      const w = 1 / (f.rarity * f.rarity);
+      return { f: f, weight: f.id === boost ? w * 12 : w };
     });
     this.fish = pickWeighted(weighted, rng).f;
     this.bobber.x = p.x;

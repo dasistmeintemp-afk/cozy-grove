@@ -34,6 +34,8 @@ export class Shop {
     this.stock = [];
     this.wanted = null;
     this.wantedBonus = 2;
+    /** Aufschlag aus dem Tagesereignis; 1 heißt: ein ganz normaler Tag. */
+    this.dayBonus = 1;
     this.day = 0;
   }
 
@@ -70,10 +72,18 @@ export class Shop {
   }
 
   /** Verkaufspreis inkl. Tagesgesuch. */
+  /**
+   * Was der Händler zahlt.
+   *
+   * `dayBonus` ist der Aufschlag am Markttag. Er greift auch auf das Gesuch
+   * des Tages – wer am Markttag genau das Gesuchte bringt, hat einen richtig
+   * guten Tag, und das darf sich anfühlen wie einer.
+   */
   sellPrice(id) {
     const it = getItem(id);
     if (!it || it.value <= 0) return 0;
-    return id === this.wanted ? Math.round(it.value * this.wantedBonus) : it.value;
+    const basis = id === this.wanted ? it.value * this.wantedBonus : it.value;
+    return Math.round(basis * (this.dayBonus || 1));
   }
 
   entry(id) {

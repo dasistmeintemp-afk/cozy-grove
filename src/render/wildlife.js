@@ -17,11 +17,21 @@ import { bugsOf } from '../game/items.js';
 
 const MAX = 9;
 
+/**
+ * Am Falterzug fliegt mehr und öfter.
+ *
+ * Zwei Zahlen statt einer Sonderbehandlung: die Höchstzahl gleichzeitig und
+ * wie schnell nachkommt. So bleibt der Rest der Datei frei von Ereignissen.
+ */
+const SCHWARM_MAX = 16;
+
 export class Wildlife {
   constructor(rng) {
     this.rng = rng || Math.random;
     this.list = [];
     this._spawnTimer = 0;
+    /** Falterzug: mehr Falter, und sie kommen schneller nach. */
+    this.swarm = false;
     /** Wird beim Fischsprung gerufen – das Spiel hängt dort den Klang an. */
     this.onJump = null;
   }
@@ -80,8 +90,9 @@ export class Wildlife {
     }
 
     this._spawnTimer -= dt;
-    if (this._spawnTimer > 0 || this.list.length >= MAX) return;
-    this._spawnTimer = randRange(rng, 1.4, 4.5);
+    const grenze = this.swarm ? SCHWARM_MAX : MAX;
+    if (this._spawnTimer > 0 || this.list.length >= grenze) return;
+    this._spawnTimer = this.swarm ? randRange(rng, 0.5, 1.6) : randRange(rng, 1.4, 4.5);
 
     // Ein Fischsprung ist zu jeder Tageszeit möglich
     if (rng() < 0.3 && this._spawnJump(camera, world, viewW, viewH)) return;

@@ -14,13 +14,14 @@ import { Player, TOOLS } from './player.js';
 import { Inventory } from './inventory.js';
 import { QuestBook, QTYPE } from './quests.js';
 import { CROPS, cropOfSeed, stageOf, daysToRipe, growthPerDay, harvestOf } from './crops.js';
+import { todayOf, shoalIndex } from './calendar.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
 import { SPIRITS, friendshipLevel, friendshipGift } from './spirits.js';
 import { StoryBook, STAGES, storyArt, keepsakeOf, storyLine, storyClose, storyIntro } from './stories.js';
 import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
-import { getItem, itemName, CAT, CONDITIONAL } from './items.js';
+import { getItem, itemName, CAT, CONDITIONAL, fishesOf } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES } from '../world/worldgen.js';
@@ -99,6 +100,8 @@ export class Game {
     this.weather.snap();
     this._placeStoryPieces(this.day.day);
 
+    this.refreshToday();
+
     // Strichliste für den Rückblick: neu anlegen, wenn es keine gibt oder sie
     // noch von einem früheren Tag stammt (etwa aus einem alten Spielstand).
     if (!this.state.daybook || this.state.daybook.day !== this.day.day) this._daybookStart();
@@ -117,6 +120,15 @@ export class Game {
     // (über `file://` überlebt sie das Schließen nicht), einmal daran
     // erinnern – sonst merkt niemand, dass sein eingerichtetes Speichern
     // gerade nicht greift, und wundert sich später über einen alten Stand.
+    // Was heute los ist, muss man erfahren, ohne danach zu suchen.
+    const heute = this.today;
+    if (heute && heute.event) {
+      const self4 = this;
+      setTimeout(function () {
+        self4.ui.toast(heute.event.name + ' · ' + heute.event.hint, heute.event.icon, 'good');
+      }, 3200);
+    }
+
     const self3 = this;
     savefile.restoreLink().then(function (name) {
       if (name || !savefile.pendingLinkName()) return;
@@ -407,6 +419,7 @@ export class Game {
     this._ambient(dt);
     this.weather.update(dt);
     this._syncConditionalSpawns();
+    this._shootingStars(dt);
     this._checkVisits(dt);
 
     const mustSleep = this.day.update(dt);
@@ -821,10 +834,34 @@ export class Game {
 
     const rng = dailyRng(this.world.seed, this.day.day, 'cond' + key);
     const jetzt = { night: night, rain: rain, fog: fog };
+    // In der Sternennacht öffnen sich mehr Mondblumen. Das ist der einzige
+    // Weg, an dieser Stelle spürbar mehr zu bekommen, ohne eine zweite
+    // Spawn-Mechanik danebenzustellen.
+    const sterne = !!(this.today && this.today.event && this.today.event.id === 'stars');
     for (let i = 0; i < CONDITIONAL.length; i++) {
       const item = CONDITIONAL[i];
-      this.world.syncConditional(item.id, !!jetzt[item.onlyAt], rng, item.spawn || 6);
+      const n = (item.spawn || 6) * (sterne && item.onlyAt === 'night' ? 3 : 1);
+      this.world.syncConditional(item.id, !!jetzt[item.onlyAt], rng, n);
     }
+  }
+
+  /**
+   * Sternschnuppen in der Sternennacht.
+   *
+   * Nur ein Bild, keine Mechanik: Man kann nichts damit machen, und genau das
+   * ist der Punkt. Ein Spiel, in dem jede schöne Sache auch eine Aufgabe ist,
+   * wird anstrengend.
+   */
+  _shootingStars(dt) {
+    if (!this.today || !this.today.event || this.today.event.id !== 'stars') return;
+    if (!this.day.isDark()) return;
+    this._starTimer = (this._starTimer || 0) - dt;
+    if (this._starTimer > 0) return;
+    this._starTimer = 1.6 + Math.random() * 3.4;
+    const x = this.camera.ox + Math.random() * this.renderer.viewW;
+    const y = this.camera.oy + Math.random() * this.renderer.viewH * 0.45;
+    this.particles.burst('sparkle', x, y, 14);
+    this.audio.play('star');
   }
 
   /**
@@ -1166,6 +1203,47 @@ export class Game {
       }
     }
     return out;
+  }
+
+  /* ---------------- Der Kalender ---------------- */
+
+  /**
+   * Was heute für ein Tag ist – nach dem Kalender des Rechners.
+   *
+   * Absichtlich das Datum und nicht die Uhrzeit: Ein Inseltag dauert 14
+   * Minuten, eine Bindung an die echte Uhr hätte zwei Uhren gegeneinander
+   * laufen lassen, und wer abends spielt, käme an nichts heran, was vormittags
+   * passiert. Das Datum macht jeden Tag anders, ohne jemanden auszusperren.
+   */
+  refreshToday() {
+    const vorher = this.today && this.today.event ? this.today.event.id : null;
+    this.today = todayOf(new Date());
+    this._applyToday();
+    return this.today.event && this.today.event.id !== vorher;
+  }
+
+  /** Die Wirkungen des Tagesereignisses an die Systeme weitergeben. */
+  _applyToday() {
+    const ev = this.today && this.today.event ? this.today.event.id : null;
+    this.shop.dayBonus = ev === 'market' ? 1.35 : 1;
+    this.wildlife.swarm = ev === 'moths';
+    if (ev === 'shoal') {
+      const pool = fishesOf('sea', false).concat(fishesOf('fresh', false));
+      const fisch = pool[shoalIndex(new Date(), pool.length)];
+      this.fishing.boost = fisch ? fisch.id : null;
+    } else {
+      this.fishing.boost = null;
+    }
+  }
+
+  /** Was der Tageswechsel an die Welt weiterreicht. */
+  _todayWorldEffects() {
+    const ev = this.today && this.today.event ? this.today.event.id : null;
+    return {
+      digs: ev === 'digs' ? 2 : 1,
+      bloom: ev === 'bloom' ? 10 : 0,
+      stars: ev === 'stars',
+    };
   }
 
   /* ---------------- Garten ---------------- */
@@ -1762,7 +1840,10 @@ export class Game {
     this.day.sleep();
     const day = this.day.day;
     this._daybookStart();
-    this.world.newDay(day);
+    // Der Kalender kann sich über Nacht gedreht haben – wer bis nach
+    // Mitternacht spielt, bekommt dann auch das Ereignis von morgen.
+    this.refreshToday();
+    this.world.newDay(day, this._todayWorldEffects());
     // Erst das Wetter des neuen Tages, dann wachsen lassen: Regen zählt
     // doppelt, und das soll der Regen von heute sein, nicht der von gestern.
     this.weather.setDay(this.world.seed, day);
@@ -1800,6 +1881,13 @@ export class Game {
         self.ui.toast(self.weather.kind === 'rain' ? 'Es regnet' : 'Nebel liegt über der Insel',
           self.weather.kind === 'rain' ? 'icon_bottle' : 'icon_ghost');
       }, 1400);
+    }
+    if (this.today && this.today.event) {
+      const self3 = this;
+      const ev = this.today.event;
+      setTimeout(function () {
+        self3.ui.toast(ev.name + ' · ' + ev.hint, ev.icon, 'good');
+      }, 3200);
     }
     // Der eigentliche Grund, morgens aufzustehen.
     if (frischReif > 0) {

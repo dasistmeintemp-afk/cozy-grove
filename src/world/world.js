@@ -355,8 +355,20 @@ export class World {
    * Erneuert die Insel für einen neuen Tag:
    * abgebaute Objekte kehren zurück, Grabstellen werden neu verteilt.
    */
-  newDay(day) {
+  /**
+   * @param {number} day Inseltag
+   * @param {object} [ereignis] Tagesereignis: { digs: Faktor, bloom: Anzahl }
+   */
+  newDay(day, ereignis) {
     const rng = dailyRng(this.seed, day, 'world');
+    const ev = ereignis || {};
+
+    // Was ein Tagesereignis gestern ausgestreut hat, wird zuerst wieder
+    // eingesammelt. Sonst blühte die Insel nach einer Woche Blütentagen
+    // durchgehend, und das Besondere wäre verbraucht.
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      if (this.entities[i].fromEvent) this.remove(this.entities[i]);
+    }
 
     for (let i = 0; i < this.entities.length; i++) {
       const e = this.entities[i];
@@ -378,8 +390,38 @@ export class World {
       }
     }
 
-    this._respawnDigspots(rng);
+    this._respawnDigspots(rng, ev.digs || 1);
+    if (ev.bloom) this._scatterBloom(rng, ev.bloom);
     return this;
+  }
+
+  /**
+   * Blütentag: zusätzliche Blumen über die freigeschalteten Bereiche.
+   *
+   * Sie tragen `fromEvent` und verschwinden am nächsten Morgen wieder – ein
+   * Blütentag soll ein Tag sein, kein dauerhafter Zustand.
+   */
+  _scatterBloom(rng, count) {
+    const arten = ['flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'];
+    const regions = [REGION.CAMP, REGION.FOREST, REGION.CLIFFS];
+    for (let r = 0; r < regions.length; r++) {
+      if (!this.unlocked[regions[r]]) continue;
+      const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
+        return t === T.GRASS || t === T.DIRT;
+      });
+      let placed = 0;
+      let guard = 0;
+      while (placed < count && guard++ < 500 && spots.length) {
+        const s = spots[Math.floor(rng() * spots.length)];
+        const wx = (s.x + 0.5) * TILE_SIZE;
+        const wy = (s.y + 0.5) * TILE_SIZE;
+        if (this._tooClose(wx, wy, 56)) continue;
+        const e = makeEntity(arten[Math.floor(rng() * arten.length)], wx, wy);
+        e.fromEvent = true;
+        this.add(e);
+        placed++;
+      }
+    }
   }
 
   /**
@@ -418,7 +460,7 @@ export class World {
     }
   }
 
-  _respawnDigspots(rng) {
+  _respawnDigspots(rng, faktor) {
     for (let i = this.entities.length - 1; i >= 0; i--) {
       if (this.entities[i].kind === 'digspot') this.remove(this.entities[i]);
     }
@@ -428,7 +470,7 @@ export class World {
       const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
         return t === T.SAND || t === T.GRASS || t === T.DIRT;
       });
-      const count = regions[r] === REGION.CAMP ? 9 : 7;
+      const count = Math.round((regions[r] === REGION.CAMP ? 9 : 7) * (faktor || 1));
       let placed = 0;
       let guard = 0;
       while (placed < count && guard++ < 400 && spots.length) {

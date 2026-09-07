@@ -7,6 +7,8 @@ import { audio } from './core/audio.js';
 import { Game } from './game/game.js';
 import * as storage from './core/storage.js';
 import { makeClock, advance, FIXED_DT } from './core/clock.js';
+import { applySeason } from './art/season.js';
+import { seasonOf } from './game/calendar.js';
 
 const canvas = document.getElementById('game');
 const stage = document.getElementById('stage');
@@ -172,6 +174,10 @@ function paintArt(done) {
   requestAnimationFrame(function () {
     setTimeout(function () {
       const t0 = (window.performance || Date).now();
+      // Die Jahreszeit MUSS vor dem Malen feststehen: Danach stehen die
+      // Grafiken, und ein Wechsel bliebe ohne Wirkung. Dafür kostet er so
+      // auch nichts – die Wiese und die Kronen kommen von selbst richtig.
+      applySeason(seasonOf(new Date()).id);
       initArt();
       const ms = Math.round(((window.performance || Date).now()) - t0);
       if (window.console && window.console.info) console.info('Grafik gemalt in ' + ms + ' ms');

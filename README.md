@@ -154,6 +154,26 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 * **Freundschaft.** Alle drei erledigten Aufgaben steigt die Stufe bei einem
   Geist. Das bringt ein Geschenk, mehr Farbe ringsum und dauerhaft besseren
   Lohn für seine Aufgaben.
+* **Jahreszeiten nach dem echten Kalender.** Im April steht die Insel in
+  frischem Grün, im Juli tief und satt, im Oktober in Gold, im Januar hell und
+  kühl. Wiese, Kronen, Büsche und Moos wechseln mit – ohne eine einzige
+  zusätzliche Grafik: Es wird ohnehin alles beim Start gemalt, und die
+  Jahreszeit steht davor fest. Keine davon ist grau; das Spiel handelt vom
+  Zurückbringen der Farbe, ein trister Winter widerspräche genau dem.
+* **Ein Tagesereignis je echtem Kalendertag.** Markttag (der Händler zahlt ein
+  Drittel mehr), Fundtag (doppelt so viele Grabstellen), Blütentag (die Insel
+  blüht, morgen wieder vorbei), Falterzug (viel mehr Falter), Fischschwarm
+  (eine Art beißt zwölfmal so oft – der einzige verlässliche Weg zu einem sehr
+  seltenen Fisch) und die Sternennacht (Sternschnuppen, dreimal so viele
+  Mondblumen). Etwa jeder vierte Tag hat bewusst keines: Wäre jeden Tag etwas
+  Besonderes, wäre nichts mehr besonders. Es steht oben im Aufgabenfenster.
+
+  Warum das **Datum** und nicht die Uhrzeit: Ein Inseltag dauert 14 Minuten.
+  An die echte Uhr gebunden liefen zwei Uhren gegeneinander – mittags auf der
+  Insel, Mitternacht im Fenster –, und wer abends spielt, käme an alles nicht
+  heran, was vormittags passiert. Das Datum ist grob genug: Es macht jeden Tag
+  anders, ohne jemanden auszusperren, und zwei Leute am selben Tag erleben
+  dasselbe.
 * **Der Garten.** Die eine Sache im Spiel, die von *gestern* abhängt: Saat
   kaufst du beim Händler (drei Sorten liegen immer im Regal, die Mondsaat nur
   manchmal), säst sie auf Wiese oder Erde, und in zwei bis vier Tagen steht
@@ -300,8 +320,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 114 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Tasche …
-npm run test:browser   # 77 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 127 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
+npm run test:browser   # 83 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

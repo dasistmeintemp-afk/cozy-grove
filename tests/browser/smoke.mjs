@@ -283,6 +283,89 @@ async function run() {
     check('Die Welt steht noch hinter dem Fenster',
       nichtLeer.spanne > 5 && nichtLeer.hell > 40, JSON.stringify(nichtLeer));
 
+    /* ---- Jahreszeit und Tagesereignis ---- */
+    // Beides hängt am Kalender des Rechners. Geprüft wird nicht, WELCHER Tag
+    // heute ist – das wäre ein Test, der irgendwann von selbst rot wird –,
+    // sondern dass die Wirkung wirklich ankommt.
+    const kalender = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      const r = { heute: g.today ? {
+        season: g.today.season.id,
+        event: g.today.event ? g.today.event.id : null,
+      } : null };
+
+      // Jedes Ereignis der Reihe nach anlegen und nachsehen, ob es wirkt
+      const wirkung = {};
+      const alt = g.today.event;
+      function setze(id) {
+        g.today.event = id ? { id: id, name: id, hint: 'x', icon: 'icon_star' } : null;
+        g._applyToday();
+      }
+      setze(null);
+      const normal = { verkauf: g.shop.sellPrice('wood'), schwarm: g.wildlife.swarm,
+        fisch: g.fishing.boost };
+      setze('market');
+      wirkung.market = g.shop.sellPrice('wood') > normal.verkauf;
+      setze('moths');
+      wirkung.moths = g.wildlife.swarm === true;
+      setze('shoal');
+      wirkung.shoal = !!g.fishing.boost;
+      setze(null);
+      wirkung.zurueck = g.shop.sellPrice('wood') === normal.verkauf &&
+        g.wildlife.swarm === false && g.fishing.boost === null;
+
+      // Weltwirkungen: Fundtag und Blütentag
+      setze('digs');
+      g.world.newDay(g.day.day + 1, g._todayWorldEffects());
+      const grabenViel = g.world.entities.filter((e) => e.kind === 'digspot').length;
+      setze(null);
+      g.world.newDay(g.day.day + 2, g._todayWorldEffects());
+      const grabenNormal = g.world.entities.filter((e) => e.kind === 'digspot').length;
+      setze('bloom');
+      g.world.newDay(g.day.day + 3, g._todayWorldEffects());
+      const bluehend = g.world.entities.filter((e) => e.fromEvent).length;
+      setze(null);
+      g.world.newDay(g.day.day + 4, g._todayWorldEffects());
+      const danach = g.world.entities.filter((e) => e.fromEvent).length;
+
+      g.today.event = alt;
+      g._applyToday();
+      return Object.assign(r, {
+        wirkung: wirkung,
+        grabenViel: grabenViel, grabenNormal: grabenNormal,
+        bluehend: bluehend, blumenDanach: danach,
+      });
+    });
+    check('Der Kalender bestimmt Jahreszeit und Tag',
+      !!kalender.heute && ['spring', 'summer', 'autumn', 'winter'].indexOf(kalender.heute.season) >= 0,
+      JSON.stringify(kalender.heute));
+    check('Markttag, Falterzug und Schwarm wirken wirklich',
+      kalender.wirkung.market && kalender.wirkung.moths && kalender.wirkung.shoal,
+      JSON.stringify(kalender.wirkung));
+    check('Nach dem Ereignis ist wieder ein normaler Tag',
+      kalender.wirkung.zurueck === true, JSON.stringify(kalender.wirkung));
+    check('Am Fundtag ist mehr gegraben worden',
+      kalender.grabenViel > kalender.grabenNormal * 1.5,
+      JSON.stringify({ viel: kalender.grabenViel, normal: kalender.grabenNormal }));
+    check('Der Blütentag blüht – und ist am nächsten Tag vorbei',
+      kalender.bluehend > 5 && kalender.blumenDanach === 0,
+      JSON.stringify({ am: kalender.bluehend, danach: kalender.blumenDanach }));
+
+    // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
+    // beim Aufwachen erwischt zu haben.
+    const tagesZeile = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      g.openPanel('quests');
+      const txt = document.getElementById('panel-body').textContent;
+      g.panels.close();
+      return {
+        jahreszeit: txt.indexOf(g.today.season.name) >= 0,
+        ereignis: !g.today.event || txt.indexOf(g.today.event.name) >= 0,
+      };
+    });
+    check('Aufgabenfenster nennt Jahreszeit und Tagesereignis',
+      tagesZeile.jahreszeit && tagesZeile.ereignis, JSON.stringify(tagesZeile));
+
     /* ---- Der Garten ---- */
     // Der ganze Kreislauf an einem Stück: säen, Tage vergehen lassen, ernten.
     // Das ist die eine Sache im Spiel, die von gestern abhängt – wenn sie

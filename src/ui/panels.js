@@ -383,6 +383,20 @@ export class Panels {
     const quests = g.quests.active();
     let html = '';
 
+    // Was für ein Tag heute ist, steht ganz oben – nicht versteckt in einer
+    // Meldung, die nach vier Sekunden weg ist.
+    const heute = g.today;
+    if (heute) {
+      html += '<div class="rows" style="margin-bottom:12px"><div class="row">' +
+        ico(heute.event ? heute.event.icon : 'icon_day', 'lg') +
+        '<div class="grow"><div class="title">' +
+        escapeHtml(heute.event ? heute.event.name : 'Ein ruhiger Tag') +
+        ' · ' + escapeHtml(heute.season.name) + '</div>' +
+        '<div class="meta"><span>' +
+        escapeHtml(heute.event ? heute.event.hint : 'Nichts Besonderes – auch das gibt es.') +
+        '</span></div></div></div></div>';
+    }
+
     if (!quests.length) {
       html += '<p class="empty-note">Gerade nichts offen.<br>Schlaf im Zelt – morgen gibt es Neues.</p>';
     } else {
