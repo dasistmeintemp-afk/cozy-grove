@@ -271,11 +271,25 @@ export class Renderer {
     return { sx: sx, sy: sy, sw: Math.max(0, ex - sx), sh: Math.max(0, ey - sy) };
   }
 
+  /**
+   * Erst alles Flache, dann alles Aufrechte.
+   *
+   * Ein Teppich liegt auf dem Boden. Nach der Tiefe einsortiert kam er hinter
+   * die Figur, sobald sie über ihm stand – gemessen wechselten 422 von 650
+   * Bildpunkten im Rumpf die Farbe, der Teppich lag also über Seli. Flaches
+   * gehört in denselben Durchgang wie die Grundstücksgrenze: unter allem, was
+   * darauf steht. Untereinander bleiben die Teppiche nach Tiefe sortiert,
+   * damit sich zwei überlappende sinnvoll schichten.
+   */
   _drawEntities(ctx, game, list, time) {
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].flat) this._drawEntity(ctx, game, list[i], time);
+    }
     const playerY = game.player.y;
     let playerDrawn = false;
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
+      if (e.flat) continue;
       if (!playerDrawn && e.y > playerY) {
         this._drawPlayer(ctx, game, time);
         playerDrawn = true;

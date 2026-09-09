@@ -758,6 +758,62 @@ async function run() {
     });
     check('Deko landet in der Welt', placed.after > placed.before, JSON.stringify(placed));
 
+    // Ein Teppich liegt auf dem Boden. Nach der Tiefe einsortiert kam er vor
+    // die Figur, sobald sie über ihm stand – gemessen an Bildpunkten war das
+    // nicht sauber zu trennen (der Teppich hat fast Selis Farben), an der
+    // Zeichenreihenfolge dagegen eindeutig.
+    const schichten = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const R = g.renderer;
+      // NICHTS wegräumen: Ein erster Entwurf setzte alles im Umkreis auf
+      // `gone` und erwischte damit die Vorratstruhe – vier spätere Prüfungen
+      // fielen um. Für die Reihenfolge braucht es nur Teppich und Figur.
+      const heimX = g.player.x;
+      const heimY = g.player.y;
+
+      g.inventory.add('rug', 1);
+      g.startPlacing('rug');
+      g._updatePlacing();
+      let versuche = 0;
+      while (g.placing && !g.placing.valid && versuche++ < 40) {
+        g.player.x += 24;
+        g._updatePlacing();
+      }
+      g.confirmPlacing();
+      const t = g.world.entities.filter((e) => e.kind === 'decor' && e.itemId === 'rug')[0];
+      if (!t) return { fehler: 'kein Teppich' };
+      g.camera.snapTo(g.player.x, g.player.y);
+      // Knapp VOR die Figur: nach Tiefe sortiert käme er damit über sie.
+      t.x = g.player.x;
+      t.y = g.player.y + 22;
+      g.world.reindex(t);
+
+      const folge = [];
+      const origE = R._drawEntity;
+      const origP = R._drawPlayer;
+      R._drawEntity = function (ctx, game, e, time) {
+        if (e === t) folge.push('teppich');
+        return origE.call(this, ctx, game, e, time);
+      };
+      R._drawPlayer = function (ctx, game, time) {
+        folge.push('figur');
+        return origP.call(this, ctx, game, time);
+      };
+      g.invalidate();
+      for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(() => r()));
+      R._drawEntity = origE;
+      R._drawPlayer = origP;
+      t.gone = true;
+      g.player.x = heimX;
+      g.player.y = heimY;
+      g.camera.snapTo(heimX, heimY);
+      return { flach: !!t.flat, folge: folge.slice(-2) };
+    });
+    check('Flaches liegt unter der Figur, auch wenn sie dahinter steht',
+      schichten.flach === true && schichten.folge &&
+      schichten.folge[0] === 'teppich' && schichten.folge[1] === 'figur',
+      JSON.stringify(schichten));
+
     // Angeln (Ablauf komplett durchspielen)
     const fished = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
