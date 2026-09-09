@@ -213,10 +213,13 @@ export class World {
     // Der Briefkasten steht neben dem Zelt: Wer morgens aufwacht, läuft
     // an ihm vorbei, ohne ihn suchen zu müssen.
     this.mailbox = this.add(makeEntity('mailbox', px(cx - 7), px(cy - 1)));
-    // Die Truhe steht immer da; sichtbar wird sie erst mit der ersten
-    // Ausbaustufe (siehe `Game.syncStorage`).
+    // Die Truhe steht von Anfang an da – wie die Boote am Sund. Bis die
+    // erste Ausbaustufe bezahlt ist, lässt sie sich nur nicht öffnen.
+    //
+    // Vorher war sie `gone`, und `_canPlaceAt` überspringt genau das: Man
+    // konnte eine Bank auf ihren Platz stellen, und nach dem Bezahlen stand
+    // die Truhe mitten darin.
     this.storage = this.add(makeEntity('storage', px(cx + 7), px(cy + 3)));
-    this.storage.gone = true;
     this.fox = this.add(makeEntity('fox', px(cx + 4), px(cy + 7)));
   }
 

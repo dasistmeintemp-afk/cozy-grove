@@ -1091,7 +1091,15 @@ export class Game {
       case 'bridge': this._tryBridge(entity); break;
       case 'boat': this._takeBoat(entity); break;
       case 'mail': this.openPanel('mail'); break;
-      case 'storage': this.openPanel('storage'); break;
+      case 'storage':
+        // Wie das vertäute Boot: Sie steht da, sie geht nur noch nicht auf.
+        if (statusOf(this.state.loan).stage < 1) {
+          this.ui.toast('Verschlossen. Der Händler baut sie dir – frag ihn.', 'icon_bag');
+          this.audio.play('ui');
+          break;
+        }
+        this.openPanel('storage');
+        break;
       default: break;
     }
   }
@@ -1453,7 +1461,6 @@ export class Game {
         : new Inventory(0);
     }
     this.storage.capacity = Math.max(this.storage.capacity || 0, slotsAt(stand.stage));
-    if (this.world.storage) this.world.storage.gone = stand.stage < 1;
     this.invalidate();
   }
 
@@ -2164,9 +2171,23 @@ export class Game {
     const near = this.world.queryNear(x, y, 90);
     for (let i = 0; i < near.length; i++) {
       const e = near[i];
-      if (e.gone) continue;
       const d = defOf(e.kind);
       if (!d) continue;
+      // Was zurückkommt, hält seinen Platz frei.
+      //
+      // Gefällt ist nicht weg: Der Baum steht in drei Tagen wieder da. Ohne
+      // diese Zeile konnte man eine Bank auf den Stumpf stellen – und am
+      // dritten Morgen wuchs der Baum mitten durch die Bank. Laufen darf man
+      // über die Stelle weiterhin (siehe `World.blockShape`); nur bebauen
+      // nicht.
+      if (e.gone) {
+        if (!e.respawnDay) continue;
+        const rr = (d.blockR || 20) + 16;
+        const dx = e.x - x;
+        const dy = e.y - y;
+        if (dx * dx + dy * dy < rr * rr) return false;
+        continue;
+      }
       if (d.category === 'station' || d.category === 'spirit' || d.category === 'fox') {
         const dx = e.x - x;
         const dy = e.y - y;
@@ -2542,7 +2563,10 @@ export class Game {
       this.ui.setPrompt(offen ? 'Post (' + offen + ')' : 'Briefkasten');
       return;
     }
-    if (def.station === 'storage') { this.ui.setPrompt('Vorrat'); return; }
+    if (def.station === 'storage') {
+      this.ui.setPrompt(statusOf(this.state.loan).stage < 1 ? 'Verschlossen' : 'Vorrat');
+      return;
+    }
     if (def.station === 'campfire') { this.ui.setPrompt('Lagerfeuer'); return; }
     if (def.station === 'craft') { this.ui.setPrompt('Werkbank'); return; }
     if (def.station === 'shop') { this.ui.setPrompt('Laden'); return; }

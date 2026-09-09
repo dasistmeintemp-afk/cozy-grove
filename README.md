@@ -406,7 +406,7 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 
 ```bash
 npm test               # 186 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
-npm run test:browser   # 131 Prüfungen im echten Browser, mit Bildschirmfotos
+npm run test:browser   # 136 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

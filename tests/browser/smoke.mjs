@@ -1199,17 +1199,14 @@ async function run() {
       g.player.y = e.y + 230;
       g.camera.snapTo(g.player.x, g.player.y);
       await new Promise((r) => setTimeout(r, 700));
-      function warm(wx, wy, r) {
+      // Die Pixel derselben Stelle, roh. Verglichen wird später Pixel für
+      // Pixel – ein Farbanteil in einem Kästchen sagt nur, wie warm die
+      // Gegend ist, und die Gegend wechselt mit jedem Zufallsseed.
+      function bild(wx, wy, r) {
         const R = g.renderer;
         const sx = Math.round((wx - g.camera.ox) * R.zoom);
         const sy = Math.round((wy - g.camera.oy) * R.zoom);
-        const d = R.ctx.getImageData(sx - r, sy - r, r * 2, r * 2).data;
-        let n = 0; let treffer = 0;
-        for (let i = 0; i < d.length; i += 4) {
-          n++;
-          if (d[i] - d[i + 2] > 34) treffer++;
-        }
-        return Math.round(treffer / n * 100);
+        return R.ctx.getImageData(sx - r, sy - r, r * 2, r * 2).data;
       }
       // Gemessen wird DIESELBE Stelle einmal ohne und einmal mit Fundstück.
       // Ein zweiter Ort als Vergleich taugt nicht: Herbstbäume, Sand und das
@@ -1231,14 +1228,32 @@ async function run() {
       }
       e.gone = true;
       await neuZeichnen();
-      const ohne = warm(e.x, e.y - 80, 70);
+      const ohne = bild(e.x, e.y - 80, 70);
       e.gone = false;
       await neuZeichnen();
-      const mit = warm(e.x, e.y - 80, 70);
-      return { ohne: ohne, mit: mit };
+      const mit = bild(e.x, e.y - 80, 70);
+
+      // Wie viele Pixel haben sich geändert, und wie stark?
+      let geaendert = 0;
+      let summe = 0;
+      for (let i = 0; i < ohne.length; i += 4) {
+        const d = Math.abs(ohne[i] - mit[i]) + Math.abs(ohne[i + 1] - mit[i + 1]) +
+          Math.abs(ohne[i + 2] - mit[i + 2]);
+        if (d > 24) geaendert++;
+        summe += d;
+      }
+      return {
+        pixel: ohne.length / 4,
+        geaendert: geaendert,
+        anteil: Math.round(geaendert / (ohne.length / 4) * 1000) / 10,
+      };
     });
+    // Gemessen wird die ÄNDERUNG an denselben Pixeln, nicht ein Farbanteil.
+    // Ein Kästchen über Herbstlaub ist schon zu 65 % warm; ob ein Fundstück
+    // darin liegt, macht daran nur ein Prozent aus – die Prüfung maß also die
+    // Gegend, nicht das Fundstück.
     check('Fundstück ist im Bild zu erkennen',
-      !fund.keins && fund.mit >= fund.ohne + 5, JSON.stringify(fund));
+      !fund.keins && fund.anteil > 1.5, JSON.stringify(fund));
 
     /* ---- Mitbringsel ---- */
     const mitbringsel = await page.evaluate(() => {
@@ -1829,6 +1844,8 @@ async function run() {
       g.storage = null;
       g.syncStorage();
       const vorher = { truheDa: !g.world.storage.gone, plaetze: g.storage.capacity };
+      // Sie steht da – aber sie fasst nichts, bevor sie bezahlt ist.
+      vorher.nimmtNichts = g.moveToStorage('wood', 1);
 
       g.state.coins = 100000;
       g.payLoanAmount(999999);           // erste Stufe ganz bezahlen
@@ -1850,8 +1867,11 @@ async function run() {
       g.panels.close();
       return { vorher, nachher, rein, inTruhe, raus, nachRaus: g.storage.count('wood'), haelften };
     });
-    check('Ohne Ausbau steht keine Truhe da',
-      truhe.vorher.truheDa === false && truhe.vorher.plaetze === 0, JSON.stringify(truhe.vorher));
+    // Sie steht von Anfang an da, wie das vertäute Boot – aber sie fasst
+    // nichts, solange niemand für sie bezahlt hat.
+    check('Vor dem Ausbau fasst die Truhe nichts',
+      truhe.vorher.truheDa === true && truhe.vorher.plaetze === 0 &&
+      truhe.vorher.nimmtNichts === 0, JSON.stringify(truhe.vorher));
     check('Bezahlen stellt die Truhe hin und gibt Fächer',
       truhe.nachher.stufe === 1 && truhe.nachher.truheDa && truhe.nachher.plaetze >= 16 &&
       truhe.nachher.muenzen < 100000, JSON.stringify(truhe.nachher));
@@ -1860,6 +1880,66 @@ async function run() {
       JSON.stringify(truhe));
     check('Das Truhenfenster zeigt Tasche und Truhe nebeneinander',
       truhe.haelften === 2, JSON.stringify(truhe.haelften));
+
+    // Was zurückkommt, hält seinen Platz frei. Ein gefällter Baum ist nicht
+    // weg – er steht in drei Tagen wieder da, und ohne diese Regel wuchs er
+    // mitten durch die Bank, die man auf seinen Stumpf gestellt hatte.
+    const platz = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      // Einen freien Fleck weit weg vom Lager suchen
+      let baum = null;
+      for (const e of g.world.entities) {
+        if (e.kind !== 'tree_oak' || e.gone) continue;
+        if (g.world.regionAtPixel(e.x, e.y) !== 0) continue;
+        baum = e; break;
+      }
+      if (!baum) return { keiner: true };
+      const vorher = g._canPlaceAt(baum.x, baum.y);
+      baum.gone = true;
+      baum.respawnDay = g.day.day + 3;
+      const gefaellt = g._canPlaceAt(baum.x, baum.y);
+      // Ein endgültig entferntes Objekt (ohne Rückkehr) gibt seinen Platz frei
+      baum.respawnDay = 0;
+      const endgueltig = g._canPlaceAt(baum.x, baum.y);
+      // Und ein paar Schritte weiter geht es weiterhin
+      const daneben = g._canPlaceAt(baum.x + 130, baum.y + 130);
+      baum.gone = false;
+      baum.respawnDay = 0;
+      return { vorher, gefaellt, endgueltig, daneben };
+    });
+    check('Auf einem stehenden Baum lässt sich nichts aufstellen',
+      platz.vorher === false, JSON.stringify(platz));
+    check('Auch nicht auf einem, der zurückkommt',
+      platz.gefaellt === false, JSON.stringify(platz));
+    check('Endgültig Entferntes gibt seinen Platz aber frei',
+      platz.endgueltig === true, JSON.stringify(platz));
+
+    // Die verschlossene Truhe steht da und hält ihren Platz
+    const truheZu = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      g.state.loan = { stage: 0, paid: 0 };
+      g.storage = null;
+      g.syncStorage();
+      const e = g.world.storage;
+      g.player.x = e.x;
+      g.player.y = e.y + 70;
+      g.target = g.player.findTarget(g.world);
+      g._updatePrompt();
+      const el = document.getElementById('prompt-text');
+      const vorher = g.panels.current;
+      g.useStation('storage', e);
+      return {
+        sichtbar: !e.gone,
+        hinweis: el ? el.textContent : '',
+        platzFrei: g._canPlaceAt(e.x, e.y),
+        fensterAuf: g.panels.current !== vorher,
+      };
+    });
+    check('Die Truhe steht von Anfang an da, nur verschlossen',
+      truheZu.sichtbar && truheZu.hinweis === 'Verschlossen' && !truheZu.fensterAuf,
+      JSON.stringify(truheZu));
+    check('Und ihr Platz bleibt frei von Deko',
+      truheZu.platzFrei === false, JSON.stringify(truheZu));
 
     /* ---- Die Stille Insel ---- */
     // Das Boot ist die einzige Verbindung. Vor dem Meilenstein muss es
