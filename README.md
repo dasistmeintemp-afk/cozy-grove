@@ -285,6 +285,20 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Farbe, hat beim Verschenken Vorrang und steht mit einem ★ im Hinweis.
   Vorher war jedes gemochte Ding gleich viel wert – man warf hin, was oben in
   der Tasche lag. Jetzt lohnt es sich, das Richtige aufzuheben.
+* **Federn.** Sie standen von Anfang an in der Gegenstandsliste, im
+  Botengang-Pool der Aufträge und im Fundbuch – aber es gab sie **nirgends**:
+  kein Objekt ließ sie fallen, kein Rezept, kein Laden, kein Katalog, keine
+  Post. Gemessen waren das acht unlösbare Aufträge in neunzig Tagen, und die
+  Materialreihe im Fundbuch konnte nie voll werden. Der Fingerzeig sagte
+  sogar „Aus Grabstellen" – und Grabstellen gaben keine.
+
+  Jetzt liegen sie im Gras unter Bäumen und am Strand (rund 34 je Insel), und
+  **unter einem aufgestellten Vogelhaus** liegt morgens mit halber Chance
+  eine. Damit tut auch das Vogelhaus endlich etwas: Es war bis dahin das
+  einzige Stück Deko ganz ohne Wirkung – ein Haus für Vögel, in dem nie einer
+  war, während über der Insel welche fliegen. Ein Test prüft seither, dass
+  **jeder Gegenstand eine Quelle hat**, dass kein Auftragspool auf
+  Unerreichbares zeigt und dass jede Fundbuchreihe vollmachbar ist.
 * **Fanggrößen.** Jeder Fisch wird gemessen, und das Fundbuch merkt sich
   deinen größten je Art – dazu, wie groß die Art überhaupt werden kann.
   Bessere Angel und ein perfekter Anhieb schieben die Größe nach oben, den

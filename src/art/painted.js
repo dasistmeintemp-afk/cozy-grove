@@ -1078,6 +1078,61 @@ export function paintHerb(opts) {
   return made(res, w, h, cx, baseY);
 }
 
+/**
+ * Eine Feder im Gras.
+ *
+ * Sie stand als Gegenstand von Anfang an in der Liste – ein Geist konnte
+ * sogar darum bitten –, aber es gab sie nirgends: kein Objekt ließ sie
+ * fallen, kein Rezept, kein Laden. Gemessen waren das acht unlösbare
+ * Aufträge in neunzig Tagen, und die Materialreihe im Fundbuch blieb für
+ * immer unvollständig. Jetzt liegt sie herum, wo Vögel sind.
+ *
+ * Schräg gelegt, nicht senkrecht: Eine stehende Feder sieht aus, als wäre
+ * sie eingepflanzt.
+ */
+export function paintFeather(opts) {
+  const o = opts || {};
+  const w = 72;
+  const h = 52;
+  const seed = o.seed || 271;
+  const cx = w / 2;
+  const baseY = h - 8;
+  // Kiel von unten links nach oben rechts, Fahne beidseitig daran
+  const a = [cx - 22, baseY - 2];
+  const b = [cx + 22, baseY - 34];
+  const fahne = smoothClosed([
+    a,
+    [cx - 12, baseY - 20], [cx + 2, baseY - 32], [cx + 16, baseY - 38],
+    b,
+    [cx + 12, baseY - 26], [cx - 2, baseY - 16], [cx - 14, baseY - 6],
+  ], 6);
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.0,
+    outline: 1.5,
+    shadow: function (g) { groundShadow(g, cx, baseY - 1, 20, 5, seed, 0.11); },
+    wash: function (g) {
+      wash(g, fahne, '#e4edf3', { seed: seed + 2, scale: 1.05 });
+      wash(g, offsetShape(fahne, 5, 4, 0.62), '#b9cbd8', { seed: seed + 3, alpha: 0.65 });
+    },
+    shape: function (g) { fill(g, fahne); },
+    ink: function (g) {
+      // Der Kiel und ein paar Fahnenstriche – ohne sie ist es ein Blatt
+      inkLine(g, a[0], a[1], b[0], b[1], { width: 1.8, bend: 0.05, seed: seed + 10, alpha: 0.75 });
+      for (let i = 1; i <= 4; i++) {
+        const t = i / 5;
+        const px = a[0] + (b[0] - a[0]) * t;
+        const py = a[1] + (b[1] - a[1]) * t;
+        inkLine(g, px, py, px - 7, py - 6,
+          { width: 1.2, bend: 0.06, seed: seed + 20 + i, color: ink.lineSoft, alpha: 0.5 });
+        inkLine(g, px, py, px + 6, py + 6,
+          { width: 1.2, bend: 0.06, seed: seed + 30 + i, color: ink.lineSoft, alpha: 0.45 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
 export function paintShell(opts) {
   const o = opts || {};
   const w = 64;

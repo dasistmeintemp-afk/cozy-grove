@@ -152,6 +152,15 @@ export const ENTITY_DEFS = {
     sprite: 'shell', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('shell', 1, 1), respawn: 1, category: 'forage',
   },
+  /**
+   * Federn lagen bisher in keiner Welt, obwohl ein Geist darum bitten
+   * konnte und das Fundbuch sie verlangte. Sie liegen dort, wo Vögel sind:
+   * unter Bäumen und am Strand.
+   */
+  feather: {
+    sprite: 'feather', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
+    yield: drop('feather', 1, 1), respawn: 1, sway: true, category: 'forage',
+  },
   driftwood: {
     sprite: 'driftwood', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
     yield: drop('driftwood', 1, 1), respawn: 1, category: 'forage',

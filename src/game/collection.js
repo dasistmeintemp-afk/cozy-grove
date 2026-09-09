@@ -88,7 +88,7 @@ export const HINTS = {
   resin: 'Von Ahorn und Kiefer.',
   clay: 'Beim Zerschlagen großer Findlinge.',
   shell: 'Am Strand, im Sand.',
-  feather: 'Aus Grabstellen.',
+  feather: 'Im Gras unter Bäumen und am Strand – und unter deinem Vogelhaus.',
   driftwood: 'Am Spülsaum, nach jedem Tag neu.',
 
   // Sammelgut

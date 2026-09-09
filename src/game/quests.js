@@ -44,7 +44,7 @@ export const QTYPE = {
   GROW: 'grow',
 };
 
-const POOLS = {
+export const POOLS = {
   gather_wood: ['wood', 'wood', 'hardwood', 'resin'],
   gather_forage: ['berry', 'mushroom', 'herb', 'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'],
   gather_beach: ['shell', 'driftwood', 'fiber'],
@@ -52,7 +52,7 @@ const POOLS = {
   gather: ['wood', 'stone', 'fiber', 'berry', 'shell', 'herb', 'mushroom', 'clay'],
 };
 
-const CRAFTABLE_ASKS = ['fence', 'path_tile', 'lantern', 'flowerbed', 'bench', 'birdhouse'];
+export const CRAFTABLE_ASKS = ['fence', 'path_tile', 'lantern', 'flowerbed', 'bench', 'birdhouse'];
 
 /**
  * Vorräte für Sammelbitten: drei VERSCHIEDENE aus einer Gruppe.
@@ -61,7 +61,7 @@ const CRAFTABLE_ASKS = ['fence', 'path_tile', 'lantern', 'flowerbed', 'bench', '
  * vierundachtzig Dreiergruppen. Eine Bitte um sechs Beeren erledigt man an
  * einem Busch – „von jeder eine" schickt einen über die halbe Insel.
  */
-const SET_POOLS = {
+export const SET_POOLS = {
   blumen: ['flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'],
   wald: ['berry', 'mushroom', 'herb', 'resin', 'fiber'],
   strand: ['shell', 'driftwood', 'fiber', 'bottle'],
@@ -78,7 +78,7 @@ const SET_NAMES = {
 const SET_KEYS = Object.keys(SET_POOLS);
 
 /** Was ein Geist gern von einem anderen geschickt bekommt. */
-const DELIVER_POOL = ['berry', 'herb', 'mushroom', 'shell', 'driftwood', 'resin',
+export const DELIVER_POOL = ['berry', 'herb', 'mushroom', 'shell', 'driftwood', 'resin',
   'wood', 'stone', 'clay', 'feather', 'flower_pink', 'flower_yellow'];
 
 /**

@@ -11,6 +11,7 @@ import {
   paintTree, paintPine, paintStump, paintLogBarrier,
   paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft,
   paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot,
+  paintFeather,
   paintMoonflower, paintRainmushroom, paintFogcrystal,
   paintCrop, paintSeedPouch,
 } from './painted.js';
@@ -311,6 +312,7 @@ export function initArt() {
     }
   }
   addArt('bowl', paintBowl({ seed: 1451 }));
+  addArt('feather', paintFeather({ seed: 271 }));
 
   /* --- Erinnerungsstücke --- */
   for (let i = 0; i < MEMORY_KINDS.length; i++) {

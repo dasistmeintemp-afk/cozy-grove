@@ -315,6 +315,8 @@ export class World {
     scatter(['herb'], grassCamp, 12, 48);
     scatter(['shell', 'driftwood'], sandCamp, 26, 48);
     scatter(['reeds'], sandCamp, 18, 48);
+    scatter(['feather'], sandCamp, 8, 56);
+    scatter(['feather'], grassCamp, 8, 60);
 
     // Wald
     scatter(['tree_oak', 'tree_pine', 'tree_birch', 'tree_maple'], grassForest, 78, 72);
@@ -322,6 +324,7 @@ export class World {
     scatter(['mushroom'], grassForest, 26, 44);
     scatter(['herb'], grassForest, 16, 48);
     scatter(['flower_violet', 'flower_white'], grassForest, 18, 48);
+    scatter(['feather'], grassForest, 12, 56);
     scatter(['rock_big', 'rock_small'], grassForest, 14, 72);
     scatter(['rock_ore'], grassForest, 4, 104);
     scatter(['grass_tuft'], grassForest, 26, 40);
@@ -362,6 +365,7 @@ export class World {
     scatter(['flower_violet'], cliffLand, 12, 48);
     scatter(['herb', 'mushroom'], cliffLand, 12, 48);
     scatter(['shell', 'driftwood'], cliffSand, 14, 48);
+    scatter(['feather'], cliffSand, 6, 56);
     scatter(['grass_tuft'], cliffLand, 16, 40);
   }
 
@@ -513,8 +517,37 @@ export class World {
     }
 
     this._respawnDigspots(rng, ev.digs || 1);
+    this._featherUnderBirdhouses(rng);
     if (ev.bloom) this._scatterBloom(rng, ev.bloom);
     return this;
+  }
+
+  /**
+   * Unter einem Vogelhaus liegt morgens manchmal eine Feder.
+   *
+   * Das Vogelhaus war bis dahin das einzige Stück Deko ohne jede Wirkung –
+   * ein Haus für Vögel, in dem nie ein Vogel war, während über der Insel
+   * welche fliegen. Und Federn brauchten ohnehin eine Quelle in der Nähe:
+   * Wer danach gefragt wird, soll nicht die halbe Karte absuchen.
+   */
+  _featherUnderBirdhouses(rng) {
+    for (let i = 0; i < this.entities.length; i++) {
+      const e = this.entities[i];
+      if (e.kind !== 'decor' || e.itemId !== 'birdhouse' || e.gone) continue;
+      if (rng() > 0.5) continue;
+      // Nur eine je Haus und Tag: Sonst läge nach einer Woche ein Teppich
+      // aus Federn darunter, und das Vogelhaus wäre eine Maschine.
+      const schon = this.queryNear(e.x, e.y, 110).some(function (o) {
+        return o.kind === 'feather' && !o.gone;
+      });
+      if (schon) continue;
+      const a = rng() * Math.PI * 2;
+      const r = 52 + rng() * 40;
+      const x = e.x + Math.cos(a) * r;
+      const y = e.y + Math.sin(a) * r;
+      if (!isWalkable(this.tileAt(x, y))) continue;
+      this.add(makeEntity('feather', x, y));
+    }
   }
 
   /**
