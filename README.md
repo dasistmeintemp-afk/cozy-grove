@@ -131,6 +131,23 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   21×15 → Garten 27×19 → Anwesen 33×23. Zu roden sind auf der ersten Stufe
   ein knappes Dutzend Bäume und Steine, auf der letzten rund 120 – ein
   Vorhaben, kein Nachmittag. `L` öffnet das Fenster.
+* **Die Bucht auf der Insel.** Der zweite Bauplatz, und der einzige ohne
+  Betrieb. Das Lager ist gewachsen, aber es bleibt das Lager: Feuer,
+  Werkbank, Händler und Briefkasten stehen mitten darin, und wer sich etwas
+  Eigenes hinstellt, baut zwischen fremden Möbeln. Drüben gibt es das nicht.
+
+  Vier Stufen, bezahlt in **Münzen** (800 → 1800 → 3400 → 6000): Die Bucht
+  13×15 → Der Hain 15×21 → Die Wiese 17×25 → Die ganze Bucht 19×31. Damit
+  zieht jede Währung an ihrer eigenen Sache – Glut am Lagergrundstück,
+  Material am Haus, Münzen an Truhe, Katalog und Bucht –, und es ist der
+  einzige Kauf, der nach oben offen ist.
+
+  Der Mittelpunkt ist gemessen, nicht geraten: Die Insel ist schmal, ein
+  Rechteck kann dort schnell halb im Wasser liegen. Über acht Seeds hinweg
+  ist die Stelle bei (9|60) die beste, die sie hergibt; ein Test hält fest,
+  dass auch die volle Bucht zu über 60 % aus Land besteht und mindestens 380
+  Kacheln Bauplatz bleiben. Dieselbe Regel wie im Lager: **innerhalb wächst
+  nichts nach**, und man darf dicht bauen.
 * **Vom Zelt zum Haus.** Mitten auf dem Grundstück steht dein Zuhause, und es
   bleibt kein Zelt: Hütte → Haus → Haus mit Veranda. Bezahlt wird in
   **Material** – Holz, Hartholz, Stein, Ton, Kupfer –, also genau in dem, was

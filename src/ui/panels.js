@@ -12,7 +12,7 @@ import { SETS, SET_IDS, setById, progressOf, itemsOf, hintFor, totalProgress } f
 import { unreadCount } from '../game/mail.js';
 import { STAGES as LOAN_STAGES, statusOf } from '../game/loan.js';
 import { finaleLine, stillSilent, FINALE_CLOSE, FINALE_COUNT } from '../game/finale.js';
-import { PLOT_STAGES, MAX_PLOT_STAGE } from '../game/plot.js';
+import { PLOT_STAGES, MAX_PLOT_STAGE, ISLE_PLOT_STAGES, MAX_ISLE_PLOT_STAGE } from '../game/plot.js';
 import { HOUSE_STAGES, MAX_HOUSE_STAGE } from '../game/house.js';
 import { MAX_OFFEN as MAX_ORDERS } from '../game/catalog.js';
 import { UI_SCALES } from './uiscale.js';
@@ -218,6 +218,10 @@ export class Panels {
         break;
       case 'expandPlot':
         g.expandPlot();
+        this.render();
+        break;
+      case 'expandIslePlot':
+        g.expandIslePlot();
         this.render();
         break;
       case 'buildHouse':
@@ -661,7 +665,66 @@ export class Panels {
         '</div>';
     }
     html += '</div>';
+    html += this._islePlot();
     html += this._house();
+    return html;
+  }
+
+  /**
+   * Die Bucht auf der Stillen Insel – der zweite Bauplatz.
+   *
+   * Steht im selben Fenster wie das Lager, weil es dieselbe Sache ist: Platz,
+   * auf dem nichts nachwächst. Vor dem Inselmeilenstein ist sie sichtbar,
+   * aber zu – wer nicht weiß, dass es sie gibt, spart nicht darauf.
+   */
+  _islePlot() {
+    const g = this.game;
+    const stand = g.islePlotStatus();
+    const inhalt = g.islePlotContents();
+
+    let html = '<h3 style="font-size:0.95em;margin:18px 0 8px">Die Bucht auf der Insel</h3>';
+    if (!stand.offen) {
+      return html + '<p class="empty-note" style="padding:4px 0 10px">' +
+        'Drüben auf der Stillen Insel liegt eine Bucht, in der nichts steht. ' +
+        'Sie gehört dir, sobald die Insel offen ist.</p>';
+    }
+
+    if (stand.stufe) {
+      const b = stand.bounds;
+      html += '<div class="rows"><div class="row">' + ico('icon_boat', 'lg') +
+        '<div class="grow"><div class="title">' + escapeHtml(stand.name) + ' · ' +
+        (b.x1 - b.x0 + 1) + ' × ' + (b.y1 - b.y0 + 1) + ' Kacheln</div>' +
+        '<div class="meta"><span>Stufe ' + stand.stufe + ' von ' + MAX_ISLE_PLOT_STAGE + '</span>' +
+        '<span>' + ico('icon_lantern') + ' ' + inhalt.deko + ' aufgestellt</span>' +
+        '<span>' + ico('icon_axe') + ' ' + inhalt.wild + ' noch im Weg</span>' +
+        '</div></div></div></div>';
+    } else {
+      html += '<p class="empty-note" style="padding:4px 0 10px">' +
+        'Kein Feuer, keine Werkbank, kein Händler – und niemandes Möbel im Weg. ' +
+        'Bezahlt wird in Münzen.</p>';
+    }
+
+    html += '<div class="rows">';
+    for (let i = 0; i < ISLE_PLOT_STAGES.length; i++) {
+      const st = ISLE_PLOT_STAGES[i];
+      const steht = st.id <= stand.stufe;
+      const dran = stand.naechste && st.id === stand.naechste.id;
+      const kann = dran && g.state.coins >= st.coins;
+      html += '<div class="row' + (steht || dran ? '' : ' dim') + '">' +
+        ico(steht ? 'icon_check' : 'icon_boat', 'lg') +
+        '<div class="grow"><div class="title">' + escapeHtml(st.name) + ' · ' +
+        (st.halfW * 2 + 1) + ' × ' + (st.halfH * 2 + 1) + '</div>' +
+        '<div class="meta"><span>' + escapeHtml(st.note) + '</span>' +
+        '<span class="cost' + (kann || steht ? '' : ' miss') + '">' +
+        ico('icon_coin') + ' ' + num(st.coins) + '</span>' +
+        '</div></div>' +
+        (steht ? '<span class="row-btn ghost">' + ico('icon_check') + '</span>'
+          : dran ? '<button class="row-btn" data-act="expandIslePlot"' +
+            (kann ? '' : ' disabled') + '>' + (stand.stufe ? 'Ausbauen' : 'Kaufen') + '</button>'
+            : '') +
+        '</div>';
+    }
+    html += '</div>';
     return html;
   }
 

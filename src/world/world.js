@@ -10,7 +10,7 @@ import {
 import { makeEntity, defOf, spriteFor } from './entities.js';
 import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
 import { syncIdCounter } from '../core/util.js';
-import { inPlot, inPlotAt } from '../game/plot.js';
+import { inAnyPlot, inAnyPlotAt } from '../game/plot.js';
 
 const CELL = 160;
 const GRID_W = Math.ceil((MAP_W * TILE_SIZE) / CELL);
@@ -46,6 +46,9 @@ export class World {
     this.bridgeBuilt = false;
     /** Ausbaustufe des Grundstücks – die Welt liest sie beim Nachwachsen. */
     this.plotStage = 1;
+    // 0 heißt: die Bucht auf der Insel ist noch nicht gekauft. Dann gibt es
+    // sie nicht, und sie darf auch nichts vom Nachwachsen ausnehmen.
+    this.islePlotStage = 0;
   }
 
   /* ---------- Kacheln ---------- */
@@ -467,7 +470,7 @@ export class World {
         // sie stand der gefällte Baum drei Tage später wieder mitten im
         // Garten. Gefundenes und Grabstellen bleiben davon unberührt – die
         // legt `_respawnDigspots` ohnehin neu aus.
-        if (inPlotAt(e.x, e.y, this.plotStage)) {
+        if (inAnyPlotAt(e.x, e.y, this.plotStage, this.islePlotStage)) {
           this.remove(e);
           continue;
         }
@@ -501,7 +504,8 @@ export class World {
       if (!this.unlocked[regions[r]]) continue;
       const self = this;
       const spots = walkableTilesOf(this.tiles, regions[r], function (t, tx, ty) {
-        return (t === T.GRASS || t === T.DIRT) && !inPlot(tx, ty, self.plotStage);
+        return (t === T.GRASS || t === T.DIRT) &&
+          !inAnyPlot(tx, ty, self.plotStage, self.islePlotStage);
       });
       let placed = 0;
       let guard = 0;
@@ -544,7 +548,7 @@ export class World {
       const self = this;
       const spots = walkableTilesOf(this.tiles, r, function (t, tx, ty) {
         return (t === T.GRASS || t === T.DIRT || t === T.ROCKFLOOR) &&
-          !inPlot(tx, ty, self.plotStage);
+          !inAnyPlot(tx, ty, self.plotStage, self.islePlotStage);
       });
       if (!spots.length) continue;
       const s = spots[Math.floor(rng() * spots.length)];
@@ -568,7 +572,7 @@ export class World {
         if (t !== T.SAND && t !== T.GRASS && t !== T.DIRT) return false;
         // Nicht auf dem Grundstück: Wer seinen Garten anlegt, will morgens
         // keine frischen Löcher darin finden.
-        return !inPlot(tx, ty, self.plotStage);
+        return !inAnyPlot(tx, ty, self.plotStage, self.islePlotStage);
       });
       // Die Stille Insel ist klein – dort wären sieben Grabstellen ein
       // Minenfeld statt eines Fundes.

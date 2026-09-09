@@ -564,7 +564,15 @@ export class Renderer {
    */
   _drawPlot(ctx, game, camX, camY) {
     if (!game.plotStatus) return;
-    const r = game.plotRect ? game.plotRect() : null;
+    // Beide eigenen Grundstücke tragen dieselbe Linie: das Lager und die
+    // Bucht auf der Insel. Sie liegen weit auseinander, also ist immer nur
+    // eines im Bild – aber dieselbe Regel gilt für beide, und zwei
+    // verschiedene Umrandungen hätten das Gegenteil behauptet.
+    this._plotOutline(ctx, game.plotRect ? game.plotRect() : null, camX, camY);
+    this._plotOutline(ctx, game.islePlotRect ? game.islePlotRect() : null, camX, camY);
+  }
+
+  _plotOutline(ctx, r, camX, camY) {
     if (!r) return;
     if (r.x + r.w < camX || r.x > camX + this.viewW) return;
     if (r.y + r.h < camY || r.y > camY + this.viewH) return;

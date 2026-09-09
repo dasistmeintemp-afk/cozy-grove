@@ -28,7 +28,11 @@ import { dueSets } from './collection.js';
 import { mailFor, fileMail, unreadCount } from './mail.js';
 import { STAGES as LOAN_STAGES, statusOf, pay as payLoan, slotsAt, emptyLoan } from './loan.js';
 import { finaleLine, allHeard, stillSilent, circleSpots, FINALE_CLOSE, FINALE_COUNT } from './finale.js';
-import { PLOT_STAGES, plotStage, nextPlotStage, plotBounds, inPlotAt, MAX_PLOT_STAGE } from './plot.js';
+import {
+  PLOT_STAGES, plotStage, nextPlotStage, plotBounds, inPlotAt, MAX_PLOT_STAGE,
+  ISLE_PLOT_STAGES, islePlotStage, nextIslePlotStage, islePlotBounds,
+  inIslePlotAt, islePlotRect, ISLE_PLOT_TILE,
+} from './plot.js';
 import {
   houseStage, nextHouseStage, houseSprite, houseLight, houseColor,
   houseFootprint, missingFor as houseMissing,
@@ -156,6 +160,7 @@ export class Game {
     // Die Welt muss wissen, wie weit das Grundstück reicht: Sie entscheidet
     // damit, was nachwächst und wo Grabstellen auftauchen.
     this.world.plotStage = this.state.plot || 1;
+    this.world.islePlotStage = this.state.islePlot || 0;
     // Grafik, Kollision und Farbkreis des Zuhauses hängen an der Ausbaustufe.
     this.syncHouse();
     // Still: beim Laden steht die Deko ja schon da, da wäre eine Meldung
@@ -212,6 +217,7 @@ export class Game {
       plot: 1,
       house: 1,
       orders: emptyOrders(),
+      islePlot: 0,
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -243,6 +249,7 @@ export class Game {
       plot: 1,
       house: 1,
       orders: emptyOrders(),
+      islePlot: 0,
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -256,6 +263,7 @@ export class Game {
     if (!this.state.plot) this.state.plot = 1;
     if (!this.state.house) this.state.house = 1;
     if (!Array.isArray(this.state.orders)) this.state.orders = emptyOrders();
+    if (!this.state.islePlot) this.state.islePlot = 0;
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -1543,16 +1551,95 @@ export class Game {
     };
   }
 
+  /**
+   * Stand der Bucht auf der Stillen Insel.
+   *
+   * Stufe 0 heißt: noch nicht gekauft. Sichtbar ist sie trotzdem, sobald die
+   * Insel offen ist – wer nicht weiß, dass es sie gibt, spart nicht darauf.
+   */
+  islePlotStatus() {
+    const stufe = this.state.islePlot || 0;
+    const jetzt = islePlotStage(stufe);
+    const naechste = nextIslePlotStage(stufe);
+    return {
+      stufe: stufe,
+      name: jetzt ? jetzt.name : '',
+      offen: this.hasMilestone('insel'),
+      bounds: islePlotBounds(stufe),
+      naechste: naechste,
+      kosten: naechste ? naechste.coins : 0,
+      fertig: !naechste,
+    };
+  }
+
+  /**
+   * Die Bucht kaufen oder erweitern.
+   *
+   * Bezahlt wird in Münzen – die dritte Währung an der dritten Sache, und
+   * der einzige Kauf, der nach oben offen ist. Es ist kein zweites Lager:
+   * Feuer, Werkbank und Händler bleiben drüben. Es ist der Platz, an dem
+   * niemandes Möbel im Weg stehen.
+   */
+  expandIslePlot() {
+    const stand = this.islePlotStatus();
+    if (stand.fertig) return;
+    if (!stand.offen) {
+      this.ui.toast('Erst muss die Insel offen sein', 'icon_boat', 'bad');
+      return;
+    }
+    if (this.state.coins < stand.kosten) {
+      this.ui.toast('Zu wenig Münzen', 'icon_coin', 'bad');
+      return;
+    }
+    this.state.coins -= stand.kosten;
+    this.state.islePlot = stand.naechste.id;
+    this.world.islePlotStage = this.state.islePlot;
+    this.ui.toast(stand.naechste.name + ' gehört dir', 'icon_flowerbed', 'good');
+    this.audio.play('levelup');
+    this.ui.refreshHud();
+    this.invalidate();
+    this.save();
+  }
+
+  /** Die Grenze der Bucht in Weltpixeln – null, solange sie nicht gekauft ist. */
+  islePlotRect() {
+    return islePlotRect(this.state.islePlot || 0);
+  }
+
+  /** Was in der Bucht steht – für die Anzeige. */
+  islePlotContents() {
+    const stufe = this.state.islePlot || 0;
+    if (!stufe) return { deko: 0, beete: 0, wild: 0 };
+    return this._countPlot(function (x, y) { return inIslePlotAt(x, y, stufe); });
+  }
+
   /** Was auf dem Grundstück steht – für die Anzeige. */
   plotContents() {
     const stufe = this.state.plot || 1;
+    return this._countPlot(function (x, y) { return inPlotAt(x, y, stufe); });
+  }
+
+  /**
+   * Steht diese Stelle auf eigenem Grund – Lager ODER Bucht?
+   *
+   * Dort gelten die milderen Abstände: näher ans Lager bauen, und ein Geist
+   * blockiert nicht. Beide Grundstücke folgen derselben Regel; sie zweimal
+   * zu schreiben hieße, sie beim nächsten Mal einmal zu vergessen.
+   */
+  _aufEigenemGrund(x, y) {
+    return inPlotAt(x, y, this.state.plot) ||
+      inIslePlotAt(x, y, this.state.islePlot || 0);
+  }
+
+  /** Zählt Deko, Beete und noch Ungerodetes in einem Bereich. */
+  _countPlot(drin) {
     let deko = 0;
     let beete = 0;
     let wild = 0;
     for (let i = 0; i < this.world.entities.length; i++) {
       const e = this.world.entities[i];
       if (e.gone) continue;
-      if (!inPlotAt(e.x, e.y, stufe)) continue;
+      if (!drin(e.x, e.y)) continue;
       if (e.kind === 'decor') deko++;
       else if (e.kind === 'crop') beete++;
       else {
@@ -2512,7 +2599,7 @@ export class Game {
       const dx = e.x - x;
       const dy = e.y - y;
       const dist2 = dx * dx + dy * dy;
-      const eigen = inPlotAt(x, y, this.state.plot);
+      const eigen = this._aufEigenemGrund(x, y);
       if (d.category === 'spirit' && eigen) continue;
       if ((d.category === 'station' || d.category === 'spirit' || d.category === 'fox') &&
           dist2 < (eigen ? 74 : 110) * (eigen ? 74 : 110)) {
@@ -2567,7 +2654,7 @@ export class Game {
         // Sache. Und ein GEIST blockiert dort gar nicht: Er steht morgen
         // woanders, und eine Bank nicht aufstellen zu dürfen, weil gerade
         // jemand daneben schwebt, wäre eine Regel ohne Grund.
-        const eigen = inPlotAt(x, y, this.state.plot);
+        const eigen = this._aufEigenemGrund(x, y);
         if (eigen && d.category === 'spirit') continue;
         const r = eigen ? 74 : 110;
         if (dx * dx + dy * dy < r * r) return false;

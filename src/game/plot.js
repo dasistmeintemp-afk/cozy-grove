@@ -46,11 +46,108 @@ export const PLOT_STAGES = [
 
 export const MAX_PLOT_STAGE = PLOT_STAGES.length;
 
+/**
+ * Der zweite Bauplatz: die Bucht auf der Stillen Insel.
+ *
+ * Das Lager ist gewachsen, aber es bleibt das Lager – mit Feuer, Werkbank,
+ * Händler und Briefkasten mitten darin. Wer sich etwas Eigenes hinstellen
+ * will, baut zwischen fremden Möbeln. Die Insel hat beides nicht: keinen
+ * Betrieb und, seit sie drei Kerne hat, Platz.
+ *
+ * Bezahlt wird in **Münzen** – die dritte Währung an der dritten Sache.
+ * Glut zieht am Lagergrundstück, Material am Haus, Münzen bislang nur an
+ * Truhe und Katalog. Und es ist der einzige Kauf, der nach oben offen ist:
+ * 800 bis 6000 sind ein Grund, einen guten Markttag gut zu finden.
+ *
+ * Der Mittelpunkt ist gemessen, nicht geraten: Über acht Seeds hinweg ist
+ * das Rechteck um (9|60) zu rund drei Vierteln Land, und das ist der beste
+ * Wert, den die schmale Insel hergibt.
+ */
+export const ISLE_PLOT_TILE = { x: 9, y: 60 };
+
+export const ISLE_PLOT_STAGES = [
+  { id: 1, name: 'Die Bucht', halfW: 6, halfH: 7, coins: 800,
+    note: 'Ein Stück Ufer, das dir gehört.' },
+  { id: 2, name: 'Der Hain', halfW: 7, halfH: 10, coins: 1800,
+    note: 'Bis an die Kiefern heran.' },
+  { id: 3, name: 'Die Wiese', halfW: 8, halfH: 12, coins: 3400,
+    note: 'Genug für einen Garten, der etwas darstellt.' },
+  { id: 4, name: 'Die ganze Bucht', halfW: 9, halfH: 15, coins: 6000,
+    note: 'Von der Landzunge bis zum Wald.' },
+];
+
+export const MAX_ISLE_PLOT_STAGE = ISLE_PLOT_STAGES.length;
+
 export function plotStage(n) {
   for (let i = 0; i < PLOT_STAGES.length; i++) {
     if (PLOT_STAGES[i].id === n) return PLOT_STAGES[i];
   }
   return null;
+}
+
+export function islePlotStage(n) {
+  for (let i = 0; i < ISLE_PLOT_STAGES.length; i++) {
+    if (ISLE_PLOT_STAGES[i].id === n) return ISLE_PLOT_STAGES[i];
+  }
+  return null;
+}
+
+/** Die nächste Ausbaustufe der Bucht – oder null, wenn alles steht. */
+export function nextIslePlotStage(stage) {
+  return islePlotStage((stage || 0) + 1);
+}
+
+/**
+ * Die Grenzen der Bucht. Stufe 0 heißt: noch nicht gekauft, es gibt sie
+ * nicht – und dann darf auch nichts sie ausnehmen.
+ */
+export function islePlotBounds(stage) {
+  const s = islePlotStage(stage || 0);
+  if (!s) return null;
+  return {
+    x0: Math.max(1, ISLE_PLOT_TILE.x - s.halfW),
+    y0: Math.max(1, ISLE_PLOT_TILE.y - s.halfH),
+    x1: Math.min(MAP_W - 2, ISLE_PLOT_TILE.x + s.halfW),
+    y1: Math.min(MAP_H - 2, ISLE_PLOT_TILE.y + s.halfH),
+  };
+}
+
+export function inIslePlot(tx, ty, stage) {
+  const b = islePlotBounds(stage);
+  if (!b) return false;
+  return tx >= b.x0 && tx <= b.x1 && ty >= b.y0 && ty <= b.y1;
+}
+
+export function inIslePlotAt(px, py, stage) {
+  return inIslePlot(Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE), stage);
+}
+
+export function islePlotRect(stage) {
+  const b = islePlotBounds(stage);
+  if (!b) return null;
+  return {
+    x: b.x0 * TILE_SIZE,
+    y: b.y0 * TILE_SIZE,
+    w: (b.x1 - b.x0 + 1) * TILE_SIZE,
+    h: (b.y1 - b.y0 + 1) * TILE_SIZE,
+  };
+}
+
+/**
+ * Liegt die Kachel auf IRGENDEINEM eigenen Grundstück?
+ *
+ * Die Regel „hier wächst nichts nach" gilt für beide gleich. Sie an zwei
+ * Stellen einzeln zu prüfen hieße, sie beim nächsten Bauplatz ein drittes
+ * Mal zu schreiben und eine davon zu vergessen.
+ */
+export function inAnyPlot(tx, ty, plot, islePlot) {
+  return inPlot(tx, ty, plot) || inIslePlot(tx, ty, islePlot);
+}
+
+export function inAnyPlotAt(px, py, plot, islePlot) {
+  const tx = Math.floor(px / TILE_SIZE);
+  const ty = Math.floor(py / TILE_SIZE);
+  return inAnyPlot(tx, ty, plot, islePlot);
 }
 
 /** Die nächste Ausbaustufe – oder null, wenn alles steht. */
@@ -102,11 +199,20 @@ export function plotRect(stage) {
  * Bucht am Rand.
  */
 export function usableTiles(world, stage) {
-  const b = plotBounds(stage);
+  return countLand(world, plotBounds(stage), REGION.CAMP);
+}
+
+/** Dasselbe für die Bucht auf der Insel. */
+export function usableIsleTiles(world, stage) {
+  return countLand(world, islePlotBounds(stage), REGION.ISLE);
+}
+
+function countLand(world, b, region) {
+  if (!b) return 0;
   let n = 0;
   for (let ty = b.y0; ty <= b.y1; ty++) {
     for (let tx = b.x0; tx <= b.x1; tx++) {
-      if (regionAt(tx, ty) !== REGION.CAMP) continue;
+      if (regionAt(tx, ty) !== region) continue;
       if (world.isWalkableTile ? !world.isWalkableTile(tx, ty) : false) continue;
       n++;
     }

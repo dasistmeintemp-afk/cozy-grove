@@ -16,10 +16,12 @@ import assert from 'node:assert/strict';
 
 import {
   PLOT_STAGES, MAX_PLOT_STAGE, plotStage, nextPlotStage, plotBounds, inPlot, inPlotAt, plotRect,
+  ISLE_PLOT_STAGES, MAX_ISLE_PLOT_STAGE, ISLE_PLOT_TILE, islePlotStage, nextIslePlotStage,
+  islePlotBounds, islePlotRect, inIslePlot, inIslePlotAt, inAnyPlot, usableIsleTiles,
 } from '../../src/game/plot.js';
 import { World } from '../../src/world/world.js';
 import {
-  CAMP_TILE, MAP_W, MAP_H, tileIndex, regionAt, REGION, TILE_SIZE,
+  CAMP_TILE, MAP_W, MAP_H, tileIndex, regionAt, REGION, TILE_SIZE, HIGHLAND_Y,
 } from '../../src/world/worldgen.js';
 import { isWalkable } from '../../src/art/tiles.js';
 import { defOf } from '../../src/world/entities.js';
@@ -199,4 +201,110 @@ test('Auf eigenem Grund darf man näher an die eigenen Bauten', () => {
   assert.equal(inPlotAt(dortNah.x, dortNah.y, 4), false, 'der Prüfpunkt liegt draußen');
   assert.equal(zuNah(dortNah.x, dortNah.y, bruecke, 4), true,
     'außerhalb gilt weiter der große Abstand');
+});
+
+/* ------------------------------------------------------- Die Bucht drüben */
+
+test('Die Bucht wächst und kostet mehr', () => {
+  let w = 0;
+  let h = 0;
+  let preis = 0;
+  for (const st of ISLE_PLOT_STAGES) {
+    assert.ok(st.halfW >= w && st.halfH > h, st.id + ': wird nicht größer');
+    assert.ok(st.coins > preis, st.id + ': wird nicht teurer');
+    assert.ok(st.name && st.note, st.id + ' braucht Name und Zeile');
+    w = st.halfW; h = st.halfH; preis = st.coins;
+  }
+  assert.ok(ISLE_PLOT_STAGES[0].coins > 0, 'die erste Stufe muss man kaufen');
+  assert.equal(MAX_ISLE_PLOT_STAGE, ISLE_PLOT_STAGES.length);
+  assert.equal(nextIslePlotStage(MAX_ISLE_PLOT_STAGE), null);
+  assert.equal(islePlotStage(99), null);
+});
+
+test('Stufe 0 heißt: es gibt sie nicht', () => {
+  // Die halbe Sorge bei einem zweiten Grundstück ist, dass es wirkt, bevor
+  // man es gekauft hat – und dann wüchse auf der halben Insel nichts nach.
+  assert.equal(islePlotBounds(0), null);
+  assert.equal(islePlotRect(0), null);
+  assert.equal(inIslePlot(ISLE_PLOT_TILE.x, ISLE_PLOT_TILE.y, 0), false);
+  assert.equal(inIslePlotAt(ISLE_PLOT_TILE.x * TILE_SIZE, ISLE_PLOT_TILE.y * TILE_SIZE, 0), false);
+  assert.equal(inIslePlot(ISLE_PLOT_TILE.x, ISLE_PLOT_TILE.y, 1), true);
+});
+
+test('Die Bucht liegt auf der Insel, nicht daneben', () => {
+  for (const stufe of [1, 2, 3, 4]) {
+    const b = islePlotBounds(stufe);
+    for (let ty = b.y0; ty <= b.y1; ty++) {
+      for (let tx = b.x0; tx <= b.x1; tx++) {
+        assert.equal(regionAt(tx, ty), REGION.ISLE,
+          'Stufe ' + stufe + ': Kachel ' + tx + '|' + ty + ' liegt nicht auf der Insel');
+      }
+    }
+    // Und nicht im Hochland: dort ist Fels, kein Garten
+    assert.ok(b.y0 > HIGHLAND_Y, 'Stufe ' + stufe + ' reicht ins Hochland');
+  }
+});
+
+test('Die Bucht gibt wirklich Bauplatz her', () => {
+  // Die Insel ist schmal; ein Rechteck kann dort schnell halb im Wasser
+  // liegen. Gemessen über mehrere Seeds muss genug Land übrig bleiben,
+  // sonst kauft man eine Bucht und bekommt eine Bucht.
+  for (const seed of [1, 7, 31337, 90210, 4242]) {
+    const world = new World(seed);
+    const klein = usableIsleTiles(world, 1);
+    const gross = usableIsleTiles(world, MAX_ISLE_PLOT_STAGE);
+    const b = islePlotBounds(MAX_ISLE_PLOT_STAGE);
+    const flaeche = (b.x1 - b.x0 + 1) * (b.y1 - b.y0 + 1);
+    assert.ok(klein > 100, 'Seed ' + seed + ': erste Stufe nur ' + klein + ' Kacheln Land');
+    assert.ok(gross > 380, 'Seed ' + seed + ': volle Bucht nur ' + gross + ' Kacheln Land');
+    assert.ok(gross / flaeche > 0.6,
+      'Seed ' + seed + ': nur ' + Math.round(gross / flaeche * 100) + '% davon ist Land');
+    assert.ok(gross > klein, 'Seed ' + seed + ': Ausbauen bringt nichts');
+  }
+});
+
+test('Beide Grundstücke folgen derselben Regel', () => {
+  // `inAnyPlot` ist die Stelle, an der Welt und Aufstellen entscheiden. Sie
+  // muss beide kennen – sonst wüchse in der Bucht alles nach.
+  const imLager = { tx: CAMP_TILE.x, ty: CAMP_TILE.y };
+  const inBucht = { tx: ISLE_PLOT_TILE.x, ty: ISLE_PLOT_TILE.y };
+  assert.equal(inAnyPlot(imLager.tx, imLager.ty, 1, 0), true);
+  assert.equal(inAnyPlot(inBucht.tx, inBucht.ty, 1, 0), false, 'ungekauft zählt nicht');
+  assert.equal(inAnyPlot(inBucht.tx, inBucht.ty, 1, 1), true);
+  assert.equal(inAnyPlot(imLager.tx, imLager.ty, 1, 4), true, 'das Lager bleibt dabei');
+  // Und eine Stelle, die zu keinem gehört
+  assert.equal(inAnyPlot(70, 20, 4, 4), false);
+});
+
+test('Auf der Insel wächst in der Bucht nichts nach', () => {
+  const world = new World(31337);
+  world.populate();
+  world.islePlotStage = MAX_ISLE_PLOT_STAGE;
+  const b = islePlotBounds(MAX_ISLE_PLOT_STAGE);
+
+  // Alles in der Bucht fällen und drei Tage weiterspielen
+  const drin = world.entities.filter(function (e) {
+    return inIslePlotAt(e.x, e.y, MAX_ISLE_PLOT_STAGE) && !e.gone;
+  });
+  assert.ok(drin.length > 0, 'in der Bucht steht überhaupt etwas');
+  const ids = drin.map(function (e) { return e.id; });
+  for (const e of drin) {
+    e.gone = true;
+    e.respawnDay = 1;
+  }
+  world.newDay(4, {});
+  let zurueck = 0;
+  for (const id of ids) if (world.byId[id] && !world.byId[id].gone) zurueck++;
+  assert.equal(zurueck, 0, zurueck + ' Dinge sind in der Bucht nachgewachsen');
+
+  // Und außerhalb wächst weiterhin etwas nach – sonst prüfte der Test nichts
+  let draussen = 0;
+  for (const e of world.entities) {
+    if (e.gone) continue;
+    if (regionAt(Math.floor(e.x / TILE_SIZE), Math.floor(e.y / TILE_SIZE)) !== REGION.ISLE) continue;
+    if (inIslePlotAt(e.x, e.y, MAX_ISLE_PLOT_STAGE)) continue;
+    draussen++;
+  }
+  assert.ok(draussen > 20, 'außerhalb der Bucht steht nichts mehr, der Test misst nichts');
+  assert.ok(b.y1 > b.y0);
 });

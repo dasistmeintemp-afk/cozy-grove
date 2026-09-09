@@ -1662,6 +1662,14 @@ async function run() {
       g.selectTool(6);
       const gewaehlt = g.player.tool.id;
 
+      // Der Seed ist je Lauf zufällig. Liegt gerade ein verstecktes
+      // Aufgabenstück neben der Figur, gewinnt es die Zielwahl, und die
+      // Prüfung maß den Zufall statt das Beet. Was im Weg ist, wird für die
+      // Messung kurz beiseitegeräumt.
+      const beiseite = g.world.queryNear(g.player.x, g.player.y, 200).filter(function (o) {
+        return o !== beet && !o.gone;
+      });
+      for (const o of beiseite) o.gone = true;
       g.target = g.player.findTarget(g.world);
       const gefunden = g.target ? g.target.entity.kind : null;
       g._updatePrompt();
@@ -1685,6 +1693,7 @@ async function run() {
       g.growCrops('clear');
       const ohneGiessen = beet.grown;
 
+      for (const o of beiseite) o.gone = false;
       g.world.remove(beet);
       g.selectTool(0);
       return {
@@ -1927,6 +1936,72 @@ async function run() {
       lagerFenster.nenntRegel && lagerFenster.nenntGroesse &&
       lagerFenster.stufen >= 4 && lagerFenster.knoepfe === 1,
       JSON.stringify(lagerFenster));
+
+    /* ---- Die Bucht auf der Insel ---- */
+    const bucht = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const merkeMeilen = g.state.milestones;
+      const merkeMuenzen = g.state.coins;
+      g.state.islePlot = 0;
+      g.world.islePlotStage = 0;
+
+      // Ohne den Inselmeilenstein ist sie zu, auch mit vollem Beutel.
+      g.state.milestones = Object.create(null);
+      g.state.coins = 99999;
+      g.expandIslePlot();
+      const ohneInsel = g.state.islePlot;
+      g.openPanel('plot');
+      await new Promise((r) => setTimeout(r, 250));
+      const textZu = document.getElementById('panel-body').innerText;
+
+      // Mit Meilenstein, aber ohne Geld
+      g.state.milestones = { insel: true };
+      g.state.coins = 10;
+      g.panels.render();
+      g.expandIslePlot();
+      const ohneGeld = g.state.islePlot;
+
+      // Und jetzt kaufen
+      g.state.coins = 99999;
+      const vorher = g.state.coins;
+      g.expandIslePlot();
+      const gekauft = {
+        stufe: g.state.islePlot,
+        bezahlt: vorher - g.state.coins,
+        welt: g.world.islePlotStage,
+        rechteck: !!g.islePlotRect(),
+      };
+      g.panels.render();
+      const textAuf = document.getElementById('panel-body').innerText;
+      g.panels.close();
+
+      // In der Bucht darf man dicht bauen – wie im Lager
+      const b = g.islePlotStatus().bounds;
+      const mitte = { x: (b.x0 + b.x1) / 2 * 64, y: (b.y0 + b.y1) / 2 * 64 };
+      const eigen = g._aufEigenemGrund(mitte.x, mitte.y);
+
+      g.state.islePlot = 0;
+      g.world.islePlotStage = 0;
+      g.state.milestones = merkeMeilen;
+      g.state.coins = merkeMuenzen;
+      return {
+        ohneInsel, ohneGeld, gekauft, eigen,
+        sagtZu: textZu.indexOf('sobald die Insel offen ist') >= 0,
+        nenntStufen: (textAuf.match(/Die Bucht|Der Hain|Die Wiese|Die ganze Bucht/g) || []).length,
+      };
+    });
+    check('Vor dem Inselmeilenstein ist die Bucht zu – und sagt es',
+      bucht.ohneInsel === 0 && bucht.sagtZu, JSON.stringify(bucht));
+    check('Ohne Münzen bleibt sie zu',
+      bucht.ohneGeld === 0, JSON.stringify(bucht));
+    check('Gekauft gehört sie dir, und die Welt weiß es',
+      bucht.gekauft.stufe === 1 && bucht.gekauft.bezahlt === 800 &&
+      bucht.gekauft.welt === 1 && bucht.gekauft.rechteck,
+      JSON.stringify(bucht.gekauft));
+    check('Dort gelten dieselben milden Abstände wie im Lager',
+      bucht.eigen === true, JSON.stringify(bucht));
+    check('Das Fenster zeigt alle vier Stufen der Bucht',
+      bucht.nenntStufen >= 4, JSON.stringify(bucht));
 
     /* ---- Vom Zelt zum Haus ---- */
     const haus = await page.evaluate(async () => {
@@ -2577,6 +2652,12 @@ async function run() {
       g.player.y = block.y + 56;
       g.player.dir = 'up';
       g.player.selectTool(2);                 // 0 Hand, 1 Axt, 2 Spitzhacke
+      // Im Hochland steht viel dicht beieinander. Ohne Freiräumen gewann mal
+      // der Nachbarstein die Zielwahl, und die Prüfung maß den Zufall.
+      const beiseite = g.world.queryNear(block.x, block.y, 220).filter(function (o) {
+        return o !== block && !o.gone;
+      });
+      for (const o of beiseite) o.gone = true;
       const vorher = block.hp;
 
       function schlagen(stufe) {
@@ -2600,6 +2681,7 @@ async function run() {
         g.target = t;
         g.onInteract();
       }
+      for (const o of beiseite) o.gone = false;
       return {
         granit: granit.length, geoden: geode.length,
         schwachWirkung, starkWirkung, schwachGrund, starkGrund,
@@ -2622,6 +2704,9 @@ async function run() {
       const baum = g.world.entities.filter(
         (e) => e.kind && e.kind.indexOf('tree_') === 0 && !e.gone)[0];
       if (!baum) return { fehler: 'kein Baum' };
+      // Ausdrücklich setzen: Ein frisches Objekt hat gar kein `gone`, und ein
+      // Vergleich gegen `false` schlug dann an `undefined` fehl.
+      baum.gone = false;
       // Ein Eintrag, der auf diese Nummer zeigt, aber eine andere Art nennt
       g._applyWorldDelta({ changed: [{ id: baum.id, k: 'rock_big', g: 1, o: null, r: 0 }] });
       const fremdeArt = baum.gone;
