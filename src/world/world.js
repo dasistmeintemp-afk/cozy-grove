@@ -5,7 +5,7 @@ import {
   walkableTilesOf, findWalkableNear, CAMP_TILE,
   FORD_X0, FORD_X1, RIVER_Y0, RIVER_Y1,
   CHANNEL_X0, CHANNEL_X1, BRIDGE_Y0, BRIDGE_Y1,
-  DOCK_TILE, ISLE_DOCK_TILE, ALL_REGIONS,
+  DOCK_TILE, ISLE_DOCK_TILE, ALL_REGIONS, HIGHLAND_Y,
 } from './worldgen.js';
 import { makeEntity, defOf, spriteFor } from './entities.js';
 import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
@@ -323,11 +323,15 @@ export class World {
     scatter(['rock_ore'], grassForest, 4, 104);
     scatter(['grass_tuft'], grassForest, 26, 40);
 
-    // Stille Insel: klein, aber ergiebig. Genau die Dinge, die die letzten
-    // Werkzeugstufen brauchen – sonst wäre die Insel schön und überflüssig.
-    const isleLand = walkableTilesOf(this.tiles, REGION.ISLE, function (t) {
+    // Stille Insel. Sie zerfällt in zwei Hälften: unten der grüne Süden mit
+    // Wanda, oben das Hochland aus Fels. Nur dort liegen Granit und Geoden,
+    // und nur dafür lohnen die letzten beiden Spitzhackenstufen. Ein Bereich,
+    // den man mit dem Werkzeug vom ersten Tag leerräumt, wäre bloß größer.
+    const isleAll = walkableTilesOf(this.tiles, REGION.ISLE, function (t) {
       return t === T.GRASS || t === T.ROCKFLOOR || t === T.DIRT;
     });
+    const isleLand = isleAll.filter(function (p) { return p.y >= HIGHLAND_Y; });
+    const isleHigh = isleAll.filter(function (p) { return p.y < HIGHLAND_Y; });
     const isleSand = walkableTilesOf(this.tiles, REGION.ISLE, function (t) { return t === T.SAND; });
     scatter(['tree_pine', 'tree_birch'], isleLand, 16, 76);
     scatter(['rock_ore'], isleLand, 10, 72);
@@ -338,6 +342,15 @@ export class World {
     scatter(['grass_tuft'], isleLand, 14, 40);
     scatter(['shell', 'driftwood'], isleSand, 18, 44);
     scatter(['reeds'], isleSand, 10, 44);
+
+    // Das Hochland
+    scatter(['rock_granite'], isleHigh, 22, 82);
+    scatter(['rock_geode'], isleHigh, 6, 150);
+    scatter(['rock_big', 'rock_small'], isleHigh, 18, 68);
+    scatter(['rock_ore'], isleHigh, 8, 88);
+    scatter(['tree_pine'], isleHigh, 10, 92);
+    scatter(['herb'], isleHigh, 8, 56);
+    scatter(['grass_tuft'], isleHigh, 8, 52);
 
     // Klippen
     scatter(['tree_pine'], cliffLand, 26, 80);

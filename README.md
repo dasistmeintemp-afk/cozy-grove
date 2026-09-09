@@ -252,6 +252,22 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   von Anfang an an ihren Ufern; bis dahin sind sie vertäut. So weiß man, dass
   da draußen etwas ist, lange bevor man hinkommt.
 
+  **Sie ist lang, nicht rund, und zerfällt in zwei Hälften.** Anfangs bestand
+  sie aus einem einzigen Kern und hatte gemessen 199 begehbare Kacheln – gegen
+  1227 im Lager, 881 im Wald und 526 auf den Klippen. Man stand nach zwei
+  Minuten wieder am Boot. Nach Osten kann sie nicht wachsen, dort liegt der
+  Sund; nach Norden und Süden war dagegen alles frei, von 96 Zeilen benutzte
+  sie sechzehn. Jetzt sind es **rund 900 Kacheln über 67 Zeilen** – mehr als
+  die Klippen. Die Fahrt von einem Ende zum anderen ist selbst schon etwas.
+
+  Im Norden liegt das **Hochland**: Felsboden statt Gras, Kiefern statt
+  Birken. Dort und nur dort stehen **Granitblöcke (ab Spitzhacke Stufe 3)**
+  und **Geoden (Stufe 4)**, aus denen Granit und Bernstein kommen. Beides gibt
+  es sonst nirgends, und an der Werkbank warten drei Rezepte darauf –
+  Steinlaterne, Bernsteinlicht und zwölf Wegstücke auf einmal. Damit haben die
+  beiden letzten Werkzeugstufen einen Grund über sich hinaus, und ein Bereich,
+  den man mit dem Werkzeug vom ersten Tag leerräumt, wäre bloß größer gewesen.
+
   Getrennt wird sie von einem **ausgehobenen Sund**, nicht von Glück: Fluss und
   Kanal werden aus demselben Grund gegraben. Über zweihundert Seeds gemessen
   wächst ohne ihn bei einem eine Landbrücke hinüber – ein Test prüft genau

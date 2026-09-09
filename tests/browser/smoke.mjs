@@ -2448,20 +2448,32 @@ async function run() {
       g.player.x = e.x;
       g.player.y = e.y + 70;
       g.player.dir = 'up';
+      // Der Seed ist je Lauf zufällig. Wächst gerade ein Kraut neben der
+      // Truhe, gewinnt es die Zielwahl, und der Hinweis lautet „Sammeln" –
+      // die Prüfung maß dann die Insel statt die Truhe. Was hier im Weg
+      // steht, wird für die Messung kurz beiseitegeräumt.
+      const beiseite = g.world.queryNear(e.x, e.y, 120).filter(function (o) {
+        return o !== e && !o.gone;
+      });
+      for (const o of beiseite) o.gone = true;
       g.target = g.player.findTarget(g.world);
       g._updatePrompt();
+      const anvisiert = g.target && g.target.entity === e;
+      for (const o of beiseite) o.gone = false;
       const el = document.getElementById('prompt-text');
       const vorher = g.panels.current;
       g.useStation('storage', e);
       return {
         sichtbar: !e.gone,
+        anvisiert,
         hinweis: el ? el.textContent : '',
         platzFrei: g._canPlaceAt(e.x, e.y),
         fensterAuf: g.panels.current !== vorher,
       };
     });
     check('Die Truhe steht von Anfang an da, nur verschlossen',
-      truheZu.sichtbar && truheZu.hinweis === 'Verschlossen' && !truheZu.fensterAuf,
+      truheZu.sichtbar && truheZu.anvisiert &&
+      truheZu.hinweis === 'Verschlossen' && !truheZu.fensterAuf,
       JSON.stringify(truheZu));
     check('Und ihr Platz bleibt frei von Deko',
       truheZu.platzFrei === false, JSON.stringify(truheZu));
@@ -2550,6 +2562,78 @@ async function run() {
       wanda.da && wanda.region === 3 && wanda.quelle && wanda.radius > 300,
       JSON.stringify(wanda));
     check('Sie stellt eigene Bitten', wanda.auftraege > 0, JSON.stringify(wanda));
+
+    /* ---- Das Hochland ---- */
+    const hochland = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      const granit = g.world.entities.filter((e) => e.kind === 'rock_granite' && !e.gone);
+      const geode = g.world.entities.filter((e) => e.kind === 'rock_geode' && !e.gone);
+      const block = granit[0];
+      if (!block) return { fehler: 'kein Granit' };
+      g.world.unlocked[3] = true;
+
+      // Mit der Spitzhacke vom ersten Tag geht hier nichts.
+      g.player.x = block.x;
+      g.player.y = block.y + 56;
+      g.player.dir = 'up';
+      g.player.selectTool(2);                 // 0 Hand, 1 Axt, 2 Spitzhacke
+      const vorher = block.hp;
+
+      function schlagen(stufe) {
+        g.player.levels.pickaxe = stufe;
+        const t = g.player.findTarget(g.world);
+        if (!t || t.entity !== block) return 'nicht anvisiert';
+        g.target = t;
+        g.onInteract();
+        return null;
+      }
+      const schwachGrund = schlagen(1);
+      const schwachWirkung = vorher - block.hp;
+      const starkGrund = schlagen(3);
+      const starkWirkung = vorher - block.hp;
+
+      const stein = g.inventory.count('granite');
+      // Und ganz durch: Granit muss auch wirklich Granit hergeben
+      for (let i = 0; i < 12 && !block.gone; i++) {
+        const t = g.player.findTarget(g.world);
+        if (!t || t.entity !== block) break;
+        g.target = t;
+        g.onInteract();
+      }
+      return {
+        granit: granit.length, geoden: geode.length,
+        schwachWirkung, starkWirkung, schwachGrund, starkGrund,
+        ausbeute: g.inventory.count('granite') - stein,
+      };
+    });
+    check('Im Hochland stehen Granit und Geoden',
+      hochland.granit > 8 && hochland.geoden > 0, JSON.stringify(hochland));
+    check('Granit gibt erst ab Spitzhacke Stufe 3 nach',
+      hochland.schwachWirkung === 0 && hochland.starkWirkung > 0,
+      JSON.stringify(hochland));
+    check('Und bringt dann Granit, den es sonst nirgends gibt',
+      hochland.ausbeute > 0, JSON.stringify(hochland));
+
+    // Die Nummern der Objekte werden beim Erzeugen der Welt vergeben. Kommt
+    // in einer neueren Fassung etwas dazu, verschieben sie sich – ein alter
+    // Spielstand darf dann nicht den falschen Baum verschwinden lassen.
+    const versatz = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      const baum = g.world.entities.filter(
+        (e) => e.kind && e.kind.indexOf('tree_') === 0 && !e.gone)[0];
+      if (!baum) return { fehler: 'kein Baum' };
+      // Ein Eintrag, der auf diese Nummer zeigt, aber eine andere Art nennt
+      g._applyWorldDelta({ changed: [{ id: baum.id, k: 'rock_big', g: 1, o: null, r: 0 }] });
+      const fremdeArt = baum.gone;
+      // Und einer mit der richtigen Art
+      g._applyWorldDelta({ changed: [{ id: baum.id, k: baum.kind, g: 1, o: null, r: 0 }] });
+      const eigeneArt = baum.gone;
+      baum.gone = false;
+      return { fremdeArt, eigeneArt };
+    });
+    check('Ein Eintrag mit falscher Art lässt das Objekt stehen',
+      versatz.fremdeArt === false && versatz.eigeneArt === true,
+      JSON.stringify(versatz));
 
     // Ein Spielstand von VOR den Meilensteinen und der Gießkanne muss laufen,
     // ohne dass jemand etwas verliert. Das ist die eine Prüfung, an der ein

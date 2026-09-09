@@ -573,12 +573,15 @@ export function paintRock(opts) {
     outline: 1.8 * Math.min(1.2, scale),
     shadow: function (g) { groundShadow(g, cx + 4, baseY - 3, 42 * scale, 11 * scale, seed + 1, 0.15); },
     wash: function (g) {
-      wash(g, body, ink.rock, { seed: seed + 2, scale: 1.05 });
+      // Der Stein darf seine Farbe wechseln: Der Granit im Hochland ist
+      // kälter als der Findling am Strand, sonst wäre der neue Bereich nur
+      // derselbe Stein an einer anderen Stelle.
+      wash(g, body, o.tint || ink.rock, { seed: seed + 2, scale: 1.05 });
       // Vorderseite liegt im Schatten, Deckfläche fängt das Licht
       wash(g, offsetShape(body, -LIGHT.x * 16 * scale, -LIGHT.y * 13 * scale, 0.78),
-        ink.rockShade, { seed: seed + 3, alpha: 0.8 });
+        o.tintShade || ink.rockShade, { seed: seed + 3, alpha: 0.8 });
       wash(g, offsetShape(body, -LIGHT.x * 24 * scale, -LIGHT.y * 17 * scale, 0.5),
-        ink.rockDeep, { seed: seed + 4, alpha: 0.4 });
+        o.tintDeep || ink.rockDeep, { seed: seed + 4, alpha: 0.4 });
       wash(g, top, '#efece0', { seed: seed + 30, alpha: 0.72, scale: 1.02 });
       if (o.moss !== false) {
         // Moos gehört auf den Stein, nicht daneben: die Lasuren liegen
@@ -589,8 +592,10 @@ export function paintRock(opts) {
         g.restore();
       }
       if (o.ore) {
-        dot(g, null, cx + 11 * scale, baseY - 34 * scale, 9 * scale, ink.copper, seed + 8);
-        dot(g, null, cx - 15 * scale, baseY - 22 * scale, 7 * scale, ink.copper, seed + 11);
+        const adern = o.oreColor || ink.copper;
+        dot(g, null, cx + 11 * scale, baseY - 34 * scale, 9 * scale, adern, seed + 8);
+        dot(g, null, cx - 15 * scale, baseY - 22 * scale, 7 * scale, adern, seed + 11);
+        if (o.ore3) dot(g, null, cx - 2 * scale, baseY - 48 * scale, 6 * scale, adern, seed + 13);
       }
     },
     shape: function (g) { fill(g, body); },
@@ -603,8 +608,10 @@ export function paintRock(opts) {
       inkLine(g, cx + 2, baseY - 32 * scale, cx + 21 * scale, baseY - 21 * scale,
         { width: 1.5, bend: -0.12, seed: seed + 22, alpha: 0.42 });
       if (o.ore) {
-        dot(null, g, cx + 11 * scale, baseY - 34 * scale, 9 * scale, ink.copper, seed + 8);
-        dot(null, g, cx - 15 * scale, baseY - 22 * scale, 7 * scale, ink.copper, seed + 11);
+        const adern = o.oreColor || ink.copper;
+        dot(null, g, cx + 11 * scale, baseY - 34 * scale, 9 * scale, adern, seed + 8);
+        dot(null, g, cx - 15 * scale, baseY - 22 * scale, 7 * scale, adern, seed + 11);
+        if (o.ore3) dot(null, g, cx - 2 * scale, baseY - 48 * scale, 6 * scale, adern, seed + 13);
       }
     },
   });

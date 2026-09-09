@@ -66,12 +66,37 @@ export const ISLE_X1 = 19;
 export const DOCK_TILE = { x: 24, y: 52 };
 export const ISLE_DOCK_TILE = { x: 14, y: 52 };
 
+/**
+ * Die Kerne der Insel.
+ *
+ * Die Stille Insel bestand aus einem einzigen Kern mit Radius 9 und war
+ * damit gemessen der kleinste Bereich mit Abstand: 199 begehbare Kacheln
+ * gegen 1227 im Lager, 881 im Wald und 526 auf den Klippen. Wer nach dem
+ * Meilenstein übersetzt, steht nach zwei Minuten wieder am Boot.
+ *
+ * Nach Osten kann sie nicht wachsen – dort liegt der Sund, und dahinter
+ * beginnt bei x=24 das Festland. Nach Norden und Süden war dagegen alles
+ * frei: Von 96 Zeilen benutzte sie sechzehn. Drei Kerne übereinander machen
+ * daraus eine lange Insel statt einer größeren Scheibe, und die Fahrt von
+ * einem Ende zum anderen ist selbst schon etwas.
+ */
 const LOBES = [
   { x: 44, y: 60, r: 21 },   // Lager / Strand
   { x: 40, y: 20, r: 17 },   // Wald
   { x: 79, y: 50, r: 14 },   // Klippen
-  { x: 8, y: 46, r: 9 },     // Stille Insel
+  { x: 8, y: 24, r: 12 },    // Stille Insel – das Hochland im Norden
+  { x: 8, y: 46, r: 10 },    // Stille Insel – die Mitte, wo Wanda steht
+  { x: 9, y: 67, r: 11 },    // Stille Insel – der Süden
 ];
+
+/**
+ * Wo auf der Stillen Insel das Hochland beginnt.
+ *
+ * Nördlich davon wird aus Gras Felsboden, und dort steht das Erz, an das man
+ * nur mit der dritten Spitzhackenstufe kommt. Ein Bereich, der aussieht wie
+ * jeder andere, ist kein neuer Bereich.
+ */
+export const HIGHLAND_Y = 36;
 
 export function tileIndex(tx, ty) {
   return ty * MAP_W + tx;
@@ -132,6 +157,13 @@ export function generateTiles(seed) {
         const wr = warp(noise, tx * 0.14, ty * 0.14, 1.9);
         const rock = fbm(detail, wr[0], wr[1], 3, 2.0, 0.5);
         if (rock > 0.58) t = T.ROCKFLOOR;
+      }
+      // Das Hochland der Stillen Insel: hier überwiegt der Fels, sonst sähe
+      // der Norden aus wie die Mitte und wäre kein eigener Ort.
+      if (t === T.GRASS && tx <= ISLE_X1 && ty < HIGHLAND_Y) {
+        const wh2 = warp(noise, tx * 0.13 + 200, ty * 0.13, 1.7);
+        const fels = fbm(detail, wh2[0], wh2[1], 3, 2.0, 0.5);
+        if (fels > 0.40) t = T.ROCKFLOOR;
       }
       // Trampelpfade / Lichtungen im Wald
       if (t === T.GRASS && ty < RIVER_Y0) {

@@ -42,6 +42,9 @@ const LIST = [
   it('hardwood', 'Hartholz', CAT.MATERIAL, 9, 3),
   it('stone', 'Stein', CAT.MATERIAL, 3, 0),
   it('copper_ore', 'Kupfererz', CAT.MATERIAL, 11, 0),
+  // Aus dem Hochland der Stillen Insel. Ein neuer Bereich braucht etwas, das
+  // es nur dort gibt – sonst ist er eine größere Fläche mit demselben Kram.
+  it('granite', 'Granit', CAT.MATERIAL, 19, 0),
   it('fiber', 'Pflanzenfaser', CAT.MATERIAL, 2, 1),
   it('resin', 'Harz', CAT.MATERIAL, 7, 2),
   it('clay', 'Ton', CAT.MATERIAL, 4, 0),
@@ -63,6 +66,7 @@ const LIST = [
   it('shard', 'Tonscherbe', CAT.RELIC, 14, 4),
   it('bottle', 'Flaschenpost', CAT.RELIC, 10, 3),
   it('gem', 'Meerkristall', CAT.RELIC, 45, 10),
+  it('amber', 'Bernstein', CAT.RELIC, 70, 14),
   it('coin_pouch', 'Münzbeutel', CAT.RELIC, 0, 0, { opens: [40, 90] }),
 
   // Fische

@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 
 import {
   generateTiles, MAP_W, MAP_H, tileIndex, regionAt, REGION, REGION_NAMES,
-  ALL_REGIONS, CAMP_TILE, SOUND_X0, SOUND_X1, ISLE_X1,
+  ALL_REGIONS, CAMP_TILE, SOUND_X0, SOUND_X1, ISLE_X1, HIGHLAND_Y,
 } from '../../src/world/worldgen.js';
 import { isWalkable, T } from '../../src/art/tiles.js';
 import { World } from '../../src/world/world.js';
@@ -20,7 +20,8 @@ import { SPIRITS, SPIRIT_IDS, spiritsOfRegion } from '../../src/game/spirits.js'
 import { STORIES, keepsakeOf, storyArt } from '../../src/game/stories.js';
 import { getItem } from '../../src/game/items.js';
 import { Player } from '../../src/game/player.js';
-import { makeEntity } from '../../src/world/entities.js';
+import { makeEntity, defOf, ENTITY_DEFS } from '../../src/world/entities.js';
+import { makeRng } from '../../src/core/rng.js';
 import { MILESTONES, milestoneForRegion } from '../../src/game/milestones.js';
 
 /** Eine Handvoll Seeds für die teuren Prüfungen. */
@@ -84,9 +85,108 @@ test('Die Insel ist groß genug, dass sich die Fahrt lohnt', () => {
         if (regionAt(tx, ty) === REGION.ISLE && isWalkable(tiles[tileIndex(tx, ty)])) n++;
       }
     }
-    // Gemessen 182 bis 213 Kacheln – etwa ein Drittel der Klippen.
-    assert.ok(n > 120, 'Seed ' + seed + ': nur ' + n + ' Inselkacheln');
-    assert.ok(n < 420, 'Seed ' + seed + ': ' + n + ' Kacheln, das ist keine kleine Insel mehr');
+    // Mit einem einzigen Kern hatte die Insel gemessen 182 bis 213 Kacheln –
+    // gegen 1227 im Lager und 526 auf den Klippen. Man stand nach zwei
+    // Minuten wieder am Boot. Mit drei Kernen sind es rund 900: mehr als die
+    // Klippen, weniger als das Lager. Die Untergrenze ist der eigentliche
+    // Punkt, die Obergrenze hält sie davon ab, die Karte zu schlucken.
+    assert.ok(n > 600, 'Seed ' + seed + ': nur ' + n + ' Inselkacheln');
+    assert.ok(n < 1200, 'Seed ' + seed + ': ' + n + ' Kacheln, das ist die halbe Karte');
+  }
+});
+
+test('Die Insel ist lang, nicht rund', () => {
+  // Nach Osten kann sie nicht wachsen – dort liegt der Sund. Der Reiz ist
+  // die Strecke von Norden nach Süden; eine breitere Scheibe wäre nur mehr
+  // vom Gleichen an einer Stelle.
+  for (const seed of SEEDS.slice(0, 8)) {
+    const tiles = generateTiles(seed);
+    let y0 = 1e9;
+    let y1 = -1;
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        if (regionAt(tx, ty) !== REGION.ISLE) continue;
+        if (!isWalkable(tiles[tileIndex(tx, ty)])) continue;
+        if (ty < y0) y0 = ty;
+        if (ty > y1) y1 = ty;
+      }
+    }
+    assert.ok(y1 - y0 > 50, 'Seed ' + seed + ': nur ' + (y1 - y0 + 1) + ' Zeilen hoch');
+  }
+});
+
+test('Im Hochland steht, was es nur dort gibt – und zwar hinter Stufe 3', () => {
+  const w = new World(31337).populate();
+  let granitHoch = 0;
+  let granitSonst = 0;
+  let geoden = 0;
+  for (const e of w.entities) {
+    if (e.kind !== 'rock_granite' && e.kind !== 'rock_geode') continue;
+    const ty = Math.floor(e.y / 64);
+    const hoch = regionAt(Math.floor(e.x / 64), ty) === REGION.ISLE && ty < HIGHLAND_Y;
+    if (e.kind === 'rock_geode') geoden++;
+    if (e.kind === 'rock_granite') {
+      if (hoch) granitHoch++;
+      else granitSonst++;
+    }
+  }
+  assert.ok(granitHoch > 8, 'nur ' + granitHoch + ' Granitblöcke im Hochland');
+  assert.equal(granitSonst, 0, 'Granit steht auch außerhalb des Hochlands');
+  assert.ok(geoden > 0, 'keine einzige Geode');
+
+  // Die Werkzeugstufe ist die Eintrittskarte. Ohne sie wäre das Hochland nur
+  // eine größere Fläche mit demselben Kram.
+  assert.equal(defOf('rock_granite').minLevel, 3);
+  assert.equal(defOf('rock_geode').minLevel, 4);
+
+  // Und was dort fällt, muss es sonst nirgends geben, sonst ist die Fahrt
+  // ins Hochland eine Abkürzung statt eines eigenen Ortes.
+  for (const id of ['granite', 'amber']) {
+    assert.ok(getItem(id), id + ' gibt es nicht');
+    let woanders = 0;
+    for (const kind of Object.keys(ENTITY_DEFS)) {
+      const def = ENTITY_DEFS[kind];
+      if (kind === 'rock_granite' || kind === 'rock_geode' || !def.yield) continue;
+      // Ausbeuten sind Funktionen; über viele Würfe sehen wir, was fallen kann
+      for (let i = 0; i < 200; i++) {
+        const rng = makeRng(1000 + i);
+        const out = def.yield(4, rng) || [];
+        for (const d of out) if (d.id === id) woanders++;
+      }
+    }
+    assert.equal(woanders, 0, id + ' fällt auch anderswo');
+  }
+});
+
+test('Im Norden liegt ein Hochland aus Fels', () => {
+  // Ein Bereich, der aussieht wie jeder andere, ist kein neuer Bereich.
+  for (const seed of SEEDS.slice(0, 8)) {
+    const tiles = generateTiles(seed);
+    let felsNord = 0;
+    let landNord = 0;
+    let felsSued = 0;
+    let landSued = 0;
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        if (regionAt(tx, ty) !== REGION.ISLE) continue;
+        const t = tiles[tileIndex(tx, ty)];
+        if (!isWalkable(t)) continue;
+        if (ty < HIGHLAND_Y) {
+          landNord++;
+          if (t === T.ROCKFLOOR) felsNord++;
+        } else {
+          landSued++;
+          if (t === T.ROCKFLOOR) felsSued++;
+        }
+      }
+    }
+    assert.ok(landNord > 150, 'Seed ' + seed + ': das Hochland ist nur ' + landNord + ' Kacheln');
+    const anteil = felsNord / Math.max(1, landNord);
+    assert.ok(anteil > 0.25,
+      'Seed ' + seed + ': nur ' + Math.round(anteil * 100) + '% Fels im Hochland');
+    // Und südlich davon eben NICHT – sonst wäre die ganze Insel ein Steinbruch
+    assert.ok(felsSued / Math.max(1, landSued) < 0.08,
+      'Seed ' + seed + ': auch im Süden liegt Fels');
   }
 });
 

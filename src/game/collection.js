@@ -154,6 +154,8 @@ export const HINTS = {
   path_tile: 'Werkbank – der Weg unter den Füßen.',
   signpost: 'Werkbank.',
   bridge_kit: 'Werkbank. Öffnet die Klippen.',
+  granite: 'Im Hochland der Stillen Insel, ab Spitzhacke Stufe 3.',
+  amber: 'Aus Geoden im Hochland, ab Spitzhacke Stufe 4.',
   table: 'Aus dem Katalog – kommt am nächsten Morgen mit der Post.',
   chair: 'Aus dem Katalog.',
   hammock: 'Aus dem Katalog, wenn die Insel Farbe hat.',

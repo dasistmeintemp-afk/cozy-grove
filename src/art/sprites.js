@@ -217,6 +217,16 @@ export function initArt() {
   addArt('rock_big', paintRock({ seed: 77 }));
   addArt('rock_small', paintRock({ seed: 83, scale: 0.66, moss: false }));
   addArt('rock_ore', paintRock({ seed: 88, ore: true }));
+  // Hochland: kälterer Stein, helle Adern – und die Geode violett, damit man
+  // sie im Geröll von weitem auseinanderhält.
+  addArt('rock_granite', paintRock({
+    seed: 94, scale: 1.12, moss: false, ore: true, ore3: true,
+    oreColor: '#e6e9ee', tint: '#96999f', tintShade: '#767a82', tintDeep: '#5c606a',
+  }));
+  addArt('rock_geode', paintRock({
+    seed: 96, scale: 0.94, moss: false, ore: true, ore3: true,
+    oreColor: '#b98ada', tint: '#8b8792', tintShade: '#6d6a77', tintDeep: '#55525e',
+  }));
   addArt('rockslide', paintRockslide({ seed: 181 }));
 
   /* --- Kleinpflanzen --- */

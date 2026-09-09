@@ -93,6 +93,31 @@ export const ENTITY_DEFS = {
     respawn: 3, category: 'rock',
   },
 
+  // Nur im Hochland der Stillen Insel. Die dritte Spitzhackenstufe ist die
+  // Eintrittskarte: Ein neuer Bereich, den man mit dem Werkzeug vom ersten
+  // Tag leerräumt, gibt dem Aufsteigen keinen Sinn.
+  rock_granite: {
+    sprite: 'rock_granite', solid: true, blockR: 30, reachR: 84, tool: TOOL.PICK, minLevel: 3, hits: 5,
+    yield: function (level, rng) {
+      const out = [
+        { id: 'granite', n: randInt(rng, 1, 2) + (level >= 4 ? 1 : 0) },
+        { id: 'stone', n: randInt(rng, 1, 3) },
+      ];
+      if (rng() < 0.18) out.push({ id: 'copper_ore', n: 1 });
+      return out;
+    },
+    respawn: 3, category: 'rock',
+  },
+  rock_geode: {
+    sprite: 'rock_geode', solid: true, blockR: 28, reachR: 84, tool: TOOL.PICK, minLevel: 4, hits: 6,
+    yield: function (level, rng) {
+      const out = [{ id: 'amber', n: 1 }, { id: 'granite', n: randInt(rng, 1, 2) }];
+      if (rng() < 0.4) out.push({ id: 'gem', n: 1 });
+      return out;
+    },
+    respawn: 5, category: 'rock',
+  },
+
   bush_berry: {
     sprite: 'bush_berry', solid: true, blockR: 24, reachR: 72, tool: TOOL.HAND, hits: 1,
     yield: drop('berry', 1, 2), becomes: 'bush_plain', respawn: 1, sway: true, category: 'forage',

@@ -25,6 +25,7 @@ const SPRITE_NAMES = (function () {
   const names = [
     'tree_stump', 'log_barrier',
     'rock_big', 'rock_small', 'rock_ore', 'rockslide',
+    'rock_granite', 'rock_geode',
     'bush_berry', 'bush_plain', 'grass_tuft', 'reeds', 'mushroom', 'herb',
     'shell', 'driftwood', 'digspot',
     'moonflower', 'rainmushroom', 'fogcrystal',

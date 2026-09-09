@@ -357,6 +357,13 @@ export class Game {
         const c = delta.changed[i];
         const e = this.world.byId[c.id];
         if (!e) continue;
+        // Die Nummern werden beim Erzeugen der Welt vergeben. Kommt in einer
+        // neueren Fassung etwas dazu, verschieben sie sich – „dieser Baum ist
+        // gefällt" träfe dann einen anderen. Die Art muss also stimmen: Was
+        // nicht passt, bleibt lieber stehen, statt an falscher Stelle zu
+        // verschwinden. Bei gefälltem gilt die ursprüngliche Art.
+        const erwartet = c.o || c.k;
+        if (erwartet && e.kind !== erwartet) continue;
         if (c.o) {
           e.origin = c.o;
           e.kind = c.k;

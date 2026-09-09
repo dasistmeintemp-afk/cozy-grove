@@ -132,6 +132,25 @@ export const RECIPES = [
   r('rod4', 'Angel · Stufe 4', null,
     [{ id: 'hardwood', n: 8 }, { id: 'moonflower', n: 3 }, { id: 'gem', n: 2 }],
     { ember: 34, kind: 'tool', tool: 'rod', level: 4, fire: 4, needs: 'see' }),
+
+  /* --------------------------------------------------------------------
+   * Aus dem Hochland.
+   *
+   * Granit und Bernstein gibt es nur dort, und dort kommt man nur mit der
+   * dritten und vierten Spitzhackenstufe hin. Damit hat der neue Bereich
+   * etwas, das man mitbringt, und die letzten Werkzeugstufen haben einen
+   * Grund über sich hinaus.
+   * -------------------------------------------------------------------- */
+
+  r('stonelamp', 'Steinlaterne', { id: 'moonlamp', n: 1 },
+    [{ id: 'granite', n: 8 }, { id: 'copper_ore', n: 4 }, { id: 'gem', n: 1 }],
+    { ember: 18, fire: 3, needs: 'insel', note: 'Leuchtet so weit wie die Mondlaterne.' }),
+  r('gravel', 'Steinweg aus Granit', { id: 'path_tile', n: 12 },
+    [{ id: 'granite', n: 3 }, { id: 'stone', n: 4 }],
+    { ember: 6, fire: 2, needs: 'insel', note: 'Zwölf Wegstücke auf einmal.' }),
+  r('amberlamp', 'Bernsteinlicht', { id: 'paperlamp', n: 1 },
+    [{ id: 'amber', n: 1 }, { id: 'granite', n: 6 }, { id: 'hardwood', n: 4 }],
+    { ember: 22, fire: 3, needs: 'insel', note: 'Warmes Licht, das nie ausgeht.' }),
 ];
 
 export function recipeById(id) {
