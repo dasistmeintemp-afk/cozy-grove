@@ -9,6 +9,7 @@ import {
 } from '../../src/world/worldgen.js';
 import { T, isWalkable, isWater, TILE_SIZE } from '../../src/art/tiles.js';
 import { spriteFor, ENTITY_DEFS } from '../../src/world/entities.js';
+import { SPIRIT_IDS } from '../../src/game/spirits.js';
 
 const SEED = 12345;
 
@@ -122,16 +123,20 @@ test('Insel wird bevölkert: Bäume, Geister, Lager', () => {
 
   assert.ok(world.entities.length > 300, 'genug Objekte, waren ' + world.entities.length);
   assert.ok((kinds.tree_oak || 0) + (kinds.tree_pine || 0) + (kinds.tree_birch || 0) > 80, 'Bäume');
-  assert.equal(kinds.spirit, 6, 'sechs Geister');
+  assert.equal(kinds.spirit, SPIRIT_IDS.length, 'ein Geist je Eintrag');
   assert.equal(kinds.campfire, 1);
   assert.equal(kinds.tent, 1);
   assert.equal(kinds.stall, 1);
   assert.equal(kinds.workbench, 1);
   assert.equal(kinds.log_barrier, 1);
 
-  for (const id of ['flamey', 'mira', 'kiesel', 'bruno', 'tobi', 'nelly']) {
+  // Aus der Quelle abgeleitet: eine zweite Namensliste veraltet beim
+  // nächsten Geist stillschweigend.
+  for (const id of SPIRIT_IDS) {
     assert.ok(world.spiritEntity(id), 'Geist ' + id + ' vorhanden');
   }
+  // Und die beiden Ruderboote, ohne die die Stille Insel unerreichbar ist
+  assert.equal(kinds.boat, 2, 'an jedem Ufer ein Boot');
 });
 
 test('Objekte stehen nur auf begehbarem Boden', () => {

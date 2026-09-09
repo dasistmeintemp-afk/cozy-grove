@@ -18,14 +18,14 @@ import { todayOf, shoalIndex } from './calendar.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
-import { SPIRITS, friendshipLevel, friendshipGift } from './spirits.js';
+import { SPIRITS, friendshipLevel, friendshipGift, spiritsOfRegion } from './spirits.js';
 import { StoryBook, STAGES, storyArt, keepsakeOf, storyLine, storyClose, storyIntro } from './stories.js';
 import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
 import { getItem, itemName, CAT, CONDITIONAL, fishesOf } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
 import { dueAt, perksOf } from './milestones.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
-import { startPosition, REGION_NAMES } from '../world/worldgen.js';
+import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
 import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
@@ -216,7 +216,13 @@ export class Game {
     // nach, was seine Farbe schon hergibt – siehe `_checkMilestones`.
     if (!this.state.milestones) this.state.milestones = Object.create(null);
 
-    this.world.unlocked = save.unlocked || [true, false, false];
+    // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
+    // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
+    // auf `isUnlocked` an einem Zufall.
+    this.world.unlocked = ALL_REGIONS.map(function (r) {
+      return !!(save.unlocked && save.unlocked[r]);
+    });
+    this.world.unlocked[0] = true;
     if (save.bridgeBuilt) this.world.buildBridge();
     this._applyWorldDelta(save.worldDelta);
   }
@@ -735,8 +741,7 @@ export class Game {
     this.particles.burst('color', sourceEntity.x, sourceEntity.y - 40, 26);
     this.audio.play('colorBurst');
     this.camera.kick(0.5);
-    const names = ['Lager & Strand', 'Wald', 'Klippen'];
-    this.ui.toast(names[region] + ' entdeckt!', 'icon_map', 'good');
+    this.ui.toast(REGION_NAMES[region] + ' entdeckt!', 'icon_map', 'good');
     // Geister im neuen Bereich bekommen sofort eine Aufgabe
     this.quests.newDay(this.day.day, this.world, this);
     this.world.newDay(this.day.day);
@@ -1066,8 +1071,59 @@ export class Game {
       case 'shop': this.openPanel('shop'); break;
       case 'tent': this.sleep(false); break;
       case 'bridge': this._tryBridge(entity); break;
+      case 'boat': this._takeBoat(entity); break;
       default: break;
     }
+  }
+
+  /**
+   * Überfahrt zur Stillen Insel – und zurück.
+   *
+   * Kein Fahren, sondern ein Schnitt: derselbe Übergang wie beim Schlafen.
+   * Ein Boot, das man über den Sund steuert, wäre ein zweites Spiel; hier
+   * geht es darum, DASS es die Insel gibt, nicht um die Fahrt.
+   *
+   * Die Boote liegen von Anfang an da. Bis der Meilenstein steht, sind sie
+   * vertäut – so weiß man, dass da draußen etwas ist, lange bevor man
+   * hinkommt.
+   */
+  _takeBoat(entity) {
+    if (this.sleeping) return;
+    if (!this.world.isUnlocked(REGION.ISLE)) {
+      this.ui.toast('Das Boot liegt vertäut. Die Insel wartet noch.', 'icon_boat');
+      this.audio.play('ui');
+      return;
+    }
+    const ziel = this.world.boatTarget(entity);
+    if (!ziel) return;
+
+    this.sleeping = true;          // sperrt Eingabe wie beim Schlafen
+    this.fishing.cancel();
+    this.cancelPlacing();
+    this.panels.close();
+    this.ui.clearBubbles();
+    this.audio.play('splash');
+
+    const self = this;
+    const hin = entity.toRegion === REGION.ISLE;
+    this._fadeEl.querySelector('.sleep-note').textContent = hin ? 'Hinüber …' : 'Zurück …';
+    this._fadeEl.classList.add('on');
+    setTimeout(function () {
+      self.player.x = ziel.x;
+      self.player.y = ziel.y;
+      self.player.prevX = ziel.x;
+      self.player.prevY = ziel.y;
+      self.camera.snapTo(ziel.x, ziel.y);
+      self.ground.prewarm(self.camera.ox, self.camera.oy, self.renderer.viewW, self.renderer.viewH);
+      self.invalidate();
+      self._fadeEl.querySelector('.sleep-note').textContent =
+        hin ? REGION_NAMES[REGION.ISLE] : REGION_NAMES[REGION.CAMP];
+      setTimeout(function () {
+        self._fadeEl.classList.remove('on');
+        self.sleeping = false;
+        self.save();
+      }, 620);
+    }, 640);
   }
 
   _tryBridge(entity) {
@@ -1292,6 +1348,7 @@ export class Game {
     for (let i = 0; i < faellig.length; i++) {
       this.state.milestones[faellig[i].id] = this.day.day;
       this._giveMilestone(faellig[i]);
+      if (faellig[i].unlocksRegion != null) this._openRegion(faellig[i].unlocksRegion);
     }
     this._perksChanged();
     this._note('milestones', faellig.length);
@@ -1309,6 +1366,31 @@ export class Game {
     }
     this.ui.refreshHud();
     this.save();
+  }
+
+  /**
+   * Einen Bereich aufschließen, den ein Meilenstein freigibt.
+   *
+   * Die Farbanzeige zählt nur, was offen ist – ein neuer Bereich senkt sie
+   * also. Das ist gewollt und der Sinn der Sache: Es gibt wieder etwas zu
+   * tun. Wandas Farbkreis fängt dafür größer an als bei allen anderen, damit
+   * die Insel nicht als grauer Fleck beginnt.
+   */
+  _openRegion(region) {
+    if (!this.world.unlockRegion(region)) return;
+    // Der Geist dort braucht seinen Kreis, sonst liegt die Insel grau da,
+    // bis man ihm die erste Bitte erfüllt hat.
+    const ids = spiritsOfRegion(region);
+    for (let i = 0; i < ids.length; i++) {
+      const ent = this.world.spiritEntity(ids[i]);
+      if (!ent) continue;
+      this.colorField.addSource(ent.x, ent.y, SPIRITS[ids[i]].colorStart, 'spirit_' + ids[i]);
+    }
+    this.colorField.markDirty();
+    this.quests.newDay(this.day.day, this.world, this);
+    this.world.newDay(this.day.day, this.today ? this.today.event : null);
+    this.ui.toast(REGION_NAMES[region] + ' ist offen!', 'icon_map', 'good');
+    this.ui.refreshQuests();
   }
 
   /** Die einmalige Beigabe eines Meilensteins. */
@@ -2243,6 +2325,11 @@ export class Game {
       return;
     }
     if (def.category === 'decor') { this.ui.setPrompt('Einpacken'); return; }
+    if (def.station === 'boat') {
+      this.ui.setPrompt(!this.world.isUnlocked(REGION.ISLE) ? 'Vertäut'
+        : t.entity.toRegion === REGION.ISLE ? 'Übersetzen' : 'Zurückrudern');
+      return;
+    }
     if (def.station === 'campfire') { this.ui.setPrompt('Lagerfeuer'); return; }
     if (def.station === 'craft') { this.ui.setPrompt('Werkbank'); return; }
     if (def.station === 'shop') { this.ui.setPrompt('Laden'); return; }

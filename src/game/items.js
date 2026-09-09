@@ -95,6 +95,7 @@ const LIST = [
   it('memory_photo', 'Altes Foto', CAT.MEMORY, 0, 0, { quest: true }),
   it('memory_ribbon', 'Haarband', CAT.MEMORY, 0, 0, { quest: true }),
   it('memory_teacup', 'Teetasse', CAT.MEMORY, 0, 0, { quest: true }),
+  it('memory_shellchain', 'Muschelkette', CAT.MEMORY, 0, 0, { quest: true }),
 
   // Nur unter bestimmten Bedingungen zu finden – das ist der Grund, an einem
   // anderen Tag oder zu anderer Stunde wiederzukommen.
@@ -139,6 +140,8 @@ const LIST = [
     { prop: 'memory_music', charm: 10, keepsake: true }),
   it('keepsake_teacup', 'Nellys Teetasse', CAT.DECOR, 0, 0,
     { prop: 'memory_teacup', charm: 10, keepsake: true }),
+  it('keepsake_shellchain', 'Wandas Muschelkette', CAT.DECOR, 0, 0,
+    { prop: 'memory_shellchain', charm: 10, keepsake: true }),
 ];
 
 const BY_ID = Object.create(null);
@@ -208,3 +211,13 @@ export function bugsOf(night) {
 export const MEMORY_IDS = LIST
   .filter(function (i) { return i.cat === CAT.MEMORY; })
   .map(function (i) { return i.id; });
+
+/**
+ * Die Kurznamen der Erinnerungsstücke – die Grafik legt sie unter diesen
+ * Namen ab.
+ *
+ * Abgeleitet aus der Gegenstandsliste statt daneben gepflegt: Beim siebten
+ * Stück stand dieselbe Aufzählung in `sprites.js` und noch einmal im Test,
+ * und beide gingen leer aus.
+ */
+export const MEMORY_KINDS = MEMORY_IDS.map(function (id) { return id.slice('memory_'.length); });

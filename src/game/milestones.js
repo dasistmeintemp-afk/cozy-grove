@@ -57,6 +57,23 @@ export const MILESTONES = [
     gift: { items: [{ id: 'hardwood', n: 4 }] },
   },
   {
+    /**
+     * Der einzige Meilenstein, der die WELT ändert.
+     *
+     * Absichtlich in der Mitte: Zu früh wäre die Insel ein zweiter Anfang,
+     * zu spät ein Nachschlag. Hier hat man alles gesehen, was das Festland
+     * hergibt, und bekommt eine ganze Ecke dazu – mit einem siebten Geist,
+     * der eigene Bitten stellt, und den Vorkommen, die die letzten
+     * Werkzeugstufen brauchen.
+     */
+    id: 'insel', at: 0.50,
+    name: 'Die Stille Insel',
+    hint: 'Die Boote am Sund fahren. Draußen wartet eine Insel – und Wanda Watt.',
+    icon: 'icon_boat',
+    unlocksRegion: 3,
+    gift: { items: [{ id: 'driftwood', n: 3 }] },
+  },
+  {
     id: 'ruf', at: 0.58,
     name: 'Guter Ruf',
     hint: 'Der Händler zahlt dauerhaft ein Fünftel mehr.',
@@ -130,6 +147,14 @@ export function dueAt(coverage, erreicht) {
     out.push(m);
   }
   return out;
+}
+
+/** Der Meilenstein, der diesen Bereich aufschließt – oder null. */
+export function milestoneForRegion(region) {
+  for (let i = 0; i < MILESTONES.length; i++) {
+    if (MILESTONES[i].unlocksRegion === region) return MILESTONES[i];
+  }
+  return null;
 }
 
 /** Der nächste noch offene Meilenstein – oder null, wenn alle stehen. */

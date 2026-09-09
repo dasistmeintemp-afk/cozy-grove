@@ -116,6 +116,25 @@ export const SPIRITS = {
       full: ['Für heute reicht\'s.'],
     },
   },
+  wanda: {
+    id: 'wanda',
+    name: 'Wanda Watt',
+    art: 'spirit_wanda',
+    region: 3,
+    role: 'Stille Insel',
+    // Ihr Kreis beginnt größer als bei allen anderen: Sie ist allein auf
+    // ihrer Insel, und ein winziger Farbfleck im Nichts sähe verloren aus.
+    colorStart: 360,
+    colorArea: 158000,
+    questTypes: ['find', 'catch_bug', 'gather_beach', 'fish', 'visit', 'set', 'deliver', 'grow'],
+    likes: ['shell', 'driftwood', 'bottle', 'moonflower'],
+    lines: {
+      greet: ['Wer rudert denn da?', 'Still hier, nicht?', 'Ich zähle Wellen.'],
+      thanks: ['Oh, schön.', 'Das hebe ich auf.', 'Danke, wirklich.'],
+      wait: ['Ich warte gern.', 'Noch nicht.'],
+      full: ['Genug für heute.'],
+    },
+  },
 };
 
 export const SPIRIT_IDS = Object.keys(SPIRITS);

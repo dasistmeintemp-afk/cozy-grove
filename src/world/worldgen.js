@@ -1,12 +1,19 @@
 /**
  * Inselgenerierung.
  *
- * Die Insel besteht aus drei Bereichen, die durch natürliche Hindernisse
+ * Die Insel besteht aus vier Bereichen, die durch natürliche Hindernisse
  * getrennt sind – das ergibt den Fortschritt, ohne dass irgendwo eine
  * unsichtbare Wand steht:
  *   0 Lager & Strand  (Start)
  *   1 Wald            (hinter dem Fluss, umgestürzter Baumstamm blockiert)
  *   2 Klippen         (hinter dem Kanal, Brücke nötig)
+ *   3 Stille Insel    (draußen im Wasser, nur mit dem Boot)
+ *
+ * Die vierte liegt im Westen, wo bei jedem Seed offenes Wasser war – über
+ * acht Seeds gemessen lag die westlichste Landkachel bei x = 22. Zwischen
+ * ihr und dem Festland bleibt ein Streifen tiefes Wasser: Man kann nicht
+ * hinüberlaufen, auch nicht bei einer Insel, die der Zufall breit geraten
+ * lässt. Ein Test prüft genau das.
  */
 import { makeRng, makeNoise2D, fbm, hashString, randInt, randRange } from '../core/rng.js';
 import { T, TILE_SIZE, isWalkable } from '../art/tiles.js';
@@ -14,9 +21,18 @@ import { T, TILE_SIZE, isWalkable } from '../art/tiles.js';
 export const MAP_W = 96;
 export const MAP_H = 96;
 
-export const REGION = { CAMP: 0, FOREST: 1, CLIFFS: 2 };
+export const REGION = { CAMP: 0, FOREST: 1, CLIFFS: 2, ISLE: 3 };
 
-export const REGION_NAMES = ['Lager & Strand', 'Wald', 'Klippen'];
+export const REGION_NAMES = ['Lager & Strand', 'Wald', 'Klippen', 'Stille Insel'];
+
+/**
+ * Alle Bereiche in einer Liste.
+ *
+ * Abgeleitet statt abgeschrieben: Die Tagesereignisse zählten ihre Bereiche
+ * dreimal von Hand auf. Beim vierten wären Grabstellen, Blütentag und die
+ * seltenen Gewächse an drei Stellen stillschweigend an der Insel vorbeigegangen.
+ */
+export const ALL_REGIONS = Object.keys(REGION).map(function (k) { return REGION[k]; });
 
 // Feste Bauwerke / Sperren
 export const RIVER_Y0 = 37;
@@ -32,10 +48,29 @@ export const BRIDGE_Y1 = 51;
 
 export const CAMP_TILE = { x: 44, y: 62 };
 
+/**
+ * Der Sund zwischen Festland und Stiller Insel.
+ *
+ * Ausgehoben, nicht erhofft: Bei acht Seeds lag die westlichste Landkachel
+ * zwar bei x = 22, aber bei einem davon wuchs eine Landbrücke bis zur Insel
+ * hinüber – gemessen 309 zu Fuß erreichbare Inselkacheln. Fluss und Kanal
+ * werden aus demselben Grund gegraben. Die Bereichsgrenze liegt in der
+ * Mitte des Sunds, also auf beiden Seiten im Wasser: So bekommt kein
+ * Festlandufer aus Versehen die Kennung der Insel.
+ */
+export const SOUND_X0 = 17;
+export const SOUND_X1 = 21;
+/** Alles westlich davon gehört zur Stillen Insel. */
+export const ISLE_X1 = 19;
+/** Wo das Boot anlegt – Festlandseite und Inselseite. */
+export const DOCK_TILE = { x: 24, y: 52 };
+export const ISLE_DOCK_TILE = { x: 14, y: 52 };
+
 const LOBES = [
   { x: 44, y: 60, r: 21 },   // Lager / Strand
   { x: 40, y: 20, r: 17 },   // Wald
   { x: 79, y: 50, r: 14 },   // Klippen
+  { x: 8, y: 46, r: 9 },     // Stille Insel
 ];
 
 export function tileIndex(tx, ty) {
@@ -56,6 +91,9 @@ function warp(n, x, y, amount) {
 }
 
 export function regionAt(tx, ty) {
+  // Der Westen zuerst: Die Insel liegt links von allem anderen, und über
+  // acht Seeds gemessen reicht kein Festland weiter als bis x = 22.
+  if (tx <= ISLE_X1) return REGION.ISLE;
   if (tx >= CHANNEL_X1 + 1) return REGION.CLIFFS;
   if (ty <= RIVER_Y0 - 1) return REGION.FOREST;
   return REGION.CAMP;
@@ -107,6 +145,7 @@ export function generateTiles(seed) {
 
   carveRiver(tiles, detail);
   carveChannel(tiles, detail);
+  carveSound(tiles, detail);
   buildFord(tiles);
   flattenCamp(tiles);
   addBeachRim(tiles);
@@ -150,6 +189,17 @@ function carveChannel(tiles, detail) {
   for (let ty = BRIDGE_Y0; ty <= BRIDGE_Y1; ty++) {
     for (let tx = CHANNEL_X0 - 3; tx < CHANNEL_X0; tx++) setLand(tiles, tx, ty, T.SAND);
     for (let tx = CHANNEL_X1 + 1; tx <= CHANNEL_X1 + 3; tx++) setLand(tiles, tx, ty, T.SAND);
+  }
+}
+
+/** Der Sund: eine Wasserrinne über die volle Höhe, damit die Insel Insel bleibt. */
+function carveSound(tiles, detail) {
+  for (let ty = 0; ty < MAP_H; ty++) {
+    const wobble = Math.round((fbm(detail, 313, ty * 0.11, 3, 2, 0.5) - 0.5) * 3);
+    for (let tx = SOUND_X0 + wobble; tx <= SOUND_X1 + wobble; tx++) {
+      if (tx < 0 || tx >= MAP_W) continue;
+      tiles[tileIndex(tx, ty)] = T.WATER;
+    }
   }
 }
 

@@ -209,6 +209,7 @@ export class Player {
       else score -= 30;
       if (def.category === 'hidden') score += 90;
       if (def.category === 'spirit') score += 30;
+      if (def.priority) score += def.priority;
 
       if (score > bestScore) {
         bestScore = score;

@@ -5,6 +5,7 @@ import {
   walkableTilesOf, findWalkableNear, CAMP_TILE,
   FORD_X0, FORD_X1, RIVER_Y0, RIVER_Y1,
   CHANNEL_X0, CHANNEL_X1, BRIDGE_Y0, BRIDGE_Y1,
+  DOCK_TILE, ISLE_DOCK_TILE, ALL_REGIONS,
 } from './worldgen.js';
 import { makeEntity, defOf, spriteFor } from './entities.js';
 import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
@@ -25,6 +26,7 @@ export const SPIRIT_HOMES = {
   bruno: { tx: 38, ty: 26, region: REGION.FOREST },
   tobi: { tx: 44, ty: 14, region: REGION.FOREST },
   nelly: { tx: 78, ty: 50, region: REGION.CLIFFS },
+  wanda: { tx: 8, ty: 44, region: REGION.ISLE },
 };
 
 export class World {
@@ -39,7 +41,7 @@ export class World {
     for (let i = 0; i < this.grid.length; i++) this.grid[i] = [];
     this.groundDirty = true;
     this.groundStamp = 0;
-    this.unlocked = [true, false, false];
+    this.unlocked = [true, false, false, false];
     this.bridgeBuilt = false;
   }
 
@@ -194,6 +196,7 @@ export class World {
 
     this._placeCamp();
     this._placeBarriers();
+    this._placeBoats();
     this._scatterNature(rng);
     this._placeSpirits();
     return this;
@@ -222,6 +225,28 @@ export class World {
     const nook = findWalkableNear(this.tiles, 86, 46, 10, REGION.CLIFFS);
     if (nook) {
       this.rockslide = this.add(makeEntity('rockslide', (nook.x + 0.5) * TILE_SIZE, (nook.y + 0.5) * TILE_SIZE));
+    }
+  }
+
+  /**
+   * Die beiden Ruderboote – eines an jedem Ufer des Sunds.
+   *
+   * Sie stehen von Anfang an da, aber sie fahren erst, wenn die Stille Insel
+   * freigeschaltet ist. Ein Boot, das erst auftaucht, wenn man es benutzen
+   * darf, erklärt nichts; eines, das schon da liegt, macht neugierig.
+   */
+  _placeBoats() {
+    const hier = findWalkableNear(this.tiles, DOCK_TILE.x, DOCK_TILE.y, 14, REGION.CAMP);
+    const drueben = findWalkableNear(this.tiles, ISLE_DOCK_TILE.x, ISLE_DOCK_TILE.y, 14, REGION.ISLE);
+    if (hier) {
+      this.dock = this.add(makeEntity('boat', (hier.x + 0.5) * TILE_SIZE, (hier.y + 0.5) * TILE_SIZE, {
+        toRegion: REGION.ISLE,
+      }));
+    }
+    if (drueben) {
+      this.isleDock = this.add(makeEntity('boat', (drueben.x + 0.5) * TILE_SIZE, (drueben.y + 0.5) * TILE_SIZE, {
+        toRegion: REGION.CAMP,
+      }));
     }
   }
 
@@ -285,6 +310,22 @@ export class World {
     scatter(['rock_ore'], grassForest, 4, 104);
     scatter(['grass_tuft'], grassForest, 26, 40);
 
+    // Stille Insel: klein, aber ergiebig. Genau die Dinge, die die letzten
+    // Werkzeugstufen brauchen – sonst wäre die Insel schön und überflüssig.
+    const isleLand = walkableTilesOf(this.tiles, REGION.ISLE, function (t) {
+      return t === T.GRASS || t === T.ROCKFLOOR || t === T.DIRT;
+    });
+    const isleSand = walkableTilesOf(this.tiles, REGION.ISLE, function (t) { return t === T.SAND; });
+    scatter(['tree_pine', 'tree_birch'], isleLand, 16, 76);
+    scatter(['rock_ore'], isleLand, 10, 72);
+    scatter(['rock_big', 'rock_small'], isleLand, 12, 64);
+    scatter(['bush_berry'], isleLand, 8, 60);
+    scatter(['herb', 'mushroom'], isleLand, 14, 44);
+    scatter(['flower_violet', 'flower_white'], isleLand, 12, 44);
+    scatter(['grass_tuft'], isleLand, 14, 40);
+    scatter(['shell', 'driftwood'], isleSand, 18, 44);
+    scatter(['reeds'], isleSand, 10, 44);
+
     // Klippen
     scatter(['tree_pine'], cliffLand, 26, 80);
     scatter(['rock_big', 'rock_small'], cliffLand, 26, 64);
@@ -319,6 +360,21 @@ export class World {
       e.sprite = 'spirit_' + id + '_0';
       this.add(e);
     }
+  }
+
+  /**
+   * Wohin dieses Boot fährt – der Landeplatz neben dem Boot am anderen Ufer.
+   *
+   * Nicht auf das Boot selbst, sondern eine Kachel daneben: Man soll drüben
+   * stehen und das Boot sehen, nicht darin.
+   */
+  boatTarget(boat) {
+    const anderes = boat === this.dock ? this.isleDock : this.dock;
+    if (!anderes) return null;
+    const tx = Math.floor(anderes.x / TILE_SIZE);
+    const ty = Math.floor(anderes.y / TILE_SIZE);
+    const spot = findWalkableNear(this.tiles, tx, ty + 1, 8, regionAt(tx, ty)) || { x: tx, y: ty };
+    return { x: (spot.x + 0.5) * TILE_SIZE, y: (spot.y + 0.5) * TILE_SIZE };
   }
 
   spiritEntity(id) {
@@ -403,7 +459,7 @@ export class World {
    */
   _scatterBloom(rng, count) {
     const arten = ['flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'];
-    const regions = [REGION.CAMP, REGION.FOREST, REGION.CLIFFS];
+    const regions = ALL_REGIONS;
     for (let r = 0; r < regions.length; r++) {
       if (!this.unlocked[regions[r]]) continue;
       const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
@@ -442,7 +498,7 @@ export class World {
     }
     if (!active || have >= count) return;
 
-    const regions = [REGION.CAMP, REGION.FOREST, REGION.CLIFFS];
+    const regions = ALL_REGIONS;
     let guard = 0;
     while (have < count && guard++ < 500) {
       const r = regions[Math.floor(rng() * regions.length)];
@@ -464,13 +520,16 @@ export class World {
     for (let i = this.entities.length - 1; i >= 0; i--) {
       if (this.entities[i].kind === 'digspot') this.remove(this.entities[i]);
     }
-    const regions = [REGION.CAMP, REGION.FOREST, REGION.CLIFFS];
+    const regions = ALL_REGIONS;
     for (let r = 0; r < regions.length; r++) {
       if (!this.unlocked[regions[r]]) continue;
       const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
         return t === T.SAND || t === T.GRASS || t === T.DIRT;
       });
-      const count = Math.round((regions[r] === REGION.CAMP ? 9 : 7) * (faktor || 1));
+      // Die Stille Insel ist klein – dort wären sieben Grabstellen ein
+      // Minenfeld statt eines Fundes.
+      const grund = regions[r] === REGION.CAMP ? 9 : regions[r] === REGION.ISLE ? 4 : 7;
+      const count = Math.round(grund * (faktor || 1));
       let placed = 0;
       let guard = 0;
       while (placed < count && guard++ < 400 && spots.length) {

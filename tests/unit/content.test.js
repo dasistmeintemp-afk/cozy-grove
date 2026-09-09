@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { BUGS, CONDITIONAL, ITEM_LIST, getItem, CAT, MEMORY_IDS, fishesOf, bugsOf } from '../../src/game/items.js';
+import { BUGS, CONDITIONAL, ITEM_LIST, getItem, CAT, MEMORY_IDS, MEMORY_KINDS, fishesOf, bugsOf } from '../../src/game/items.js';
 import { TOOLS, TOOL_ART } from '../../src/game/player.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, campfireLevelFor, nextCampfireLevel, missingFor, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
@@ -16,6 +16,7 @@ import { SPIRITS, SPIRIT_IDS, friendshipLevel } from '../../src/game/spirits.js'
 import { STORIES, STAGES, storyLine, storyClose, storyIntro } from '../../src/game/stories.js';
 import { Inventory } from '../../src/game/inventory.js';
 import { TILE_SIZE, TILE_DEF, T, isWalkable } from '../../src/art/tiles.js';
+import { REGION_NAMES } from '../../src/world/worldgen.js';
 import { INK } from '../../src/art/painted.js';
 
 /** Namen, die initArt() anlegt – als Spiegel der Registerliste. */
@@ -27,7 +28,7 @@ const SPRITE_NAMES = (function () {
     'shell', 'driftwood', 'digspot',
     'moonflower', 'rainmushroom', 'fogcrystal',
     'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
-    'campfire', 'tent', 'stall', 'workbench',
+    'campfire', 'tent', 'stall', 'workbench', 'boat',
     'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',
     'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge', 'moonlamp',
   ];
@@ -38,10 +39,9 @@ const SPRITE_NAMES = (function () {
     for (let v = 0; v < 3; v++) names.push(trees[i] + '_' + v);
   }
   for (let f = 0; f < 4; f++) names.push('flame_' + f);
-  const memories = ['locket', 'compass', 'music', 'photo', 'ribbon', 'teacup'];
-  for (let i = 0; i < memories.length; i++) {
-    names.push('memory_' + memories[i]);
-    names.push('icon_memory_' + memories[i]);
+  for (let i = 0; i < MEMORY_KINDS.length; i++) {
+    names.push('memory_' + MEMORY_KINDS[i]);
+    names.push('icon_memory_' + MEMORY_KINDS[i]);
   }
   for (let i = 0; i < TOOL_ART.length; i++) {
     names.push('tool_' + TOOL_ART[i]);
@@ -59,16 +59,16 @@ const SPRITE_NAMES = (function () {
   for (let d = 0; d < dirs.length; d++) {
     for (let f = 0; f < 3; f++) names.push('player_' + dirs[d] + '_' + f);
   }
-  const spirits = ['bruno', 'mira', 'kiesel', 'nelly', 'tobi', 'flamey'];
-  for (let i = 0; i < spirits.length; i++) {
-    for (let f = 0; f < 2; f++) names.push('spirit_' + spirits[i] + '_' + f);
+  for (let i = 0; i < SPIRIT_IDS.length; i++) {
+    for (let f = 0; f < 2; f++) names.push('spirit_' + SPIRIT_IDS[i] + '_' + f);
   }
   names.push('fox_0', 'fox_1');
   // Symbole für alle Gegenstände
   for (let i = 0; i < ITEM_LIST.length; i++) names.push(ITEM_LIST[i].icon);
   // Symbole der Oberfläche
   const ui = ['ember', 'coin', 'heart', 'color', 'sparkle', 'star', 'check', 'lock',
-    'ghost', 'arrow', 'day', 'clock', 'quest', 'bag', 'craft', 'map', 'gear', 'campfire'];
+    'ghost', 'arrow', 'day', 'clock', 'quest', 'bag', 'craft', 'map', 'gear', 'campfire',
+    'boat'];
   for (let i = 0; i < ui.length; i++) names.push('icon_' + ui[i]);
   const set = Object.create(null);
   for (let i = 0; i < names.length; i++) set[names[i]] = true;
@@ -117,7 +117,7 @@ test('jeder Geist hat sinnvolle Werte und bleibt wortkarg', () => {
   for (const id of SPIRIT_IDS) {
     const s = SPIRITS[id];
     assert.ok(s.name && s.name.length > 0);
-    assert.ok(s.region >= 0 && s.region <= 2);
+    assert.ok(s.region >= 0 && s.region < REGION_NAMES.length, id + ': Bereich ' + s.region);
     assert.ok(s.questTypes.length > 0);
     assert.ok(SPRITE_NAMES['spirit_' + id + '_0'], 'Grafik für ' + id);
     assert.ok(s.colorStart > TILE_SIZE, 'Farbradius passt zur Kachelgröße');

@@ -6,7 +6,7 @@ Ein gemütliches Insel-Sammelspiel im Browser. Die Insel hat ihre Farben verlore
 **Die Änderung gegenüber dem Vorbild: fast keine Dialoge.** Was ein Geist möchte,
 zeigt eine Karte aus Symbolen – kein Dialogbaum, kein Textblock. Gesprochen wird
 nur, wo es etwas zu erzählen gibt: ein Satz zur Vorstellung, ein Satz je
-Erinnerungsstück. Sechs Geister, je sechs Sätze; zusammen ergeben sie eine
+Erinnerungsstück. Sieben Geister, je sechs Sätze; zusammen ergeben sie eine
 kleine Biografie. Alles davon lässt sich in den Einstellungen abschalten
 („Nur Symbole“).
 
@@ -78,6 +78,7 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | `WASD` / Pfeiltasten | laufen |
 | `E` / Leertaste | Werkzeug benutzen, reden, abgeben |
 | `1`–`7`, `Tab` | Werkzeug wählen (7 = Gießkanne, sobald gebaut) |
+| `E` am Boot | zur Stillen Insel übersetzen und zurück |
 | `I` `Q` `C` `M` | Tasche · Aufgaben · Werkbank · Karte |
 | `B` | Fundbuch |
 | `G` | Erinnerungen |
@@ -95,6 +96,15 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   zeigt, wie viel der Insel wieder Farbe hat. Was lebt (du, die Geister, der
   Händler, das Feuer), ist immer farbig.
 
+  Gezählt wird nur, was **offen** ist: „wie viel von dem, was du erreichen
+  kannst". Sonst hinge die Zahl von Anfang an an Land, das du gar nicht
+  betreten darfst. Ein neuer Bereich senkt sie darum – und das ist der Sinn
+  der Sache: Es gibt wieder etwas zu tun. Gemessen fällt sie beim Wald von
+  40 auf 27 %, bei den Klippen von 54 auf 45 %, bei der Stillen Insel nur von
+  51 auf 49 % (Wandas Farbkreis fängt größer an als bei allen anderen, damit
+  ihre Insel nicht als grauer Fleck beginnt). Erreichte Meilensteine bleiben
+  dabei erreicht.
+
   **Jede Bitte färbt gleich viel Boden ein**, nicht gleich viel Radius. Das
   klingt nach Rechnerei und ist der Unterschied zwischen zwei Wochen und zwei
   Monaten: Mit festem Radiuszuwachs färbt der hundertste Auftrag ein
@@ -102,15 +112,15 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nach rund 130 Aufträgen auf 100 %. Nach gleicher Fläche sind es rund 330,
   und die ersten Tage fühlen sich fast unverändert an (Auftrag 1: 5,3 % vorher,
   4,7 % jetzt).
-* **Meilensteine.** An der Farbanzeige hängen zehn Stationen von 10 % bis
+* **Meilensteine.** An der Farbanzeige hängen elf Stationen von 10 % bis
   100 %. Jede gibt entweder etwas Neues zu **bauen** oder etwas dauerhaft
   Besseres – nie nur eine Urkunde: die Gießkanne, eine dritte Taschen-
-  erweiterung, vierte Werkzeugstufen, ein Händler, der dauerhaft mehr zahlt,
-  Beete, die schneller wachsen, ein größerer Feuerkreis. Im Aufgabenfenster
-  steht die ganze Leiter mit Balken; der nächste Schritt steht vollständig da,
-  weit Entferntes bleibt stumm. Gemessen liegen die zehn Stationen bei
-  8/25/45/69/99/130/172/222/244/357 erledigten Aufträgen – bei fünfzehn am Tag
-  gut drei Wochen, mit etwas Neuem alle ein bis drei Tage.
+  erweiterung, vierte Werkzeugstufen, **die Stille Insel**, ein Händler, der
+  dauerhaft mehr zahlt, Beete, die schneller wachsen, ein größerer Feuerkreis.
+  Im Aufgabenfenster steht die ganze Leiter mit Balken; der nächste Schritt
+  steht vollständig da, weit Entferntes bleibt stumm. Gemessen liegen die elf
+  Stationen bei 2/8/19/49/59/101/136/182/244/272/402 erledigten Aufträgen –
+  bei fünfzehn am Tag gut vier Wochen, mit etwas Neuem alle ein bis drei Tage.
 * **Kein Warten auf die Uhr.** Ein Tag läuft von 6 bis 2 Uhr (Länge einstellbar),
   aber schlafen darfst du jederzeit – und bekommst sofort neue Aufgaben, neue
   Grabstellen, neues Ladenangebot. Wer eine Stunde am Stück spielen will, kann
@@ -153,8 +163,22 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   auch nicht in der Werkzeugleiste.
 * **Lagerfeuer.** Verbrannte Fundstücke geben Glut (Handwerkswährung) und lassen
   das Feuer wachsen – und mit ihm den farbigen Kreis und die Rezeptliste.
-* **Drei Bereiche.** Lager & Strand (Start) → Wald (umgestürzter Baumstamm,
-  braucht Axt Stufe 2) → Klippen (Brückenbausatz an der Werkbank).
+* **Vier Bereiche.** Lager & Strand (Start) → Wald (umgestürzter Baumstamm,
+  braucht Axt Stufe 2) → Klippen (Brückenbausatz an der Werkbank) → **Stille
+  Insel** (draußen im Wasser, nur mit dem Ruderboot – und das fährt erst, wenn
+  die Insel zur Hälfte wieder Farbe hat).
+
+  Die Insel ist der einzige Meilenstein, der die WELT ändert: eine ganze Ecke
+  dazu, mit einem siebten Geist (Wanda Watt, eigene Bitten, eigene
+  Erinnerungskette) und dichten Vorkommen an Erz, Muscheln und Treibholz –
+  genau dem, was die letzten Werkzeugstufen brauchen. Die beiden Boote liegen
+  von Anfang an an ihren Ufern; bis dahin sind sie vertäut. So weiß man, dass
+  da draußen etwas ist, lange bevor man hinkommt.
+
+  Getrennt wird sie von einem **ausgehobenen Sund**, nicht von Glück: Fluss und
+  Kanal werden aus demselben Grund gegraben. Über zweihundert Seeds gemessen
+  wächst ohne ihn bei einem eine Landbrücke hinüber – ein Test prüft genau
+  das, mit allen zweihundert.
 * **Angeln** als kleines Geschicklichkeitsspiel, mit Tag- und Nachtfischen.
 * **Einrichten, das zählt.** Gebaute Deko lässt sich frei aufstellen – der
   Vorschaupunkt weicht Bäumen und Steinen selbst aus, statt „Kein Platz" zu
@@ -243,10 +267,14 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 
 ## Die Geister
 
-Sechs Stück, alle wortkarg: Flämmchen (Lagerfeuer), Mira Moos (Wiese),
+Sieben Stück, alle wortkarg: Flämmchen (Lagerfeuer), Mira Moos (Wiese),
 Käpt'n Kiesel (Strand), Bruno Borke (Wald), Tobi Tüftler (Werkstatt),
-Nelly Nadel (Klippen). Jeder vergibt höchstens drei Bitten gleichzeitig, und
-jede davon gilt drei bis fünf Tage.
+Nelly Nadel (Klippen) und Wanda Watt (Stille Insel). Jeder vergibt höchstens
+drei Bitten gleichzeitig, und jede davon gilt drei bis fünf Tage.
+
+Wanda ist die einzige, die man erst freischalten muss – sie gehört zum
+Meilenstein bei 50 %. Ihre Kette endet wie bei allen anderen mit einem
+Andenken, das es nur bei ihr gibt: eine Muschelkette.
 
 ## Seli
 
@@ -357,8 +385,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 147 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
-npm run test:browser   # 114 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 158 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
+npm run test:browser   # 120 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

@@ -11,6 +11,10 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+// Aus der Quelle, nicht abgeschrieben: Beim siebten Geist und beim elften
+// Meilenstein hätte sonst eine Zahl im Test dagegengehalten.
+import { SPIRIT_IDS } from '../../src/game/spirits.js';
+import { MILESTONES } from '../../src/game/milestones.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PORT = Number(process.env.SMOKE_PORT || 8137);
@@ -112,7 +116,8 @@ async function run() {
       };
     });
     check('Welt bevölkert (' + info.entities + ' Objekte)', info.entities > 300);
-    check('Sechs Geister platziert', info.kinds.spirit === 6, JSON.stringify(info.kinds.spirit));
+    check('Ein Geist je Eintrag platziert', info.kinds.spirit === SPIRIT_IDS.length,
+      JSON.stringify([info.kinds.spirit, SPIRIT_IDS.length]));
     check('Tagesaufgaben vergeben (' + info.quests + ')', info.quests > 0);
     check('Bodenschicht angelegt (' + info.groundW + 'px)', info.groundW > 4000);
     check('Lagerfeuer färbt den Startbereich', info.colorSources >= 1 && info.coverage > 0);
@@ -1696,7 +1701,8 @@ async function run() {
       };
     });
     check('Volle Deckung vergibt alle Meilensteine',
-      meilen.deckung >= 99 && meilen.anzahl === 10, JSON.stringify(meilen));
+      meilen.deckung >= 99 && meilen.anzahl === MILESTONES.length,
+      JSON.stringify([meilen, MILESTONES.length]));
     check('Ihre Wirkung greift sofort: der Händler zahlt mehr',
       meilen.preisNachher > meilen.preisVorher, JSON.stringify(meilen));
     check('Die Beigabe kommt an', meilen.muenzenNachher > meilen.muenzenVorher,
@@ -1728,6 +1734,88 @@ async function run() {
     check('Das Aufgabenfenster zeigt die Meilensteine',
       leiter.ueberschrift && leiter.nennt && leiter.prozent, JSON.stringify(leiter));
     check('Ferne Meilensteine verraten noch nichts', leiter.weit, JSON.stringify(leiter));
+
+    /* ---- Die Stille Insel ---- */
+    // Das Boot ist die einzige Verbindung. Vor dem Meilenstein muss es
+    // festliegen, danach übersetzen – und drüben muss man auf Land stehen.
+    const insel = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const REGION_ISLE = 3;
+      g.state.milestones = Object.create(null);
+      g._perksChanged();
+      g.world.unlocked[REGION_ISLE] = false;
+
+      const boot = g.world.dock;
+      const vorher = { x: g.player.x, y: g.player.y };
+      // Vertäut: ansprechen darf nichts bewirken
+      g.useStation('boat', boot);
+      await new Promise((r) => setTimeout(r, 200));
+      const stehtNoch = Math.abs(g.player.x - vorher.x) < 1 && Math.abs(g.player.y - vorher.y) < 1;
+
+      // Der Hinweis sagt es auch
+      g.player.x = boot.x;
+      g.player.y = boot.y + 60;
+      g.target = g.player.findTarget(g.world);
+      g._updatePrompt();
+      const el = document.getElementById('prompt-text');
+      const hinweisZu = el ? el.textContent : '';
+
+      // Meilenstein setzen -> Insel auf
+      g.state.milestones.insel = g.day.day;
+      g._openRegion(REGION_ISLE);
+      const offen = g.world.isUnlocked(REGION_ISLE);
+      g.target = g.player.findTarget(g.world);
+      g._updatePrompt();
+      const hinweisAuf = el ? el.textContent : '';
+
+      // Übersetzen
+      g.useStation('boat', boot);
+      await new Promise((r) => setTimeout(r, 1600));
+      const tx = Math.floor(g.player.x / 64);
+      const ty = Math.floor(g.player.y / 64);
+      const drueben = {
+        x: g.player.x, y: g.player.y,
+        aufLand: window.CozyGrove.game.world.canStand(g.player.x, g.player.y),
+        region: g.world.regionAtPixel(g.player.x, g.player.y),
+        gefroren: g.sleeping,
+      };
+
+      // Und zurück
+      g.useStation('boat', g.world.isleDock);
+      await new Promise((r) => setTimeout(r, 1600));
+      const zurueck = {
+        region: g.world.regionAtPixel(g.player.x, g.player.y),
+        aufLand: g.world.canStand(g.player.x, g.player.y),
+      };
+      return { stehtNoch, hinweisZu, offen, hinweisAuf, drueben, zurueck };
+    });
+    check('Vor dem Meilenstein liegt das Boot fest',
+      insel.stehtNoch && insel.hinweisZu === 'Vertäut', JSON.stringify(insel));
+    check('Danach lädt es zum Übersetzen ein',
+      insel.offen && insel.hinweisAuf === 'Übersetzen', JSON.stringify(insel));
+    check('Die Überfahrt setzt einen auf der Insel an Land',
+      insel.drueben.region === 3 && insel.drueben.aufLand && !insel.drueben.gefroren,
+      JSON.stringify(insel.drueben));
+    check('Und das Boot drüben bringt einen zurück',
+      insel.zurueck.region !== 3 && insel.zurueck.aufLand, JSON.stringify(insel.zurueck));
+
+    // Die offene Insel ist grau – und Wanda färbt ihre Ecke.
+    const wanda = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      const e = g.world.spiritEntity('wanda');
+      const quelle = g.colorField.find('spirit_wanda');
+      return {
+        da: !!e,
+        region: e ? g.world.regionAtPixel(e.x, e.y) : null,
+        quelle: !!quelle,
+        radius: quelle ? Math.round(quelle.target) : 0,
+        auftraege: g.quests.active().filter((q) => q.spirit === 'wanda').length,
+      };
+    });
+    check('Wanda steht auf der Insel und hat ihren Farbkreis',
+      wanda.da && wanda.region === 3 && wanda.quelle && wanda.radius > 300,
+      JSON.stringify(wanda));
+    check('Sie stellt eigene Bitten', wanda.auftraege > 0, JSON.stringify(wanda));
 
     // Ein Spielstand von VOR den Meilensteinen und der Gießkanne muss laufen,
     // ohne dass jemand etwas verliert. Das ist die eine Prüfung, an der ein

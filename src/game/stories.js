@@ -102,6 +102,18 @@ export const STORIES = {
     ],
     close: 'Setz dich. Die zweite ist noch frei.',
   },
+  wanda: {
+    keepsake: 'keepsake_shellchain',
+    icons: ['icon_shell', 'icon_bottle', 'icon_driftwood', 'icon_memory_shellchain'],
+    intro: 'Hier hört man nur Wasser. Das war schon immer so.',
+    lines: [
+      'Ich habe das Feuer drüben gesehen. Jeden Abend, vom Wasser aus.',
+      'Nachrichten kamen mit der Flut. Manche waren an niemanden gerichtet.',
+      'Aus Treibholz habe ich mir ein Boot gebaut. Es war zu klein.',
+      'Aufgefädelt habe ich sie trotzdem. Eine für jedes Jahr.',
+    ],
+    close: 'Jetzt kommt ja jemand. Das reicht mir.',
+  },
 };
 
 /** Welche Weltgrafik ein Fundstück trägt. */
@@ -112,6 +124,7 @@ const PIECE_ART = {
   bruno: 'memory_photo',
   tobi: 'memory_music',
   nelly: 'memory_teacup',
+  wanda: 'memory_shellchain',
 };
 
 /**

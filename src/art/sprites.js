@@ -15,7 +15,7 @@ import {
   paintCrop, paintSeedPouch,
 } from './painted.js';
 import {
-  paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench,
+  paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench, paintBoat,
   paintLantern, paintBench, paintFence, paintFlowerbed, paintBirdhouse,
   paintWindchime, paintRug, paintSignpost, paintCrate, paintChest,
   paintMemory, paintTool, paintButterfly, paintBird,
@@ -23,7 +23,7 @@ import {
 } from './painted-camp.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
-import { BUGS } from '../game/items.js';
+import { BUGS, MEMORY_KINDS } from '../game/items.js';
 import { CROPS, CROP_IDS } from '../game/crops.js';
 import { TOOL_ART } from '../game/player.js';
 
@@ -45,6 +45,7 @@ export const SPIRIT_LOOKS = {
   kiesel: { fur: '#d5dbdc', furShade: '#adb8ba', accent: '#4f86a8', ears: 'round', hat: 'cap', blink: false },
   nelly: { fur: '#ded2e6', furShade: '#b9a9c6', accent: '#e8c34c', ears: 'long', hat: 'bow', blink: true },
   tobi: { fur: '#ecdcb8', furShade: '#c8b48c', accent: '#5b8c9a', ears: 'pointed', hat: 'glasses', blink: true },
+  wanda: { fur: '#c6d9d6', furShade: '#9db8b4', accent: '#e2a24c', ears: 'long', hat: 'scarf', blink: true },
 };
 
 /** Legt eine gemalte Grafik ab und skaliert sie auf Spielgröße. */
@@ -171,7 +172,7 @@ const FISH_COLORS = {
   fish_goldcarp: ['#e8b155', '#f9e6b4', '#cf8b38'],
 };
 
-const MEMORY_KINDS = ['locket', 'compass', 'music', 'photo', 'ribbon', 'teacup'];
+
 
 /** Baut das komplette Bildmaterial. Wird einmal beim Start aufgerufen. */
 export function initArt() {
@@ -248,6 +249,7 @@ export function initArt() {
   addArt('tent', paintTent({ seed: 331 }));
   addArt('stall', paintStall({ seed: 351 }));
   addArt('workbench', paintWorkbench({ seed: 371 }));
+  addArt('boat', paintBoat({ seed: 391 }));
 
   /* --- Deko --- */
   addArt('lantern', paintLantern({ seed: 391 }));
@@ -325,6 +327,7 @@ function buildIcons() {
     ['bridge_kit', 'bridge'],
     ['moonflower', 'moonflower'], ['rainmushroom', 'rainmushroom'],
     ['fogcrystal', 'fogcrystal'], ['moonlamp', 'lantern'],
+    ['boat', 'boat'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = registry[reuse[i][1]];

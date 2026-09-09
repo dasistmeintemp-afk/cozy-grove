@@ -526,7 +526,11 @@ export class QuestBook {
       const q = qb.quests[i];
       if (q.expires == null) q.expires = (q.day || 1) + lifetimeOf(q.type);
     }
-    qb.completedBySpirit = data.done || qb.completedBySpirit;
+    // Zusammenführen statt ersetzen: Ein Spielstand von vor dem siebten Geist
+    // kennt ihn nicht, und dann stünde für ihn `undefined` statt einer Null.
+    if (data.done) {
+      for (const id in data.done) qb.completedBySpirit[id] = data.done[id] | 0;
+    }
     qb.totalCompleted = data.total || 0;
     return qb;
   }

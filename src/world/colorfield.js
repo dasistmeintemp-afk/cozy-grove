@@ -5,7 +5,7 @@
  * sitzt (ein zufriedener Geist, das Lagerfeuer), wird die farbige Fassung
  * durch eine weiche Maske eingeblendet.
  */
-import { TILE_SIZE, MAP_W, MAP_H } from './worldgen.js';
+import { TILE_SIZE, MAP_W, MAP_H, regionAt } from './worldgen.js';
 import { isWalkable } from '../art/tiles.js';
 
 /**
@@ -134,7 +134,16 @@ export class ColorField {
     return best;
   }
 
-  /** Anteil der eingefärbten Landfläche (0..1). Wird gepuffert. */
+  /**
+   * Anteil der eingefärbten Landfläche (0..1). Wird gepuffert.
+   *
+   * Gezählt wird nur, was OFFEN ist. Sonst hinge die Anzeige von Anfang an
+   * an Land, das man gar nicht betreten kann – die Stille Insel allein sind
+   * rund 200 Kacheln, gut sieben Prozent. Die Zahl bedeutet so: „wie viel von
+   * dem, was du erreichen kannst, hat wieder Farbe". Und ein alter
+   * Spielstand behält seinen Prozentsatz auf die Kachel genau, weil bei ihm
+   * dieselben Bereiche offen sind wie vorher.
+   */
   coverage(world) {
     if (!this._dirty) return this._coverage;
     let land = 0;
@@ -143,6 +152,7 @@ export class ColorField {
     for (let ty = 0; ty < MAP_H; ty += step) {
       for (let tx = 0; tx < MAP_W; tx += step) {
         if (!isWalkable(world.tileAtTile(tx, ty))) continue;
+        if (!world.isUnlocked(regionAt(tx, ty))) continue;
         land++;
         if (this.at((tx + 0.5) * TILE_SIZE, (ty + 0.5) * TILE_SIZE) > 0.5) colored++;
       }

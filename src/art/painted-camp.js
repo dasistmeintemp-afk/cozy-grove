@@ -216,6 +216,82 @@ export function paintTent(opts) {
   return made(res, w, h, cx, baseY);
 }
 
+/**
+ * Das Ruderboot am Sund.
+ *
+ * Von schräg oben, wie alles hier: ein Rumpf mit hochgezogenem Bug, zwei
+ * Duchten quer darin, und ein Riemen, der über die Bordwand hinausragt.
+ *
+ * Der Riemen gehört bewusst ZUR Silhouette. Als er nur eine Tuschelinie im
+ * Boot war, sah das Boot aus wie eine flache Schale mit zwei Ringen darin –
+ * erst das herausstehende Blatt macht daraus etwas, mit dem man rudert.
+ */
+export function paintBoat(opts) {
+  const o = opts || {};
+  const w = 288;
+  const h = 200;
+  const seed = o.seed || 391;
+  const cx = w / 2;
+  const baseY = h - 26;
+
+  const rumpf = smoothClosed([
+    [cx - 118, baseY - 34], [cx - 98, baseY - 64], [cx - 24, baseY - 74],
+    [cx + 74, baseY - 66], [cx + 120, baseY - 36], [cx + 76, baseY - 2],
+    [cx - 74, baseY - 8],
+  ], 8);
+  const innen = smoothClosed([
+    [cx - 96, baseY - 34], [cx - 80, baseY - 56], [cx - 22, baseY - 62],
+    [cx + 62, baseY - 56], [cx + 98, baseY - 36], [cx + 62, baseY - 14],
+    [cx - 60, baseY - 20],
+  ], 8);
+  const bankL = smoothClosed([
+    [cx - 60, baseY - 54], [cx - 40, baseY - 57], [cx - 36, baseY - 22], [cx - 56, baseY - 19],
+  ], 4);
+  const bankR = smoothClosed([
+    [cx + 14, baseY - 57], [cx + 34, baseY - 56], [cx + 38, baseY - 21], [cx + 18, baseY - 22],
+  ], 4);
+  // Riemen: Schaft aus dem Boot heraus nach links oben, Blatt am Ende
+  const ruder = smoothClosed([
+    [cx + 6, baseY - 34], [cx + 12, baseY - 42],
+    [cx - 116, baseY - 84], [cx - 122, baseY - 76],
+  ], 4);
+  const blatt = smoothClosed(blob(cx - 132, baseY - 82, 17, 11, seed + 9, 0.12, 14), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.8,
+    outline: 2.2,
+    shadow: function (g) { groundShadow(g, cx, baseY - 6, 110, 17, seed, 0.15); },
+    wash: function (g) {
+      wash(g, rumpf, ink.wood, { seed: seed + 2, scale: 1.03 });
+      wash(g, offsetShape(rumpf, 34, 10, 0.7), ink.woodDark, { seed: seed + 3, alpha: 0.6 });
+      wash(g, innen, '#c9a479', { seed: seed + 4, scale: 1.02 });
+      wash(g, offsetShape(innen, -30, -8, 0.6), '#dbbb95', { seed: seed + 5, alpha: 0.5 });
+      wash(g, bankL, ink.woodDark, { seed: seed + 6 });
+      wash(g, bankR, ink.woodDark, { seed: seed + 7 });
+      wash(g, ruder, ink.wood, { seed: seed + 8 });
+      wash(g, blatt, ink.woodDark, { seed: seed + 9, scale: 1.04 });
+    },
+    shape: function (g) {
+      fill(g, rumpf);
+      fill(g, ruder);
+      fill(g, blatt);
+    },
+    ink: function (g) {
+      inkStroke(g, innen, { width: 2.6, vary: 0.3, seed: seed + 12, color: ink.line, alpha: 0.9 });
+      inkStroke(g, bankL, { width: 2.2, vary: 0.3, seed: seed + 13, color: ink.line, alpha: 0.85 });
+      inkStroke(g, bankR, { width: 2.2, vary: 0.3, seed: seed + 14, color: ink.line, alpha: 0.85 });
+      inkStroke(g, blatt, { width: 2.2, vary: 0.3, seed: seed + 15, color: ink.line, alpha: 0.85 });
+      // Plankenfugen im Rumpf, unterhalb der Bordwand
+      for (let i = 0; i < 2; i++) {
+        inkLine(g, cx - 100 + i * 8, baseY - 24 + i * 6, cx + 100 - i * 8, baseY - 20 + i * 6,
+          { width: 1.4, bend: 0.07, seed: seed + 20 + i, color: ink.lineSoft, alpha: 0.45 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
 export function paintStall(opts) {
   const o = opts || {};
   const w = 366;
@@ -879,6 +955,32 @@ const MEMORY_PAINTERS = {
       inkLine(gi, cx + 32, cy + 2, cx + 22, cy + 12, { width: 2.2, bend: 0.35, seed: seed + 7 });
     }
     return [cup, saucer];
+  },
+  /**
+   * Wandas Muschelkette: drei Muscheln an einer Schnur.
+   *
+   * Die Schnur ist eine Tuschelinie und gehört bewusst NICHT zur Silhouette –
+   * sonst zieht die Umrisslinie einen dicken Bogen um nichts.
+   */
+  shellchain: function (g, gi, cx, cy, seed) {
+    const links = smoothClosed(blob(cx - 20, cy + 8, 11, 12, seed + 1, 0.12, 12), 4);
+    const mitte = smoothClosed(blob(cx + 1, cy + 16, 15, 15, seed + 2, 0.1, 14), 5);
+    const rechts = smoothClosed(blob(cx + 22, cy + 8, 11, 12, seed + 3, 0.12, 12), 4);
+    if (g) {
+      wash(g, links, '#f0d9c4', { seed: seed + 4, scale: 1.05 });
+      wash(g, mitte, '#f6e6d2', { seed: seed + 5, scale: 1.05 });
+      wash(g, rechts, '#e9cbb4', { seed: seed + 6, scale: 1.05 });
+      wash(g, offsetShape(mitte, 0, 4, 0.5), '#dcbb9e', { seed: seed + 7, alpha: 0.6 });
+    }
+    if (gi) {
+      inkLine(gi, cx - 30, cy - 6, cx + 30, cy - 6, { width: 1.6, bend: 0.22, seed: seed + 8, alpha: 0.8 });
+      // Rillen, sonst sind es drei Kiesel
+      for (let i = -1; i <= 1; i++) {
+        inkLine(gi, cx + 1 + i * 5, cy + 6, cx + 1 + i * 8, cy + 28,
+          { width: 1.2, bend: 0.06, seed: seed + 10 + i, color: ink.lineSoft, alpha: 0.55 });
+      }
+    }
+    return [links, mitte, rechts];
   },
 };
 

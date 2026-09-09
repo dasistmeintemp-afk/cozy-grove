@@ -178,6 +178,19 @@ export const ENTITY_DEFS = {
   workbench: { sprite: 'workbench', solid: true, blockR: 56, blockH: 28, reachR: 104, category: 'station', station: 'craft' },
   stall: { sprite: 'stall', solid: true, blockR: 80, blockH: 40, reachR: 120, category: 'station', station: 'shop' },
   bridge_spot: { sprite: 'signpost', solid: false, reachR: 120, category: 'station', station: 'bridge' },
+  /**
+   * Das Ruderboot: an beiden Ufern eines. Nicht fest, damit man am schmalen
+   * Anleger nicht daran hängen bleibt.
+   *
+   * `priority` weil man IM Boot steht: Ohne den Zuschlag gewann jedes
+   * Grasbüschel unter den Füßen gegen das Boot – man stand am Anleger und
+   * las „Sammeln" statt „Übersetzen". Alle anderen Stationen sind fest, da
+   * kann nichts unter einem liegen.
+   */
+  boat: {
+    sprite: 'boat', solid: false, reachR: 132,
+    category: 'station', station: 'boat', priority: 40,
+  },
 
   // Lebewesen
   spirit: { solid: false, reachR: 120, category: 'spirit' },
