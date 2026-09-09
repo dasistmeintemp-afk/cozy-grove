@@ -244,3 +244,4 @@ test('Am Anleger gewinnt das Boot, nicht das Gras unter den Füßen', () => {
   assert.equal(ziel.entity.kind, 'boat',
     'im Boot stehend muss das Boot gewinnen, nicht ' + ziel.entity.kind);
 });
+

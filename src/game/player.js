@@ -88,9 +88,19 @@ export class Player {
   }
 
   nextTool() {
-    // Was noch nicht gebaut ist, wird übersprungen statt angezeigt.
+    this.stepTool(1);
+  }
+
+  /**
+   * Ein Werkzeug weiter – in beide Richtungen.
+   *
+   * Was noch nicht gebaut ist, wird übersprungen statt angezeigt; sonst
+   * bliebe man beim Durchblättern an einem leeren Platz hängen.
+   */
+  stepTool(richtung) {
+    const d = richtung < 0 ? -1 : 1;
     for (let n = 1; n <= TOOLS.length; n++) {
-      const i = (this.toolIndex + n) % TOOLS.length;
+      const i = ((this.toolIndex + d * n) % TOOLS.length + TOOLS.length) % TOOLS.length;
       if (this.owns(i)) { this.toolIndex = i; return; }
     }
   }

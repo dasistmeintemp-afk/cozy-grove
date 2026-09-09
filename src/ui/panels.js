@@ -11,6 +11,7 @@ import { MILESTONES, nextOpen } from '../game/milestones.js';
 import { SETS, SET_IDS, setById, progressOf, itemsOf, hintFor, totalProgress } from '../game/collection.js';
 import { unreadCount } from '../game/mail.js';
 import { STAGES as LOAN_STAGES, statusOf } from '../game/loan.js';
+import { finaleLine, stillSilent, FINALE_CLOSE, FINALE_COUNT } from '../game/finale.js';
 import { UI_SCALES } from './uiscale.js';
 import { CROPS } from '../game/crops.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
@@ -146,6 +147,10 @@ export class Panels {
         break;
       case 'sort':
         g.inventory.sort();
+        this.render();
+        break;
+      case 'nurFehlend':
+        this.nurFehlend = !this.nurFehlend;
         this.render();
         break;
       case 'setting':
@@ -292,6 +297,8 @@ export class Panels {
     let html = '<p class="empty-note" style="padding-bottom:10px">' +
       'Vier Fundstücke je Geist. Jedes erzählt ein Stück seiner Geschichte.</p>';
 
+    html += this._finaleRows();
+
     html += '<div class="rows">';
     for (const id in SPIRITS) {
       const s = SPIRITS[id];
@@ -370,6 +377,10 @@ export class Panels {
         (SETS[i].id === tab) + '">' + escapeHtml(SETS[i].name) +
         ' <span class="zaehler">' + p.have + '/' + p.total + '</span></button>';
     }
+    // Ein Schalter für „zeig mir nur, was mir fehlt". Bei achtzehn Deko-
+    // Stücken sucht man das eine leere Feld sonst mit dem Finger.
+    html += '<button class="tab" data-act="nurFehlend" style="margin-left:auto"' +
+      ' aria-selected="' + (!!this.nurFehlend) + '">Nur Fehlendes</button>';
     html += '</div>';
 
     // Kopfzeile der Reihe: wie weit, und was es dafür gibt. Ohne die Belohnung
@@ -397,7 +408,14 @@ export class Panels {
       '</div></div></div>';
 
     html += '<div class="grid">';
-    const liste = itemsOf(tab);
+    const alle = itemsOf(tab);
+    const liste = this.nurFehlend
+      ? alle.filter(function (it) { return !inv.everFound(it.id); })
+      : alle;
+    if (!liste.length) {
+      html += '<p class="empty-note" style="grid-column:1/-1">' +
+        (this.nurFehlend ? 'Diese Reihe ist vollständig.' : 'Hier gibt es nichts.') + '</p>';
+    }
     for (let i = 0; i < liste.length; i++) {
       const item = liste[i];
       const have = inv.everFound(item.id);
@@ -530,6 +548,47 @@ export class Panels {
         (bonus ? '<span>+' + bonus + '% Lohn</span>' : '') + '</div>' +
         '<div class="cosy-bar" aria-hidden="true">' + cosyPips(cosy.level) + '</div></div>' +
         '<span class="row-btn ghost">' + Math.round(friendshipProgress(doneN) * 100) + '%</span></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * Der letzte Abend, zum Nachlesen.
+   *
+   * Die Schlusssätze fallen sonst mit ihrer Sprechblase weg – und das sind
+   * die sieben Sätze, auf die alles zuläuft. Solange der Abend noch offen
+   * ist, steht hier, wer noch wartet.
+   */
+  _finaleRows() {
+    const g = this.game;
+    const f = g.state.finale;
+    if (!f) return '';
+
+    const fehlen = stillSilent(f.heard);
+    let html = '<h3 style="font-size:0.95em;margin:4px 0 8px">Der letzte Abend</h3>';
+    html += '<div class="rows" style="margin-bottom:14px">';
+    if (!f.done) {
+      html += '<div class="row">' + ico('icon_heart', 'lg') +
+        '<div class="grow"><div class="title">Alle sind am Feuer</div>' +
+        '<div class="meta"><span>Noch ' + fehlen.length + ' von ' + FINALE_COUNT +
+        ': ' + escapeHtml(fehlen.map(function (id) {
+          return SPIRITS[id] ? SPIRITS[id].name : id;
+        }).join(', ')) + '</span></div></div></div>';
+    }
+    for (const id in SPIRITS) {
+      if (!finaleLine(id)) continue;
+      const gehoert = !!(f.heard && f.heard[id]);
+      html += '<div class="row' + (gehoert ? '' : ' dim') + '">' + ico('icon_ghost', 'lg') +
+        '<div class="grow"><div class="title">' + escapeHtml(SPIRITS[id].name) + '</div>' +
+        '<div class="brief">' +
+        (gehoert ? escapeHtml(finaleLine(id)) : 'Wartet am Feuer.') +
+        '</div></div></div>';
+    }
+    if (f.done) {
+      html += '<div class="row">' + ico('icon_star', 'lg') +
+        '<div class="grow"><div class="title">Die Insel</div>' +
+        '<div class="brief">' + escapeHtml(FINALE_CLOSE) + '</div></div></div>';
     }
     html += '</div>';
     return html;

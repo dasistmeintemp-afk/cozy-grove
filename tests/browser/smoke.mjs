@@ -1750,6 +1750,147 @@ async function run() {
       leiter.ueberschrift && leiter.nennt && leiter.prozent, JSON.stringify(leiter));
     check('Ferne Meilensteine verraten noch nichts', leiter.weit, JSON.stringify(leiter));
 
+    /* ---- Der letzte Abend ---- */
+    // Der Abschluss darf sich nicht verpassen lassen: Der Ring am Feuer
+    // wartet, bis man bei jedem war – auch über Nacht.
+    const abend = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.finale = null;
+      // Die ECHTE Heimat, nicht die Stelle, an der sie gerade stehen: Eine
+      // frühere Prüfung vergibt alle Meilensteine, und damit versammeln sie
+      // sich schon einmal. „Wo sie eben standen" wäre dann das Feuer.
+      const heime = g.world.entities.filter((e) => e.kind === 'spirit')
+        .map((e) => ({ id: e.spiritId, x: e.homeX, y: e.homeY }));
+
+      g._startFinale();
+      const feuer = g.world.campfire;
+      const geister = g.world.entities.filter((e) => e.kind === 'spirit');
+      const abstaende = geister.map((e) => Math.round(
+        Math.sqrt((e.x - feuer.x) ** 2 + (e.y - feuer.y) ** 2)));
+      const alleStehen = geister.every((e) => g.world.canStand(e.x, e.y, 5, 4));
+
+      // Über Nacht bleiben sie stehen
+      g._jitterSpirits(g.day.day + 1);
+      const nachNacht = geister.map((e) => Math.round(
+        Math.sqrt((e.x - feuer.x) ** 2 + (e.y - feuer.y) ** 2)));
+
+      // Bei jedem vorbei
+      const muenzenVorher = g.state.coins;
+      const schritte = [];
+      for (const e of geister) {
+        g.state.met[e.spiritId] = 1;
+        g.talkTo(e);
+        schritte.push(Object.keys(g.state.finale.heard).length);
+      }
+      const fertig = g.state.finale.done;
+      // Ein zweiter Besuch zählt nicht doppelt
+      g.talkTo(geister[0]);
+      const nochmal = Object.keys(g.state.finale.heard).length;
+
+      // Und danach gehen sie am nächsten Morgen wieder heim
+      g._jitterSpirits(g.day.day + 2);
+      const heimgekehrt = geister.filter((e) => {
+        const h = heime.filter((x) => x.id === e.spiritId)[0];
+        return h && Math.abs(e.x - h.x) < 120 && Math.abs(e.y - h.y) < 120;
+      }).length;
+
+      return {
+        anzahl: geister.length, abstaende, alleStehen, nachNacht,
+        schritte, fertig, nochmal,
+        muenzen: g.state.coins - muenzenVorher,
+        heimgekehrt,
+      };
+    });
+    check('Bei hundert Prozent stehen alle am Feuer',
+      abend.abstaende.every((d) => d > 60 && d < 400) && abend.alleStehen,
+      JSON.stringify(abend.abstaende));
+    check('Sie warten auch über Nacht',
+      JSON.stringify(abend.nachNacht) === JSON.stringify(abend.abstaende),
+      JSON.stringify(abend.nachNacht));
+    check('Jeder Besuch bringt einen Satz, jeder nur einmal',
+      abend.schritte.join(',') === abend.schritte.map((_, i) => i + 1).join(',') &&
+      abend.nochmal === abend.anzahl, JSON.stringify(abend.schritte));
+    check('Wer bei allen war, hat den Abschluss',
+      abend.fertig === true && abend.muenzen >= 500, JSON.stringify(abend));
+    check('Danach gehen sie wieder heim',
+      abend.heimgekehrt === abend.anzahl, JSON.stringify(abend.heimgekehrt));
+
+    // Die Schlusssätze müssen nachlesbar sein – eine Sprechblase ist weg.
+    const nachlese = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.openPanel('stories');
+      await new Promise((r) => setTimeout(r, 300));
+      const text = document.getElementById('panel-body').innerText;
+      g.panels.close();
+      return {
+        ueberschrift: text.indexOf('Der letzte Abend') >= 0,
+        schluss: text.indexOf('Bleib, so lange du magst') >= 0,
+      };
+    });
+    check('Der letzte Abend steht in den Erinnerungen',
+      nachlese.ueberschrift && nachlese.schluss, JSON.stringify(nachlese));
+
+    /* ---- Kleinigkeiten, die den Weg glätten ---- */
+    const rad = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.player.levels.can = 1;
+      g.selectTool(0);
+      const canvas = document.getElementById('game');
+      const rect = canvas.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      function raddrehen(dy) {
+        canvas.dispatchEvent(new WheelEvent('wheel', {
+          deltaY: dy, clientX: x, clientY: y, bubbles: true, cancelable: true,
+        }));
+      }
+      const start = g.player.tool.id;
+      raddrehen(120);
+      await new Promise((r) => setTimeout(r, 120));
+      const vor = g.player.tool.id;
+      raddrehen(-120);
+      await new Promise((r) => setTimeout(r, 120));
+      const zurueck = g.player.tool.id;
+      return { start, vor, zurueck };
+    });
+    check('Das Mausrad wechselt das Werkzeug',
+      rad.vor !== rad.start && rad.zurueck === rad.start, JSON.stringify(rad));
+
+    const filter = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.panels.nurFehlend = false;
+      g.openPanel('found');
+      await new Promise((r) => setTimeout(r, 300));
+      const body = document.getElementById('panel-body');
+      const alle = body.querySelectorAll('.slot').length;
+      const fehlend = body.querySelectorAll('.slot.unknown').length;
+      const knopf = Array.from(body.querySelectorAll('.tab'))
+        .filter((t) => t.textContent.indexOf('Nur Fehlendes') >= 0)[0];
+      if (knopf) knopf.click();
+      await new Promise((r) => setTimeout(r, 300));
+      const nachher = document.getElementById('panel-body').querySelectorAll('.slot').length;
+      g.panels.nurFehlend = false;
+      g.panels.close();
+      return { alle, fehlend, nachher, knopfDa: !!knopf };
+    });
+    check('Das Fundbuch kann auf „nur Fehlendes" schalten',
+      filter.knopfDa && filter.nachher === filter.fehlend && filter.nachher < filter.alle,
+      JSON.stringify(filter));
+
+    // Esc verlässt den Deko-Modus – das konnte es schon, aber niemand hat es
+    // je geprüft.
+    const escape = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.inventory.add('fence', 1);
+      g.startPlacing('fence');
+      const imModus = !!g.placing;
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', bubbles: true }));
+      await new Promise((r) => setTimeout(r, 200));
+      return { imModus, danach: !!g.placing };
+    });
+    check('Esc verlässt den Aufstell-Modus',
+      escape.imModus && escape.danach === false, JSON.stringify(escape));
+
     /* ---- Fundbuch, Post und Truhe ---- */
     // Das Fundbuch muss sagen, WO das Fehlende steckt – „???" allein ist
     // eine Statistik, kein Ziel.
@@ -1886,22 +2027,28 @@ async function run() {
     // mitten durch die Bank, die man auf seinen Stumpf gestellt hatte.
     const platz = await page.evaluate(() => {
       const g = window.CozyGrove.game;
-      // Einen freien Fleck weit weg vom Lager suchen
+      // Einen Baum suchen, bei dem WIRKLICH NUR der Baum im Weg ist: Steht
+      // eine Bank oder ein Geist daneben, misst die Prüfung deren Abstand
+      // statt der Regel. Der Test dafür ist die Regel selbst – ein Baum, den
+      // man endgültig entfernt, muss seinen Platz freigeben.
       let baum = null;
       for (const e of g.world.entities) {
         if (e.kind !== 'tree_oak' || e.gone) continue;
-        if (g.world.regionAtPixel(e.x, e.y) !== 0) continue;
-        baum = e; break;
+        if (!g.world.isUnlocked(g.world.regionAtPixel(e.x, e.y))) continue;
+        if (g._canPlaceAt(e.x, e.y)) continue;      // da steht ja der Baum
+        e.gone = true;
+        e.respawnDay = 0;
+        const frei = g._canPlaceAt(e.x, e.y);
+        e.gone = false;
+        if (frei) { baum = e; break; }
       }
       if (!baum) return { keiner: true };
       const vorher = g._canPlaceAt(baum.x, baum.y);
       baum.gone = true;
       baum.respawnDay = g.day.day + 3;
       const gefaellt = g._canPlaceAt(baum.x, baum.y);
-      // Ein endgültig entferntes Objekt (ohne Rückkehr) gibt seinen Platz frei
       baum.respawnDay = 0;
       const endgueltig = g._canPlaceAt(baum.x, baum.y);
-      // Und ein paar Schritte weiter geht es weiterhin
       const daneben = g._canPlaceAt(baum.x + 130, baum.y + 130);
       baum.gone = false;
       baum.respawnDay = 0;
@@ -1921,8 +2068,11 @@ async function run() {
       g.storage = null;
       g.syncStorage();
       const e = g.world.storage;
+      // Blickrichtung setzen – ohne sie zeigt die Figur dorthin, wo die
+      // Prüfung davor sie hingedreht hat, und der Hinweis misst den Zufall.
       g.player.x = e.x;
       g.player.y = e.y + 70;
+      g.player.dir = 'up';
       g.target = g.player.findTarget(g.world);
       g._updatePrompt();
       const el = document.getElementById('prompt-text');
@@ -1952,6 +2102,11 @@ async function run() {
       g.world.unlocked[REGION_ISLE] = false;
 
       const boot = g.world.dock;
+      // Blickrichtung setzen: Ohne sie hängt die Zielauswahl davon ab, wohin
+      // die Figur in der Prüfung davor zuletzt gelaufen ist.
+      g.player.x = boot.x;
+      g.player.y = boot.y + 60;
+      g.player.dir = 'up';
       const vorher = { x: g.player.x, y: g.player.y };
       // Vertäut: ansprechen darf nichts bewirken
       g.useStation('boat', boot);
@@ -1959,8 +2114,6 @@ async function run() {
       const stehtNoch = Math.abs(g.player.x - vorher.x) < 1 && Math.abs(g.player.y - vorher.y) < 1;
 
       // Der Hinweis sagt es auch
-      g.player.x = boot.x;
-      g.player.y = boot.y + 60;
       g.target = g.player.findTarget(g.world);
       g._updatePrompt();
       const el = document.getElementById('prompt-text');

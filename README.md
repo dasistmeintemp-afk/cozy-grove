@@ -78,6 +78,7 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | `WASD` / Pfeiltasten | laufen |
 | `E` / Leertaste | Werkzeug benutzen, reden, abgeben |
 | `1`–`7`, `Tab` | Werkzeug wählen (7 = Gießkanne, sobald gebaut) |
+| Mausrad | Werkzeug wechseln, ohne die Finger zu bewegen |
 | `E` am Boot | zur Stillen Insel übersetzen und zurück |
 | `I` `Q` `C` `M` | Tasche · Aufgaben · Werkbank · Karte |
 | `B` | Fundbuch |
@@ -114,6 +115,14 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nach rund 130 Aufträgen auf 100 %. Nach gleicher Fläche sind es rund 330,
   und die ersten Tage fühlen sich fast unverändert an (Auftrag 1: 5,3 % vorher,
   4,7 % jetzt).
+* **Der letzte Abend.** Bei hundert Prozent versammeln sich alle sieben
+  Geister am Lagerfeuer und warten dort – nicht einen Tag lang, sondern so
+  lange, bis du bei jedem warst. Jeder sagt einen Satz; wer alle gehört hat,
+  bekommt das letzte Wort der Insel. Danach geht es weiter: Am nächsten
+  Morgen stehen alle wieder an ihren Plätzen. Ein gemütliches Spiel darf
+  nicht zumachen, nur weil man fertig ist. Die sieben Sätze stehen zum
+  Nachlesen im Erinnerungsfenster – eine Sprechblase ist nach acht Sekunden
+  weg, und das sind die Sätze, auf die alles zuläuft.
 * **Meilensteine.** An der Farbanzeige hängen elf Stationen von 10 % bis
   100 %. Jede gibt entweder etwas Neues zu **bauen** oder etwas dauerhaft
   Besseres – nie nur eine Urkunde: die Gießkanne, eine dritte Taschen-
@@ -405,8 +414,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 186 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
-npm run test:browser   # 136 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 192 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
+npm run test:browser   # 145 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

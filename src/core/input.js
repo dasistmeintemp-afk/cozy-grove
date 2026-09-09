@@ -119,6 +119,19 @@ export class Input {
       }, { passive: true });
     }
 
+    /**
+     * Mausrad wechselt das Werkzeug.
+     *
+     * Sechs Zifferntasten sind auf einer Tastatur eine Handbewegung weg vom
+     * Laufen; das Rad liegt unter dem Finger, der ohnehin dort ist. Absicht:
+     * hoch = vorwärts, wie in fast jedem Spiel mit Werkzeuggürtel.
+     */
+    this._on(el, 'wheel', function (e) {
+      if (Math.abs(e.deltaY) < 1) return;
+      self.trigger(e.deltaY > 0 ? 'toolNext' : 'toolPrev');
+      e.preventDefault();
+    }, { passive: false });
+
     // Kontextmenü im Spielfeld stört nur.
     this._on(el, 'contextmenu', function (e) { e.preventDefault(); });
   }

@@ -27,6 +27,7 @@ import { dueAt, perksOf } from './milestones.js';
 import { dueSets } from './collection.js';
 import { mailFor, fileMail, unreadCount } from './mail.js';
 import { STAGES as LOAN_STAGES, statusOf, pay as payLoan, slotsAt, emptyLoan } from './loan.js';
+import { finaleLine, allHeard, stillSilent, circleSpots, FINALE_CLOSE, FINALE_COUNT } from './finale.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
@@ -193,6 +194,7 @@ export class Game {
       collected: Object.create(null),
       mail: [],
       loan: emptyLoan(),
+      finale: null,
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -220,6 +222,7 @@ export class Game {
       collected: Object.create(null),
       mail: [],
       loan: emptyLoan(),
+      finale: null,
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -546,9 +549,15 @@ export class Game {
     for (let i = 0; i < TOOLS.length; i++) {
       if (inp.pressed('tool' + (i + 1))) this.selectTool(i);
     }
-    if (inp.pressed('nextTool')) {
-      this.player.nextTool();
+    if (inp.pressed('nextTool') || inp.pressed('toolNext')) {
+      this.player.stepTool(1);
       this.audio.play('ui');
+      this.ui.refreshToolbelt();
+    }
+    if (inp.pressed('toolPrev')) {
+      this.player.stepTool(-1);
+      this.audio.play('ui');
+      this.ui.refreshToolbelt();
     }
     if (inp.pressed('sleep')) this._trySleepFromKey();
   }
@@ -1194,6 +1203,10 @@ export class Game {
       this.save();
     }
 
+    // Der letzte Abend geht allem vor: Wer am Feuer steht und noch nicht
+    // gesprochen hat, sagt jetzt seinen Satz – nicht „Noch nicht".
+    if (this._finaleTalk(e, spirit)) return;
+
     // Abgegeben wird, was hierher gehört: die eigenen Bitten dieses Geistes
     // und die Botengänge, die ein anderer hierher schickt.
     const hier = this.quests.openAtSpirit(e.spiritId);
@@ -1382,6 +1395,7 @@ export class Game {
       this.state.milestones[faellig[i].id] = this.day.day;
       this._giveMilestone(faellig[i]);
       if (faellig[i].unlocksRegion != null) this._openRegion(faellig[i].unlocksRegion);
+      if (faellig[i].id === 'ganz') this._startFinale();
     }
     this._perksChanged();
     this._note('milestones', faellig.length);
@@ -1440,6 +1454,112 @@ export class Game {
       if (added > 0) got.push({ id: it.id, n: added });
     }
     if (got.length) this.ui.toastItems(got);
+  }
+
+  /* ---------------- Der letzte Abend ---------------- */
+
+  /** Läuft der Abschluss gerade – versammelt, aber noch nicht durch? */
+  finaleOffen() {
+    return !!(this.state.finale && !this.state.finale.done);
+  }
+
+  /**
+   * Hundert Prozent: Alle sieben kommen ans Feuer.
+   *
+   * Sie warten dort, bis man bei jedem war – nicht einen Tag, sondern so
+   * lange es dauert. Ein Abschluss, den man verpassen kann, weil man an dem
+   * Abend keine Zeit hatte, wäre kein Abschluss.
+   */
+  _startFinale() {
+    if (this.state.finale) return;
+    this.state.finale = { day: this.day.day, heard: Object.create(null), done: false };
+
+    const feuer = this.world.campfire;
+    if (feuer) {
+      const wer = this.world.entities.filter(function (e) { return e.kind === 'spirit'; });
+      const plaetze = circleSpots(feuer, wer.length, 210);
+      for (let i = 0; i < wer.length; i++) {
+        const e = wer[i];
+        const ziel = plaetze[i];
+        // Einen begehbaren Platz in der Nähe des Ringplatzes suchen: Am Feuer
+        // stehen Zelt, Werkbank und Stand im Weg.
+        let x = ziel.x;
+        let y = ziel.y;
+        if (!this.world.canStand(x, y, 5, 4)) {
+          for (let r = 24; r <= 96 && !this.world.canStand(x, y, 5, 4); r += 24) {
+            for (let k = 0; k < 12; k++) {
+              const a = (k / 12) * Math.PI * 2;
+              const nx = ziel.x + Math.cos(a) * r;
+              const ny = ziel.y + Math.sin(a) * r;
+              if (this.world.canStand(nx, ny, 5, 4)) { x = nx; y = ny; break; }
+            }
+          }
+        }
+        e.x = x;
+        e.y = y;
+        this.world.reindex(e);
+        const src = this.colorField.find('spirit_' + e.spiritId);
+        if (src) { src.x = x; src.y = y; }
+      }
+      this.colorField.markDirty();
+      this.particles.burst('color', feuer.x, feuer.y - 60, 40);
+    }
+    this.audio.play('colorBurst');
+    this.ui.toast('Alle sind am Feuer. Geh zu jedem.', 'icon_heart', 'good');
+    this.invalidate();
+  }
+
+  /**
+   * Ein Geist sagt seinen Schlusssatz.
+   *
+   * @returns {boolean} ob dieser Besuch der Abschluss war (dann nichts weiter)
+   */
+  _finaleTalk(e, spirit) {
+    if (!this.finaleOffen()) return false;
+    const f = this.state.finale;
+    if (f.heard[e.spiritId]) return false;
+    const satz = finaleLine(e.spiritId);
+    if (!satz) return false;
+
+    f.heard[e.spiritId] = this.day.day;
+    this.ui.bubble(e.x, e.y - 190, satz, [{ icon: 'icon_heart' }], 7, true);
+    this.audio.play('ghost');
+    this.particles.burst('heart', e.x, e.y - 100, 6);
+    this.particles.burst('color', e.x, e.y - 60, 12);
+
+    const fehlen = stillSilent(f.heard).length;
+    if (fehlen > 0) {
+      this.ui.toast('Noch ' + fehlen + ' von ' + FINALE_COUNT, 'icon_ghost');
+      this.save();
+      return true;
+    }
+    this._finishFinale();
+    return true;
+  }
+
+  /** Alle gehört: das letzte Wort, und dann geht es weiter. */
+  _finishFinale() {
+    const f = this.state.finale;
+    f.done = true;
+    f.doneDay = this.day.day;
+
+    const feuer = this.world.campfire;
+    if (feuer) {
+      this.particles.burst('color', feuer.x, feuer.y - 60, 60);
+      this.particles.burst('heart', feuer.x, feuer.y - 90, 20);
+      this.ui.bubble(feuer.x, feuer.y - 210, FINALE_CLOSE, [{ icon: 'icon_star' }], 9, true);
+    }
+    this.audio.play('levelup');
+    this.audio.play('colorBurst');
+    this.camera.kick(0.6);
+    // Eine Handvoll für den Weg – und die Insel bleibt offen.
+    this.state.coins += 500;
+    this.state.ember += 80;
+    this._note('coins', 500);
+    this._note('ember', 80);
+    this.ui.toast('Die Insel ist ganz. Danke.', 'icon_star', 'good');
+    this.ui.refreshHud();
+    this.save();
   }
 
   /* ---------------- Die Vorratstruhe ---------------- */
@@ -2369,6 +2489,9 @@ export class Game {
   }
 
   _jitterSpirits(day) {
+    // Solange der letzte Abend läuft, bleibt jeder, wo er steht: Der Ring um
+    // das Feuer soll auf einen warten, nicht über Nacht auseinanderlaufen.
+    if (this.finaleOffen()) return;
     const rng = dailyRng(this.world.seed, day, 'spirits');
     for (let i = 0; i < this.world.entities.length; i++) {
       const e = this.world.entities[i];

@@ -232,3 +232,34 @@ test('Vor einem Beet gewinnt das Beet, nicht der Baum daneben', () => {
   p.selectTool(1);
   assert.equal(p.findTarget(world).entity.kind, 'tree_oak');
 });
+
+test('Das Mausrad blättert in beide Richtungen und lässt nichts aus', () => {
+  const p = new Player(0, 0);
+  p.levels.can = 1;                       // alle sieben vorhanden
+  const vorwaerts = [];
+  for (let i = 0; i < TOOLS.length; i++) { p.stepTool(1); vorwaerts.push(p.tool.id); }
+  assert.equal(new Set(vorwaerts).size, TOOLS.length, 'jedes Werkzeug genau einmal');
+  assert.equal(p.tool.id, TOOLS[0].id, 'nach einer Runde wieder am Anfang');
+
+  const rueckwaerts = [];
+  for (let i = 0; i < TOOLS.length; i++) { p.stepTool(-1); rueckwaerts.push(p.tool.id); }
+  assert.equal(new Set(rueckwaerts).size, TOOLS.length);
+
+  // Ein Schritt vor und einer zurück landet wieder beim selben Werkzeug.
+  // Das ist die eigentliche Zusicherung: Das Rad darf nicht wandern.
+  for (let i = 0; i < TOOLS.length; i++) {
+    p.selectTool(i);
+    if (!p.owns(i)) continue;
+    const start = p.tool.id;
+    p.stepTool(1);
+    p.stepTool(-1);
+    assert.equal(p.tool.id, start, 'vor und zurück ist nicht dasselbe bei ' + start);
+  }
+
+  // Ungebautes wird in beide Richtungen übersprungen
+  p.levels.can = 0;
+  p.selectTool(0);
+  const besucht = [];
+  for (let i = 0; i < 10; i++) { p.stepTool(-1); besucht.push(p.tool.id); }
+  assert.equal(besucht.indexOf('can'), -1, 'rückwärts landet man auf der ungebauten Kanne');
+});
