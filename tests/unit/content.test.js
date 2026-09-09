@@ -17,6 +17,7 @@ import { STORIES, STAGES, storyLine, storyClose, storyIntro } from '../../src/ga
 import { Inventory } from '../../src/game/inventory.js';
 import { TILE_SIZE, TILE_DEF, T, isWalkable } from '../../src/art/tiles.js';
 import { REGION_NAMES } from '../../src/world/worldgen.js';
+import { HOUSE_STAGES } from '../../src/game/house.js';
 import { INK } from '../../src/art/painted.js';
 
 /** Namen, die initArt() anlegt – als Spiegel der Registerliste. */
@@ -31,6 +32,14 @@ const SPRITE_NAMES = (function () {
     'campfire', 'tent', 'stall', 'workbench', 'boat', 'mailbox', 'chest',
     'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',
     'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge', 'moonlamp',
+    // Deko zum Einrichten
+    'table', 'chair', 'hammock', 'swing', 'firebowl', 'stringlights',
+    'paperlamp', 'planter', 'trellis', 'birdbath', 'beehive', 'scarecrow',
+    'weathervane', 'mat', 'pond',
+    // Die Ausbaustufen des Zuhauses. Stufe 1 ist das Zelt und steht oben;
+    // die drei Häuser standen bisher in keiner Prüfung, ein Tippfehler im
+    // Namen wäre also erst im Spiel aufgefallen.
+    'house_2', 'house_3', 'house_4',
   ];
   // Bäume liegen in drei Fassungen vor; die Objektdefinition nennt nur den
   // Rumpf, makeEntity hängt die Nummer an.
@@ -103,6 +112,15 @@ test('jede Objektdefinition verweist auf eine angelegte Grafik', () => {
     }
   }
   assert.deepEqual(missing, []);
+});
+
+test('jede Wohnstufe verweist auf eine angelegte Grafik', () => {
+  // Der Sprite-Name des Zuhauses steht nicht in den Objektdefinitionen –
+  // `syncHouse` setzt ihn zur Laufzeit. Ohne diese Prüfung fiele ein
+  // Tippfehler erst auf, wenn jemand sein Haus fertig gebaut hat.
+  for (const st of HOUSE_STAGES) {
+    assert.ok(SPRITE_NAMES[st.sprite], st.name + ' -> ' + st.sprite);
+  }
 });
 
 test('Erinnerungsstücke haben Welt- und Symbolgrafik', () => {

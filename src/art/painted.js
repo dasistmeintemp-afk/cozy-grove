@@ -109,6 +109,61 @@ export function fill(g, pts) {
 }
 
 /**
+ * Rechteckige Fläche, die rechteckig bleibt.
+ *
+ * Vier Punkte durch eine Catmull-Rom-Kurve ergeben immer einen Laib – für
+ * Bretter, Theken und Pfosten ist das falsch. Mit Stützpunkten auf den Kanten
+ * bleibt die Kurve dicht an der Geraden, und nur die Ecken werden weich. Ein
+ * kleiner Versatz je Punkt hält das Ganze handgemalt statt technisch.
+ */
+export function slab(x0, y0, x1, y1, seed, wob) {
+  const rng = makeRng((seed || 1) >>> 0);
+  const j = wob == null ? 1.6 : wob;
+  const nx = Math.max(3, Math.round(Math.abs(x1 - x0) / 26));
+  const ny = Math.max(2, Math.round(Math.abs(y1 - y0) / 26));
+  const pts = [];
+  function edge(ax, ay, bx, by, n) {
+    for (let i = 0; i < n; i++) {
+      const t = i / n;
+      pts.push([
+        ax + (bx - ax) * t + (rng() - 0.5) * j,
+        ay + (by - ay) * t + (rng() - 0.5) * j,
+      ]);
+    }
+  }
+  edge(x0, y0, x1, y0, nx);
+  edge(x1, y0, x1, y1, ny);
+  edge(x1, y1, x0, y1, nx);
+  edge(x0, y1, x0, y0, ny);
+  return smoothClosed(pts, 2);
+}
+
+/**
+ * Dasselbe wie `slab`, nur für schräge Kanten.
+ *
+ * Ein Giebel ist kein Rechteck, soll aber genauso wenig zum Laib zerlaufen.
+ * Stützpunkte auf jeder Kante halten die Kurve nah an der Geraden.
+ */
+export function poly(ecken, smooth) {
+  const pts = [];
+  for (let i = 0; i < ecken.length; i++) {
+    const a = ecken[i];
+    const b = ecken[(i + 1) % ecken.length];
+    const n = Math.max(2, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 26));
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      pts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    }
+  }
+  return smoothClosed(pts, smooth == null ? 2 : smooth);
+}
+
+/** Viereck mit runden Ecken – für Sitzflächen, Bretter, Kissen. */
+export function quad(a, b, c, d, smooth) {
+  return smoothClosed([a, b, c, d], smooth || 4);
+}
+
+/**
  * Ergebnis eines Malers mit Maßen und Fußpunkt.
  * `paintObject` legt einen Rand um die Zeichenfläche; Maße und Fußpunkt
  * wandern entsprechend mit, damit das Objekt an derselben Stelle steht.

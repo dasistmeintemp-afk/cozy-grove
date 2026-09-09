@@ -53,12 +53,49 @@ const THANKS = {
   ],
 };
 
-/** Was ein Geist einem Brief beilegt – aus dem, was er selbst mag. */
-function beilage(spiritId, rng) {
+/**
+ * Was ein Geist einem Brief beilegt.
+ *
+ * Anfangs war das immer ein bis drei Stück von dem, was er selbst mag – also
+ * dreimal Holz, und beim vierten Brief macht man ihn nicht mehr auf. Jetzt
+ * hängt die Beilage an der Freundschaft: Wer einen Geist kaum kennt, bekommt
+ * eine Handvoll von seinem Kram; wer ihn lange kennt, auch mal Saat, einen
+ * Edelstein oder etwas für die Wohnung. Der kleine Kram bleibt die Regel,
+ * sonst wäre das Seltene nichts Besonderes.
+ */
+const SELTEN = [
+  { id: 'gem', n: 1 },
+  { id: 'seed_moon', n: 1 },
+  { id: 'seed_flower', n: 2 },
+  { id: 'lantern', n: 1 },
+  { id: 'mat', n: 1 },
+  { id: 'planter', n: 1 },
+];
+
+function beilage(spiritId, rng, stufe) {
   const s = SPIRITS[spiritId];
   const likes = (s && s.likes) || ['wood'];
-  return { id: randPick(rng, likes), n: randInt(rng, 1, 3) };
+  // Ab der zweiten Freundschaftsstufe wird es hin und wieder etwas Besseres.
+  const chance = Math.min(0.42, Math.max(0, ((stufe || 0) - 1)) * 0.14);
+  if (chance > 0 && rng() < chance) {
+    const gut = SELTEN[randInt(rng, 0, SELTEN.length - 1)];
+    return { id: gut.id, n: gut.n };
+  }
+  return { id: randPick(rng, likes), n: randInt(rng, 1, 2 + Math.min(3, stufe || 0)) };
 }
+
+/**
+ * Die Zeile auf dem Paketaufkleber.
+ *
+ * Der Inhalt steht dahinter, damit man ihn schon vor dem Auspacken liest –
+ * ein Paket ohne Absender und ohne Inhaltsangabe wäre ein grauer Kasten.
+ */
+const PAKET = [
+  'Mit dem Boot gekommen, ein wenig feucht an der Ecke.',
+  'Gut verpackt, viel Stroh, keine Delle.',
+  'Lag seit heute früh im Kasten. Die Schnur ist schon ab.',
+  'Der Zettel obendrauf sagt nur: bestellt ist bestellt.',
+];
 
 const HAENDLER = [
   'Morgen bringe ich etwas mit, das sich lohnt. Schau vorbei.',
@@ -80,7 +117,8 @@ let mailSeq = 1;
  *
  * @param {number} day       Inseltag
  * @param {object} welt      { seed }
- * @param {object} lage      { geholfen: [spiritId], jahreszeit, ereignis, tagNeu }
+ * @param {object} lage      { geholfen: [spiritId], jahreszeit, ereignis, tagNeu,
+ *                             stufeVon: (id) => number, pakete: [{id, name}] }
  * @returns {Array} neue Briefe, ungelesen
  */
 export function mailFor(day, welt, lage) {
@@ -88,12 +126,29 @@ export function mailFor(day, welt, lage) {
   const raus = [];
   const l = lage || {};
 
+  // Pakete zuerst: Wer etwas bestellt hat, soll es oben im Kasten finden.
+  const pakete = l.pakete || [];
+  for (let i = 0; i < pakete.length; i++) {
+    const p = pakete[i];
+    raus.push({
+      id: 'm' + (mailSeq++) + '_' + day,
+      day: day,
+      from: 'katalog',
+      kind: 'parcel',
+      subject: 'Ein Paket',
+      text: randPick(rng, PAKET) + ' Inhalt: ' + p.name + '.',
+      gift: { id: p.id, n: 1 },
+      read: false,
+    });
+  }
+
   // Dank kommt nur, wenn man wirklich geholfen hat. Ein Dankesbrief für
   // nichts wäre eine Höflichkeitsfloskel, und die merkt man.
   const geholfen = (l.geholfen || []).filter(function (id) { return !!THANKS[id]; });
   if (geholfen.length) {
     const wer = randPick(rng, geholfen);
     const zeilen = THANKS[wer];
+    const stufe = l.stufeVon ? l.stufeVon(wer) : 0;
     raus.push({
       id: 'm' + (mailSeq++) + '_' + day,
       day: day,
@@ -101,7 +156,7 @@ export function mailFor(day, welt, lage) {
       kind: 'thanks',
       subject: SPIRITS[wer] ? SPIRITS[wer].name : 'Ein Geist',
       text: zeilen[0] + ' ' + zeilen[1],
-      gift: beilage(wer, rng),
+      gift: beilage(wer, rng, stufe),
       read: false,
     });
   }

@@ -33,6 +33,10 @@ import {
   houseStage, nextHouseStage, houseSprite, houseLight, houseColor,
   houseFootprint, missingFor as houseMissing,
 } from './house.js';
+import {
+  katalogFuer, katalogEintrag, kannBestellen, bestellen, faellig,
+  emptyOrders, MAX_OFFEN,
+} from './catalog.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
@@ -207,6 +211,7 @@ export class Game {
       finale: null,
       plot: 1,
       house: 1,
+      orders: emptyOrders(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -237,6 +242,7 @@ export class Game {
       finale: null,
       plot: 1,
       house: 1,
+      orders: emptyOrders(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -249,6 +255,7 @@ export class Game {
     // einer von vor dem Hausausbau steht noch im Zelt.
     if (!this.state.plot) this.state.plot = 1;
     if (!this.state.house) this.state.house = 1;
+    if (!Array.isArray(this.state.orders)) this.state.orders = emptyOrders();
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -1550,6 +1557,56 @@ export class Game {
     return { deko: deko, beete: beete, wild: wild };
   }
 
+  /** Wie gut man einen Geist kennt – 0, wenn man ihm noch nie geholfen hat. */
+  friendshipLevelOf(spiritId) {
+    const n = (this.quests.completedBySpirit &&
+      this.quests.completedBySpirit[spiritId]) || 0;
+    return friendshipLevel(n);
+  }
+
+  /* ---------------- Der Katalog ---------------- */
+
+  /** Der Katalog, wie er heute aussieht – Gesperrtes bleibt sichtbar. */
+  catalog() {
+    const self = this;
+    return katalogFuer(function (id) { return self.hasMilestone(id); });
+  }
+
+  /** Was gerade unterwegs ist: [{ nr, id, name, ab }]. */
+  openOrders() {
+    const liste = this.state.orders || [];
+    return liste.map(function (b) {
+      const item = getItem(b.id);
+      return { nr: b.nr, id: b.id, name: item ? item.name : b.id, ab: b.ab, preis: b.preis };
+    });
+  }
+
+  /**
+   * Etwas bestellen.
+   *
+   * Bezahlt wird sofort, geliefert am nächsten Morgen. Das Warten ist der
+   * Punkt: Käme es gleich in die Tasche, wäre der Katalog ein zweiter Laden
+   * und der Briefkasten bliebe, was er war.
+   */
+  orderFromCatalog(id) {
+    const pruef = kannBestellen(id, this.state.coins,
+      this.state.orders, this.hasMilestone.bind(this));
+    if (!pruef.ok) {
+      this.ui.toast(pruef.grund, 'icon_coin', 'bad');
+      return false;
+    }
+    const b = bestellen(id, this.day.day);
+    if (!b) return false;
+    this.state.coins -= b.preis;
+    this.state.orders = (this.state.orders || []).concat([b]);
+    const item = getItem(id);
+    this.ui.toast((item ? item.name : id) + ' bestellt · morgen im Kasten', 'icon_mailbox', 'good');
+    this.audio.play('coin');
+    this.ui.refreshHud();
+    this.save();
+    return true;
+  }
+
   /* ---------------- Vom Zelt zum Haus ---------------- */
 
   /**
@@ -1828,11 +1885,25 @@ export class Game {
     const neuesKapitel = !!(jahreszeit && this.state.lastSeason !== jahreszeit.id);
     if (jahreszeit) this.state.lastSeason = jahreszeit.id;
 
+    // Was bestellt und fällig ist, kommt heute als Paket. Erst die Liste
+    // kürzen, dann die Post bauen: Sonst läge dasselbe Paket morgen wieder da.
+    const post = faellig(this.state.orders, day);
+    this.state.orders = post.bleibt;
+    const pakete = post.da.map(function (b) {
+      const item = getItem(b.id);
+      return { id: b.id, name: item ? item.name : b.id };
+    });
+
+    const self = this;
     const neue = mailFor(day, this.world, {
       geholfen: geholfen,
       jahreszeit: jahreszeit,
       tagNeu: neuesKapitel,
       ereignis: this.today ? this.today.event : null,
+      pakete: pakete,
+      // Die Beilage wächst mit der Freundschaft – dreimal dasselbe Holz macht
+      // aus dem Briefkasten eine Textanzeige.
+      stufeVon: function (id) { return self.friendshipLevelOf(id); },
     });
     if (!neue.length) return;
     this.state.mail = fileMail(this.state.mail, neue);

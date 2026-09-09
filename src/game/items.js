@@ -116,6 +116,26 @@ const LIST = [
   it('signpost', 'Wegweiser', CAT.DECOR, 30, 0, { prop: 'signpost', charm: 2 }),
   it('bridge_kit', 'Brückenbausatz', CAT.DECOR, 0, 0, { special: 'bridge' }),
 
+  // Zum Einrichten. Zehn Stücke waren zu wenig, um sich ein Zuhause
+  // zurechtzulegen – erst mit Sitzgruppe, Licht, Garten und etwas, das flach
+  // am Boden liegt, wird aus Hinstellen ein Einrichten.
+  it('table', 'Gartentisch', CAT.DECOR, 64, 0, { prop: 'table', charm: 5 }),
+  it('chair', 'Gartenstuhl', CAT.DECOR, 42, 0, { prop: 'chair', charm: 3 }),
+  it('hammock', 'Hängematte', CAT.DECOR, 150, 0, { prop: 'hammock', charm: 9 }),
+  it('swing', 'Schaukel', CAT.DECOR, 175, 0, { prop: 'swing', charm: 10 }),
+  it('firebowl', 'Feuerschale', CAT.DECOR, 130, 0, { prop: 'firebowl', light: 96, charm: 8 }),
+  it('stringlights', 'Lichterkette', CAT.DECOR, 165, 0,
+    { prop: 'stringlights', light: 138, charm: 10 }),
+  it('paperlamp', 'Papierlampion', CAT.DECOR, 88, 0, { prop: 'paperlamp', light: 74, charm: 6 }),
+  it('planter', 'Pflanzkübel', CAT.DECOR, 56, 0, { prop: 'planter', charm: 5 }),
+  it('trellis', 'Rankgitter', CAT.DECOR, 96, 0, { prop: 'trellis', charm: 7 }),
+  it('birdbath', 'Vogeltränke', CAT.DECOR, 110, 0, { prop: 'birdbath', charm: 7 }),
+  it('beehive', 'Bienenkorb', CAT.DECOR, 145, 0, { prop: 'beehive', charm: 8 }),
+  it('scarecrow', 'Vogelscheuche', CAT.DECOR, 78, 0, { prop: 'scarecrow', charm: 5 }),
+  it('weathervane', 'Wetterhahn', CAT.DECOR, 190, 0, { prop: 'weathervane', charm: 11 }),
+  it('mat', 'Bastmatte', CAT.DECOR, 36, 0, { prop: 'mat', charm: 3, flat: true }),
+  it('pond', 'Zierteich', CAT.DECOR, 210, 0, { prop: 'pond', charm: 12, flat: true }),
+
   // Saat. `plant` sagt dem Aufstellen, dass hier ein Beet entsteht und keine
   // Deko; `prop` ist die reife Pflanze – so sieht man beim Setzen schon, was
   // daraus wird. Nicht verbrennbar: Saat ins Feuer zu werfen wäre die eine

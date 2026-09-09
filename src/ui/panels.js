@@ -14,6 +14,7 @@ import { STAGES as LOAN_STAGES, statusOf } from '../game/loan.js';
 import { finaleLine, stillSilent, FINALE_CLOSE, FINALE_COUNT } from '../game/finale.js';
 import { PLOT_STAGES, MAX_PLOT_STAGE } from '../game/plot.js';
 import { HOUSE_STAGES, MAX_HOUSE_STAGE } from '../game/house.js';
+import { MAX_OFFEN as MAX_ORDERS } from '../game/catalog.js';
 import { UI_SCALES } from './uiscale.js';
 import { CROPS } from '../game/crops.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
@@ -221,6 +222,10 @@ export class Panels {
         break;
       case 'buildHouse':
         g.buildHouse();
+        this.render();
+        break;
+      case 'order':
+        g.orderFromCatalog(arg);
         this.render();
         break;
       case 'close':
@@ -773,6 +778,61 @@ export class Panels {
   }
 
   /** Der Ausbau – Teil des Ladens, denn der Händler baut ihn. */
+  /**
+   * Der Katalog: bestellen, warten, auspacken.
+   *
+   * Gesperrtes bleibt stehen, aber ohne Preis. Wer am ersten Tag eine Seite
+   * mit fünf Zeilen sieht, hält den Katalog für vollständig; wer die Schaukel
+   * durchgestrichen sieht, weiß, dass es weitergeht.
+   */
+  _catalogRows() {
+    const g = this.game;
+    const eintraege = g.catalog();
+    const unterwegs = g.openOrders();
+
+    let html = '<p class="empty-note" style="padding:0 0 10px">' +
+      'Bezahlt wird sofort, geliefert am nächsten Morgen in den Briefkasten. ' +
+      'Höchstens ' + MAX_ORDERS + ' Bestellungen gleichzeitig.</p>';
+
+    if (unterwegs.length) {
+      html += '<div class="rows" style="margin-bottom:12px">';
+      for (let i = 0; i < unterwegs.length; i++) {
+        const b = unterwegs[i];
+        const tage = b.ab - g.day.day;
+        html += '<div class="row">' + ico('icon_mailbox', 'lg') +
+          '<div class="grow"><div class="title">' + escapeHtml(b.name) + ' unterwegs</div>' +
+          '<div class="meta"><span>' +
+          (tage <= 0 ? 'liegt im Kasten' : tage === 1 ? 'morgen früh' : 'in ' + tage + ' Tagen') +
+          '</span></div></div></div>';
+      }
+      html += '</div>';
+    }
+
+    html += '<div class="rows">';
+    for (let i = 0; i < eintraege.length; i++) {
+      const e = eintraege[i];
+      const reicht = g.state.coins >= e.preis;
+      const platz = unterwegs.length < MAX_ORDERS;
+      const kann = e.offen && reicht && platz;
+      html += '<div class="row' + (e.offen ? '' : ' dim') + '">' +
+        ico(e.offen ? e.icon : 'icon_lock', 'lg') +
+        '<div class="grow"><div class="title">' + escapeHtml(e.name) + '</div>' +
+        '<div class="meta">' +
+        (e.offen
+          ? '<span class="cost' + (reicht ? '' : ' miss') + '">' +
+            ico('icon_coin') + ' ' + num(e.preis) + '</span>'
+          : '<span>Noch nicht im Katalog</span>') +
+        '</div></div>' +
+        (e.offen
+          ? '<button class="row-btn" data-act="order" data-arg="' + e.id + '"' +
+            (kann ? '' : ' disabled') + '>Bestellen</button>'
+          : '<span class="row-btn ghost">' + ico('icon_lock') + '</span>') +
+        '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
   _loanRows() {
     const g = this.game;
     const stand = statusOf(g.state.loan);
@@ -965,6 +1025,7 @@ export class Panels {
       '<button class="tab" data-act="tab" data-arg="buy" aria-selected="' + (tab === 'buy') + '">Kaufen</button>' +
       '<button class="tab" data-act="tab" data-arg="sell" aria-selected="' + (tab === 'sell') + '">Verkaufen</button>' +
       '<button class="tab" data-act="tab" data-arg="ausbau" aria-selected="' + (tab === 'ausbau') + '">Ausbau</button>' +
+      '<button class="tab" data-act="tab" data-arg="katalog" aria-selected="' + (tab === 'katalog') + '">Katalog</button>' +
       '<span style="margin-left:auto;align-self:center;font-size:0.85em">' +
       ico('icon_coin') + ' ' + num(g.state.coins) + '</span></div>';
 
@@ -979,6 +1040,11 @@ export class Panels {
       // Der Händler baut die Truhe – bei ihm wird auch bezahlt. Ein eigener
       // Bauplatz dafür wäre ein Ort mehr, den man erst finden müsste.
       html += this._loanRows();
+      return html;
+    }
+
+    if (tab === 'katalog') {
+      html += this._catalogRows();
       return html;
     }
 

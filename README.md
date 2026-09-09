@@ -203,6 +203,23 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   man jeden Morgen nachsehen und ginge nach drei leeren Kästen nicht mehr hin.
   **Dank gibt es nur für wirkliche Hilfe** – ein Dankesbrief für nichts wäre
   eine Floskel, und Floskeln merkt man beim dritten Mal.
+
+  Die Beilage hängt an der **Freundschaft**, nicht am Zufall allein: Anfangs
+  eine Handvoll von dem, was der Geist selbst mag; wer ihn länger kennt,
+  bekommt auch mal Saat, einen Edelstein oder etwas für die Wohnung. Dreimal
+  dasselbe Holz, und man macht den vierten Brief nicht mehr auf.
+* **Der Katalog.** Beim Händler unter „Katalog": fünfzehn Stücke Deko zum
+  Bestellen, von der Bastmatte für 90 bis zum Zierteich für 560 Münzen.
+  Bezahlt wird sofort, **geliefert am nächsten Morgen als Paket im
+  Briefkasten** – höchstens drei Bestellungen gleichzeitig.
+
+  Der Umweg über die Post ist der Punkt. Käme das Stück gleich in die Tasche,
+  wäre der Katalog ein zweiter Laden und der Briefkasten bliebe, was er war.
+  So löst eine Sache drei Dinge: Deko, die nicht an einem Rezept hängen muss;
+  ein Ziel für Münzen, das beliebig viel aufnimmt; und ein Grund, morgens
+  zuerst zum Kasten zu gehen. Die halbe Seite ist am ersten Tag noch gesperrt,
+  aber **sichtbar** – wer die Schaukel durchgestrichen sieht, weiß, dass es
+  weitergeht.
 * **Die Vorratstruhe.** Vier Ausbaustufen, in Raten beim Händler bezahlt:
   600 → 1600 → 3600 → 7500 Münzen für am Ende 80 Fächer. Damit haben Münzen
   zum ersten Mal ein großes Ziel, und ein guter Markttag ist ein guter Tag.
@@ -240,15 +257,25 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   wächst ohne ihn bei einem eine Landbrücke hinüber – ein Test prüft genau
   das, mit allen zweihundert.
 * **Angeln** als kleines Geschicklichkeitsspiel, mit Tag- und Nachtfischen.
-* **Einrichten, das zählt.** Gebaute Deko lässt sich frei aufstellen – der
-  Vorschaupunkt weicht Bäumen und Steinen selbst aus, statt „Kein Platz" zu
-  sagen; nur wenn im Umkreis wirklich nichts frei ist, steht der Grund dabei.
-  Laternen leuchten nachts. Jedes Stück trägt **Gemütlichkeitspunkte** – ein Zaunstück 1,
-  ein Blumenbeet 5, ein Andenken 10. Was im Umkreis eines Geistes steht, zählt
-  für ihn zusammen: um ihn wächst ein zusätzlicher Farbkreis, und seine
-  Aufgaben zahlen besser. Vier Stufen, im Aufgabenfenster als Punktreihe zu
-  sehen. Packt man die Deko wieder ein, schrumpft der Kreis auch wieder –
-  anders als die Farbe aus erledigten Aufgaben, die bleibt.
+* **Einrichten, das zählt.** **25 Stücke Deko** – zehn von der Werkbank,
+  fünfzehn aus dem Katalog: Tisch und Stühle, Hängematte, Schaukel,
+  Feuerschale, Lichterkette, Papierlampion, Pflanzkübel, Rankgitter,
+  Vogeltränke, Bienenkorb, Vogelscheuche, Wetterhahn, Bastmatte und Zierteich.
+  Alles lässt sich frei aufstellen – der Vorschaupunkt weicht Bäumen und
+  Steinen selbst aus, statt „Kein Platz" zu sagen; nur wenn im Umkreis wirklich
+  nichts frei ist, steht der Grund dabei.
+
+  Was flach am Boden liegt – Teppich, Bastmatte, Zierteich –, wird **vor allem
+  Aufrechten** gezeichnet, im selben Durchgang wie die Grundstücksgrenze. Nach
+  der Tiefe einsortiert lag der Teppich über Seli, sobald sie darauf stand.
+
+  Laternen, Feuerschale, Lampion und Lichterkette leuchten nachts. Jedes Stück
+  trägt **Gemütlichkeitspunkte** – ein Zaunstück 1, ein Blumenbeet 5, ein
+  Zierteich 12. Was im Umkreis eines Geistes steht, zählt für ihn zusammen: um
+  ihn wächst ein zusätzlicher Farbkreis, und seine Aufgaben zahlen besser. Vier
+  Stufen, im Aufgabenfenster als Punktreihe zu sehen. Packt man die Deko wieder
+  ein, schrumpft der Kreis auch wieder – anders als die Farbe aus erledigten
+  Aufgaben, die bleibt.
 * **Leben ringsum – und zum Anfassen.** Tags Falter, nachts Motten, die zum
   nächsten Licht streben, dazu Vögel und springende Fische. Fünf Falterarten
   lassen sich mit dem **Kescher** fangen: drei am Tag, zwei nur nachts, jede

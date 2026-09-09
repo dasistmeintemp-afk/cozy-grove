@@ -22,6 +22,12 @@ import {
   paintMemory, paintTool, paintButterfly, paintBird,
   paintSeli, paintSpirit, paintFlameSpirit, paintFox,
 } from './painted-camp.js';
+import {
+  paintTable, paintChair, paintHammock, paintSwing,
+  paintFirebowl, paintStringlights, paintPaperlamp,
+  paintPlanter, paintTrellis, paintBirdbath, paintBeehive, paintScarecrow,
+  paintWeathervane, paintMat, paintPond,
+} from './painted-decor.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
 import { BUGS, MEMORY_KINDS } from '../game/items.js';
@@ -269,6 +275,23 @@ export function initArt() {
   addArt('path_tile', paintGroundDecal('path', 591), 1);
   addArt('bridge', paintGroundDecal('bridge', 593), 1);
 
+  /* --- Deko zum Einrichten --- */
+  addArt('table', paintTable({ seed: 1201 }));
+  addArt('chair', paintChair({ seed: 1211 }));
+  addArt('hammock', paintHammock({ seed: 1221 }));
+  addArt('swing', paintSwing({ seed: 1231 }));
+  addArt('firebowl', paintFirebowl({ seed: 1241 }));
+  addArt('stringlights', paintStringlights({ seed: 1251 }));
+  addArt('paperlamp', paintPaperlamp({ seed: 1261 }));
+  addArt('planter', paintPlanter({ seed: 1271 }));
+  addArt('trellis', paintTrellis({ seed: 1281 }));
+  addArt('birdbath', paintBirdbath({ seed: 1291 }));
+  addArt('beehive', paintBeehive({ seed: 1301 }));
+  addArt('scarecrow', paintScarecrow({ seed: 1311 }));
+  addArt('weathervane', paintWeathervane({ seed: 1321 }));
+  addArt('mat', paintMat({ seed: 1331 }));
+  addArt('pond', paintPond({ seed: 1341 }));
+
   /* --- Erinnerungsstücke --- */
   for (let i = 0; i < MEMORY_KINDS.length; i++) {
     addArt('memory_' + MEMORY_KINDS[i], paintMemory(MEMORY_KINDS[i], { seed: 601 + i * 17 }));
@@ -332,6 +355,12 @@ function buildIcons() {
     ['moonflower', 'moonflower'], ['rainmushroom', 'rainmushroom'],
     ['fogcrystal', 'fogcrystal'], ['moonlamp', 'lantern'],
     ['boat', 'boat'], ['mailbox', 'mailbox'],
+    ['table', 'table'], ['chair', 'chair'], ['hammock', 'hammock'],
+    ['swing', 'swing'], ['firebowl', 'firebowl'],
+    ['stringlights', 'stringlights'], ['paperlamp', 'paperlamp'],
+    ['planter', 'planter'], ['trellis', 'trellis'], ['birdbath', 'birdbath'],
+    ['beehive', 'beehive'], ['scarecrow', 'scarecrow'],
+    ['weathervane', 'weathervane'], ['mat', 'mat'], ['pond', 'pond'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = registry[reuse[i][1]];

@@ -2266,6 +2266,93 @@ async function run() {
       post.zeigtText && post.beeren === 3 && post.offenNachher === 0 && post.gabeWeg,
       JSON.stringify(post));
 
+    /* ---- Der Katalog: bestellen, warten, auspacken ---- */
+    const katalog = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.orders = [];
+      g.state.mail = [];
+      // Die Meilensteine werden nur GELIEHEN: Spätere Prüfungen (Boot,
+      // Insel, Wanda) hängen daran, und ein leerer Stand hier hat sie
+      // stillschweigend mitgenommen.
+      const merkeMeilen = g.state.milestones;
+      const merkeMuenzen = g.state.coins;
+      g.state.milestones = Object.create(null);      // nur die freie Auswahl
+      const frei = g.catalog().filter((e) => e.offen);
+      const zu = g.catalog().filter((e) => !e.offen);
+      const stueck = frei[0];
+
+      // Zu wenig Münzen: nichts passiert, und es wird nichts abgebucht.
+      g.state.coins = stueck.preis - 1;
+      const arm = g.orderFromCatalog(stueck.id);
+      const armGeld = g.state.coins;
+
+      // Gesperrtes lässt sich auch mit vollem Beutel nicht bestellen.
+      g.state.coins = 99999;
+      const gesperrt = zu.length ? g.orderFromCatalog(zu[0].id) : null;
+
+      // Jetzt richtig
+      const vorherGeld = g.state.coins;
+      const ok = g.orderFromCatalog(stueck.id);
+      const nachBestellung = {
+        offen: g.openOrders().length,
+        bezahlt: vorherGeld - g.state.coins,
+        imKasten: g.unreadMail(),
+      };
+
+      // Höchstens drei gleichzeitig
+      const rest = frei.slice(1);
+      for (let i = 0; i < rest.length; i++) g.orderFromCatalog(rest[i].id);
+      const maxOffen = g.openOrders().length;
+
+      // Der nächste Morgen bringt die Pakete
+      const hatte = g.inventory.count(stueck.id);
+      g.state.mail = [];
+      g._deliverMail(g.day.day + 1, { helped: {} });
+      const pakete = (g.state.mail || []).filter((m) => m.kind === 'parcel');
+      const nochOffen = g.openOrders().length;
+
+      // Auspacken legt das Stück in die Tasche
+      const meins = pakete.filter((m) => m.gift && m.gift.id === stueck.id)[0];
+      if (meins) g.openLetter(meins.id);
+      const bekommen = g.inventory.count(stueck.id) - hatte;
+
+      // Und dasselbe Paket kommt am Tag darauf nicht noch einmal
+      g.state.mail = [];
+      g._deliverMail(g.day.day + 2, { helped: {} });
+      const nochmal = (g.state.mail || []).filter((m) => m.kind === 'parcel').length;
+
+      g.state.orders = [];
+      g.state.mail = [];
+      g.state.milestones = merkeMeilen;
+      g.state.coins = merkeMuenzen;
+      return {
+        freie: frei.length, gesperrte: zu.length,
+        arm, armGeld, armPreis: stueck.preis - 1,
+        gesperrt, ok, nachBestellung, maxOffen,
+        pakete: pakete.length, nochOffen, bekommen, nochmal,
+        stueck: stueck.id,
+      };
+    });
+    check('Der Katalog zeigt Offenes und Gesperrtes nebeneinander',
+      katalog.freie >= 3 && katalog.gesperrte > 0, JSON.stringify(katalog));
+    check('Ohne Münzen wird nicht bestellt – und nichts abgebucht',
+      katalog.arm === false && katalog.armGeld === katalog.armPreis,
+      JSON.stringify(katalog));
+    check('Gesperrtes bleibt gesperrt, auch mit vollem Beutel',
+      katalog.gesperrt === false, JSON.stringify(katalog));
+    check('Bestellen kostet sofort und legt nichts in die Tasche',
+      katalog.ok === true && katalog.nachBestellung.offen === 1 &&
+      katalog.nachBestellung.bezahlt > 0 && katalog.nachBestellung.imKasten === 0,
+      JSON.stringify(katalog.nachBestellung));
+    check('Höchstens drei Bestellungen gleichzeitig',
+      katalog.maxOffen === 3, JSON.stringify(katalog));
+    check('Am nächsten Morgen liegen die Pakete im Kasten',
+      katalog.pakete === 3 && katalog.nochOffen === 0, JSON.stringify(katalog));
+    check('Ein Paket auspacken bringt genau das Bestellte',
+      katalog.bekommen === 1, JSON.stringify(katalog));
+    check('Und dasselbe Paket kommt kein zweites Mal',
+      katalog.nochmal === 0, JSON.stringify(katalog));
+
     // Truhe: erst bezahlen, dann einlagern.
     const truhe = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
