@@ -118,6 +118,14 @@ export const ENTITY_DEFS = {
     respawn: 5, category: 'rock',
   },
 
+  /**
+   * Das Haustier. Kein `solid`: Man soll nicht an der eigenen Katze
+   * hängenbleiben. Der Napf dagegen ist gewöhnliche Deko – gefüttert wird
+   * das Tier, nicht die Schüssel.
+   */
+  pet: {
+    sprite: 'pet_cat_0', solid: false, reachR: 96, category: 'pet', priority: 30,
+  },
   bush_berry: {
     sprite: 'bush_berry', solid: true, blockR: 24, reachR: 72, tool: TOOL.HAND, hits: 1,
     yield: drop('berry', 1, 2), becomes: 'bush_plain', respawn: 1, sway: true, category: 'forage',

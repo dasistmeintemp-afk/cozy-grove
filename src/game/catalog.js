@@ -34,6 +34,7 @@ export const KATALOG = [
   { id: 'scarecrow', preis: 200 },
   { id: 'paperlamp', preis: 230, needs: 'fleck' },
   { id: 'trellis', preis: 250, needs: 'fleck' },
+  { id: 'bowl', preis: 260, needs: 'werkzeugtag' },
   { id: 'birdbath', preis: 285, needs: 'tasche' },
   { id: 'firebowl', preis: 340, needs: 'tasche' },
   { id: 'beehive', preis: 380, needs: 'wald' },

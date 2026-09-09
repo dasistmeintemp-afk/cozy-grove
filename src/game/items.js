@@ -137,6 +137,7 @@ const LIST = [
   it('beehive', 'Bienenkorb', CAT.DECOR, 145, 0, { prop: 'beehive', charm: 8 }),
   it('scarecrow', 'Vogelscheuche', CAT.DECOR, 78, 0, { prop: 'scarecrow', charm: 5 }),
   it('weathervane', 'Wetterhahn', CAT.DECOR, 190, 0, { prop: 'weathervane', charm: 11 }),
+  it('bowl', 'Futternapf', CAT.DECOR, 120, 0, { prop: 'bowl', charm: 3 }),
   it('mat', 'Bastmatte', CAT.DECOR, 36, 0, { prop: 'mat', charm: 3, flat: true }),
   it('pond', 'Zierteich', CAT.DECOR, 210, 0, { prop: 'pond', charm: 12, flat: true }),
 

@@ -1943,6 +1943,242 @@ async function run() {
       lagerFenster.stufen >= 4 && lagerFenster.knoepfe === 1,
       JSON.stringify(lagerFenster));
 
+    /* ---- Das Haustier ---- */
+    const tier = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const merkeMeilen = g.state.milestones;
+      g.state.pet = null;
+      g.syncPet();
+      const ohneNapf = !!g.world.pet;
+
+      // Napf aufstellen – erst dann kommt jemand vorbei.
+      g.state.milestones = { werkzeugtag: true };
+      g.inventory.add('bowl', 1);
+      g.startPlacing('bowl');
+      g._updatePlacing();
+      let n = 0;
+      while (g.placing && !g.placing.valid && n++ < 40) {
+        g.player.x += 24;
+        g._updatePlacing();
+      }
+      g.confirmPlacing();
+      const napf = g.bowlEntity();
+      const streuner = !!g.world.pet && g.petStatus().streuner;
+
+      // Ohne Futter passiert nichts, und es wird auch nichts weggenommen.
+      for (const id of ['fish_cod', 'fish_sardine', 'berry', 'mushroom', 'herb',
+        'fish_mackerel', 'fish_roach', 'fish_trout', 'fish_catfish',
+        'fish_moonfish', 'fish_goldcarp', 'rainmushroom']) {
+        g.inventory.remove(id, 9999);
+      }
+      const hungerVorher = g.petStatus().fortschritt;
+      g.day.day += 1;
+      const ohneFutter = g.feedPet();
+
+      // Mit Futter: drei Fütterungen, dann bleibt es
+      g.inventory.add('fish_cod', 9);
+      const schritte = [];
+      for (let t = 0; t < 3; t++) {
+        g.day.day += 1;
+        g.feedPet();
+        schritte.push(g.petStatus().fortschritt);
+      }
+      const zahm = g.petStatus().zahm;
+      const fischWeg = 9 - g.inventory.count('fish_cod');
+
+      // Zweimal am selben Tag geht nicht
+      const nochmal = g.feedPet();
+
+      // Es sucht einmal am Tag etwas – aber nur satt.
+      g.world.pet.fund = null;
+      g.state.pet.fundAm = 0;
+      g.state.pet.laune = 100;
+      const dig = g.world.entities.filter((e) => e.kind === 'digspot' && !e.gone)[0];
+      let sucht = null;
+      if (dig) {
+        g.player.x = dig.x + 100;
+        g.player.y = dig.y + 100;
+        g._petSucht();
+        sucht = !!g.world.pet.fund;
+      }
+      const fundAm = g.state.pet.fundAm;
+      // Ein zweites Mal am selben Tag nicht
+      g.world.pet.fund = null;
+      g._petSucht();
+      const zweitesMal = !!g.world.pet.fund;
+      // Und hungrig gar nicht
+      g.state.pet.fundAm = 0;
+      g.state.pet.laune = 5;
+      g._petSucht();
+      const hungrigSucht = !!g.world.pet.fund;
+
+      // Hunger nimmt nichts weg: es bleibt zahm
+      g.state.pet.gefuettertAm = g.day.day - 30;
+      g._petNewDay(g.day.day);
+      const nachHunger = { laune: g.state.pet.laune, zahm: g.petStatus().zahm };
+
+      // Es läuft mit. Beide Punkte müssen begehbar sein: Ein erster Entwurf
+      // setzte Seli 700 Bildpunkte weiter und landete im Wasser – dann stand
+      // das Tier still, und zwar völlig zu Recht.
+      g.state.pet.laune = 100;
+      g.world.pet.fund = null;
+      g.world.pet.ruhe = null;
+      const heim = g.world.tent;
+      let start = null;
+      let ziel = null;
+      for (let r = 120; r <= 900 && !ziel; r += 40) {
+        for (let i = 0; i < 16 && !ziel; i++) {
+          const a = (i / 16) * Math.PI * 2;
+          const px = heim.x + Math.cos(a) * r;
+          const py = heim.y + Math.sin(a) * r;
+          if (!g.world.canStand(px, py, 12, 8)) continue;
+          if (!start) start = { x: px, y: py };
+          else if (Math.hypot(px - start.x, py - start.y) > 600) ziel = { x: px, y: py };
+        }
+      }
+      let weit = 0;
+      let nah = 0;
+      let bewegt = 0;
+      if (start && ziel) {
+        g.player.x = start.x;
+        g.player.y = start.y;
+        g.world.pet.x = start.x;
+        g.world.pet.y = start.y;
+        g.world.reindex(g.world.pet);
+        g.player.x = ziel.x;
+        g.player.y = ziel.y;
+        weit = Math.hypot(g.world.pet.x - g.player.x, g.world.pet.y - g.player.y);
+        for (let i = 0; i < 600; i++) {
+          const vx = g.world.pet.x;
+          const vy = g.world.pet.y;
+          g._updatePet(1 / 30);
+          if (g.world.pet.x !== vx || g.world.pet.y !== vy) bewegt++;
+        }
+        nah = Math.hypot(g.world.pet.x - g.player.x, g.world.pet.y - g.player.y);
+      }
+
+      // Napf einpacken, solange es fremd ist, verscheucht es wieder
+      g.state.pet.zahm = 0;
+      napf.gone = true;
+      g.syncPet();
+      const ohneNapfWeg = !!g.world.pet;
+
+      g.state.milestones = merkeMeilen;
+      g.state.pet = null;
+      g.syncPet();
+      return {
+        ohneNapf, streuner, ohneFutter, hungerVorher, schritte, zahm, fischWeg,
+        nochmal, sucht, fundAm, zweitesMal, hungrigSucht, nachHunger,
+        weit: Math.round(weit), nah: Math.round(nah), bewegt, ohneNapfWeg,
+      };
+    });
+    check('Ohne Napf ist kein Tier da',
+      tier.ohneNapf === false, JSON.stringify(tier));
+    check('Der Napf lockt einen Streuner an',
+      tier.streuner === true, JSON.stringify(tier));
+    check('Ohne Futter lässt es sich nicht anlocken',
+      tier.ohneFutter === false && tier.hungerVorher === 0, JSON.stringify(tier));
+    check('Dreimal füttern, dann bleibt es',
+      tier.schritte.join(',') === '1,2,3' && tier.zahm === true && tier.fischWeg === 3,
+      JSON.stringify(tier));
+    check('Zweimal am Tag füttern geht nicht',
+      tier.nochmal === false, JSON.stringify(tier));
+    check('Einmal am Tag findet es etwas',
+      tier.sucht === true && tier.zweitesMal === false, JSON.stringify(tier));
+    check('Hungrig sucht es nichts',
+      tier.hungrigSucht === false, JSON.stringify(tier));
+    check('Hunger kostet Laune, aber nimmt einem das Tier nicht weg',
+      tier.nachHunger.laune === 0 && tier.nachHunger.zahm === true,
+      JSON.stringify(tier.nachHunger));
+    check('Es läuft hinterher, ohne hängenzubleiben',
+      tier.weit > 500 && tier.nah < 120 && tier.bewegt > 100, JSON.stringify(tier));
+    check('Napf weg, Streuner weg – solange es noch fremd ist',
+      tier.ohneNapfWeg === false, JSON.stringify(tier));
+
+    /* ---- Das Lieblingsgeschenk ---- */
+    const lieblings = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      // Flämmchen mag Holz, Hartholz und Harz – am liebsten Harz.
+      const e = g.world.entities.filter(
+        (x) => x.kind === 'spirit' && x.spiritId === 'flamey')[0];
+      if (!e) return { fehler: 'kein Flämmchen' };
+      g.state.met.flamey = 1;
+      // Aufträge beiseite: Was für eine offene Bitte gebraucht wird, bietet
+      // das Spiel nicht als Mitbringsel an – sonst misst die Prüfung, welche
+      // Aufgaben heute zufällig offen sind.
+      const beiseiteQ = g.quests.quests;
+      g.quests.quests = [];
+      for (const x of ['wood', 'hardwood', 'resin']) g.inventory.remove(x, 9999);
+
+      // Nur Holz dabei: das wird gewählt.
+      g.inventory.add('wood', 1);
+      const beiHolz = g.likedInBag('flamey');
+      // Harz dazu: jetzt hat das Lieblingsstück Vorrang.
+      g.inventory.add('resin', 1);
+      const beiBeidem = g.likedInBag('flamey');
+
+      // Die Farbquelle entsteht erst, wenn der Geist etwas bekommen hat.
+      // Ohne sie liefe `growByArea` ins Leere und die Prüfung verglich
+      // zweimal die Null.
+      if (!g.colorField.find('spirit_flamey')) {
+        g.colorField.addSource(e.x, e.y, 200, 'spirit_flamey');
+      }
+      function schenken() {
+        g.state.gifted = {};
+        const glutVorher = g.state.ember;
+        const quelle = g.colorField.find('spirit_flamey');
+        const rVorher = quelle ? quelle.target : 0;
+        g.giveGiftTo(e);
+        const q2 = g.colorField.find('spirit_flamey');
+        return { glut: g.state.ember - glutVorher, farbe: (q2 ? q2.target : 0) - rVorher };
+      }
+      // Erst das Lieblingsstück (liegt vorn), dann das gewöhnliche
+      const mitLieb = schenken();
+      const mitNormal = schenken();
+
+      for (const x of ['wood', 'hardwood', 'resin']) g.inventory.remove(x, 9999);
+      g.state.gifted = {};
+      g.quests.quests = beiseiteQ;
+      return { beiHolz, beiBeidem, mitLieb, mitNormal };
+    });
+    check('Das Lieblingsstück wird bevorzugt verschenkt',
+      lieblings.beiHolz === 'wood' && lieblings.beiBeidem === 'resin',
+      JSON.stringify(lieblings));
+    check('Und bringt deutlich mehr Glut und Farbe',
+      lieblings.mitLieb.glut > lieblings.mitNormal.glut &&
+      lieblings.mitLieb.farbe > lieblings.mitNormal.farbe,
+      JSON.stringify(lieblings));
+
+    /* ---- Die Fanggröße ---- */
+    const fang = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      g.state.records = {};
+      const vorherTasche = g.inventory.count('fish_cod');
+
+      // `result.fish` ist ein Gegenstand aus items.js. Der Fang wird über
+      // `_onFishEvent` ausgelöst – denselben Weg, den das Angeln nimmt –,
+      // damit mitgeprüft ist, dass die Größe dort überhaupt ankommt.
+      const dorsch = { id: 'fish_cod', name: 'Dorsch', icon: 'icon_fish_cod' };
+      const groessen = [];
+      for (let i = 0; i < 40; i++) {
+        g.fishing.result = { fish: dorsch, perfect: i % 5 === 0 };
+        g._onFishEvent('catch');
+        groessen.push(g.state.records.fish_cod || 0);
+      }
+      const rekord = g.state.records.fish_cod;
+      const monoton = groessen.every((v, i) => i === 0 || v >= groessen[i - 1]);
+      // Ein Fang legt auch wirklich einen Fisch in die Tasche
+      const gefangen = g.inventory.count('fish_cod') - vorherTasche;
+
+      g.state.records = {};
+      g.fishing.result = null;
+      return { rekord, monoton, gefangen, arten: groessen.length };
+    });
+    check('Jeder Fang bekommt ein Maß und der Rekord steigt nur',
+      fang.rekord > 0 && fang.monoton === true, JSON.stringify(fang));
+    check('Und der Fisch landet trotzdem in der Tasche',
+      fang.gefangen > 0, JSON.stringify(fang));
+
     /* ---- Die Bucht auf der Insel ---- */
     const bucht = await page.evaluate(async () => {
       const g = window.CozyGrove.game;

@@ -2,7 +2,7 @@
  * Spielkern: hält alles zusammen und verbindet Eingabe, Welt und Oberfläche.
  */
 import { World, TILE_SIZE, REGION } from '../world/world.js';
-import { isWater, T } from '../art/tiles.js';
+import { isWater, isWalkable, T } from '../art/tiles.js';
 import { GroundLayer } from '../render/ground.js';
 import { ColorField } from '../world/colorfield.js';
 import { Renderer } from '../render/renderer.js';
@@ -18,7 +18,7 @@ import { todayOf, shoalIndex } from './calendar.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
-import { SPIRITS, friendshipLevel, friendshipGift, spiritsOfRegion } from './spirits.js';
+import { SPIRITS, friendshipLevel, friendshipGift, spiritsOfRegion, favouriteOf, isFavourite } from './spirits.js';
 import { StoryBook, STAGES, storyArt, keepsakeOf, storyLine, storyClose, storyIntro } from './stories.js';
 import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
 import { getItem, itemName, CAT, CONDITIONAL, fishesOf } from './items.js';
@@ -41,6 +41,12 @@ import {
   katalogFuer, katalogEintrag, kannBestellen, bestellen, faellig,
   emptyOrders, MAX_OFFEN,
 } from './catalog.js';
+import {
+  emptyPet, petArtFor, istZahm, istStreuner, launeAmMorgen, darfFuettern,
+  suchtHeute, bestesFutter, futterWert, petStatus, istRuheplatz,
+  LAUNE_MAX, LAUNE_PRO_FUTTER, ZAHM_NOETIG,
+} from './pet.js';
+import { rollSize, noteSize, bestSize, sizeWord, emptyRecords } from './records.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
@@ -163,6 +169,7 @@ export class Game {
     this.world.islePlotStage = this.state.islePlot || 0;
     // Grafik, Kollision und Farbkreis des Zuhauses hängen an der Ausbaustufe.
     this.syncHouse();
+    this.syncPet();
     // Still: beim Laden steht die Deko ja schon da, da wäre eine Meldung
     // für jede Stufe eine Meldungslawine beim Spielstart.
     this.syncCosiness(true);
@@ -219,6 +226,8 @@ export class Game {
       orders: emptyOrders(),
       islePlot: 0,
       homeAt: 'camp',
+      pet: emptyPet(),
+      records: emptyRecords(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -252,6 +261,8 @@ export class Game {
       orders: emptyOrders(),
       islePlot: 0,
       homeAt: 'camp',
+      pet: emptyPet(),
+      records: emptyRecords(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -267,6 +278,8 @@ export class Game {
     if (!Array.isArray(this.state.orders)) this.state.orders = emptyOrders();
     if (!this.state.islePlot) this.state.islePlot = 0;
     if (this.state.homeAt !== 'isle') this.state.homeAt = 'camp';
+    if (!this.state.pet || typeof this.state.pet !== 'object') this.state.pet = emptyPet();
+    if (!this.state.records) this.state.records = emptyRecords();
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -521,6 +534,9 @@ export class Game {
     this._checkVisits(dt);
     this._checkMilestones(dt);
     this._checkCollection();
+    this._petSucht();
+    this._petRuht(dt);
+    this._updatePet(dt);
 
     const mustSleep = this.day.update(dt);
     if (mustSleep) this.sleep(true);
@@ -668,6 +684,7 @@ export class Game {
     if (t) {
       const def = t.def;
       if (def.category === 'spirit') { this.talkTo(t.entity); return; }
+      if (def.category === 'pet') { this.feedPet(); return; }
       if (def.category === 'fox') { this.openPanel('shop'); return; }
       if (def.category === 'hidden') { this.pickHidden(t.entity); return; }
       if (def.category === 'crop') {
@@ -1090,6 +1107,7 @@ export class Game {
     this.audio.play('place');
     this.ui.toast(itemName(e.itemId) + ' eingepackt', getItem(e.itemId).icon);
     this.syncCosiness();
+    this.syncPet();
     this.ui.refreshQuests();
   }
 
@@ -1661,6 +1679,287 @@ export class Game {
     return friendshipLevel(n);
   }
 
+  /* ---------------- Das Haustier ---------------- */
+
+  /** Der aufgestellte Futternapf – null, solange keiner steht. */
+  bowlEntity() {
+    for (let i = 0; i < this.world.entities.length; i++) {
+      const e = this.world.entities[i];
+      if (e.kind === 'decor' && e.itemId === 'bowl' && !e.gone) return e;
+    }
+    return null;
+  }
+
+  /**
+   * Napf, Streuner, Begleiter – an einer Stelle zusammengeführt.
+   *
+   * Läuft beim Start, nach jedem Aufstellen und an jedem Morgen. Ohne Napf
+   * gibt es kein Tier; wer den Napf wieder einpackt, bevor der Streuner
+   * bleibt, hat ihn wieder verscheucht. Ist es einmal zahm, bleibt es –
+   * dann hängt es an einem, nicht an der Schüssel.
+   */
+  syncPet() {
+    if (!this.state.pet) this.state.pet = emptyPet();
+    const p = this.state.pet;
+    const napf = this.bowlEntity();
+    const zahm = istZahm(p);
+
+    if (!napf && !zahm) {
+      this._removePet();
+      p.art = null;
+      p.zahm = 0;
+      return;
+    }
+    if (!p.art) p.art = petArtFor(this.world.seed);
+
+    if (!this.world.pet || this.world.pet.gone) {
+      const start = zahm
+        ? { x: this.player.x - 60, y: this.player.y + 30 }
+        : { x: napf.x + 70, y: napf.y + 18 };
+      const e = makeEntity('pet', start.x, start.y, { petKind: p.art });
+      e.sprite = 'pet_' + p.art + '_sit';
+      e.mode = zahm ? 'follow' : 'stray';
+      this.world.pet = this.world.add(e);
+    }
+    this.world.pet.petKind = p.art;
+    if (!zahm && napf) {
+      // Der Streuner wartet am Napf, nicht bei dir.
+      this.world.pet.mode = 'stray';
+      this.world.pet.heim = { x: napf.x + 70, y: napf.y + 18 };
+    } else if (zahm && this.world.pet.mode === 'stray') {
+      this.world.pet.mode = 'follow';
+    }
+    this.invalidate();
+  }
+
+  _removePet() {
+    if (this.world.pet) {
+      this.world.remove(this.world.pet);
+      this.world.pet = null;
+    }
+  }
+
+  /**
+   * Füttern – einmal am Tag.
+   *
+   * Solange es fremd ist, zählt jede Fütterung auf dem Weg zum Bleiben.
+   * Danach hebt sie nur noch die Laune, und eine schlechte Laune kostet
+   * nichts weiter, als dass es nichts mehr sucht. Weglaufen tut es nie:
+   * dieselbe Regel wie beim Garten und beim Kredit – das Spiel nimmt einem
+   * nichts weg, es gibt nur weniger.
+   */
+  feedPet() {
+    const p = this.state.pet;
+    const e = this.world.pet;
+    if (!p || !e) return false;
+    if (!darfFuettern(p, this.day.day)) {
+      this.ui.toast('Heute hat es schon gefressen', 'icon_heart');
+      return false;
+    }
+    const futter = bestesFutter(this.inventory);
+    if (!futter) {
+      this.ui.toast('Nichts dabei, was es frisst', 'icon_berry', 'bad');
+      return false;
+    }
+    this.inventory.remove(futter, 1);
+    p.gefuettertAm = this.day.day;
+    p.laune = Math.min(LAUNE_MAX, (p.laune || 0) + LAUNE_PRO_FUTTER + futterWert(futter) * 2);
+
+    const warFremd = !istZahm(p);
+    if (warFremd) {
+      p.zahm = (p.zahm || 0) + 1;
+      if (istZahm(p)) {
+        p.seit = this.day.day;
+        e.mode = 'follow';
+        this.ui.toast('Es bleibt.', 'icon_heart', 'good');
+        this.audio.play('levelup');
+        this.particles.burst('heart', e.x, e.y - 70, 14);
+      } else {
+        this.ui.toast('Es frisst · noch ' + (ZAHM_NOETIG - p.zahm) + '×', 'icon_heart', 'good');
+        this.audio.play('ghost');
+        this.particles.burst('heart', e.x, e.y - 60, 5);
+      }
+    } else {
+      this.ui.toast('Satt und zufrieden', 'icon_heart', 'good');
+      this.audio.play('ghost');
+      this.particles.burst('heart', e.x, e.y - 60, 6);
+    }
+    this.ui.refreshHud();
+    this.save();
+    return true;
+  }
+
+  /** Stand fürs Fenster. */
+  petStatus() {
+    const stand = petStatus(this.state.pet, this.day.day);
+    stand.napf = !!this.bowlEntity();
+    stand.futter = bestesFutter(this.inventory);
+    return stand;
+  }
+
+  /**
+   * Bewegung und Beschäftigung des Tiers.
+   *
+   * Drei Zustände, mehr braucht es nicht: Es wartet am Napf, es läuft dir
+   * hinterher, oder es hat etwas gefunden und sitzt daneben. Bleibst du
+   * stehen, sucht es sich ein Möbelstück.
+   */
+  _updatePet(dt) {
+    const e = this.world.pet;
+    const p = this.state.pet;
+    if (!e || !p || e.gone) return;
+
+    const zahm = istZahm(p);
+    let ziel = null;
+    let tempo = 150;
+
+    if (!zahm) {
+      ziel = e.heim || { x: e.x, y: e.y };
+      tempo = 90;
+    } else if (e.fund && !e.fund.gone) {
+      // Etwas gefunden: hinlaufen und dabeibleiben, bis es weg ist.
+      ziel = { x: e.fund.x + 46, y: e.fund.y + 10 };
+      tempo = 190;
+    } else {
+      if (e.fund && e.fund.gone) e.fund = null;
+      const ruhe = e.ruhe && !e.ruhe.gone ? e.ruhe : null;
+      if (ruhe) ziel = { x: ruhe.x + 14, y: ruhe.y + 6 };
+      else {
+        // Hinter Seli her, mit Abstand – direkt auf ihr zu klebt es an ihr.
+        const dir = this.player.dir === 'right' ? -1 : this.player.dir === 'left' ? 1 : -1;
+        ziel = { x: this.player.x + dir * 58, y: this.player.y + 26 };
+      }
+    }
+
+    const dx = ziel.x - e.x;
+    const dy = ziel.y - e.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+
+    // Zu weit abgehängt – etwa weil du übergesetzt oder umgezogen bist –,
+    // dann taucht es einfach wieder neben dir auf. Ein Tier, das man über
+    // die halbe Insel zurücklaufen sieht, ist kein Begleiter, sondern eine
+    // Verfolgung.
+    if (zahm && !e.fund && d > 900) {
+      const platz = this._freiNeben(this.player.x, this.player.y);
+      if (platz) {
+        e.x = platz.x;
+        e.y = platz.y;
+        this.world.reindex(e);
+        e.laeuft = false;
+        return;
+      }
+    }
+
+    const stehbleiben = zahm && (e.fund || e.ruhe) ? 26 : 40;
+    if (d > stehbleiben) {
+      const s = Math.min(d, tempo * dt);
+      const sx = (dx / d) * s;
+      const sy = (dy / d) * s;
+      // Geprüft wird der BODEN, nicht was darauf steht. Mit `canStand` lief
+      // das Tier gegen den ersten Findling und kam nie wieder los – gemessen
+      // bewegte es sich in sechshundert Bildern genau einmal. Eine Katze,
+      // die an einem Busch vorbeischlüpft, ist normal; eine, die dahinter
+      // für immer feststeckt, ist ein Fehler. Ins Wasser geht sie trotzdem
+      // nicht. Schräg zuerst, sonst an der Küste entlang.
+      const wege = [[sx, sy], [sx, 0], [0, sy]];
+      for (let i = 0; i < wege.length; i++) {
+        const nx = e.x + wege[i][0];
+        const ny = e.y + wege[i][1];
+        if (!isWalkable(this.world.tileAt(nx, ny))) continue;
+        e.x = nx;
+        e.y = ny;
+        this.world.reindex(e);
+        break;
+      }
+      e.laeuft = true;
+      e.schritt = (e.schritt || 0) + dt * 7;
+      if (Math.abs(dx) > 4) e.blick = dx < 0 ? -1 : 1;
+    } else {
+      e.laeuft = false;
+    }
+    e.sprite = 'pet_' + (e.petKind || 'cat') + '_' +
+      (e.laeuft ? (Math.floor(e.schritt || 0) % 2 === 0 ? '0' : '1') : 'sit');
+  }
+
+  /**
+   * Einmal am Tag zeigt es dir etwas.
+   *
+   * Es sucht sich die nächste Grabstelle oder das nächste versteckte
+   * Aufgabenstück in der Nähe und setzt sich daneben. Damit wird aus dem
+   * Absuchen der Karte ein Hinterhergehen – und das ist der Grund, warum
+   * das Tier kein Anhängsel ist.
+   */
+  _petSucht() {
+    const e = this.world.pet;
+    const p = this.state.pet;
+    if (!e || !p || e.fund) return;
+    if (!suchtHeute(p, this.day.day)) return;
+
+    const near = this.world.queryNear(this.player.x, this.player.y, 900);
+    let best = null;
+    let bestD = Infinity;
+    for (let i = 0; i < near.length; i++) {
+      const k = near[i];
+      if (k.gone) continue;
+      if (k.kind !== 'digspot' && k.kind !== 'hidden') continue;
+      const dx = k.x - this.player.x;
+      const dy = k.y - this.player.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD) {
+        bestD = d2;
+        best = k;
+      }
+    }
+    if (!best) return;
+    e.fund = best;
+    p.fundAm = this.day.day;
+    this.ui.toast('Es hat etwas gefunden', 'icon_sparkle', 'good');
+    this.audio.play('ghost');
+  }
+
+  /** Ein Platz neben einem Punkt, auf dem das Tier stehen kann. */
+  _freiNeben(x, y) {
+    for (let r = 40; r <= 160; r += 40) {
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        const nx = x + Math.cos(a) * r;
+        const ny = y + Math.sin(a) * r;
+        if (isWalkable(this.world.tileAt(nx, ny))) return { x: nx, y: ny };
+      }
+    }
+    return null;
+  }
+
+  /** Bleibst du stehen, sucht es sich ein Möbelstück zum Hinlegen. */
+  _petRuht(dt) {
+    const e = this.world.pet;
+    if (!e || !istZahm(this.state.pet) || e.fund) return;
+    const bewegt = Math.abs(this.player.vx || 0) + Math.abs(this.player.vy || 0) > 6;
+    if (bewegt) {
+      e.stillZeit = 0;
+      e.ruhe = null;
+      return;
+    }
+    e.stillZeit = (e.stillZeit || 0) + dt;
+    if (e.stillZeit < 5 || e.ruhe) return;
+
+    const near = this.world.queryNear(this.player.x, this.player.y, 460);
+    let best = null;
+    let bestD = Infinity;
+    for (let i = 0; i < near.length; i++) {
+      const k = near[i];
+      if (k.gone || k.kind !== 'decor' || !istRuheplatz(k.itemId)) continue;
+      const dx = k.x - e.x;
+      const dy = k.y - e.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD) {
+        bestD = d2;
+        best = k;
+      }
+    }
+    if (best) e.ruhe = best;
+  }
+
   /* ---------------- Der Katalog ---------------- */
 
   /** Der Katalog, wie er heute aussieht – Gesperrtes bleibt sichtbar. */
@@ -2042,6 +2341,25 @@ export class Game {
    * in der Strichliste des vergangenen Tages. Ein Dankesbrief für nichts
    * wäre eine Floskel, und Floskeln merkt man.
    */
+  /**
+   * Der Morgen des Tiers: Laune, Napf, und der Fund von gestern ist vorbei.
+   *
+   * Die Laune sinkt nur, wenn man wirklich einen Tag ausgelassen hat –
+   * `launeAmMorgen` rechnet das aus dem Tag der letzten Fütterung, nicht aus
+   * einem Zähler, der beim Laden bei null anfinge.
+   */
+  _petNewDay(day) {
+    const p = this.state.pet;
+    if (!p) return;
+    p.laune = launeAmMorgen(p, day);
+    if (this.world.pet) {
+      this.world.pet.fund = null;
+      this.world.pet.ruhe = null;
+      this.world.pet.stillZeit = 0;
+    }
+    this.syncPet();
+  }
+
   _deliverMail(day, gestern) {
     const geholfen = gestern && gestern.helped ? Object.keys(gestern.helped) : [];
     const jahreszeit = this.today ? this.today.season : null;
@@ -2341,6 +2659,10 @@ export class Game {
   likedInBag(spiritId) {
     const spirit = SPIRITS[spiritId];
     if (!spirit || !spirit.likes) return null;
+    // Das Lieblingsstück hat Vorrang. Sonst verschenkte man es versehentlich
+    // als „irgendwas Gemochtes" und merkte nie, dass es eines gibt.
+    const lieb = favouriteOf(spiritId);
+    if (lieb && this.inventory.count(lieb) > 0 && !this._neededForQuest(lieb)) return lieb;
     for (let i = 0; i < spirit.likes.length; i++) {
       const id = spirit.likes[i];
       if (this.inventory.count(id) <= 0) continue;
@@ -2389,21 +2711,27 @@ export class Game {
     this.state.gifted[e.spiritId] = this.day.day;
 
     const item = getItem(id);
-    const ember = 2 + Math.floor((item && item.value ? item.value : 6) / 8);
+    // Das Lieblingsstück zählt doppelt – an Glut und an Farbe. Vorher war
+    // jedes gemochte Ding gleich viel wert, und man warf hin, was gerade
+    // oben lag; jetzt lohnt es sich, das Richtige aufzuheben.
+    const lieb = isFavourite(e.spiritId, id);
+    const basis = 2 + Math.floor((item && item.value ? item.value : 6) / 8);
+    const ember = lieb ? basis * 2 + 3 : basis;
     this.state.ember += ember;
     this._note('gifts');
     this._note('ember', ember);
 
     // Farbe: dauerhaft, wie bei einer erledigten Bitte – nur kleiner.
-    this.colorField.growByArea('spirit_' + e.spiritId, 45000);
+    this.colorField.growByArea('spirit_' + e.spiritId, lieb ? 110000 : 45000);
     this.colorField.markDirty();
 
-    this.particles.burst('heart', e.x, e.y - 110, 7);
-    this.particles.burst('color', e.x, e.y - 60, 10);
-    this.audio.play('ghost');
+    this.particles.burst('heart', e.x, e.y - 110, lieb ? 16 : 7);
+    this.particles.burst('color', e.x, e.y - 60, lieb ? 22 : 10);
+    this.audio.play(lieb ? 'levelup' : 'ghost');
     this.ui.bubble(e.x, e.y - 190, pickLine(spirit.lines.thanks),
       [{ icon: 'icon_' + id }, { icon: 'icon_heart' }], 2.8);
-    this.ui.toast('+' + ember + ' Glut · etwas mehr Farbe', 'icon_ember', 'good');
+    this.ui.toast((lieb ? 'Genau das! ' : '') + '+' + ember + ' Glut · ' +
+      (lieb ? 'viel mehr Farbe' : 'etwas mehr Farbe'), 'icon_ember', 'good');
     this.ui.refreshHud();
     this.save();
     return true;
@@ -2435,7 +2763,19 @@ export class Game {
         this.state.caught++;
         this._note('fish', added);
         this.quests.notify('fish', { id: res.fish.id }, this);
-        this.ui.toast((res.perfect ? 'Perfekt! ' : '') + res.fish.name + ' ×' + added, res.fish.icon, 'good');
+        // Jeder Fang hat ein Maß. Das ist der Grund, dieselbe Sardine ein
+        // zweites Mal zu angeln – im Fundbuch steht der Rekord, nicht nur
+        // ein Haken.
+        const cm = rollSize(res.fish.id, this.player.levels.rod || 1, !!res.perfect,
+          Math.random);
+        const rek = noteSize(this.state.records, res.fish.id, cm);
+        const wort = sizeWord(res.fish.id, cm);
+        this.ui.toast((res.perfect ? 'Perfekt! ' : '') + res.fish.name + ' · ' + cm + ' cm' +
+          (wort ? ' – ' + wort : ''), res.fish.icon, 'good');
+        if (rek.neu && rek.vorher > 0) {
+          this.ui.toast('Neuer Rekord · vorher ' + rek.vorher + ' cm', 'icon_star', 'good');
+          this.audio.play('levelup');
+        }
       } else {
         this.ui.toast('Tasche ist voll!', 'icon_bag', 'bad');
       }
@@ -2784,6 +3124,7 @@ export class Game {
     this._note('decor');
     this.particles.burst('dust', p.x, p.y, 5);
     this.syncCosiness();
+    this.syncPet();
     this.ui.refreshQuests();
 
     if (this.inventory.count(p.itemId) <= 0) this.cancelPlacing();
@@ -2862,6 +3203,7 @@ export class Game {
     this.ui.refreshHud();
     this.ui.refreshQuests();
     this._deliverMail(day, buch);
+    this._petNewDay(day);
     this.ui.toast('Tag ' + day, 'icon_day');
     // Abgelaufene Bitten sind kein Fehler, aber der Spieler muss merken, dass
     // sie weg sind – sonst sucht er am Nachmittag weiter nach einer Muschel,
@@ -3080,8 +3422,15 @@ export class Game {
       const ready = open.filter((q) => this.quests.isReady(q, this));
       const id = ready.length ? null : this.likedInBag(t.entity.spiritId);
       this.ui.setPrompt(ready.length ? 'Abgeben'
-        : (id && !this.giftedToday(t.entity.spiritId)) ? itemName(id) + ' schenken'
+        : (id && !this.giftedToday(t.entity.spiritId))
+          ? (isFavourite(t.entity.spiritId, id) ? '★ ' : '') + itemName(id) + ' schenken'
           : 'Reden');
+      return;
+    }
+    if (def.category === 'pet') {
+      const stand = this.petStatus();
+      this.ui.setPrompt(!stand.hungrig ? 'Hat schon gefressen'
+        : stand.futter ? 'Füttern' : 'Nichts dabei, was es frisst');
       return;
     }
     if (def.category === 'fox') { this.ui.setPrompt('Laden'); return; }

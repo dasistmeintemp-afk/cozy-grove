@@ -339,6 +339,13 @@ export class Renderer {
         drawSprite(ctx, 'fox_' + frame, x, y, false);
         return;
       }
+      case 'pet': {
+        // Die Grafik zeigt nach rechts; nach links wird sie gespiegelt.
+        // Immer farbig, wie alles, was lebt.
+        const bob = e.laeuft ? 0 : Math.sin(time * 1.7 + e.phase) * 1.6;
+        drawSprite(ctx, e.sprite, x, y + bob, false, { flip: e.blick === -1 });
+        return;
+      }
       case 'campfire': {
         this._blend(ctx, game, 'campfire', x, y);
         const lvl = campfireLevelFor(game.state.campfireFuel).level;
@@ -655,6 +662,34 @@ export class Renderer {
       ctx.moveTo(x - 13, y);
       ctx.lineTo(x, y + 11);
       ctx.lineTo(x + 13, y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Wo das Haustier etwas gefunden hat. Ohne Zeichen säße es irgendwo im
+    // Gras und man wüsste nicht, warum – der Fund ist der ganze Sinn.
+    const fund = game.world.pet && !game.world.pet.gone ? game.world.pet.fund : null;
+    if (fund && !fund.gone) {
+      const bob = Math.sin(time * 3.1) * 5;
+      const x = fund.x;
+      const y = fund.y - 80 + bob;
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#f2c063';
+      ctx.strokeStyle = INK.line;
+      ctx.lineWidth = 2.2;
+      // Ein kleiner Stern, dasselbe Zeichen wie bei den Meilensteinen
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+        const r = i % 2 === 0 ? 11 : 4.6;
+        const px = x + Math.cos(a) * r;
+        const py = y + Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
       ctx.restore();
     }

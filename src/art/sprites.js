@@ -28,6 +28,7 @@ import {
   paintPlanter, paintTrellis, paintBirdbath, paintBeehive, paintScarecrow,
   paintWeathervane, paintMat, paintPond,
 } from './painted-decor.js';
+import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
 import { BUGS, MEMORY_KINDS } from '../game/items.js';
@@ -302,6 +303,15 @@ export function initArt() {
   addArt('mat', paintMat({ seed: 1331 }));
   addArt('pond', paintPond({ seed: 1341 }));
 
+  /* --- Haustier --- */
+  for (let i = 0; i < PET_KINDS.length; i++) {
+    const art = PET_KINDS[i];
+    for (const pose of ['0', '1', 'sit']) {
+      addArt('pet_' + art + '_' + pose, paintPet(art, pose, { seed: 1401 + i * 70 }));
+    }
+  }
+  addArt('bowl', paintBowl({ seed: 1451 }));
+
   /* --- Erinnerungsstücke --- */
   for (let i = 0; i < MEMORY_KINDS.length; i++) {
     addArt('memory_' + MEMORY_KINDS[i], paintMemory(MEMORY_KINDS[i], { seed: 601 + i * 17 }));
@@ -371,6 +381,7 @@ function buildIcons() {
     ['planter', 'planter'], ['trellis', 'trellis'], ['birdbath', 'birdbath'],
     ['beehive', 'beehive'], ['scarecrow', 'scarecrow'],
     ['weathervane', 'weathervane'], ['mat', 'mat'], ['pond', 'pond'],
+    ['bowl', 'bowl'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = registry[reuse[i][1]];

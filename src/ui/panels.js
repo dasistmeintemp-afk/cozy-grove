@@ -10,6 +10,8 @@ import { questTitle, questIcon, QTYPE, daysLeft } from '../game/quests.js';
 import { MILESTONES, nextOpen } from '../game/milestones.js';
 import { SETS, SET_IDS, setById, progressOf, itemsOf, hintFor, totalProgress } from '../game/collection.js';
 import { unreadCount } from '../game/mail.js';
+import { bestSize, spanneFuer } from '../game/records.js';
+import { petStatus as petStatusOf, launeWort, ZAHM_NOETIG } from '../game/pet.js';
 import { STAGES as LOAN_STAGES, statusOf } from '../game/loan.js';
 import { finaleLine, stillSilent, FINALE_CLOSE, FINALE_COUNT } from '../game/finale.js';
 import { PLOT_STAGES, MAX_PLOT_STAGE, ISLE_PLOT_STAGES, MAX_ISLE_PLOT_STAGE } from '../game/plot.js';
@@ -468,6 +470,14 @@ export class Panels {
           '<div class="meta"><span>' + escapeHtml(hintFor(item.id)) + '</span>' +
           (have ? '<span>Insgesamt: ' + inv.found[item.id] + '</span>' +
             '<span>In der Tasche: ' + inv.count(item.id) + '</span>' : '') +
+          // Bei Fischen zählt nicht nur, DASS man einen hatte, sondern wie
+          // groß der beste war. Das ist der Grund, dieselbe Art nochmal zu
+          // angeln.
+          (item.cat === CAT.FISH && bestSize(g.state.records, item.id)
+            ? '<span>' + ico('icon_star') + ' größter: ' +
+              bestSize(g.state.records, item.id) + ' cm</span>' +
+              '<span>möglich bis ' + spanneFuer(item.id)[1] + ' cm</span>'
+            : '') +
           (item.value ? '<span>' + ico('icon_coin') + ' ' + item.value + '</span>' : '') +
           '</div></div></div></div>';
       }
@@ -669,9 +679,56 @@ export class Panels {
         '</div>';
     }
     html += '</div>';
+    html += this._pet();
     html += this._islePlot();
     html += this._house();
     return html;
+  }
+
+  /**
+   * Das Haustier.
+   *
+   * Zeigt nur, was gerade zählt: ob ein Napf steht, wie weit der Streuner
+   * ist, und ob heute gefüttert wurde. Keine Knöpfe – gefüttert wird beim
+   * Tier, nicht in einem Fenster. Ein Menü, aus dem man sein Tier bedient,
+   * wäre eine Verwaltung.
+   */
+  _pet() {
+    const g = this.game;
+    const stand = g.petStatus();
+    let html = '<h3 style="font-size:0.95em;margin:18px 0 8px">Dein Haustier</h3>';
+
+    if (!stand.napf && !stand.zahm) {
+      return html + '<p class="empty-note" style="padding:4px 0 10px">' +
+        'Stell einen <b>Futternapf</b> auf – es gibt ihn im Katalog beim Händler. ' +
+        'Wer dann vorbeikommt, entscheidet die Insel.</p>';
+    }
+    if (stand.streuner) {
+      return html + '<div class="rows"><div class="row">' +
+        ico('icon_heart', 'lg') +
+        '<div class="grow"><div class="title">Ein Streuner am Napf</div>' +
+        '<div class="meta"><span>' + stand.fortschritt + ' von ' + ZAHM_NOETIG +
+        ' Mal gefüttert</span>' +
+        '<span>' + (stand.hungrig
+          ? (stand.futter ? 'Hat Hunger – du hast etwas dabei' : 'Hat Hunger')
+          : 'Heute schon gefressen') + '</span>' +
+        '</div></div></div></div>' +
+        '<p class="empty-note" style="padding:8px 0 0">Es frisst Fisch am liebsten, ' +
+        'Beeren und Pilze gehen auch. Bleibt der Napf stehen, kommt es wieder.</p>';
+    }
+
+    return html + '<div class="rows"><div class="row">' +
+      ico('icon_heart', 'lg') +
+      '<div class="grow"><div class="title">' +
+      (stand.art === 'dog' ? 'Dein Hund' : 'Deine Katze') + '</div>' +
+      '<div class="meta"><span>' + escapeHtml(launeWort(stand.laune)) + '</span>' +
+      '<span>' + (stand.hungrig ? 'noch nicht gefüttert' : 'heute gefüttert') + '</span>' +
+      '<span>' + (stand.suchtNoch ? 'sucht noch etwas' : 'hat heute schon gesucht') +
+      '</span></div></div></div></div>' +
+      '<p class="empty-note" style="padding:8px 0 0">' +
+      'Einmal am Tag findet es dir etwas – eine Grabstelle oder ein verstecktes ' +
+      'Stück. Hungrig sucht es nicht. Und wenn du stehen bleibst, sucht es sich ' +
+      'ein Möbelstück.</p>';
   }
 
   /**

@@ -256,10 +256,41 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   zum ersten Mal ein großes Ziel, und ein guter Markttag ist ein guter Tag.
   Kein Kredit im eigentlichen Sinn: keine Zinsen, keine Frist, keine Mahnung –
   wer nie einzahlt, verliert nichts. Dieselbe Regel wie im Garten.
+* **Das Haustier.** Ein Tier, das nur hinterherläuft, ist nach drei Tagen
+  Tapete. Deshalb hat es eine Aufgabe: **Einmal am Tag findet es dir etwas** –
+  es bleibt an einer Grabstelle oder einem versteckten Aufgabenstück stehen,
+  und ein Stern zeigt, wo. Aus dem Absuchen der Karte wird ein
+  Hinterhergehen. Und bleibst du stehen, sucht es sich ein **Möbelstück**:
+  Bank, Teppich, Hängematte, Feuerschale. Gemütlichkeit war bisher eine Zahl;
+  jetzt sitzt etwas darauf.
+
+  Es kommt nicht aus einem Menü. Ab dem Meilenstein „Werkzeugtag" steht ein
+  **Futternapf** im Katalog (260 Münzen). Stell ihn hin, und irgendwann sitzt
+  ein Streuner davor – Katze oder Hund entscheidet der Seed deiner Insel, nicht
+  eine Auswahlliste. **Dreimal füttern, dann bleibt er.** Es frisst Fisch am
+  liebsten, Beeren und Pilze gehen auch; einmal am Tag, wie das Mitbringsel.
+
+  Ein ausgelassener Tag kostet Laune, und ein hungriges Tier sucht nichts
+  mehr. Weglaufen tut es nie – dieselbe Regel wie im Garten und beim Kredit:
+  Das Spiel nimmt einem nichts weg, es gibt nur weniger. Packst du den Napf
+  wieder ein, *bevor* der Streuner bleibt, hast du ihn verscheucht; danach
+  hängt er an dir, nicht an der Schüssel.
 * **Mitbringsel.** Jeder Geist mag ein paar bestimmte Dinge. Hast du eines
   davon dabei, schwebt ein Herz über ihm; ein Druck auf E, und er bekommt es.
   Das gibt Glut und ein Stück Farbe – einmal je Geist und Tag. Was gerade für
   eine offene Bitte gebraucht wird, bietet das Spiel nicht als Mitbringsel an.
+
+  Jeder hat ein **Lieblingsstück** (Flämmchen Harz, Mira Sternblumen, Nelly
+  einen Meerkristall). Das zählt doppelt an Glut und mehr als doppelt an
+  Farbe, hat beim Verschenken Vorrang und steht mit einem ★ im Hinweis.
+  Vorher war jedes gemochte Ding gleich viel wert – man warf hin, was oben in
+  der Tasche lag. Jetzt lohnt es sich, das Richtige aufzuheben.
+* **Fanggrößen.** Jeder Fisch wird gemessen, und das Fundbuch merkt sich
+  deinen größten je Art – dazu, wie groß die Art überhaupt werden kann.
+  Bessere Angel und ein perfekter Anhieb schieben die Größe nach oben, den
+  Rest macht der Zufall (zwei Würfe gemittelt, damit Ausreißer selten
+  bleiben). Vorher war jede Sardine dieselbe Sardine: einmal gefangen,
+  abgehakt, danach nur noch Ware.
 * **Werkzeuge.** Hand, Axt, Spitzhacke, Schaufel, Angel, Kescher – jeweils in
   mehreren Stufen. Bessere Werkzeuge geben mehr Ertrag, größere Reichweite und
   öffnen neue Bereiche. Die vierten Stufen hängen an Meilensteinen und kosten

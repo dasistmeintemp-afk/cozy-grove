@@ -169,6 +169,7 @@ export const HINTS = {
   beehive: 'Aus dem Katalog, wenn die Insel Farbe hat.',
   scarecrow: 'Aus dem Katalog.',
   weathervane: 'Aus dem Katalog, ganz hinten.',
+  bowl: 'Aus dem Katalog. Stell ihn hin und warte, wer kommt.',
   mat: 'Aus dem Katalog.',
   pond: 'Aus dem Katalog, ganz hinten.',
   keepsake_locket: 'Flämmchens Andenken, wenn seine Kette voll ist.',

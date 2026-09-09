@@ -41,6 +41,10 @@ const SPRITE_NAMES = (function () {
     // die drei Häuser standen bisher in keiner Prüfung, ein Tippfehler im
     // Namen wäre also erst im Spiel aufgefallen.
     'house_2', 'house_3', 'house_4',
+    // Haustier und Napf
+    'bowl',
+    'pet_cat_0', 'pet_cat_1', 'pet_cat_sit',
+    'pet_dog_0', 'pet_dog_1', 'pet_dog_sit',
   ];
   // Bäume liegen in drei Fassungen vor; die Objektdefinition nennt nur den
   // Rumpf, makeEntity hängt die Nummer an.
