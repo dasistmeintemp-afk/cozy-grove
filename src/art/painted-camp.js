@@ -292,6 +292,68 @@ export function paintBoat(opts) {
   return made(res, w, h, cx, baseY);
 }
 
+/**
+ * Der Briefkasten am Lager.
+ *
+ * Pfosten, Kasten, Klappe – und die Fahne oben. Die Fahne ist das ganze
+ * Zeichen: Sie sagt „da liegt was" und macht aus einem Pfosten mit Kiste
+ * einen Briefkasten.
+ */
+export function paintMailbox(opts) {
+  const o = opts || {};
+  const w = 150;
+  const h = 210;
+  const seed = o.seed || 411;
+  const cx = w / 2;
+  const baseY = h - 16;
+
+  const pfosten = smoothClosed([
+    [cx - 9, baseY], [cx - 7, baseY - 74], [cx + 7, baseY - 74], [cx + 9, baseY],
+  ], 4);
+  const kasten = smoothClosed([
+    [cx - 36, baseY - 74], [cx - 33, baseY - 128], [cx + 33, baseY - 128],
+    [cx + 36, baseY - 74],
+  ], 6);
+  // Wenig geglättet: Die Klappe soll eckig bleiben. Mit derselben Rundung wie
+  // der Kasten wurde sie zu einer Ellipse darin und sah aus wie ein Fenster.
+  const klappe = smoothClosed([
+    [cx - 23, baseY - 82], [cx - 22, baseY - 118], [cx + 22, baseY - 118],
+    [cx + 23, baseY - 82],
+  ], 2);
+  const fahne = smoothClosed([
+    [cx + 36, baseY - 132], [cx + 62, baseY - 124], [cx + 36, baseY - 110],
+  ], 4);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.7,
+    outline: 2.1,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 34, 11, seed, 0.16); },
+    wash: function (g) {
+      wash(g, pfosten, ink.wood, { seed: seed + 2, scale: 1.04 });
+      wash(g, kasten, '#8fb0bd', { seed: seed + 3, scale: 1.03 });
+      wash(g, offsetShape(kasten, 22, 8, 0.7), '#6d8e9c', { seed: seed + 4, alpha: 0.6 });
+      wash(g, klappe, '#e6ddc9', { seed: seed + 5 });
+      wash(g, fahne, ink.berry, { seed: seed + 6, scale: 1.05 });
+    },
+    shape: function (g) {
+      fill(g, pfosten);
+      fill(g, kasten);
+      fill(g, fahne);
+    },
+    ink: function (g) {
+      inkStroke(g, klappe, { width: 2.8, vary: 0.25, seed: seed + 12, color: ink.line, alpha: 0.95 });
+      // Griff an der Klappe – ohne ihn ist es ein aufgemaltes Rechteck
+      inkLine(g, cx - 9, baseY - 95, cx + 9, baseY - 95,
+        { width: 3.0, bend: 0.16, seed: seed + 13, color: ink.line, alpha: 0.9 });
+      // Der Mast der Fahne
+      inkLine(g, cx + 36, baseY - 134, cx + 36, baseY - 104,
+        { width: 2.4, bend: 0, seed: seed + 14, color: ink.line, alpha: 0.9 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
 export function paintStall(opts) {
   const o = opts || {};
   const w = 366;

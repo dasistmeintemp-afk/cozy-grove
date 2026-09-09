@@ -3,7 +3,9 @@ import { getItem } from './items.js';
 
 export class Inventory {
   constructor(capacity) {
-    this.capacity = capacity || 30;
+    // `!= null`, nicht `||`: Null Fächer sind eine gültige Größe – die
+    // Vorratstruhe fängt vor dem ersten Ausbau genau dort an.
+    this.capacity = capacity != null ? capacity : 30;
     this.slots = [];
     /**
      * Fundbuch: was schon einmal in der Tasche lag, und wie viel davon
@@ -132,7 +134,10 @@ export class Inventory {
   }
 
   static fromJSON(data) {
-    const inv = new Inventory(data && data.capacity ? data.capacity : 30);
+    // `!= null` statt einer Wahrheitsprüfung: Die Vorratstruhe hat vor dem
+    // ersten Ausbau NULL Fächer, und mit `data.capacity ? …` wurden daraus
+    // beim Laden dreißig – ein Lager, das niemand bezahlt hatte.
+    const inv = new Inventory(data && data.capacity != null ? data.capacity : 30);
     if (data && data.slots) inv.slots = data.slots.filter(function (s) { return getItem(s.id); });
     if (data && data.found) {
       for (const id in data.found) {

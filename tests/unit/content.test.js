@@ -28,7 +28,7 @@ const SPRITE_NAMES = (function () {
     'shell', 'driftwood', 'digspot',
     'moonflower', 'rainmushroom', 'fogcrystal',
     'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
-    'campfire', 'tent', 'stall', 'workbench', 'boat',
+    'campfire', 'tent', 'stall', 'workbench', 'boat', 'mailbox', 'chest',
     'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',
     'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge', 'moonlamp',
   ];
@@ -68,7 +68,7 @@ const SPRITE_NAMES = (function () {
   // Symbole der Oberfläche
   const ui = ['ember', 'coin', 'heart', 'color', 'sparkle', 'star', 'check', 'lock',
     'ghost', 'arrow', 'day', 'clock', 'quest', 'bag', 'craft', 'map', 'gear', 'campfire',
-    'boat'];
+    'boat', 'mailbox'];
   for (let i = 0; i < ui.length; i++) names.push('icon_' + ui[i]);
   const set = Object.create(null);
   for (let i = 0; i < names.length; i++) set[names[i]] = true;

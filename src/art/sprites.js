@@ -15,7 +15,7 @@ import {
   paintCrop, paintSeedPouch,
 } from './painted.js';
 import {
-  paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench, paintBoat,
+  paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench, paintBoat, paintMailbox,
   paintLantern, paintBench, paintFence, paintFlowerbed, paintBirdhouse,
   paintWindchime, paintRug, paintSignpost, paintCrate, paintChest,
   paintMemory, paintTool, paintButterfly, paintBird,
@@ -250,6 +250,7 @@ export function initArt() {
   addArt('stall', paintStall({ seed: 351 }));
   addArt('workbench', paintWorkbench({ seed: 371 }));
   addArt('boat', paintBoat({ seed: 391 }));
+  addArt('mailbox', paintMailbox({ seed: 411 }));
 
   /* --- Deko --- */
   addArt('lantern', paintLantern({ seed: 391 }));
@@ -327,7 +328,7 @@ function buildIcons() {
     ['bridge_kit', 'bridge'],
     ['moonflower', 'moonflower'], ['rainmushroom', 'rainmushroom'],
     ['fogcrystal', 'fogcrystal'], ['moonlamp', 'lantern'],
-    ['boat', 'boat'],
+    ['boat', 'boat'], ['mailbox', 'mailbox'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = registry[reuse[i][1]];

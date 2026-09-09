@@ -8,6 +8,9 @@ import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
 import { canLink, linkedName, pendingLinkName, requestLinkPermission, linkNew, linkExisting, unlink, openFile, suggestName } from '../core/savefile.js';
 import { questTitle, questIcon, QTYPE, daysLeft } from '../game/quests.js';
 import { MILESTONES, nextOpen } from '../game/milestones.js';
+import { SETS, SET_IDS, setById, progressOf, itemsOf, hintFor, totalProgress } from '../game/collection.js';
+import { unreadCount } from '../game/mail.js';
+import { STAGES as LOAN_STAGES, statusOf } from '../game/loan.js';
 import { UI_SCALES } from './uiscale.js';
 import { CROPS } from '../game/crops.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
@@ -26,6 +29,8 @@ const TITLES = {
   map: 'Karte',
   settings: 'Einstellungen',
   daybook: 'Gestern auf der Insel',
+  mail: 'Post',
+  storage: 'Vorratstruhe',
 };
 
 function ico(name, cls) {
@@ -174,6 +179,33 @@ export class Panels {
             g.ui.toast('Schreibt wieder in ' + name, 'icon_star', 'good');
           }
         });
+        break;
+      case 'letter':
+        g.openLetter(arg);
+        this.selected = arg;
+        this.render();
+        break;
+      case 'toBox':
+        g.moveToStorage(arg, 1);
+        this.selected = arg;
+        this.render();
+        break;
+      case 'toBoxAll':
+        g.moveToStorage(arg, 999);
+        this.render();
+        break;
+      case 'fromBox':
+        g.moveFromStorage(arg, 1);
+        this.selected = arg;
+        this.render();
+        break;
+      case 'fromBoxAll':
+        g.moveFromStorage(arg, 999);
+        this.render();
+        break;
+      case 'payLoan':
+        g.payLoanAmount(Number(arg));
+        this.render();
         break;
       case 'close':
         this.close();
@@ -326,31 +358,54 @@ export class Panels {
   _found() {
     const g = this.game;
     const inv = g.inventory;
-    const cats = [CAT.MATERIAL, CAT.FORAGE, CAT.SEED, CAT.FISH, CAT.RELIC, CAT.MEMORY, CAT.DECOR];
-    const tab = this.tab && cats.indexOf(this.tab) >= 0 ? this.tab : cats[0];
-
-    let known = 0;
-    for (let i = 0; i < ITEM_LIST.length; i++) {
-      if (inv.everFound(ITEM_LIST[i].id)) known++;
-    }
+    const tab = this.tab && SET_IDS.indexOf(this.tab) >= 0 ? this.tab : SET_IDS[0];
+    const reihe = setById(tab);
+    const stand = progressOf(tab, inv);
+    const bezahlt = !!(g.state.collected && g.state.collected[tab]);
 
     let html = '<div class="tabs">';
-    for (let i = 0; i < cats.length; i++) {
-      html += '<button class="tab" data-act="tab" data-arg="' + cats[i] + '" aria-selected="' +
-        (cats[i] === tab) + '">' + CAT_NAMES[cats[i]] + '</button>';
+    for (let i = 0; i < SETS.length; i++) {
+      const p = progressOf(SETS[i].id, inv);
+      html += '<button class="tab" data-act="tab" data-arg="' + SETS[i].id + '" aria-selected="' +
+        (SETS[i].id === tab) + '">' + escapeHtml(SETS[i].name) +
+        ' <span class="zaehler">' + p.have + '/' + p.total + '</span></button>';
     }
     html += '</div>';
 
+    // Kopfzeile der Reihe: wie weit, und was es dafür gibt. Ohne die Belohnung
+    // ist das letzte Stück einer Reihe so viel wert wie das erste – und dann
+    // sucht es niemand.
+    const lohn = reihe.reward || {};
+    let lohnText = [];
+    if (lohn.coins) lohnText.push(ico('icon_coin') + ' ' + lohn.coins);
+    if (lohn.ember) lohnText.push(ico('icon_ember') + ' ' + lohn.ember);
+    for (let i = 0; lohn.items && i < lohn.items.length; i++) {
+      const it = getItem(lohn.items[i].id);
+      if (it) lohnText.push(ico(it.icon) + ' ' + lohn.items[i].n);
+    }
+    html += '<div class="rows" style="margin-bottom:10px"><div class="row' +
+      (stand.done ? '' : ' dim') + '">' +
+      ico(stand.done ? 'icon_check' : 'icon_quest', 'lg') +
+      '<div class="grow"><div class="title">' + escapeHtml(reihe.name) + ' · ' +
+      stand.have + ' von ' + stand.total + '</div>' +
+      '<div class="meta"><span>' + escapeHtml(reihe.note) + '</span>' +
+      (bezahlt ? '<span>' + ico('icon_check') + ' abgeholt</span>'
+        : '<span>Vollständig: ' + lohnText.join(' ') + '</span>') +
+      '</div>' +
+      '<div class="bar" aria-hidden="true"><i style="width:' +
+      Math.round(stand.have / Math.max(1, stand.total) * 100) + '%"></i></div>' +
+      '</div></div></div>';
+
     html += '<div class="grid">';
-    for (let i = 0; i < ITEM_LIST.length; i++) {
-      const item = ITEM_LIST[i];
-      if (item.cat !== tab) continue;
+    const liste = itemsOf(tab);
+    for (let i = 0; i < liste.length; i++) {
+      const item = liste[i];
       const have = inv.everFound(item.id);
       const n = have ? inv.found[item.id] : 0;
       html += '<button class="slot' + (have ? '' : ' unknown') +
-        (this.selected === item.id && have ? ' sel' : '') + '"' +
-        (have ? ' data-act="select" data-arg="' + item.id + '"' : ' disabled') +
-        ' title="' + escapeHtml(have ? item.name : 'Noch nicht gefunden') + '">' +
+        (this.selected === item.id ? ' sel' : '') + '"' +
+        ' data-act="select" data-arg="' + item.id + '"' +
+        ' title="' + escapeHtml(have ? item.name : hintFor(item.id)) + '">' +
         ico(item.icon, 'lg') +
         '<span class="cap">' + escapeHtml(have ? item.name : '???') + '</span>' +
         (have && n > 1 ? '<span class="qty">' + n + '</span>' : '') +
@@ -358,21 +413,27 @@ export class Panels {
     }
     html += '</div>';
 
-    if (this.selected && inv.everFound(this.selected)) {
+    // Was fehlt, bekommt einen Fingerzeig. „???" allein sagt nur, DASS etwas
+    // fehlt – der Reiz einer Sammlung kommt daher, dass man weiß, wohin.
+    if (this.selected) {
       const item = getItem(this.selected);
-      if (item) {
+      if (item && item.cat === tab) {
+        const have = inv.everFound(item.id);
         html += '<div class="rows" style="margin-top:12px"><div class="row">' +
           ico(item.icon, 'lg') +
-          '<div class="grow"><div class="title">' + escapeHtml(item.name) + '</div>' +
-          '<div class="meta"><span>Insgesamt gefunden: ' + inv.found[item.id] + '</span>' +
-          '<span>Jetzt in der Tasche: ' + inv.count(item.id) + '</span>' +
+          '<div class="grow"><div class="title">' +
+          escapeHtml(have ? item.name : 'Noch nicht gefunden') + '</div>' +
+          '<div class="meta"><span>' + escapeHtml(hintFor(item.id)) + '</span>' +
+          (have ? '<span>Insgesamt: ' + inv.found[item.id] + '</span>' +
+            '<span>In der Tasche: ' + inv.count(item.id) + '</span>' : '') +
           (item.value ? '<span>' + ico('icon_coin') + ' ' + item.value + '</span>' : '') +
           '</div></div></div></div>';
       }
     }
 
+    const gesamt = totalProgress(inv);
     html += '<p class="empty-note" style="padding-top:14px">' +
-      known + ' von ' + ITEM_LIST.length + ' Dingen gefunden' +
+      gesamt.have + ' von ' + gesamt.total + ' Dingen gefunden' +
       (g.state.caught ? ' · ' + g.state.caught + ' Fische geangelt' : '') + '</p>';
     return html;
   }
@@ -469,6 +530,148 @@ export class Panels {
         (bonus ? '<span>+' + bonus + '% Lohn</span>' : '') + '</div>' +
         '<div class="cosy-bar" aria-hidden="true">' + cosyPips(cosy.level) + '</div></div>' +
         '<span class="row-btn ghost">' + Math.round(friendshipProgress(doneN) * 100) + '%</span></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  /* ---------------- Vorratstruhe ---------------- */
+
+  /**
+   * Tasche links, Truhe rechts.
+   *
+   * Ein Klick schiebt ein Stück, ein Klick auf „alle" den ganzen Stapel.
+   * Kein Ziehen: Das funktioniert auf einem Telefon nicht verlässlich, und
+   * das Spiel soll auf beiden laufen.
+   */
+  _storage() {
+    const g = this.game;
+    const box = g.storage;
+    const stand = statusOf(g.state.loan);
+    if (!box || stand.stage < 1) {
+      return '<p class="empty-note">Noch keine Truhe.<br>' +
+        'Der Händler baut dir eine – frag ihn danach.</p>';
+    }
+
+    let html = '<p class="empty-note" style="padding:0 0 10px">' +
+      (stand.naechste ? LOAN_STAGES[stand.stage - 1].name : 'Der Schuppen') +
+      ' · ' + (box.capacity - box.freeSlots()) + ' von ' + box.capacity + ' Fächern belegt</p>';
+
+    html += '<div class="halb">';
+    for (const seite of ['tasche', 'truhe']) {
+      const quelle = seite === 'tasche' ? g.inventory : box;
+      const eintraege = quelle.byCategory(null);
+      html += '<div class="haelfte"><h3>' +
+        (seite === 'tasche' ? 'Tasche' : 'Truhe') + '</h3><div class="grid">';
+      if (!eintraege.length) {
+        html += '<p class="empty-note" style="grid-column:1/-1">Leer.</p>';
+      }
+      for (let i = 0; i < eintraege.length; i++) {
+        const e = eintraege[i];
+        const act = seite === 'tasche' ? 'toBox' : 'fromBox';
+        html += '<button class="slot' + (this.selected === e.item.id ? ' sel' : '') +
+          '" data-act="' + act + '" data-arg="' + e.item.id + '"' +
+          ' title="' + escapeHtml(e.item.name) + '">' +
+          ico(e.item.icon, 'lg') +
+          '<span class="cap">' + escapeHtml(e.item.name) + '</span>' +
+          '<span class="qty">' + e.slot.n + '</span></button>';
+      }
+      html += '</div></div>';
+    }
+    html += '</div>';
+
+    if (this.selected) {
+      const item = getItem(this.selected);
+      if (item) {
+        html += '<div class="rows" style="margin-top:10px"><div class="row">' +
+          ico(item.icon, 'lg') +
+          '<div class="grow"><div class="title">' + escapeHtml(item.name) + '</div>' +
+          '<div class="meta"><span>Tasche: ' + g.inventory.count(item.id) + '</span>' +
+          '<span>Truhe: ' + box.count(item.id) + '</span></div></div>' +
+          '<button class="row-btn" data-act="toBoxAll" data-arg="' + item.id + '">alle hinein</button>' +
+          '<button class="row-btn" data-act="fromBoxAll" data-arg="' + item.id + '">alle heraus</button>' +
+          '</div></div>';
+      }
+    }
+    return html;
+  }
+
+  /** Der Ausbau – Teil des Ladens, denn der Händler baut ihn. */
+  _loanRows() {
+    const g = this.game;
+    const stand = statusOf(g.state.loan);
+    if (stand.fertig) {
+      return '<div class="rows"><div class="row">' + ico('icon_check', 'lg') +
+        '<div class="grow"><div class="title">Der Schuppen steht</div>' +
+        '<div class="meta"><span>' + stand.slots + ' Fächer. Mehr braucht kein Mensch.</span></div>' +
+        '</div></div></div>';
+    }
+    const naechste = stand.naechste;
+    const anteil = stand.ziel ? stand.gezahlt / stand.ziel : 0;
+    const raten = [50, 250, 1000].filter(function (r) { return r <= stand.offen; });
+    raten.push(stand.offen);
+
+    let knoepfe = '';
+    const gesehen = Object.create(null);
+    for (let i = 0; i < raten.length; i++) {
+      const r = raten[i];
+      if (r <= 0 || gesehen[r]) continue;
+      gesehen[r] = 1;
+      const kann = g.state.coins >= r;
+      knoepfe += '<button class="row-btn" data-act="payLoan" data-arg="' + r + '"' +
+        (kann ? '' : ' disabled') + '>' + (r === stand.offen ? 'Rest ' : '') + num(r) + '</button>';
+    }
+
+    return '<div class="rows"><div class="row">' + ico('icon_bag', 'lg') +
+      '<div class="grow"><div class="title">' + escapeHtml(naechste.name) + ' · ' +
+      naechste.slots + ' Fächer</div>' +
+      '<div class="meta"><span>' + escapeHtml(naechste.note) + '</span>' +
+      '<span>' + ico('icon_coin') + ' ' + num(stand.gezahlt) + ' von ' + num(stand.ziel) + '</span>' +
+      '<span>noch ' + num(stand.offen) + '</span></div>' +
+      '<div class="bar" aria-hidden="true"><i style="width:' +
+      Math.round(anteil * 100) + '%"></i></div></div>' +
+      '</div><div class="row"><div class="grow"><div class="meta">' +
+      '<span>Anzahlen:</span></div></div>' + knoepfe + '</div></div>';
+  }
+
+  /* ---------------- Post ---------------- */
+
+  /**
+   * Der Briefkasten.
+   *
+   * Neueste zuerst – man kommt wegen der Post von heute, nicht wegen der von
+   * vorletzter Woche. Ungelesene sind hervorgehoben; wer einen anklickt,
+   * liest ihn UND bekommt die Beilage. Zwei Klicks für einen Brief wären
+   * einer zu viel.
+   */
+  _mail() {
+    const g = this.game;
+    const liste = (g.state.mail || []).slice().reverse();
+    if (!liste.length) {
+      return '<p class="empty-note">Der Kasten ist leer.<br>' +
+        'Wem du hilfst, der schreibt dir – meistens am nächsten Morgen.</p>';
+    }
+
+    const offen = unreadCount(g.state.mail);
+    let html = '<p class="empty-note" style="padding:0 0 12px">' +
+      (offen ? offen + ' ungelesen' : 'Alles gelesen') + ' · ' +
+      liste.length + ' im Kasten</p><div class="rows">';
+
+    for (let i = 0; i < liste.length; i++) {
+      const b = liste[i];
+      const zu = !b.read;
+      const gabe = b.gift ? getItem(b.gift.id) : null;
+      html += '<button class="row letter' + (zu ? ' neu' : '') + '"' +
+        ' data-act="letter" data-arg="' + escapeHtml(b.id) + '">' +
+        ico(zu ? 'icon_mailbox' : 'icon_quest', 'lg') +
+        '<div class="grow"><div class="title">' + escapeHtml(b.subject) +
+        (zu ? ' <span class="marke">neu</span>' : '') + '</div>' +
+        '<div class="meta"><span>Tag ' + b.day + '</span>' +
+        (gabe ? '<span>' + ico(gabe.icon) + ' ' + b.gift.n + ' liegt bei</span>' : '') +
+        '</div>' +
+        (b.read || this.selected === b.id
+          ? '<div class="brief">' + escapeHtml(b.text) + '</div>' : '') +
+        '</div></button>';
     }
     html += '</div>';
     return html;
@@ -585,6 +788,7 @@ export class Panels {
     let html = '<div class="tabs">' +
       '<button class="tab" data-act="tab" data-arg="buy" aria-selected="' + (tab === 'buy') + '">Kaufen</button>' +
       '<button class="tab" data-act="tab" data-arg="sell" aria-selected="' + (tab === 'sell') + '">Verkaufen</button>' +
+      '<button class="tab" data-act="tab" data-arg="ausbau" aria-selected="' + (tab === 'ausbau') + '">Ausbau</button>' +
       '<span style="margin-left:auto;align-self:center;font-size:0.85em">' +
       ico('icon_coin') + ' ' + num(g.state.coins) + '</span></div>';
 
@@ -593,6 +797,13 @@ export class Panels {
       html += '<div class="row" style="margin-bottom:10px">' + ico(wanted.icon, 'lg') +
         '<div class="grow"><div class="title">Heute gesucht: ' + escapeHtml(wanted.name) + '</div>' +
         '<div class="meta"><span>' + g.shop.wantedBonus + '× Preis</span></div></div></div>';
+    }
+
+    if (tab === 'ausbau') {
+      // Der Händler baut die Truhe – bei ihm wird auch bezahlt. Ein eigener
+      // Bauplatz dafür wäre ein Ort mehr, den man erst finden müsste.
+      html += this._loanRows();
+      return html;
     }
 
     if (tab === 'buy') {

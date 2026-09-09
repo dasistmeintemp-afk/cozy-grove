@@ -191,6 +191,16 @@ export const ENTITY_DEFS = {
     sprite: 'boat', solid: false, reachR: 132,
     category: 'station', station: 'boat', priority: 40,
   },
+  mailbox: {
+    sprite: 'mailbox', solid: true, blockR: 18, reachR: 96,
+    category: 'station', station: 'mail',
+  },
+  // Die Vorratstruhe. Steht erst da, wenn die erste Ausbaustufe bezahlt ist –
+  // vorher wäre sie eine Kiste, die man nicht öffnen darf.
+  storage: {
+    sprite: 'chest', solid: true, blockR: 30, blockH: 18, reachR: 104,
+    category: 'station', station: 'storage',
+  },
 
   // Lebewesen
   spirit: { solid: false, reachR: 120, category: 'spirit' },

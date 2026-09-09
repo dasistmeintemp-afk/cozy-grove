@@ -1735,6 +1735,132 @@ async function run() {
       leiter.ueberschrift && leiter.nennt && leiter.prozent, JSON.stringify(leiter));
     check('Ferne Meilensteine verraten noch nichts', leiter.weit, JSON.stringify(leiter));
 
+    /* ---- Fundbuch, Post und Truhe ---- */
+    // Das Fundbuch muss sagen, WO das Fehlende steckt – „???" allein ist
+    // eine Statistik, kein Ziel.
+    const buch = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.openPanel('found');
+      await new Promise((r) => setTimeout(r, 300));
+      const body = document.getElementById('panel-body');
+      const text = body.innerText;
+      const balken = body.querySelector('.bar i');
+      const reiter = Array.from(body.querySelectorAll('.tab')).map((t) => t.textContent.trim());
+      // Ein noch nicht gefundenes Stück anklicken: dort muss ein Hinweis stehen
+      const leer = Array.from(body.querySelectorAll('.slot.unknown'))[0];
+      let hinweis = null;
+      if (leer) {
+        leer.click();
+        await new Promise((r) => setTimeout(r, 250));
+        hinweis = document.getElementById('panel-body').innerText;
+      }
+      g.panels.close();
+      return {
+        reiterMitZahl: reiter.filter((t) => /\d+\/\d+/.test(t)).length,
+        balken: balken ? balken.getBoundingClientRect().width : -1,
+        nenntLohn: text.indexOf('Vollständig:') >= 0 || text.indexOf('abgeholt') >= 0,
+        hatHinweis: !!(hinweis && hinweis.indexOf('Noch nicht gefunden') >= 0),
+        hinweisText: hinweis ? hinweis.slice(0, 200) : '',
+      };
+    });
+    check('Das Fundbuch zeigt je Reihe, wie weit sie ist',
+      buch.reiterMitZahl >= 6 && buch.balken >= 0, JSON.stringify(buch.reiterMitZahl));
+    check('Es nennt, was die volle Reihe einbringt', buch.nenntLohn, JSON.stringify(buch.nenntLohn));
+    check('Ein fehlendes Stück verrät, wo es steckt',
+      buch.hatHinweis, JSON.stringify(buch.hinweisText));
+
+    // Eine volle Reihe zahlt – einmal.
+    const reihe = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      g.state.collected = Object.create(null);
+      const muenzenVorher = g.state.coins;
+      // Alle Saaten ins Fundbuch
+      for (const id of ['seed_berry', 'seed_herb', 'seed_flower', 'seed_moon']) {
+        g.inventory.found[id] = (g.inventory.found[id] || 0) + 1;
+      }
+      g._knownCount = -1;
+      g._checkCollection();
+      const nachher = g.state.coins;
+      const abgeholt = !!g.state.collected.seed;
+      g._knownCount = -1;
+      g._checkCollection();
+      return { muenzenVorher, nachher, nochmal: g.state.coins, abgeholt };
+    });
+    check('Eine volle Reihe im Fundbuch zahlt aus',
+      reihe.nachher > reihe.muenzenVorher && reihe.abgeholt, JSON.stringify(reihe));
+    check('Und zwar genau einmal', reihe.nochmal === reihe.nachher, JSON.stringify(reihe));
+
+    // Post: Brief lesen bringt die Beilage in die Tasche.
+    const post = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.mail = [{
+        id: 'testbrief', day: g.day.day, from: 'mira', kind: 'thanks',
+        subject: 'Mira Moos', text: 'Auf der Wiese steht heute etwas Neues.',
+        gift: { id: 'berry', n: 3 }, read: false,
+      }];
+      const offenVorher = g.unreadMail();
+      const beerenVorher = g.inventory.count('berry');
+      g.openPanel('mail');
+      await new Promise((r) => setTimeout(r, 300));
+      const body = document.getElementById('panel-body');
+      const zeile = body.querySelector('.row.letter');
+      const warNeu = zeile ? zeile.classList.contains('neu') : false;
+      if (zeile) zeile.click();
+      await new Promise((r) => setTimeout(r, 300));
+      const text = document.getElementById('panel-body').innerText;
+      g.panels.close();
+      return {
+        offenVorher, offenNachher: g.unreadMail(),
+        beeren: g.inventory.count('berry') - beerenVorher,
+        warNeu, zeigtText: text.indexOf('Wiese') >= 0,
+        gabeWeg: !g.state.mail[0].gift,
+      };
+    });
+    check('Ungelesene Post wird gezählt und hervorgehoben',
+      post.offenVorher === 1 && post.warNeu, JSON.stringify(post));
+    check('Einen Brief lesen zeigt den Text und bringt die Beilage',
+      post.zeigtText && post.beeren === 3 && post.offenNachher === 0 && post.gabeWeg,
+      JSON.stringify(post));
+
+    // Truhe: erst bezahlen, dann einlagern.
+    const truhe = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.loan = { stage: 0, paid: 0 };
+      g.storage = null;
+      g.syncStorage();
+      const vorher = { truheDa: !g.world.storage.gone, plaetze: g.storage.capacity };
+
+      g.state.coins = 100000;
+      g.payLoanAmount(999999);           // erste Stufe ganz bezahlen
+      const nachher = {
+        stufe: g.state.loan.stage,
+        truheDa: !g.world.storage.gone,
+        plaetze: g.storage.capacity,
+        muenzen: g.state.coins,
+      };
+
+      g.inventory.add('wood', 5);
+      const rein = g.moveToStorage('wood', 3);
+      const inTruhe = g.storage.count('wood');
+      const raus = g.moveFromStorage('wood', 1);
+
+      g.openPanel('storage');
+      await new Promise((r) => setTimeout(r, 300));
+      const haelften = document.querySelectorAll('#panel-body .haelfte').length;
+      g.panels.close();
+      return { vorher, nachher, rein, inTruhe, raus, nachRaus: g.storage.count('wood'), haelften };
+    });
+    check('Ohne Ausbau steht keine Truhe da',
+      truhe.vorher.truheDa === false && truhe.vorher.plaetze === 0, JSON.stringify(truhe.vorher));
+    check('Bezahlen stellt die Truhe hin und gibt Fächer',
+      truhe.nachher.stufe === 1 && truhe.nachher.truheDa && truhe.nachher.plaetze >= 16 &&
+      truhe.nachher.muenzen < 100000, JSON.stringify(truhe.nachher));
+    check('Dinge wandern in die Truhe und wieder heraus',
+      truhe.rein === 3 && truhe.inTruhe === 3 && truhe.raus === 1 && truhe.nachRaus === 2,
+      JSON.stringify(truhe));
+    check('Das Truhenfenster zeigt Tasche und Truhe nebeneinander',
+      truhe.haelften === 2, JSON.stringify(truhe.haelften));
+
     /* ---- Die Stille Insel ---- */
     // Das Boot ist die einzige Verbindung. Vor dem Meilenstein muss es
     // festliegen, danach übersetzen – und drüben muss man auf Land stehen.

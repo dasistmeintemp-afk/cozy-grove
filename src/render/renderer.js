@@ -573,6 +573,30 @@ export class Renderer {
       ctx.restore();
     }
 
+    // Ein Umschlag über dem Briefkasten, solange Post ungelesen ist. Ohne
+    // ihn müsste man jeden Morgen nachsehen gehen, ob sich der Weg lohnt –
+    // und nach drei leeren Kästen geht niemand mehr hin.
+    if (game.world.mailbox && game.unreadMail && game.unreadMail() > 0) {
+      const m = game.world.mailbox;
+      const bob = Math.sin(time * 2.8) * 4;
+      const x = m.x;
+      const y = m.y - 150 + bob;
+      ctx.save();
+      ctx.fillStyle = INK.paper;
+      ctx.strokeStyle = INK.line;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.rect(x - 13, y, 26, 18);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 13, y);
+      ctx.lineTo(x, y + 11);
+      ctx.lineTo(x + 13, y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // Herz: dieser Geist mag etwas, das gerade in der Tasche liegt. Ohne
     // Zeichen bliebe das Mitbringen eine versteckte Regel – man müsste jeden
     // Geist mit jedem Gegenstand ausprobieren.

@@ -24,6 +24,9 @@ import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './co
 import { getItem, itemName, CAT, CONDITIONAL, fishesOf } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
 import { dueAt, perksOf } from './milestones.js';
+import { dueSets } from './collection.js';
+import { mailFor, fileMail, unreadCount } from './mail.js';
+import { STAGES as LOAN_STAGES, statusOf, pay as payLoan, slotsAt, emptyLoan } from './loan.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
@@ -139,6 +142,7 @@ export class Game {
     this.applySettings();
     // Vor `_syncCampfireColor`: der Feuerkreis hängt an einem Meilenstein.
     this._perksChanged();
+    this.syncStorage();
     // Still: beim Laden steht die Deko ja schon da, da wäre eine Meldung
     // für jede Stufe eine Meldungslawine beim Spielstart.
     this.syncCosiness(true);
@@ -186,6 +190,9 @@ export class Game {
       crafted: Object.create(null),
       caught: 0,
       milestones: Object.create(null),
+      collected: Object.create(null),
+      mail: [],
+      loan: emptyLoan(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -210,11 +217,17 @@ export class Game {
       coins: 0, ember: 0, campfireFuel: 0, bagUpgrades: 0,
       crafted: Object.create(null), caught: 0,
       milestones: Object.create(null),
+      collected: Object.create(null),
+      mail: [],
+      loan: emptyLoan(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
     // nach, was seine Farbe schon hergibt – siehe `_checkMilestones`.
     if (!this.state.milestones) this.state.milestones = Object.create(null);
+    if (!this.state.collected) this.state.collected = Object.create(null);
+    if (!Array.isArray(this.state.mail)) this.state.mail = [];
+    if (!this.state.loan) this.state.loan = emptyLoan();
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -259,11 +272,15 @@ export class Game {
       day: this.day.toJSON(),
       player: this.player.toJSON(),
       inventory: this.inventory.toJSON(),
+      // Die Truhe wandert in den Zustand, damit sie denselben Weg geht wie
+      // alles andere – auch beim Export in eine Datei.
+      state: Object.assign({}, this.state, {
+        storageBox: this.storage ? this.storage.toJSON() : null,
+      }),
       quests: this.quests.toJSON(),
       stories: this.stories.toJSON(),
       shop: this.shop.toJSON(),
       color: this.colorField.toJSON(),
-      state: this.state,
       unlocked: this.world.unlocked,
       bridgeBuilt: this.world.bridgeBuilt,
       worldDelta: this._worldDelta(),
@@ -457,6 +474,7 @@ export class Game {
     this._shootingStars(dt);
     this._checkVisits(dt);
     this._checkMilestones(dt);
+    this._checkCollection();
 
     const mustSleep = this.day.update(dt);
     if (mustSleep) this.sleep(true);
@@ -1072,6 +1090,8 @@ export class Game {
       case 'tent': this.sleep(false); break;
       case 'bridge': this._tryBridge(entity); break;
       case 'boat': this._takeBoat(entity); break;
+      case 'mail': this.openPanel('mail'); break;
+      case 'storage': this.openPanel('storage'); break;
       default: break;
     }
   }
@@ -1208,6 +1228,11 @@ export class Game {
     this.state.coins += rewards.coins;
     this.state.ember += rewards.ember;
     this._note('quests');
+    if (this.state.daybook) {
+      if (!this.state.daybook.helped) this.state.daybook.helped = Object.create(null);
+      const h = this.state.daybook.helped;
+      h[spirit.id] = (h[spirit.id] || 0) + 1;
+    }
     this._note('coins', rewards.coins);
     this._note('ember', rewards.ember);
     for (let i = 0; i < rewards.items.length; i++) {
@@ -1409,6 +1434,185 @@ export class Game {
     if (got.length) this.ui.toastItems(got);
   }
 
+  /* ---------------- Die Vorratstruhe ---------------- */
+
+  /**
+   * Truhe und Welt in Übereinstimmung bringen.
+   *
+   * Die Fächer wachsen mit der Ausbaustufe, und die Truhe steht erst da,
+   * wenn die erste Stufe bezahlt ist. Kleiner wird sie nie: Ausbaustufen
+   * gehen nur vorwärts, und ein schrumpfendes Lager verschluckte Dinge.
+   */
+  syncStorage() {
+    const stand = statusOf(this.state.loan);
+    if (!this.storage) {
+      this.storage = this.state.storageBox
+        ? Inventory.fromJSON(this.state.storageBox)
+        // NICHT `new Inventory()`: der Rumpf hat dreißig Fächer voreingestellt,
+        // und damit hätte man vor dem ersten Bezahlen schon ein Lager.
+        : new Inventory(0);
+    }
+    this.storage.capacity = Math.max(this.storage.capacity || 0, slotsAt(stand.stage));
+    if (this.world.storage) this.world.storage.gone = stand.stage < 1;
+    this.invalidate();
+  }
+
+  /**
+   * Eine Rate auf den Ausbau zahlen.
+   *
+   * Nie mehr als nötig und nie mehr, als man hat – siehe `loan.pay`. Wer
+   * 500 Münzen hat und 200 schuldet, zahlt 200.
+   */
+  payLoanAmount(betrag) {
+    const vorher = statusOf(this.state.loan);
+    if (vorher.fertig) return;
+    const r = payLoan(this.state.loan, betrag, this.state.coins);
+    if (!r.gezahlt) {
+      this.ui.toast('Zu wenig Münzen', 'icon_coin', 'bad');
+      return;
+    }
+    this.state.coins -= r.gezahlt;
+    this.audio.play('coin');
+    if (r.fertigGeworden) {
+      const neu = LOAN_STAGES[r.stage - 1];
+      this.syncStorage();
+      this.ui.toast(neu.name + ' steht! · ' + neu.slots + ' Fächer', 'icon_bag', 'good');
+      this.audio.play('levelup');
+      if (this.world.storage) {
+        this.particles.burst('sparkle', this.world.storage.x, this.world.storage.y - 40, 20);
+      }
+    } else {
+      const jetzt = statusOf(this.state.loan);
+      this.ui.toast('Noch ' + num(jetzt.offen) + ' Münzen', 'icon_coin');
+    }
+    this.ui.refreshHud();
+    this.save();
+  }
+
+  /** Ein Stück zwischen Tasche und Truhe schieben. */
+  moveToStorage(id, n) {
+    if (!this.storage) this.syncStorage();
+    const da = this.inventory.count(id);
+    const take = Math.min(da, n == null ? 1 : n);
+    if (take <= 0) return 0;
+    const rein = this.storage.add(id, take);
+    if (rein <= 0) { this.ui.toast('Die Truhe ist voll', 'icon_bag', 'bad'); return 0; }
+    this.inventory.remove(id, rein);
+    this.save();
+    return rein;
+  }
+
+  moveFromStorage(id, n) {
+    if (!this.storage) this.syncStorage();
+    const da = this.storage.count(id);
+    const take = Math.min(da, n == null ? 1 : n);
+    if (take <= 0) return 0;
+    const rein = this.inventory.add(id, take);
+    if (rein <= 0) { this.ui.toast('Tasche ist voll', 'icon_bag', 'bad'); return 0; }
+    this.storage.remove(id, rein);
+    this.save();
+    return rein;
+  }
+
+  /* ---------------- Die Post ---------------- */
+
+  /**
+   * Die Post eines Morgens in den Kasten legen.
+   *
+   * Dank kommt nur von Geistern, denen man GESTERN geholfen hat – das steht
+   * in der Strichliste des vergangenen Tages. Ein Dankesbrief für nichts
+   * wäre eine Floskel, und Floskeln merkt man.
+   */
+  _deliverMail(day, gestern) {
+    const geholfen = gestern && gestern.helped ? Object.keys(gestern.helped) : [];
+    const jahreszeit = this.today ? this.today.season : null;
+    // Wechselt heute die Jahreszeit? Ein Wort dazu gibt es nur einmal.
+    const neuesKapitel = !!(jahreszeit && this.state.lastSeason !== jahreszeit.id);
+    if (jahreszeit) this.state.lastSeason = jahreszeit.id;
+
+    const neue = mailFor(day, this.world, {
+      geholfen: geholfen,
+      jahreszeit: jahreszeit,
+      tagNeu: neuesKapitel,
+      ereignis: this.today ? this.today.event : null,
+    });
+    if (!neue.length) return;
+    this.state.mail = fileMail(this.state.mail, neue);
+    this.ui.toast(neue.length === 1 ? 'Ein Brief im Kasten' : neue.length + ' Briefe im Kasten',
+      'icon_mailbox');
+  }
+
+  /** Einen Brief öffnen: gelesen setzen, Beilage in die Tasche. */
+  openLetter(id) {
+    const liste = this.state.mail || [];
+    for (let i = 0; i < liste.length; i++) {
+      const brief = liste[i];
+      if (brief.id !== id) continue;
+      if (brief.read && !brief.gift) return brief;
+      if (brief.gift) {
+        const added = this.inventory.add(brief.gift.id, brief.gift.n);
+        if (added <= 0) {
+          // Die Beilage bleibt liegen, bis Platz ist – sonst wäre sie weg,
+          // weil die Tasche gerade voll war.
+          this.ui.toast('Tasche ist voll – der Brief wartet', 'icon_bag', 'bad');
+          return brief;
+        }
+        this.ui.toastItems([{ id: brief.gift.id, n: added }]);
+        brief.gift = null;
+      }
+      brief.read = true;
+      this.audio.play('ui');
+      this.ui.refreshHud();
+      this.save();
+      return brief;
+    }
+    return null;
+  }
+
+  unreadMail() {
+    return unreadCount(this.state.mail);
+  }
+
+  /* ---------------- Das Fundbuch ---------------- */
+
+  /**
+   * Ist eine Reihe im Fundbuch voll geworden?
+   *
+   * Die Prüfung hängt an der Zahl der gefundenen ARTEN: Solange die sich
+   * nicht ändert, kann sich auch keine Reihe geschlossen haben. Damit
+   * kostet sie in fast jedem Bild einen Zahlenvergleich.
+   */
+  _checkCollection() {
+    const bekannt = this.inventory.foundCount();
+    if (bekannt === this._knownCount) return;
+    this._knownCount = bekannt;
+    if (!this.state.collected) this.state.collected = Object.create(null);
+
+    const faellig = dueSets(this.inventory, this.state.collected);
+    if (!faellig.length) return;
+
+    for (let i = 0; i < faellig.length; i++) {
+      const reihe = faellig[i];
+      this.state.collected[reihe.id] = this.day.day;
+      const lohn = reihe.reward || {};
+      if (lohn.coins) { this.state.coins += lohn.coins; this._note('coins', lohn.coins); }
+      if (lohn.ember) { this.state.ember += lohn.ember; this._note('ember', lohn.ember); }
+      const got = [];
+      for (let k = 0; lohn.items && k < lohn.items.length; k++) {
+        const it = lohn.items[k];
+        const added = this.inventory.add(it.id, it.n);
+        if (added > 0) got.push({ id: it.id, n: added });
+      }
+      this.ui.toast(reihe.name + ' vollständig!', 'icon_star', 'good');
+      if (got.length) this.ui.toastItems(got);
+      this._note('sets');
+    }
+    this.audio.play('levelup');
+    this.particles.burst('sparkle', this.player.x, this.player.y - 60, 18);
+    this.ui.refreshHud();
+    this.save();
+  }
+
   /* ---------------- Der Kalender ---------------- */
 
   /**
@@ -1567,7 +1771,9 @@ export class Game {
     this.state.daybook = {
       day: this.day.day,
       quests: 0, finds: 0, fish: 0, bugs: 0, decor: 0, gifts: 0,
-      planted: 0, harvest: 0, watered: 0, milestones: 0,
+      planted: 0, harvest: 0, watered: 0, milestones: 0, sets: 0,
+      // Wem geholfen wurde – daraus wird morgen früh die Post.
+      helped: Object.create(null),
       coins: 0, ember: 0,
       colorStart: this.colorField.coverage(this.world),
     };
@@ -2098,6 +2304,7 @@ export class Game {
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
     this.ui.refreshHud();
     this.ui.refreshQuests();
+    this._deliverMail(day, buch);
     this.ui.toast('Tag ' + day, 'icon_day');
     // Abgelaufene Bitten sind kein Fehler, aber der Spieler muss merken, dass
     // sie weg sind – sonst sucht er am Nachmittag weiter nach einer Muschel,
@@ -2330,6 +2537,12 @@ export class Game {
         : t.entity.toRegion === REGION.ISLE ? 'Übersetzen' : 'Zurückrudern');
       return;
     }
+    if (def.station === 'mail') {
+      const offen = unreadCount(this.state.mail);
+      this.ui.setPrompt(offen ? 'Post (' + offen + ')' : 'Briefkasten');
+      return;
+    }
+    if (def.station === 'storage') { this.ui.setPrompt('Vorrat'); return; }
     if (def.station === 'campfire') { this.ui.setPrompt('Lagerfeuer'); return; }
     if (def.station === 'craft') { this.ui.setPrompt('Werkbank'); return; }
     if (def.station === 'shop') { this.ui.setPrompt('Laden'); return; }

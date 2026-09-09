@@ -81,6 +81,8 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | `E` am Boot | zur Stillen Insel übersetzen und zurück |
 | `I` `Q` `C` `M` | Tasche · Aufgaben · Werkbank · Karte |
 | `B` | Fundbuch |
+| `E` am Briefkasten | Post lesen |
+| `E` an der Truhe | Vorrat ein- und auslagern |
 | `G` | Erinnerungen |
 | `F` | schlafen (am Zelt) |
 | `R` / `X` | Deko versetzen / abbrechen |
@@ -148,6 +150,24 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   **Fertiges läuft nie ab**: Wer die drei Muscheln beisammen hat und erst
   morgen vorbeikommt, hat sie nicht umsonst gesucht. Und derselbe Geist
   verlangt nie zweimal gleichzeitig dasselbe.
+* **Das Fundbuch mit Folgen.** Jede Kategorie ist eine Reihe, und eine volle
+  Reihe zahlt aus – Münzen, Glut, manchmal einen Edelstein. Wichtiger noch:
+  Wer auf ein leeres Feld tippt, erfährt, **wo das Fehlende steckt**
+  („Blüht nur nachts", „Im Fluss, nur nachts", „Aus Erzbrocken, mit Glück").
+  Ein leeres Feld mit „???" sagt nur, DASS etwas fehlt; der Reiz einer
+  Sammlung kommt daher, dass man weiß, wohin man laufen muss. Ein Test wacht
+  darüber, dass jeder Gegenstand einen Fingerzeig hat und keiner erfunden ist.
+* **Post.** Neben dem Zelt steht ein Briefkasten. Wem du hilfst, der schreibt
+  dir am nächsten Morgen – zwei Sätze und ein Mitbringsel, im Ton des Geistes.
+  Ein Umschlag über dem Kasten zeigt, dass etwas drin liegt; ohne ihn müsste
+  man jeden Morgen nachsehen und ginge nach drei leeren Kästen nicht mehr hin.
+  **Dank gibt es nur für wirkliche Hilfe** – ein Dankesbrief für nichts wäre
+  eine Floskel, und Floskeln merkt man beim dritten Mal.
+* **Die Vorratstruhe.** Vier Ausbaustufen, in Raten beim Händler bezahlt:
+  600 → 1600 → 3600 → 7500 Münzen für am Ende 80 Fächer. Damit haben Münzen
+  zum ersten Mal ein großes Ziel, und ein guter Markttag ist ein guter Tag.
+  Kein Kredit im eigentlichen Sinn: keine Zinsen, keine Frist, keine Mahnung –
+  wer nie einzahlt, verliert nichts. Dieselbe Regel wie im Garten.
 * **Mitbringsel.** Jeder Geist mag ein paar bestimmte Dinge. Hast du eines
   davon dabei, schwebt ein Herz über ihm; ein Druck auf E, und er bekommt es.
   Das gibt Glut und ein Stück Farbe – einmal je Geist und Tag. Was gerade für
@@ -385,8 +405,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 158 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
-npm run test:browser   # 120 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 186 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
+npm run test:browser   # 131 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

@@ -210,6 +210,13 @@ export class World {
     this.tent = this.add(makeEntity('tent', px(cx - 5), px(cy - 2)));
     this.workbench = this.add(makeEntity('workbench', px(cx + 5), px(cy - 1)));
     this.stall = this.add(makeEntity('stall', px(cx + 4), px(cy + 5)));
+    // Der Briefkasten steht neben dem Zelt: Wer morgens aufwacht, läuft
+    // an ihm vorbei, ohne ihn suchen zu müssen.
+    this.mailbox = this.add(makeEntity('mailbox', px(cx - 7), px(cy - 1)));
+    // Die Truhe steht immer da; sichtbar wird sie erst mit der ersten
+    // Ausbaustufe (siehe `Game.syncStorage`).
+    this.storage = this.add(makeEntity('storage', px(cx + 7), px(cy + 3)));
+    this.storage.gone = true;
     this.fox = this.add(makeEntity('fox', px(cx + 4), px(cy + 7)));
   }
 
