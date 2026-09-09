@@ -85,6 +85,7 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | `E` am Briefkasten | Post lesen |
 | `E` an der Truhe | Vorrat ein- und auslagern |
 | `G` | Erinnerungen |
+| `L` | Dein Lager (Grundstück und Ausbau) |
 | `F` | schlafen (am Zelt) |
 | `R` / `X` | Deko versetzen / abbrechen |
 | `Esc` | Menü, Fenster schließen |
@@ -115,6 +116,21 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nach rund 130 Aufträgen auf 100 %. Nach gleicher Fläche sind es rund 330,
   und die ersten Tage fühlen sich fast unverändert an (Auftrag 1: 5,3 % vorher,
   4,7 % jetzt).
+* **Dein Grundstück.** Um das Zelt herum ist ein Rechteck abgesteckt, als
+  gestrichelte Linie im Gras zu sehen. **Innerhalb wächst nichts nach** – was
+  du dort fällst und wegräumst, bleibt weg –, Grabstellen und Blütentage
+  lassen es aus, und du darfst dichter ans Lager bauen als draußen.
+
+  Das ist der Unterschied zwischen „Platz haben" und „bauen können". Gemessen
+  sind vom Lagerbereich über achtzig Prozent der Kacheln frei, aber das größte
+  zusammenhängende freie Quadrat misst nur **6×6** – und rund 190 Kacheln sind
+  von Dingen belegt, die nachwachsen. Freigeräumt gibt das volle Grundstück
+  **22×22** her, also mehr als das Dreizehnfache an Fläche am Stück.
+
+  Vier Stufen, bezahlt in Glut (0/40/120/300): Lichtung 15×11 → Hinterhof
+  21×15 → Garten 27×19 → Anwesen 33×23. Zu roden sind auf der ersten Stufe
+  ein knappes Dutzend Bäume und Steine, auf der letzten rund 120 – ein
+  Vorhaben, kein Nachmittag. `L` öffnet das Fenster.
 * **Der letzte Abend.** Bei hundert Prozent versammeln sich alle sieben
   Geister am Lagerfeuer und warten dort – nicht einen Tag lang, sondern so
   lange, bis du bei jedem warst. Jeder sagt einen Satz; wer alle gehört hat,
@@ -414,8 +430,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 192 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
-npm run test:browser   # 145 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 200 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
+npm run test:browser   # 151 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

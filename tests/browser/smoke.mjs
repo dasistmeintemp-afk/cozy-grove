@@ -1750,6 +1750,128 @@ async function run() {
       leiter.ueberschrift && leiter.nennt && leiter.prozent, JSON.stringify(leiter));
     check('Ferne Meilensteine verraten noch nichts', leiter.weit, JSON.stringify(leiter));
 
+    /* ---- Das Grundstück ---- */
+    const grund = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.plot = 1;
+      g.world.plotStage = 1;
+      const klein = g.plotStatus();
+
+      // Ein Baum auf dem Grundstück und einer daneben, beide gefällt
+      const baeume = g.world.entities.filter((e) => e.kind && e.kind.indexOf('tree_') === 0 && !e.gone);
+      const drin = baeume.filter((e) => g.world.regionAtPixel(e.x, e.y) === 0 &&
+        Math.abs(e.x - g.world.tent.x) < 400 && Math.abs(e.y - g.world.tent.y) < 300)[0];
+      let treffer = null;
+      if (drin) {
+        g.state.plot = 4;                 // groß genug, dass er sicher drin liegt
+        g.world.plotStage = 4;
+        const id = drin.id;
+        drin.gone = true;
+        drin.origin = drin.kind;
+        drin.kind = 'tree_stump';
+        drin.respawnDay = g.day.day + 1;
+        g.world.newDay(g.day.day + 3, {});
+        treffer = { weg: !g.world.byId[id] };
+      }
+
+      // Auf eigenem Grund darf man näher ans Zelt bauen
+      const zelt = g.world.tent;
+      const nah = { x: zelt.x + 90, y: zelt.y + 60 };
+      g.placing = null;
+      const drinErlaubt = g._canPlaceAt(nah.x, nah.y);
+      const grundDafuer = drinErlaubt ? null : g._placeReason(nah.x, nah.y);
+      const drumherum = g.world.queryNear(nah.x, nah.y, 120).filter((e) => !e.gone)
+        .map((e) => e.kind + '@' + Math.round(Math.sqrt((e.x - nah.x) ** 2 + (e.y - nah.y) ** 2)));
+      g.state.plot = 1;
+      g.world.plotStage = 1;
+
+      // Ausbau kostet Glut und wächst
+      g.state.ember = 0;
+      g.expandPlot();
+      const ohneGlut = g.state.plot;
+      g.state.ember = 5000;
+      g.expandPlot();
+      const nachAusbau = g.plotStatus();
+
+      g.state.plot = 1;
+      g.world.plotStage = 1;
+      return {
+        kleinBreite: klein.bounds.x1 - klein.bounds.x0 + 1,
+        grossBreite: nachAusbau.bounds.x1 - nachAusbau.bounds.x0 + 1,
+        treffer, drinErlaubt, grundDafuer, drumherum, ohneGlut, stufe: nachAusbau.stufe,
+        glut: g.state.ember,
+      };
+    });
+    check('Auf dem Grundstück wächst nichts nach',
+      grund.treffer && grund.treffer.weg === true, JSON.stringify(grund.treffer));
+    check('Auf eigenem Grund darf man näher ans Lager bauen',
+      grund.drinErlaubt === true,
+      JSON.stringify({ grund: grund.grundDafuer, drumherum: grund.drumherum }));
+    check('Ohne Glut wächst das Grundstück nicht',
+      grund.ohneGlut === 1, JSON.stringify(grund.ohneGlut));
+    check('Mit Glut wächst es – und wird sichtbar größer',
+      grund.stufe === 2 && grund.grossBreite > grund.kleinBreite && grund.glut < 5000,
+      JSON.stringify(grund));
+
+    // Die Grenze muss man sehen, sonst weiß niemand, wo die Regel gilt.
+    const grenze = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.plot = 2;
+      g.world.plotStage = 2;
+      const zelt = g.world.tent;
+      g.player.x = zelt.x;
+      g.player.y = zelt.y + 40;
+      g.camera.snapTo(g.player.x, g.player.y);
+      await new Promise((r) => requestAnimationFrame(() => r()));
+
+      function bild() {
+        const R = g.renderer;
+        return R.ctx.getImageData(0, 0, R.ctx.canvas.width, R.ctx.canvas.height).data;
+      }
+      async function zeichnen() {
+        g.invalidate();
+        for (let i = 0; i < 4; i++) await new Promise((r) => requestAnimationFrame(() => r()));
+      }
+      await zeichnen();
+      const mit = bild();
+      const echt = g.plotRect;
+      g.plotRect = function () { return null; };     // Grenze weglassen
+      await zeichnen();
+      const ohne = bild();
+      g.plotRect = echt;
+      await zeichnen();
+
+      let anders = 0;
+      for (let i = 0; i < mit.length; i += 4) {
+        if (Math.abs(mit[i] - ohne[i]) + Math.abs(mit[i + 1] - ohne[i + 1]) +
+            Math.abs(mit[i + 2] - ohne[i + 2]) > 24) anders++;
+      }
+      g.state.plot = 1;
+      g.world.plotStage = 1;
+      return { anders, pixel: mit.length / 4 };
+    });
+    check('Die Grenze des Grundstücks ist im Bild zu sehen',
+      grenze.anders > 400, JSON.stringify(grenze));
+
+    const lagerFenster = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.openPanel('plot');
+      await new Promise((r) => setTimeout(r, 300));
+      const text = document.getElementById('panel-body').innerText;
+      const knoepfe = document.querySelectorAll('#panel-body [data-act="expandPlot"]').length;
+      g.panels.close();
+      return {
+        nenntRegel: text.indexOf('wächst nichts nach') >= 0,
+        nenntGroesse: /\d+ × \d+ Kacheln/.test(text),
+        stufen: (text.match(/Lichtung|Hinterhof|Garten|Anwesen/g) || []).length,
+        knoepfe,
+      };
+    });
+    check('Das Lagerfenster nennt Größe, Regel und Ausbau',
+      lagerFenster.nenntRegel && lagerFenster.nenntGroesse &&
+      lagerFenster.stufen >= 4 && lagerFenster.knoepfe === 1,
+      JSON.stringify(lagerFenster));
+
     /* ---- Der letzte Abend ---- */
     // Der Abschluss darf sich nicht verpassen lassen: Der Ring am Feuer
     // wartet, bis man bei jedem war – auch über Nacht.

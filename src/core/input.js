@@ -20,6 +20,7 @@ const KEYMAP = {
   KeyM: 'panelMap',
   KeyB: 'panelFound',
   KeyG: 'panelStories',
+  KeyL: 'panelPlot',
   KeyF: 'sleep',
   KeyR: 'rotate',
   KeyX: 'cancelPlace',

@@ -10,6 +10,7 @@ import {
 import { makeEntity, defOf, spriteFor } from './entities.js';
 import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
 import { syncIdCounter } from '../core/util.js';
+import { inPlot, inPlotAt } from '../game/plot.js';
 
 const CELL = 160;
 const GRID_W = Math.ceil((MAP_W * TILE_SIZE) / CELL);
@@ -43,6 +44,8 @@ export class World {
     this.groundStamp = 0;
     this.unlocked = [true, false, false, false];
     this.bridgeBuilt = false;
+    /** Ausbaustufe des Grundstücks – die Welt liest sie beim Nachwachsen. */
+    this.plotStage = 1;
   }
 
   /* ---------- Kacheln ---------- */
@@ -436,7 +439,9 @@ export class World {
       if (this.entities[i].fromEvent) this.remove(this.entities[i]);
     }
 
-    for (let i = 0; i < this.entities.length; i++) {
+    // Rückwärts: Auf dem Grundstück wird hier entfernt, und `remove` rückt
+    // die Liste zusammen – vorwärts übersprungen man dabei den Nachbarn.
+    for (let i = this.entities.length - 1; i >= 0; i--) {
       const e = this.entities[i];
       if (!e.gone && e.kind !== 'tree_stump') {
         const def = defOf(e.kind);
@@ -444,6 +449,15 @@ export class World {
         continue;
       }
       if (e.respawnDay && day >= e.respawnDay) {
+        // Auf dem Grundstück wächst nichts nach. Das ist die ganze Regel,
+        // und sie ist der Grund, warum man dort überhaupt bauen kann: Ohne
+        // sie stand der gefällte Baum drei Tage später wieder mitten im
+        // Garten. Gefundenes und Grabstellen bleiben davon unberührt – die
+        // legt `_respawnDigspots` ohnehin neu aus.
+        if (inPlotAt(e.x, e.y, this.plotStage)) {
+          this.remove(e);
+          continue;
+        }
         if (e.origin) {
           e.kind = e.origin;
           e.sprite = spriteFor(e.origin, e.x, e.y) || e.sprite;
@@ -472,8 +486,9 @@ export class World {
     const regions = ALL_REGIONS;
     for (let r = 0; r < regions.length; r++) {
       if (!this.unlocked[regions[r]]) continue;
-      const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
-        return t === T.GRASS || t === T.DIRT;
+      const self = this;
+      const spots = walkableTilesOf(this.tiles, regions[r], function (t, tx, ty) {
+        return (t === T.GRASS || t === T.DIRT) && !inPlot(tx, ty, self.plotStage);
       });
       let placed = 0;
       let guard = 0;
@@ -513,8 +528,10 @@ export class World {
     while (have < count && guard++ < 500) {
       const r = regions[Math.floor(rng() * regions.length)];
       if (!this.unlocked[r]) continue;
-      const spots = walkableTilesOf(this.tiles, r, function (t) {
-        return t === T.GRASS || t === T.DIRT || t === T.ROCKFLOOR;
+      const self = this;
+      const spots = walkableTilesOf(this.tiles, r, function (t, tx, ty) {
+        return (t === T.GRASS || t === T.DIRT || t === T.ROCKFLOOR) &&
+          !inPlot(tx, ty, self.plotStage);
       });
       if (!spots.length) continue;
       const s = spots[Math.floor(rng() * spots.length)];
@@ -533,8 +550,12 @@ export class World {
     const regions = ALL_REGIONS;
     for (let r = 0; r < regions.length; r++) {
       if (!this.unlocked[regions[r]]) continue;
-      const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
-        return t === T.SAND || t === T.GRASS || t === T.DIRT;
+      const self = this;
+      const spots = walkableTilesOf(this.tiles, regions[r], function (t, tx, ty) {
+        if (t !== T.SAND && t !== T.GRASS && t !== T.DIRT) return false;
+        // Nicht auf dem Grundstück: Wer seinen Garten anlegt, will morgens
+        // keine frischen Löcher darin finden.
+        return !inPlot(tx, ty, self.plotStage);
       });
       // Die Stille Insel ist klein – dort wären sieben Grabstellen ein
       // Minenfeld statt eines Fundes.

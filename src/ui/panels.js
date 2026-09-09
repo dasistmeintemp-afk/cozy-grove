@@ -12,6 +12,7 @@ import { SETS, SET_IDS, setById, progressOf, itemsOf, hintFor, totalProgress } f
 import { unreadCount } from '../game/mail.js';
 import { STAGES as LOAN_STAGES, statusOf } from '../game/loan.js';
 import { finaleLine, stillSilent, FINALE_CLOSE, FINALE_COUNT } from '../game/finale.js';
+import { PLOT_STAGES, MAX_PLOT_STAGE } from '../game/plot.js';
 import { UI_SCALES } from './uiscale.js';
 import { CROPS } from '../game/crops.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
@@ -32,6 +33,7 @@ const TITLES = {
   daybook: 'Gestern auf der Insel',
   mail: 'Post',
   storage: 'Vorratstruhe',
+  plot: 'Dein Lager',
 };
 
 function ico(name, cls) {
@@ -210,6 +212,10 @@ export class Panels {
         break;
       case 'payLoan':
         g.payLoanAmount(Number(arg));
+        this.render();
+        break;
+      case 'expandPlot':
+        g.expandPlot();
         this.render();
         break;
       case 'close':
@@ -589,6 +595,60 @@ export class Panels {
       html += '<div class="row">' + ico('icon_star', 'lg') +
         '<div class="grow"><div class="title">Die Insel</div>' +
         '<div class="brief">' + escapeHtml(FINALE_CLOSE) + '</div></div></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  /* ---------------- Dein Lager ---------------- */
+
+  /**
+   * Das Grundstück: wie groß, was darauf steht, und was der Ausbau kostet.
+   *
+   * Die wichtigste Zeile ist die über das Nachwachsen. Sie ist der Grund,
+   * warum man hier überhaupt etwas anlegen kann, und sie steht nirgends
+   * sonst – ohne sie fällt man drei Bäume und wundert sich am dritten
+   * Morgen.
+   */
+  _plot() {
+    const g = this.game;
+    const stand = g.plotStatus();
+    const inhalt = g.plotContents();
+    const b = stand.bounds;
+    const breite = b.x1 - b.x0 + 1;
+    const hoehe = b.y1 - b.y0 + 1;
+
+    let html = '<div class="rows"><div class="row">' + ico('icon_flowerbed', 'lg') +
+      '<div class="grow"><div class="title">' + escapeHtml(stand.name) + ' · ' +
+      breite + ' × ' + hoehe + ' Kacheln</div>' +
+      '<div class="meta"><span>Stufe ' + stand.stufe + ' von ' + MAX_PLOT_STAGE + '</span>' +
+      '<span>' + ico('icon_lantern') + ' ' + inhalt.deko + ' aufgestellt</span>' +
+      '<span>' + ico('icon_seed_berry') + ' ' + inhalt.beete + ' Beete</span>' +
+      '<span>' + ico('icon_axe') + ' ' + inhalt.wild + ' noch im Weg</span>' +
+      '</div></div></div></div>';
+
+    html += '<p class="empty-note" style="padding:12px 0">' +
+      'Innerhalb der gestrichelten Linie <b>wächst nichts nach</b>. Was du hier ' +
+      'fällst und wegräumst, bleibt weg – und nur hier darfst du dicht ans Lager bauen.' +
+      '</p>';
+
+    html += '<h3 style="font-size:0.95em;margin:6px 0 8px">Ausbau</h3><div class="rows">';
+    for (let i = 0; i < PLOT_STAGES.length; i++) {
+      const st = PLOT_STAGES[i];
+      const steht = st.id <= stand.stufe;
+      const dran = stand.naechste && st.id === stand.naechste.id;
+      const kann = dran && g.state.ember >= st.ember;
+      html += '<div class="row' + (steht || dran ? '' : ' dim') + '">' +
+        ico(steht ? 'icon_check' : 'icon_flowerbed', 'lg') +
+        '<div class="grow"><div class="title">' + escapeHtml(st.name) + ' · ' +
+        (st.halfW * 2 + 1) + ' × ' + (st.halfH * 2 + 1) + '</div>' +
+        '<div class="meta"><span>' + escapeHtml(st.note) + '</span>' +
+        (st.ember ? '<span>' + ico('icon_ember') + ' ' + st.ember + '</span>' : '') +
+        '</div></div>' +
+        (steht ? '<span class="row-btn ghost">' + ico('icon_check') + '</span>'
+          : dran ? '<button class="row-btn" data-act="expandPlot"' +
+            (kann ? '' : ' disabled') + '>Ausbauen</button>' : '') +
+        '</div>';
     }
     html += '</div>';
     return html;

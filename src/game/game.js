@@ -28,6 +28,7 @@ import { dueSets } from './collection.js';
 import { mailFor, fileMail, unreadCount } from './mail.js';
 import { STAGES as LOAN_STAGES, statusOf, pay as payLoan, slotsAt, emptyLoan } from './loan.js';
 import { finaleLine, allHeard, stillSilent, circleSpots, FINALE_CLOSE, FINALE_COUNT } from './finale.js';
+import { PLOT_STAGES, plotStage, nextPlotStage, plotBounds, inPlotAt, MAX_PLOT_STAGE } from './plot.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
@@ -144,6 +145,9 @@ export class Game {
     // Vor `_syncCampfireColor`: der Feuerkreis hängt an einem Meilenstein.
     this._perksChanged();
     this.syncStorage();
+    // Die Welt muss wissen, wie weit das Grundstück reicht: Sie entscheidet
+    // damit, was nachwächst und wo Grabstellen auftauchen.
+    this.world.plotStage = this.state.plot || 1;
     // Still: beim Laden steht die Deko ja schon da, da wäre eine Meldung
     // für jede Stufe eine Meldungslawine beim Spielstart.
     this.syncCosiness(true);
@@ -195,6 +199,7 @@ export class Game {
       mail: [],
       loan: emptyLoan(),
       finale: null,
+      plot: 1,
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -223,6 +228,7 @@ export class Game {
       mail: [],
       loan: emptyLoan(),
       finale: null,
+      plot: 1,
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -231,6 +237,8 @@ export class Game {
     if (!this.state.collected) this.state.collected = Object.create(null);
     if (!Array.isArray(this.state.mail)) this.state.mail = [];
     if (!this.state.loan) this.state.loan = emptyLoan();
+    // Ein Spielstand von vor dem Grundstück fängt bei der Lichtung an.
+    if (!this.state.plot) this.state.plot = 1;
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -540,6 +548,7 @@ export class Game {
     if (inp.pressed('panelMap')) this.openPanel('map');
     if (inp.pressed('panelFound')) this.openPanel('found');
     if (inp.pressed('panelStories')) this.openPanel('stories');
+    if (inp.pressed('panelPlot')) this.openPanel('plot');
     if (inp.pressed('cancel')) {
       if (this.panels.isOpen()) this.panels.close();
       else if (this.placing) this.cancelPlacing();
@@ -1456,6 +1465,81 @@ export class Game {
     if (got.length) this.ui.toastItems(got);
   }
 
+  /* ---------------- Das Grundstück ---------------- */
+
+  /** Stand des Grundstücks: Stufe, Grenzen, was der Ausbau kostet. */
+  plotStatus() {
+    const stufe = this.state.plot || 1;
+    const jetzt = plotStage(stufe);
+    const naechste = nextPlotStage(stufe);
+    return {
+      stufe: stufe,
+      name: jetzt ? jetzt.name : '',
+      bounds: plotBounds(stufe),
+      naechste: naechste,
+      kosten: naechste ? naechste.ember : 0,
+      fertig: !naechste,
+    };
+  }
+
+  /**
+   * Das Grundstück erweitern.
+   *
+   * Bezahlt wird in Glut. Münzen haben mit der Vorratstruhe schon ein
+   * großes Ziel; Glut hing bisher nur am Lagerfeuer und an der Werkbank.
+   */
+  expandPlot() {
+    const stand = this.plotStatus();
+    if (stand.fertig) return;
+    if (this.state.ember < stand.kosten) {
+      this.ui.toast('Es fehlt Glut', 'icon_ember', 'bad');
+      return;
+    }
+    this.state.ember -= stand.kosten;
+    this.state.plot = stand.naechste.id;
+    this.world.plotStage = this.state.plot;
+    this.ui.toast(stand.naechste.name + ' – das Grundstück wächst', 'icon_flowerbed', 'good');
+    this.audio.play('levelup');
+    if (this.world.tent) {
+      this.particles.burst('color', this.world.tent.x, this.world.tent.y - 60, 30);
+    }
+    this.ui.refreshHud();
+    this.invalidate();
+    this.save();
+  }
+
+  /** Die Grenze in Weltpixeln – der Renderer zeichnet sie auf den Boden. */
+  plotRect() {
+    const b = plotBounds(this.state.plot || 1);
+    return {
+      x: b.x0 * TILE_SIZE,
+      y: b.y0 * TILE_SIZE,
+      w: (b.x1 - b.x0 + 1) * TILE_SIZE,
+      h: (b.y1 - b.y0 + 1) * TILE_SIZE,
+    };
+  }
+
+  /** Was auf dem Grundstück steht – für die Anzeige. */
+  plotContents() {
+    const stufe = this.state.plot || 1;
+    let deko = 0;
+    let beete = 0;
+    let wild = 0;
+    for (let i = 0; i < this.world.entities.length; i++) {
+      const e = this.world.entities[i];
+      if (e.gone) continue;
+      if (!inPlotAt(e.x, e.y, stufe)) continue;
+      if (e.kind === 'decor') deko++;
+      else if (e.kind === 'crop') beete++;
+      else {
+        const d = defOf(e.kind);
+        if (d && (d.category === 'tree' || d.category === 'rock' ||
+            d.category === 'bush' || d.category === 'stump')) wild++;
+      }
+    }
+    return { deko: deko, beete: beete, wild: wild };
+  }
+
   /* ---------------- Der letzte Abend ---------------- */
 
   /** Läuft der Abschluss gerade – versammelt, aber noch nicht durch? */
@@ -2263,8 +2347,10 @@ export class Game {
       const dx = e.x - x;
       const dy = e.y - y;
       const dist2 = dx * dx + dy * dy;
+      const eigen = inPlotAt(x, y, this.state.plot);
+      if (d.category === 'spirit' && eigen) continue;
       if ((d.category === 'station' || d.category === 'spirit' || d.category === 'fox') &&
-          dist2 < 110 * 110) {
+          dist2 < (eigen ? 74 : 110) * (eigen ? 74 : 110)) {
         return 'Zu nah am Lager';
       }
       if (e.kind === 'decor' && dist2 < 52 * 52) return 'Zu nah an anderer Deko';
@@ -2311,7 +2397,15 @@ export class Game {
       if (d.category === 'station' || d.category === 'spirit' || d.category === 'fox') {
         const dx = e.x - x;
         const dy = e.y - y;
-        if (dx * dx + dy * dy < 110 * 110) return false;
+        // Auf dem eigenen Grundstück gelten andere Abstände. Der große Radius
+        // hält den Weg zum Lager frei – auf eigenem Grund ist das die eigene
+        // Sache. Und ein GEIST blockiert dort gar nicht: Er steht morgen
+        // woanders, und eine Bank nicht aufstellen zu dürfen, weil gerade
+        // jemand daneben schwebt, wäre eine Regel ohne Grund.
+        const eigen = inPlotAt(x, y, this.state.plot);
+        if (eigen && d.category === 'spirit') continue;
+        const r = eigen ? 74 : 110;
+        if (dx * dx + dy * dy < r * r) return false;
       }
       if (e.kind === 'decor') {
         const dx = e.x - x;

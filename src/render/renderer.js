@@ -152,6 +152,10 @@ export class Renderer {
     const sources = game.colorField.visibleSources(camX, camY, this.viewW, this.viewH);
     if (sources.length) this._drawColorPass(ctx, game, sources, camX, camY);
 
+    // Die Grenze liegt AUF dem Boden, unter allem, was darauf steht – sonst
+    // liefe eine gestrichelte Linie quer über Zelt und Bäume.
+    this._drawPlot(ctx, game, camX, camY);
+
     // 2 – Objekte in EINEM Durchgang. Wie farbig etwas ist, entscheidet die
     //     Farbquelle an seiner Position – das spart das zweite Malen der
     //     ganzen Szene und war der Grund für die schlechte Bildrate.
@@ -535,6 +539,42 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  /**
+   * Die Grenze des Grundstücks – eine gestrichelte Linie im Gras.
+   *
+   * Ohne sie weiß niemand, wo die Regeln wechseln: Innerhalb wächst nichts
+   * nach und man darf näher ans Lager bauen, außerhalb nicht. Bewusst dünn
+   * und blass – es ist ein Vermerk, kein Zaun.
+   */
+  _drawPlot(ctx, game, camX, camY) {
+    if (!game.plotStatus) return;
+    const r = game.plotRect ? game.plotRect() : null;
+    if (!r) return;
+    if (r.x + r.w < camX || r.x > camX + this.viewW) return;
+    if (r.y + r.h < camY || r.y > camY + this.viewH) return;
+
+    ctx.save();
+    ctx.strokeStyle = INK.lineSoft;
+    ctx.globalAlpha = 0.42;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([16, 14]);
+    ctx.lineCap = 'round';
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.setLineDash([]);
+    // Eckpfosten: die Linie allein liest sich als Zeichenfehler, vier
+    // Pflöcke sagen „das ist abgesteckt".
+    ctx.globalAlpha = 0.72;
+    ctx.fillStyle = INK.wood;
+    const ecken = [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]];
+    for (let i = 0; i < ecken.length; i++) {
+      ctx.beginPath();
+      ctx.ellipse(ecken[i][0], ecken[i][1] - 10, 4, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   _drawMarkers(ctx, game, time) {
