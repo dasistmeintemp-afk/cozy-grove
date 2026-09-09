@@ -85,8 +85,8 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | `E` am Briefkasten | Post lesen |
 | `E` an der Truhe | Vorrat ein- und auslagern |
 | `G` | Erinnerungen |
-| `L` | Dein Lager (Grundstück und Ausbau) |
-| `F` | schlafen (am Zelt) |
+| `L` | Dein Lager (Grundstück und Hausausbau) |
+| `F` | schlafen (zu Hause) |
 | `R` / `X` | Deko versetzen / abbrechen |
 | `Esc` | Menü, Fenster schließen |
 
@@ -131,6 +131,21 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   21×15 → Garten 27×19 → Anwesen 33×23. Zu roden sind auf der ersten Stufe
   ein knappes Dutzend Bäume und Steine, auf der letzten rund 120 – ein
   Vorhaben, kein Nachmittag. `L` öffnet das Fenster.
+* **Vom Zelt zum Haus.** Mitten auf dem Grundstück steht dein Zuhause, und es
+  bleibt kein Zelt: Hütte → Haus → Haus mit Veranda. Bezahlt wird in
+  **Material** – Holz, Hartholz, Stein, Ton, Kupfer –, also genau in dem, was
+  beim Freiräumen des eigenen Grundstücks ohnehin anfällt. Damit zieht jede
+  der drei langen Währungen an etwas Eigenem: Münzen an der Vorratstruhe,
+  Glut am Grundstück, Material am Haus.
+
+  Jede Stufe ist von außen zu sehen, nicht nur in einer Liste: Die bemalte
+  Fläche wächst von 324×266 Bildpunkten (Zelt) über 289×264 und 342×318 auf
+  395×376, dazu kommen ein zweites Fenster, ein Schornstein, ein Giebelfenster
+  und zuletzt Dielen mit Vordach und zwei Laternen. Ab der Hütte **leuchtet
+  nachts dein eigenes Fenster** (150 → 210 → 280), und ums Haus liegt ein
+  eigener Farbkreis (120 → 260 → 420), der wie der des Lagerfeuers nie wieder
+  kleiner wird. Kollision und Reichweite wachsen mit – sonst liefe man durch
+  die eigene Wand oder käme nicht mehr an die eigene Tür.
 * **Der letzte Abend.** Bei hundert Prozent versammeln sich alle sieben
   Geister am Lagerfeuer und warten dort – nicht einen Tag lang, sondern so
   lange, bis du bei jedem warst. Jeder sagt einen Satz; wer alle gehört hat,

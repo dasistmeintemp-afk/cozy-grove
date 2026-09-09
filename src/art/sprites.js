@@ -16,6 +16,7 @@ import {
 } from './painted.js';
 import {
   paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench, paintBoat, paintMailbox,
+  paintHouse,
   paintLantern, paintBench, paintFence, paintFlowerbed, paintBirdhouse,
   paintWindchime, paintRug, paintSignpost, paintCrate, paintChest,
   paintMemory, paintTool, paintButterfly, paintBird,
@@ -251,6 +252,8 @@ export function initArt() {
   addArt('workbench', paintWorkbench({ seed: 371 }));
   addArt('boat', paintBoat({ seed: 391 }));
   addArt('mailbox', paintMailbox({ seed: 411 }));
+  // Die Ausbaustufen des Zuhauses – Stufe 1 ist das Zelt.
+  for (let st = 2; st <= 4; st++) addArt('house_' + st, paintHouse(st, { seed: 600 + st * 31 }));
 
   /* --- Deko --- */
   addArt('lantern', paintLantern({ seed: 391 }));

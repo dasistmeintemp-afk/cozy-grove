@@ -193,7 +193,10 @@ export class Player {
       if (e.gone) continue;
       const def = defOf(e.kind);
       if (!def) continue;
-      const reach = def.reachR || 72;
+      // `e.reachR` schlägt die Art: Das Zuhause wächst vom Zelt zum Haus mit
+      // Veranda und wird dabei doppelt so breit. Bliebe die Reichweite die
+      // der Art, stünde man vor der Haustür und käme nicht hinein.
+      const reach = (e.reachR != null ? e.reachR : def.reachR) || 72;
       const dx = e.x - this.x;
       const dy = (e.y - 16) - this.y;
       const d = Math.sqrt(dx * dx + dy * dy);

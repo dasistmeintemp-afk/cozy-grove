@@ -29,6 +29,10 @@ import { mailFor, fileMail, unreadCount } from './mail.js';
 import { STAGES as LOAN_STAGES, statusOf, pay as payLoan, slotsAt, emptyLoan } from './loan.js';
 import { finaleLine, allHeard, stillSilent, circleSpots, FINALE_CLOSE, FINALE_COUNT } from './finale.js';
 import { PLOT_STAGES, plotStage, nextPlotStage, plotBounds, inPlotAt, MAX_PLOT_STAGE } from './plot.js';
+import {
+  houseStage, nextHouseStage, houseSprite, houseLight, houseColor,
+  houseFootprint, missingFor as houseMissing,
+} from './house.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
@@ -148,6 +152,8 @@ export class Game {
     // Die Welt muss wissen, wie weit das Grundstück reicht: Sie entscheidet
     // damit, was nachwächst und wo Grabstellen auftauchen.
     this.world.plotStage = this.state.plot || 1;
+    // Grafik, Kollision und Farbkreis des Zuhauses hängen an der Ausbaustufe.
+    this.syncHouse();
     // Still: beim Laden steht die Deko ja schon da, da wäre eine Meldung
     // für jede Stufe eine Meldungslawine beim Spielstart.
     this.syncCosiness(true);
@@ -200,6 +206,7 @@ export class Game {
       loan: emptyLoan(),
       finale: null,
       plot: 1,
+      house: 1,
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -229,6 +236,7 @@ export class Game {
       loan: emptyLoan(),
       finale: null,
       plot: 1,
+      house: 1,
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -237,8 +245,10 @@ export class Game {
     if (!this.state.collected) this.state.collected = Object.create(null);
     if (!Array.isArray(this.state.mail)) this.state.mail = [];
     if (!this.state.loan) this.state.loan = emptyLoan();
-    // Ein Spielstand von vor dem Grundstück fängt bei der Lichtung an.
+    // Ein Spielstand von vor dem Grundstück fängt bei der Lichtung an,
+    // einer von vor dem Hausausbau steht noch im Zelt.
     if (!this.state.plot) this.state.plot = 1;
+    if (!this.state.house) this.state.house = 1;
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -1540,6 +1550,83 @@ export class Game {
     return { deko: deko, beete: beete, wild: wild };
   }
 
+  /* ---------------- Vom Zelt zum Haus ---------------- */
+
+  /**
+   * Das Zuhause an die Ausbaustufe angleichen.
+   *
+   * Läuft beim Start und nach jedem Ausbau. Grafik, Kollision und Reichweite
+   * hängen alle an derselben Stufe – stünden sie auseinander, liefe man
+   * entweder durch die eigene Wand oder käme nicht mehr an die Tür.
+   */
+  syncHouse() {
+    const stufe = this.state.house || 1;
+    const e = this.world.tent;
+    if (!e) return;
+    const f = houseFootprint(stufe);
+    e.sprite = houseSprite(stufe);
+    e.blockR = f.blockR;
+    e.blockH = f.blockH;
+    e.reachR = f.reachR;
+
+    // Ein Haus sieht man auch aus der Ferne: eigener Farbkreis, der mit der
+    // Stufe wächst. Wie beim Lagerfeuer wird er nie kleiner.
+    const radius = houseColor(stufe);
+    if (radius > 0) {
+      const src = this.colorField.find('house');
+      if (!src) this.colorField.addSource(e.x, e.y, radius, 'house');
+      else if (src.target < radius) src.target = radius;
+      this.colorField.markDirty();
+    }
+    this.invalidate();
+  }
+
+  /** Stand des Zuhauses: Stufe, Name, was der nächste Ausbau kostet. */
+  houseStatus() {
+    const stufe = this.state.house || 1;
+    const jetzt = houseStage(stufe);
+    const naechste = nextHouseStage(stufe);
+    return {
+      stufe: stufe,
+      name: jetzt ? jetzt.name : '',
+      note: jetzt ? jetzt.note : '',
+      naechste: naechste,
+      fehlt: naechste ? houseMissing(stufe, this.inventory) : [],
+      fertig: !naechste,
+    };
+  }
+
+  /**
+   * Das Zuhause ausbauen.
+   *
+   * Bezahlt wird in Material – der dritten langen Währung neben Münzen für
+   * die Vorratstruhe und Glut fürs Grundstück. Was man beim Freiräumen des
+   * eigenen Grundstücks ohnehin schlägt, wandert so in die eigenen Wände.
+   */
+  buildHouse() {
+    const stand = this.houseStatus();
+    if (stand.fertig) return;
+    if (stand.fehlt.length) {
+      this.ui.toast('Es fehlt Material', 'icon_wood', 'bad');
+      return;
+    }
+    const kosten = stand.naechste.cost;
+    for (let i = 0; i < kosten.length; i++) {
+      this.inventory.remove(kosten[i].id, kosten[i].n);
+    }
+    this.state.house = stand.naechste.id;
+    this.syncHouse();
+    this.ui.toast(stand.naechste.name + ' steht', 'icon_hammer', 'good');
+    this.audio.play('levelup');
+    if (this.world.tent) {
+      this.particles.burst('color', this.world.tent.x, this.world.tent.y - 90, 34);
+      this.camera.kick(0.4);
+    }
+    this.ui.refreshHud();
+    this.ui.refreshQuests();
+    this.save();
+  }
+
   /* ---------------- Der letzte Abend ---------------- */
 
   /** Läuft der Abschluss gerade – versammelt, aber noch nicht durch? */
@@ -2695,6 +2782,13 @@ export class Game {
       out.push({ x: c.x, y: c.y - 34, r: fire.light * this.perks().fire * flicker, a: 0.98 });
     }
     out.push({ x: this.player.x, y: this.player.y - 42, r: 170, a: 0.6 });
+
+    // Das eigene Fenster. Erst ab der Hütte – ein Zelt leuchtet nicht.
+    const hausLicht = houseLight(this.state.house || 1);
+    const haus = this.world.tent;
+    if (hausLicht > 0 && haus) {
+      out.push({ x: haus.x, y: haus.y - 110, r: hausLicht, a: 0.82 });
+    }
 
     const near = this.world.queryRect(
       this.camera.ox - 200, this.camera.oy - 200,

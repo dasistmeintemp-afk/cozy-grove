@@ -1872,6 +1872,116 @@ async function run() {
       lagerFenster.stufen >= 4 && lagerFenster.knoepfe === 1,
       JSON.stringify(lagerFenster));
 
+    /* ---- Vom Zelt zum Haus ---- */
+    const haus = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.house = 1;
+      g.syncHouse();
+      const zelt = g.world.tent;
+      const vorher = {
+        sprite: zelt.sprite, block: zelt.blockR, reach: zelt.reachR,
+        stufe: g.houseStatus().stufe,
+      };
+
+      // Ohne Material passiert nichts – auch nicht heimlich.
+      const stand = g.houseStatus();
+      for (const c of stand.naechste.cost) g.inventory.remove(c.id, 9999);
+      g.buildHouse();
+      const ohneMaterial = g.state.house;
+
+      // Mit Material: die Grafik wechselt, und das Material ist weg.
+      for (const c of stand.naechste.cost) g.inventory.add(c.id, c.n);
+      const bezahlt = stand.naechste.cost[0];
+      g.buildHouse();
+      const nachBau = {
+        stufe: g.state.house, sprite: zelt.sprite,
+        block: zelt.blockR, reach: zelt.reachR,
+        restMaterial: g.inventory.count(bezahlt.id),
+      };
+
+      // Nachts leuchtet das eigene Fenster – vorher nicht.
+      const lichterHaus = g.lightSources(0).filter(
+        (L) => Math.abs(L.x - zelt.x) < 4 && Math.abs(L.y - (zelt.y - 110)) < 4).length;
+      g.state.house = 1;
+      g.syncHouse();
+      const lichterZelt = g.lightSources(0).filter(
+        (L) => Math.abs(L.x - zelt.x) < 4 && Math.abs(L.y - (zelt.y - 110)) < 4).length;
+
+      // Der Farbkreis ums Haus bleibt, wenn man ihn einmal hat. Die ZAHL
+      // festhalten, nicht die Quelle: `find` liefert beide Male dasselbe
+      // Objekt, und ein Vergleich mit sich selbst geht immer aus.
+      g.state.house = 3;
+      g.syncHouse();
+      const kreisGross = (g.colorField.find('house') || {}).target || 0;
+      g.state.house = 2;
+      g.syncHouse();
+      const kreisKlein = (g.colorField.find('house') || {}).target || 0;
+
+      // Die Stufe muss den Spielstand überleben: Wer tagelang Material
+      // sammelt und nach dem Neuladen wieder im Zelt steht, hört auf.
+      g.state.house = 3;
+      const gespeichert = g.toJSON().state.house;
+
+      g.state.house = 1;
+      g.syncHouse();
+      return {
+        vorher, ohneMaterial, nachBau, lichterHaus, lichterZelt,
+        kreisGross, kreisKlein, gespeichert,
+      };
+    });
+    check('Die Ausbaustufe des Hauses wird gespeichert',
+      haus.gespeichert === 3, JSON.stringify(haus.gespeichert));
+    check('Ohne Material bleibt das Zelt stehen',
+      haus.ohneMaterial === 1 && haus.vorher.sprite === 'tent', JSON.stringify(haus));
+    check('Gebaut wechselt die Grafik und das Material ist bezahlt',
+      haus.nachBau.stufe === 2 && haus.nachBau.sprite === 'house_2' &&
+      haus.nachBau.restMaterial === 0, JSON.stringify(haus.nachBau));
+    check('Das größere Haus blockiert mehr und reicht weiter',
+      haus.nachBau.block > haus.vorher.block && haus.nachBau.reach > haus.vorher.reach,
+      JSON.stringify({ vorher: haus.vorher, nachher: haus.nachBau }));
+    check('Erst das Haus hat ein Fenster, das nachts leuchtet',
+      haus.lichterHaus === 1 && haus.lichterZelt === 0, JSON.stringify(haus));
+    check('Der Farbkreis ums Haus wird nie wieder kleiner',
+      haus.kreisGross > 0 && haus.kreisKlein === haus.kreisGross, JSON.stringify(haus));
+
+    const hausFenster = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.house = 1;
+      g.syncHouse();
+      const stand = g.houseStatus();
+      for (const c of stand.naechste.cost) g.inventory.remove(c.id, 9999);
+      g.openPanel('plot');
+      await new Promise((r) => setTimeout(r, 300));
+      const text = document.getElementById('panel-body').innerText;
+      const knopf = document.querySelector('#panel-body [data-act="buildHouse"]');
+      const gesperrt = knopf ? knopf.disabled : null;
+      // Mit Material muss derselbe Knopf drückbar werden.
+      for (const c of stand.naechste.cost) g.inventory.add(c.id, c.n);
+      g.panels.render();
+      const knopf2 = document.querySelector('#panel-body [data-act="buildHouse"]');
+      const frei = knopf2 ? knopf2.disabled === false : null;
+      g.panels.close();
+      for (const c of stand.naechste.cost) g.inventory.remove(c.id, 9999);
+      return {
+        stufen: (text.match(/Das Zelt|Die Hütte|Das Haus|Haus mit Veranda/g) || []).length,
+        // Die Kostenzeile zeigt Stand und Ziel, nicht nur das Ziel
+        nenntStand: /0\/\d+/.test(text),
+        // Weit entfernte Stufen verraten ihre Einkaufsliste noch nicht
+        nurEineListe: (text.match(/\d+\/\d+/g) || []).length ===
+          stand.naechste.cost.length,
+        gesperrt, frei,
+      };
+    });
+    check('Das Lagerfenster zeigt alle vier Wohnstufen',
+      hausFenster.stufen >= 4, JSON.stringify(hausFenster));
+    check('Die Baukosten zeigen, was man hat und was man braucht',
+      hausFenster.nenntStand === true, JSON.stringify(hausFenster));
+    check('Nur die nächste Stufe verrät ihre Einkaufsliste',
+      hausFenster.nurEineListe === true, JSON.stringify(hausFenster));
+    check('Der Bauknopf ist gesperrt, bis das Material da ist',
+      hausFenster.gesperrt === true && hausFenster.frei === true,
+      JSON.stringify(hausFenster));
+
     /* ---- Der letzte Abend ---- */
     // Der Abschluss darf sich nicht verpassen lassen: Der Ring am Feuer
     // wartet, bis man bei jedem war – auch über Nacht.

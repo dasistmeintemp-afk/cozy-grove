@@ -13,6 +13,7 @@ import { unreadCount } from '../game/mail.js';
 import { STAGES as LOAN_STAGES, statusOf } from '../game/loan.js';
 import { finaleLine, stillSilent, FINALE_CLOSE, FINALE_COUNT } from '../game/finale.js';
 import { PLOT_STAGES, MAX_PLOT_STAGE } from '../game/plot.js';
+import { HOUSE_STAGES, MAX_HOUSE_STAGE } from '../game/house.js';
 import { UI_SCALES } from './uiscale.js';
 import { CROPS } from '../game/crops.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
@@ -216,6 +217,10 @@ export class Panels {
         break;
       case 'expandPlot':
         g.expandPlot();
+        this.render();
+        break;
+      case 'buildHouse':
+        g.buildHouse();
         this.render();
         break;
       case 'close':
@@ -651,6 +656,58 @@ export class Panels {
         '</div>';
     }
     html += '</div>';
+    html += this._house();
+    return html;
+  }
+
+  /**
+   * Das Zuhause: vom Zelt zum Haus mit Veranda.
+   *
+   * Steht im selben Fenster wie das Grundstück – beide gehören zum Lager,
+   * und wer das eine ausbaut, denkt ohnehin ans andere. Bezahlt wird in
+   * Material: Münzen ziehen an der Vorratstruhe, Glut am Grundstück.
+   */
+  _house() {
+    const g = this.game;
+    const stand = g.houseStatus();
+    const tasche = g.inventory;
+
+    let html = '<h3 style="font-size:0.95em;margin:18px 0 8px">Dein Zuhause</h3>' +
+      '<div class="rows">';
+    for (let i = 0; i < HOUSE_STAGES.length; i++) {
+      const st = HOUSE_STAGES[i];
+      const steht = st.id <= stand.stufe;
+      const dran = stand.naechste && st.id === stand.naechste.id;
+      // Material erst nennen, wenn es dran ist: Sonst liest man am ersten Tag
+      // eine Einkaufsliste über vier Stufen und legt das Spiel weg.
+      let kosten = '';
+      if (dran) {
+        for (let k = 0; k < st.cost.length; k++) {
+          const c = st.cost[k];
+          const habe = tasche.count(c.id);
+          // Nicht nur die Zahl, die man braucht, sondern auch die, die man
+          // hat: Beim Haus sammelt man tagelang darauf hin, und ohne den
+          // Stand rennt man nach jedem Baum die Werkbank ansehen.
+          kosten += '<span class="cost' + (habe >= c.n ? '' : ' miss') + '">' +
+            ico(getItem(c.id).icon) + habe + '/' + c.n + '</span>';
+        }
+      }
+      html += '<div class="row' + (steht || dran ? '' : ' dim') + '">' +
+        ico(steht ? 'icon_check' : 'icon_hammer', 'lg') +
+        '<div class="grow"><div class="title">' + escapeHtml(st.name) + '</div>' +
+        '<div class="meta"><span>' + escapeHtml(st.note) + '</span>' + kosten +
+        '</div></div>' +
+        (steht ? '<span class="row-btn ghost">' + ico('icon_check') + '</span>'
+          : dran ? '<button class="row-btn" data-act="buildHouse"' +
+            (stand.fehlt.length ? ' disabled' : '') + '>Bauen</button>' : '') +
+        '</div>';
+    }
+    html += '</div>';
+    if (stand.fertig) {
+      html += '<p class="empty-note" style="padding:10px 0">' +
+        'Stufe ' + stand.stufe + ' von ' + MAX_HOUSE_STAGE + ' – mehr wird es nicht. ' +
+        'Es reicht auch.</p>';
+    }
     return html;
   }
 

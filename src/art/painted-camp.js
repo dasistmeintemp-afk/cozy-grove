@@ -45,6 +45,26 @@ function slab(x0, y0, x1, y1, seed, wob) {
 }
 
 /**
+ * Dasselbe wie `slab`, nur für schräge Kanten.
+ *
+ * Ein Giebel ist kein Rechteck, soll aber genauso wenig zum Laib zerlaufen.
+ * Stützpunkte auf jeder Kante halten die Kurve nah an der Geraden.
+ */
+function poly(ecken, smooth) {
+  const pts = [];
+  for (let i = 0; i < ecken.length; i++) {
+    const a = ecken[i];
+    const b = ecken[(i + 1) % ecken.length];
+    const n = Math.max(2, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 26));
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      pts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    }
+  }
+  return smoothClosed(pts, smooth == null ? 2 : smooth);
+}
+
+/**
  * Seli – die Spielfigur. Blond, warme Erdtöne, ein Tupfen Türkis,
  * damit sie sich vom gelbgrünen Boden abhebt.
  */
@@ -349,6 +369,253 @@ export function paintMailbox(opts) {
       // Der Mast der Fahne
       inkLine(g, cx + 36, baseY - 134, cx + 36, baseY - 104,
         { width: 2.4, bend: 0, seed: seed + 14, color: ink.line, alpha: 0.9 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Das Zuhause in seinen Ausbaustufen.
+ *
+ * Drei Häuser aus einem Bauplan: Wand, Giebel, Satteldach, Tür, Fenster – und
+ * je nach Stufe kommt etwas dazu (zweites Fenster, Schornstein, Giebelfenster,
+ * Veranda mit Laternen). So bleiben sie unverkennbar dasselbe Haus und wachsen
+ * trotzdem sichtbar.
+ *
+ * Drei Dinge sind hier mit Absicht so und nicht anders:
+ *
+ * 1. **Wand und Schornstein entstehen mit `slab`.** Ein Haus hat Ecken. Rund
+ *    gezeichnet las sich die Wand wie ein Brotlaib – genau der Grund, aus dem
+ *    auch die Theke des Marktstands aus Platten besteht.
+ * 2. **Der Giebel ist eine eigene Fläche.** Das Dach ist ein Band, kein
+ *    gefülltes Dreieck. Ohne Giebel klafft zwischen Dachunterkante und
+ *    Wandoberkante ein Loch; auf Stufe 2 deckte das breite Band es zufällig
+ *    zu, auf Stufe 4 stand der Hintergrund mitten im Haus.
+ * 3. **Der Schornstein sitzt auf der Dachschräge.** Seine Höhe wird aus
+ *    `dachY` gerechnet und sein Fuß liegt unter dem Dach, das danach darüber
+ *    gemalt wird. Auf fester Höhe gesetzt schwebte er über dem First.
+ *
+ * `stage` ist 2, 3 oder 4; Stufe 1 ist das Zelt und hat seinen eigenen Maler.
+ */
+export function paintHouse(stage, opts) {
+  const o = opts || {};
+  // Die Maße je Stufe ausgeschrieben statt in geschachtelten Fragezeichen:
+  // Beim Haus hängt jede Zahl an der nächsten, und Vordach, Tür und Fenster
+  // gehen sich nur aus dem Weg, wenn man sie nebeneinander sieht.
+  //
+  // Gemessen an der bemalten Fläche, nicht an der Leinwand: Das Zelt ist
+  // 324 × 266 groß. Ein erster Entwurf gab der Hütte 240 × 177 – der Umzug
+  // vom Zelt ins Haus hätte das Zuhause also kleiner gemacht. Die Wände
+  // stehen deshalb von Anfang an hoch, und jede Stufe legt sichtbar zu.
+  const L = stage >= 4
+    ? { w: 430, h: 420, halb: 150, wandH: 200, sockel: 32, giebelH: 100, tuerH: 58, tuerW: 34, fenY: 20, fenW: 52, fenH: 50 }
+    : stage === 3
+      ? { w: 380, h: 360, halb: 136, wandH: 178, sockel: 0, giebelH: 92, tuerH: 70, tuerW: 30, fenY: 24, fenW: 46, fenH: 44 }
+      : { w: 340, h: 320, halb: 120, wandH: 152, sockel: 0, giebelH: 84, tuerH: 66, tuerW: 27, fenY: 24, fenW: 44, fenH: 42 };
+
+  const w = L.w;
+  const h = L.h;
+  const halb = L.halb;
+  const seed = o.seed || (600 + stage * 31);
+  const cx = w / 2;
+  const baseY = h - 16;
+  // Auf Stufe 4 steht das Haus auf der Veranda, nicht direkt auf dem Boden.
+  const wandFuss = baseY - L.sockel;
+  const traufe = wandFuss - L.wandH;
+  const first = traufe - L.giebelH;
+  const UEBER = 20;
+
+  /** Oberkante des Dachs im Abstand dx von der Mitte. */
+  function dachY(dx) {
+    const t = Math.min(1, Math.abs(dx) / (halb + UEBER));
+    return first + (traufe + 10 - first) * t;
+  }
+
+  const wand = slab(cx - halb, traufe, cx + halb, wandFuss, seed + 1, 2.0);
+  const giebel = poly([
+    [cx - halb + 2, traufe + 4], [cx, first + 18], [cx + halb - 2, traufe + 4],
+  ], 2);
+  // Satteldach als Band mit Überstand – die Kante bleibt scharf.
+  const dach = poly([
+    [cx - halb - UEBER, traufe + 10], [cx, first],
+    [cx + halb + UEBER, traufe + 10], [cx + halb + 6, traufe + 22],
+    [cx, first + 26], [cx - halb - 6, traufe + 22],
+  ], 2);
+  const tuer = slab(cx - L.tuerW, wandFuss - L.tuerH, cx + L.tuerW, wandFuss, seed + 2, 1.2);
+  // Die Fenster sitzen im Verhältnis zur Wandbreite, nicht auf fester Höhe:
+  // Sonst rutschen sie mit jeder Stufe weiter in die Mitte und lassen an den
+  // Seiten leere Wand stehen.
+  const fenX = Math.round(halb * 0.34);
+  const fenY0 = traufe + L.fenY;
+  const fenY1 = fenY0 + L.fenH;
+  const fenster = slab(cx + fenX, fenY0, cx + fenX + L.fenW, fenY1, seed + 3, 1.0);
+  const fenster2 = stage >= 3
+    ? slab(cx - fenX - L.fenW, fenY0, cx - fenX, fenY1, seed + 4, 1.0) : null;
+
+  // Schornstein: rechts vom First, mit dem Fuß im Dach.
+  const sx0 = cx + halb * 0.30;
+  const sx1 = sx0 + 34;
+  const schlotOben = dachY(sx0 - cx) - 46;
+  const schlot = stage >= 3
+    ? slab(sx0, schlotOben + 8, sx1, dachY(sx1 - cx) + 16, seed + 5, 1.4) : null;
+  const kappe = stage >= 3
+    ? slab(sx0 - 6, schlotOben - 2, sx1 + 6, schlotOben + 12, seed + 6, 1.2) : null;
+  const lukeY = first + 54;
+  const luke = stage >= 3
+    ? smoothClosed(blob(cx, lukeY, 15, 15, seed + 7, 0.12, 12), 4) : null;
+
+  // Veranda: Dielen bis vor die Wand, zwei Pfosten außerhalb der Wandkante,
+  // ein Vordach breiter als das Haus. Nach innen gezeichnet verschwand alles
+  // davon in der Wand – gleiche Farbe, gleiche Fläche, kein Umriss.
+  const dielen = stage >= 4 ? poly([
+    [cx - halb - 22, wandFuss - 2], [cx + halb + 22, wandFuss - 2],
+    [cx + halb + 32, baseY - 2], [cx - halb - 32, baseY - 2],
+  ], 2) : null;
+  const vordach = stage >= 4
+    ? slab(cx - halb - 28, traufe + 80, cx + halb + 28, traufe + 98, seed + 8, 1.8) : null;
+  const pfosten = stage >= 4 ? [
+    slab(cx - halb - 8, traufe + 96, cx - halb + 8, wandFuss - 2, seed + 9, 1.2),
+    slab(cx + halb - 8, traufe + 96, cx + halb + 8, wandFuss - 2, seed + 10, 1.2),
+  ] : [];
+  // Die Laternen brauchen eine Farbfläche. Nur getuscht wären sie leere Ringe:
+  // `dot` malt ohne Wash-Ebene bloß den Umriss.
+  const laternenY = traufe + 116;
+  const laternen = stage >= 4
+    ? [cx - halb + 46, cx + halb - 46].map(function (lx, i) {
+      return smoothClosed(blob(lx, laternenY, 9, 10, seed + 11 + i, 0.12, 10), 4);
+    }) : [];
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 2.0,
+    outline: 2.3,
+    shadow: function (g) {
+      groundShadow(g, cx, baseY - 3, halb + (stage >= 4 ? 36 : 14), 20, seed, 0.17);
+    },
+    wash: function (g) {
+      if (dielen) {
+        // Deutlich kühleres Holz als die Wand: In Wandfarbe las sich die
+        // Veranda als Sockel, auf dem das Haus steht, nicht als Boden davor.
+        wash(g, dielen, '#c6a479', { seed: seed + 11, scale: 1.01 });
+        wash(g, offsetShape(dielen, 0, 16, 0.72), '#a3835a', { seed: seed + 12, alpha: 0.55 });
+      }
+      wash(g, wand, '#e0c49c', { seed: seed + 13, scale: 1.02 });
+      wash(g, offsetShape(wand, 52, 8, 0.62), '#c39f74', { seed: seed + 14, alpha: 0.6 });
+      // Der Giebel ist dieselbe Wand, nur höher: gleiche Farbe, eigener
+      // Schatten. In einem eigenen Ton las er sich als Fleck im Dach.
+      wash(g, giebel, '#e0c49c', { seed: seed + 15, scale: 1.02 });
+      wash(g, offsetShape(giebel, 26, 4, 0.62), '#c9a87e', { seed: seed + 29, alpha: 0.55 });
+      // Schornstein vor dem Dach: Was danach kommt, deckt seinen Fuß zu.
+      if (schlot) {
+        wash(g, schlot, '#b0a596', { seed: seed + 16, scale: 1.02 });
+        wash(g, offsetShape(schlot, 18, 4, 0.55), '#8d8274', { seed: seed + 17, alpha: 0.6 });
+      }
+      wash(g, dach, stage >= 4 ? '#8a6242' : '#a2704a', { seed: seed + 18, scale: 1.02 });
+      wash(g, offsetShape(dach, 44, 8, 0.6), '#6f4a30', { seed: seed + 19, alpha: 0.55 });
+      if (kappe) wash(g, kappe, '#9a8f80', { seed: seed + 20, scale: 1.02 });
+      wash(g, tuer, '#75512f', { seed: seed + 21, scale: 1.02 });
+      // Warmes Fenster statt Glas: Von außen sieht man das Licht darin.
+      wash(g, fenster, '#f4d488', { seed: seed + 22, scale: 1.03 });
+      if (fenster2) wash(g, fenster2, '#f4d488', { seed: seed + 23, scale: 1.03 });
+      if (luke) wash(g, luke, '#f0cd82', { seed: seed + 24, scale: 1.03 });
+      for (let i = 0; i < pfosten.length; i++) {
+        wash(g, pfosten[i], ink.wood, { seed: seed + 25 + i, scale: 1.02 });
+      }
+      if (vordach) {
+        wash(g, vordach, '#7d573b', { seed: seed + 27, scale: 1.02 });
+        wash(g, offsetShape(vordach, 0, 8, 0.55), '#5f4029', { seed: seed + 28, alpha: 0.55 });
+      }
+      for (let i = 0; i < laternen.length; i++) {
+        wash(g, laternen[i], '#f7d98c', { seed: seed + 30 + i, scale: 1.05 });
+      }
+    },
+    shape: function (g) {
+      if (dielen) fill(g, dielen);
+      fill(g, wand);
+      fill(g, giebel);
+      if (schlot) fill(g, schlot);
+      if (kappe) fill(g, kappe);
+      fill(g, dach);
+      for (let i = 0; i < pfosten.length; i++) fill(g, pfosten[i]);
+      if (vordach) fill(g, vordach);
+    },
+    ink: function (g) {
+      inkStroke(g, tuer, { width: 2.8, vary: 0.28, seed: seed + 30, color: ink.line, alpha: 0.95 });
+      inkStroke(g, fenster, { width: 2.6, vary: 0.28, seed: seed + 31, color: ink.line, alpha: 0.92 });
+      if (fenster2) {
+        inkStroke(g, fenster2, { width: 2.6, vary: 0.28, seed: seed + 32, color: ink.line, alpha: 0.92 });
+      }
+      if (luke) {
+        inkStroke(g, luke, { width: 2.4, vary: 0.25, seed: seed + 33, color: ink.line, alpha: 0.9 });
+        inkLine(g, cx - 14, lukeY, cx + 14, lukeY,
+          { width: 1.8, bend: 0.03, seed: seed + 34, alpha: 0.75 });
+      }
+      // Fensterkreuz – ohne es bleibt das Fenster ein gelber Fleck
+      function kreuz(x0, x1, sd) {
+        inkLine(g, x0, (fenY0 + fenY1) / 2, x1, (fenY0 + fenY1) / 2,
+          { width: 1.9, bend: 0.03, seed: sd, alpha: 0.8 });
+        inkLine(g, (x0 + x1) / 2, fenY0, (x0 + x1) / 2, fenY1,
+          { width: 1.9, bend: 0.03, seed: sd + 1, alpha: 0.8 });
+      }
+      kreuz(cx + fenX, cx + fenX + L.fenW, seed + 36);
+      if (fenster2) kreuz(cx - fenX - L.fenW, cx - fenX, seed + 38);
+      dot(null, g, cx + L.tuerW * 0.55, wandFuss - L.tuerH * 0.45, 3.6, ink.iron, seed + 40);
+
+      // Bretter in der Wand
+      for (let i = 1; i < 4; i++) {
+        const y = traufe + (L.wandH / 4) * i;
+        inkLine(g, cx - halb + 8, y, cx + halb - 8, y,
+          { width: 1.3, bend: 0.04, seed: seed + 42 + i, color: ink.lineSoft, alpha: 0.42 });
+      }
+      // Der Giebel trägt stehende Bretter – quer verlaufende würden ihn zur
+      // Fortsetzung der Wand machen, und genau das ist er nicht.
+      inkLine(g, cx - halb + 10, traufe + 3, cx + halb - 10, traufe + 3,
+        { width: 1.8, bend: 0.03, seed: seed + 46, color: ink.lineSoft, alpha: 0.55 });
+      for (let i = -2; i <= 2; i++) {
+        if (!i) continue;
+        const x = cx + i * (halb / 3.2);
+        // Bis zur Dachschräge, nicht darüber hinaus
+        const oben = first + 18 + (traufe - 14 - first) * Math.min(1, Math.abs(x - cx) / halb);
+        inkLine(g, x, oben + 8, x, traufe,
+          { width: 1.3, bend: 0.03, seed: seed + 47 + i, color: ink.lineSoft, alpha: 0.4 });
+      }
+      // Schindelstriche quer zur Dachschräge – waagerechte Latten würden über
+      // den Giebel laufen, der ja unter dem Dachband liegt und sichtbar ist.
+      for (let s = -1; s <= 1; s += 2) {
+        for (let i = 1; i <= 4; i++) {
+          const u = i / 5;
+          inkLine(g,
+            cx + s * (halb + UEBER) * u, first + (traufe + 10 - first) * u,
+            cx + s * (halb + 6) * u, first + 26 + (traufe - 4 - first) * u,
+            { width: 1.4, bend: 0.02, seed: seed + 50 + i * 3 + s, color: ink.lineSoft, alpha: 0.4 });
+        }
+      }
+      if (kappe) {
+        inkLine(g, sx0 - 6, schlotOben + 11, sx1 + 6, schlotOben + 11,
+          { width: 2.0, bend: 0.03, seed: seed + 60, color: ink.line, alpha: 0.85 });
+      }
+      if (stage >= 4) {
+        // Zwei Laternen am Vordach, jede an ihrem Haken
+        for (let i = 0; i < laternen.length; i++) {
+          const lx = i ? cx + halb - 46 : cx - halb + 46;
+          inkLine(g, lx, traufe + 98, lx, laternenY - 9,
+            { width: 1.8, bend: 0, seed: seed + 62 + i, alpha: 0.8 });
+          inkStroke(g, laternen[i],
+            { width: 2.0, vary: 0.28, seed: seed + 64 + i, color: ink.line, alpha: 0.9 });
+        }
+        // Die Naht zwischen Wand und Veranda – ohne sie steht das Haus auf
+        // einem Sockel statt vor einem Boden.
+        inkLine(g, cx - halb - 20, wandFuss - 1, cx + halb + 20, wandFuss - 1,
+          { width: 2.2, bend: 0.02, seed: seed + 68, color: ink.line, alpha: 0.75 });
+        // Dielenfugen, nach vorn hin breiter
+        for (let i = 1; i < 4; i++) {
+          const t = i / 4;
+          const y = wandFuss + (baseY - wandFuss - 4) * t;
+          const rand = halb + 22 + 10 * t;
+          inkLine(g, cx - rand, y, cx + rand, y,
+            { width: 1.2, bend: 0.03, seed: seed + 70 + i, color: ink.lineSoft, alpha: 0.38 });
+        }
+      }
     },
   });
   return made(res, w, h, cx, baseY);
