@@ -85,8 +85,8 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | `E` am Briefkasten | Post lesen |
 | `E` an der Truhe | Vorrat ein- und auslagern |
 | `G` | Erinnerungen |
-| `L` | Dein Lager (Grundstück und Hausausbau) |
-| `F` | schlafen (zu Hause) |
+| `L` | Dein Lager (Grundstück, Bucht, Hausausbau, Umzug) |
+| `F` | schlafen (am eigenen Haus, wo es auch steht) |
 | `R` / `X` | Deko versetzen / abbrechen |
 | `Esc` | Menü, Fenster schließen |
 
@@ -144,10 +144,24 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 
   Der Mittelpunkt ist gemessen, nicht geraten: Die Insel ist schmal, ein
   Rechteck kann dort schnell halb im Wasser liegen. Über acht Seeds hinweg
-  ist die Stelle bei (9|60) die beste, die sie hergibt; ein Test hält fest,
-  dass auch die volle Bucht zu über 60 % aus Land besteht und mindestens 380
-  Kacheln Bauplatz bleiben. Dieselbe Regel wie im Lager: **innerhalb wächst
-  nichts nach**, und man darf dicht bauen.
+  ist die Stelle bei (9|60) die beste, die sie hergibt; gemessen sind 77 bis
+  84 % davon Land (431 bis 469 Kacheln), gegen 93 bis 95 % im Lager. Dieselbe
+  Regel wie dort: **innerhalb wächst nichts nach**, und man darf dicht bauen.
+* **Der Umzug.** Sobald die Bucht dir gehört, kannst du **dein Haus dorthin
+  umziehen** – und jederzeit zurück. Es bleibt EIN Zuhause: Ein zweites
+  hieße zwei Fragen, die das Spiel nicht hat, nämlich in welchem man schläft
+  und in welches die Post kommt.
+
+  Der **Briefkasten zieht mit**; ein Kasten, der im Lager stehen bliebe,
+  hieße jeden Morgen eine Bootsfahrt. Lagerfeuer, Werkbank, Händler und die
+  Geister bleiben dagegen, wo sie sind — genau das ist der Unterschied
+  zwischen den beiden Plätzen: Das Lager hat den Betrieb, die Bucht hat die
+  Ruhe. Umziehen kostet nichts. Es ist eine Entscheidung, kein Kauf, und wer
+  es sich anders überlegt, soll zurückdürfen, ohne dafür zu bezahlen.
+
+  Der alte Platz **bleibt gefärbt**: Jeder der beiden Plätze hat seine eigene
+  Farbquelle, statt dass eine dem Haus hinterherwandert. Farbe verschwindet
+  auf dieser Insel nie wieder, auch nicht, weil man weggezogen ist.
 * **Vom Zelt zum Haus.** Mitten auf dem Grundstück steht dein Zuhause, und es
   bleibt kein Zelt: Hütte → Haus → Haus mit Veranda. Bezahlt wird in
   **Material** – Holz, Hartholz, Stein, Ton, Kupfer –, also genau in dem, was

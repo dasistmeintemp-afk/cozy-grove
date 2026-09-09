@@ -31,7 +31,7 @@ import { finaleLine, allHeard, stillSilent, circleSpots, FINALE_CLOSE, FINALE_CO
 import {
   PLOT_STAGES, plotStage, nextPlotStage, plotBounds, inPlotAt, MAX_PLOT_STAGE,
   ISLE_PLOT_STAGES, islePlotStage, nextIslePlotStage, islePlotBounds,
-  inIslePlotAt, islePlotRect, ISLE_PLOT_TILE,
+  inIslePlotAt, islePlotRect, ISLE_PLOT_TILE, homeTile, MAILBOX_OFFSET,
 } from './plot.js';
 import {
   houseStage, nextHouseStage, houseSprite, houseLight, houseColor,
@@ -218,6 +218,7 @@ export class Game {
       house: 1,
       orders: emptyOrders(),
       islePlot: 0,
+      homeAt: 'camp',
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -250,6 +251,7 @@ export class Game {
       house: 1,
       orders: emptyOrders(),
       islePlot: 0,
+      homeAt: 'camp',
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -264,6 +266,7 @@ export class Game {
     if (!this.state.house) this.state.house = 1;
     if (!Array.isArray(this.state.orders)) this.state.orders = emptyOrders();
     if (!this.state.islePlot) this.state.islePlot = 0;
+    if (this.state.homeAt !== 'isle') this.state.homeAt = 'camp';
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -1719,17 +1722,84 @@ export class Game {
     e.blockR = f.blockR;
     e.blockH = f.blockH;
     e.reachR = f.reachR;
+    // Die Welt wird bei jedem Laden neu erzeugt, und dabei steht das Haus
+    // wieder im Lager. Wer umgezogen ist, wohnt sonst nach dem Neuladen
+    // wieder da, wo er ausgezogen ist.
+    this._placeHome();
 
     // Ein Haus sieht man auch aus der Ferne: eigener Farbkreis, der mit der
     // Stufe wächst. Wie beim Lagerfeuer wird er nie kleiner.
+    //
+    // Nach dem Umzug bekommt das neue Zuhause eine EIGENE Quelle statt der
+    // alten hinterhergezogen: Farbe verschwindet auf dieser Insel nie wieder,
+    // und der Platz im Lager soll nicht ausbleichen, weil man weggezogen ist.
     const radius = houseColor(stufe);
     if (radius > 0) {
-      const src = this.colorField.find('house');
-      if (!src) this.colorField.addSource(e.x, e.y, radius, 'house');
+      const key = this.homeAt() === 'isle' ? 'house_isle' : 'house';
+      const src = this.colorField.find(key);
+      if (!src) this.colorField.addSource(e.x, e.y, radius, key);
       else if (src.target < radius) src.target = radius;
       this.colorField.markDirty();
     }
     this.invalidate();
+  }
+
+  /** Wo dein Zuhause steht – `'camp'` oder `'isle'`. */
+  homeAt() {
+    return this.state.homeAt === 'isle' ? 'isle' : 'camp';
+  }
+
+  /** Haus und Briefkasten an ihren Platz setzen. */
+  _placeHome() {
+    const e = this.world.tent;
+    if (!e) return;
+    const t = homeTile(this.world, this.homeAt());
+    const px = function (tx) { return (tx + 0.5) * TILE_SIZE; };
+    if (e.x !== px(t.x) || e.y !== px(t.y)) {
+      e.x = px(t.x);
+      e.y = px(t.y);
+      this.world.reindex(e);
+    }
+    // Post gehört ans Haus, nicht an einen Ort: Ein Briefkasten, der im
+    // Lager stehen bliebe, hieße jeden Morgen eine Bootsfahrt.
+    const m = this.world.mailbox;
+    if (!m) return;
+    const mx = px(t.x + MAILBOX_OFFSET.x);
+    const my = px(t.y + MAILBOX_OFFSET.y);
+    if (m.x !== mx || m.y !== my) {
+      m.x = mx;
+      m.y = my;
+      this.world.reindex(m);
+    }
+  }
+
+  /**
+   * Umziehen: Das Zuhause steht danach im Lager oder in der Bucht.
+   *
+   * Es bleibt EIN Zuhause. Ein zweites Haus hieße zwei Fragen, die das Spiel
+   * nicht hat: in welchem man schläft und in welches die Post kommt.
+   * Lagerfeuer, Werkbank, Händler und die Geister bleiben, wo sie sind –
+   * genau das ist der Unterschied zwischen den beiden Plätzen.
+   */
+  moveHome(wo) {
+    const ziel = wo === 'isle' ? 'isle' : 'camp';
+    if (this.homeAt() === ziel) return false;
+    if (ziel === 'isle' && !(this.state.islePlot > 0)) {
+      this.ui.toast('Erst die Bucht kaufen', 'icon_boat', 'bad');
+      return false;
+    }
+    this.state.homeAt = ziel;
+    this.syncHouse();
+    this.ui.toast(ziel === 'isle'
+      ? 'Dein Zuhause steht jetzt in der Bucht'
+      : 'Dein Zuhause steht wieder im Lager', 'icon_check', 'good');
+    this.audio.play('levelup');
+    if (this.world.tent) {
+      this.particles.burst('color', this.world.tent.x, this.world.tent.y - 80, 30);
+    }
+    this.ui.refreshHud();
+    this.save();
+    return true;
   }
 
   /** Stand des Zuhauses: Stufe, Name, was der nächste Ausbau kostet. */

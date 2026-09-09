@@ -18,6 +18,7 @@ import {
   PLOT_STAGES, MAX_PLOT_STAGE, plotStage, nextPlotStage, plotBounds, inPlot, inPlotAt, plotRect,
   ISLE_PLOT_STAGES, MAX_ISLE_PLOT_STAGE, ISLE_PLOT_TILE, islePlotStage, nextIslePlotStage,
   islePlotBounds, islePlotRect, inIslePlot, inIslePlotAt, inAnyPlot, usableIsleTiles,
+  homeTile, isleHomeTile, HOME_CAMP_TILE, MAILBOX_OFFSET,
 } from '../../src/game/plot.js';
 import { World } from '../../src/world/world.js';
 import {
@@ -307,4 +308,55 @@ test('Auf der Insel wächst in der Bucht nichts nach', () => {
   }
   assert.ok(draussen > 20, 'außerhalb der Bucht steht nichts mehr, der Test misst nichts');
   assert.ok(b.y1 > b.y0);
+});
+
+/* ------------------------------------------------------------- Der Umzug */
+
+test('Das Haus in der Bucht steht auf Land, nicht am Ufer', () => {
+  // Das Haus ist auf der letzten Stufe fast sechs Kacheln breit. Eine
+  // begehbare Kachel reicht darum nicht – ringsum muss Platz sein, sonst
+  // steht es halb im Wasser.
+  for (const seed of [1, 7, 31337, 90210, 4242, 55, 777, 12345]) {
+    const world = new World(seed);
+    const t = isleHomeTile(world);
+    assert.ok(t, 'Seed ' + seed + ': kein Bauplatz in der Bucht gefunden');
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        assert.equal(regionAt(t.x + dx, t.y + dy), REGION.ISLE,
+          'Seed ' + seed + ': Nachbarkachel liegt nicht auf der Insel');
+        assert.ok(isWalkable(world.tiles[tileIndex(t.x + dx, t.y + dy)]),
+          'Seed ' + seed + ': Wasser neben dem Haus');
+      }
+    }
+    // Der Briefkasten steht daneben und braucht ebenfalls Boden
+    const m = { x: t.x + MAILBOX_OFFSET.x, y: t.y + MAILBOX_OFFSET.y };
+    assert.ok(isWalkable(world.tiles[tileIndex(m.x, m.y)]),
+      'Seed ' + seed + ': der Briefkasten stünde im Wasser');
+    // Und alles liegt in der ERSTEN Ausbaustufe – man soll sofort einziehen
+    // können, ohne die Bucht erst weiter auszubauen.
+    assert.ok(inIslePlot(t.x, t.y, 1), 'Seed ' + seed + ': Haus außerhalb der ersten Stufe');
+    assert.ok(inIslePlot(m.x, m.y, 1), 'Seed ' + seed + ': Briefkasten außerhalb der ersten Stufe');
+  }
+});
+
+test('Der Platz im Lager ist der, an den die Welt das Haus setzt', () => {
+  // Wenn diese beiden auseinanderlaufen, springt das Haus beim ersten Laden
+  // ein paar Kacheln zur Seite – und der Briefkasten bleibt zurück.
+  const world = new World(4711).populate();
+  const t = homeTile(world, 'camp');
+  assert.equal(Math.floor(world.tent.x / TILE_SIZE), t.x);
+  assert.equal(Math.floor(world.tent.y / TILE_SIZE), t.y);
+  assert.equal(Math.floor(world.mailbox.x / TILE_SIZE), t.x + MAILBOX_OFFSET.x);
+  assert.equal(Math.floor(world.mailbox.y / TILE_SIZE), t.y + MAILBOX_OFFSET.y);
+});
+
+test('Beide Plätze liegen weit auseinander', () => {
+  // Sonst wäre der Umzug ein Schritt zur Seite statt ein Ortswechsel.
+  const world = new World(31337);
+  const lager = homeTile(world, 'camp');
+  const bucht = homeTile(world, 'isle');
+  const d = Math.hypot(lager.x - bucht.x, lager.y - bucht.y);
+  assert.ok(d > 25, 'nur ' + Math.round(d) + ' Kacheln auseinander');
+  assert.equal(regionAt(lager.x, lager.y), REGION.CAMP);
+  assert.equal(regionAt(bucht.x, bucht.y), REGION.ISLE);
 });

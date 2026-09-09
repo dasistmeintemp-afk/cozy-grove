@@ -20,7 +20,8 @@
  * Lager, das man sich woanders absteckt, hieße zwei Lager – eines mit
  * Feuer, Werkbank und Händler, und eines, das man selbst gebaut hat.
  */
-import { CAMP_TILE, MAP_W, MAP_H, TILE_SIZE, regionAt, REGION } from '../world/worldgen.js';
+import { CAMP_TILE, MAP_W, MAP_H, TILE_SIZE, regionAt, REGION, tileIndex } from '../world/worldgen.js';
+import { isWalkable } from '../art/tiles.js';
 
 /**
  * Die Ausbaustufen des Grundstücks.
@@ -207,13 +208,78 @@ export function usableIsleTiles(world, stage) {
   return countLand(world, islePlotBounds(stage), REGION.ISLE);
 }
 
+/* --------------------------------------------------------------- Der Umzug */
+
+/**
+ * Wo das Zuhause im Lager steht – dieselbe Kachel, an die `_placeCamp` es
+ * setzt. Der Briefkasten steht daneben und zieht mit um: Post gehört ans
+ * Haus, nicht an einen Ort.
+ */
+export const HOME_CAMP_TILE = { x: CAMP_TILE.x - 5, y: CAMP_TILE.y - 2 };
+export const MAILBOX_OFFSET = { x: -2, y: 1 };
+
+/** Ist rings um diese Kachel Land – und zwar im richtigen Bereich? */
+function freiRundum(world, tx, ty, halbW, halbH, region) {
+  for (let y = ty - halbH; y <= ty + halbH; y++) {
+    for (let x = tx - halbW; x <= tx + halbW; x++) {
+      if (x < 1 || y < 1 || x >= MAP_W - 1 || y >= MAP_H - 1) return false;
+      if (regionAt(x, y) !== region) return false;
+      if (!isWalkable(world.tiles[tileIndex(x, y)])) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Der Bauplatz für das Haus in der Bucht.
+ *
+ * Von der Mitte nach außen gesucht, und verlangt wird ein freies Feld
+ * ringsum statt einer einzelnen begehbaren Kachel: Das Haus ist auf der
+ * letzten Stufe fast sechs Kacheln breit, am Ufer stünde es halb im Wasser.
+ * Gesucht wird nur innerhalb der ERSTEN Ausbaustufe – wer die Bucht kauft,
+ * soll sofort einziehen können und nicht erst weiter ausbauen müssen.
+ */
+export function isleHomeTile(world) {
+  if (!world || !world.tiles) return null;
+  const b = islePlotBounds(1);
+  if (!b) return null;
+  for (let r = 0; r <= 8; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const tx = ISLE_PLOT_TILE.x + dx;
+        const ty = ISLE_PLOT_TILE.y + dy;
+        if (tx < b.x0 || tx > b.x1 || ty < b.y0 || ty > b.y1) continue;
+        if (!freiRundum(world, tx, ty, 2, 1, REGION.ISLE)) continue;
+        if (!freiRundum(world, tx + MAILBOX_OFFSET.x, ty + MAILBOX_OFFSET.y, 1, 1, REGION.ISLE)) continue;
+        return { x: tx, y: ty };
+      }
+    }
+  }
+  return null;
+}
+
+/** Wo das Zuhause steht: `'camp'` oder `'isle'`. */
+export function homeTile(world, wo) {
+  if (wo !== 'isle') return HOME_CAMP_TILE;
+  return isleHomeTile(world) || HOME_CAMP_TILE;
+}
+
+/**
+ * Zählt begehbare Kacheln in einem Rechteck.
+ *
+ * Vorher stand hier `world.isWalkableTile ? … : false` – und die Methode gibt
+ * es gar nicht. Der Ausdruck war also immer `false`, es wurde nie etwas
+ * übersprungen, und Wasser zählte als Bauland. Genau die Zahl, die sagen
+ * soll „so viel Boden hast du", war die Fläche des Rechtecks.
+ */
 function countLand(world, b, region) {
-  if (!b) return 0;
+  if (!b || !world || !world.tiles) return 0;
   let n = 0;
   for (let ty = b.y0; ty <= b.y1; ty++) {
     for (let tx = b.x0; tx <= b.x1; tx++) {
       if (regionAt(tx, ty) !== region) continue;
-      if (world.isWalkableTile ? !world.isWalkableTile(tx, ty) : false) continue;
+      if (!isWalkable(world.tiles[tileIndex(tx, ty)])) continue;
       n++;
     }
   }

@@ -224,6 +224,10 @@ export class Panels {
         g.expandIslePlot();
         this.render();
         break;
+      case 'moveHome':
+        g.moveHome(arg);
+        this.render();
+        break;
       case 'buildHouse':
         g.buildHouse();
         this.render();
@@ -893,7 +897,35 @@ export class Panels {
         '</div>';
     }
     html += '</div>';
+    html += this._umzug();
     return html;
+  }
+
+  /**
+   * Der Umzug.
+   *
+   * Steht unter der Bucht, weil er erst dort möglich wird. Bewusst kein
+   * Preis: Umziehen ist eine Entscheidung, kein Kauf – und wer es sich
+   * anders überlegt, soll zurückdürfen, ohne dafür zu bezahlen.
+   */
+  _umzug() {
+    const g = this.game;
+    if (!(g.state.islePlot > 0)) return '';
+    const drueben = g.homeAt() === 'isle';
+    const haus = g.houseStatus();
+
+    return '<div class="rows" style="margin-top:12px"><div class="row">' +
+      ico('icon_check', 'lg') +
+      '<div class="grow"><div class="title">' + escapeHtml(haus.name) +
+      (drueben ? ' steht in der Bucht' : ' steht im Lager') + '</div>' +
+      '<div class="meta"><span>' +
+      (drueben
+        ? 'Der Briefkasten steht daneben. Feuer, Werkbank und Händler sind drüben geblieben.'
+        : 'Umziehen nimmt den Briefkasten mit. Feuer, Werkbank und Händler bleiben hier.') +
+      '</span></div></div>' +
+      '<button class="row-btn" data-act="moveHome" data-arg="' +
+      (drueben ? 'camp' : 'isle') + '">' +
+      (drueben ? 'Zurück ins Lager' : 'In die Bucht ziehen') + '</button></div></div>';
   }
 
   _loanRows() {

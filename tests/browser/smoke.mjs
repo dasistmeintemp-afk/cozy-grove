@@ -1557,6 +1557,10 @@ async function run() {
         rewards: { coins: 55, ember: 3, items: [] }, hiddenIds: null,
       };
       g.quests.quests.push(q);
+      // Was schon in der Tasche liegt, mitzählen: Ob vorher Steine drin
+      // waren, hängt am Zufallsseed und an dem, was frühere Prüfungen
+      // abgebaut haben. Gemessen wird die Differenz, nicht der Bestand.
+      const steineVorher = g.inventory.count('stone');
       g.inventory.add('stone', 2);
 
       const muenzenVorher = g.state.coins;
@@ -1570,14 +1574,16 @@ async function run() {
       g.quests.quests = beiseite;
       return {
         von: von.spiritId, zu: zu.spiritId, muenzenVorher, beimAuftraggeber, beimZiel,
-        markiert, nochDaBeimAuftraggeber, nochOffen, steine: g.inventory.count('stone'),
+        markiert, nochDaBeimAuftraggeber, nochOffen,
+        steineVorher, steine: g.inventory.count('stone'),
       };
     });
     check('Botengang lässt sich beim Auftraggeber nicht abgeben',
       bote.beimAuftraggeber === bote.muenzenVorher && bote.nochDaBeimAuftraggeber,
       JSON.stringify(bote));
     check('Botengang wird beim Ziel abgegeben',
-      bote.beimZiel > bote.beimAuftraggeber && !bote.nochOffen && bote.steine === 0,
+      bote.beimZiel > bote.beimAuftraggeber && !bote.nochOffen &&
+      bote.steine === bote.steineVorher,
       JSON.stringify(bote));
     check('Das Ausrufezeichen steht über dem Ziel, nicht über dem Auftraggeber',
       bote.markiert.length === 1 && bote.markiert[0] === bote.zu,
@@ -2002,6 +2008,96 @@ async function run() {
       bucht.eigen === true, JSON.stringify(bucht));
     check('Das Fenster zeigt alle vier Stufen der Bucht',
       bucht.nenntStufen >= 4, JSON.stringify(bucht));
+
+    /* ---- Der Umzug ---- */
+    const umzug = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const merkeMeilen = g.state.milestones;
+      const merkeMuenzen = g.state.coins;
+      const kachel = function (e) {
+        return Math.floor(e.x / 64) + '|' + Math.floor(e.y / 64);
+      };
+
+      // Ohne gekaufte Bucht geht gar nichts.
+      g.state.islePlot = 0;
+      g.world.islePlotStage = 0;
+      g.state.homeAt = 'camp';
+      // Ein Zelt hat keinen Farbkreis (`houseColor(1)` ist 0). Für die
+      // Prüfung der Quellen muss also gebaut sein.
+      g.state.house = 3;
+      g.syncHouse();
+      const imLager = { haus: kachel(g.world.tent), kasten: kachel(g.world.mailbox) };
+      const ohneBucht = g.moveHome('isle');
+
+      // Bucht kaufen, dann umziehen
+      g.state.milestones = { insel: true };
+      g.state.coins = 99999;
+      g.expandIslePlot();
+      const gezogen = g.moveHome('isle');
+      const drueben = { haus: kachel(g.world.tent), kasten: kachel(g.world.mailbox) };
+      const region = g.world.regionAtPixel(g.world.tent.x, g.world.tent.y);
+      // Der Briefkasten muss mitkommen, sonst wäre Post eine Bootsfahrt
+      const kastenNah = Math.hypot(
+        g.world.mailbox.x - g.world.tent.x, g.world.mailbox.y - g.world.tent.y) < 220;
+      // Und man muss dort auch stehen können
+      const stehtFrei = g.world.canStand(g.world.tent.x, g.world.tent.y + 90, 12, 8);
+      // Am Haus wird geschlafen – auch drüben
+      g.player.x = g.world.tent.x;
+      g.player.y = g.world.tent.y + 90;
+      g.player.dir = 'up';
+      const beiseite = g.world.queryNear(g.player.x, g.player.y, 200).filter(function (o) {
+        return o !== g.world.tent && !o.gone;
+      });
+      for (const o of beiseite) o.gone = true;
+      const ziel = g.player.findTarget(g.world);
+      const schlafbar = !!(ziel && ziel.entity === g.world.tent);
+      for (const o of beiseite) o.gone = false;
+
+      // Das Lager bleibt gefärbt: eigene Quelle je Platz, keine wandernde
+      const quellen = ['house', 'house_isle'].filter((k) => !!g.colorField.find(k)).length;
+
+      // Und die Welt neu aufbauen, wie beim Laden – das Haus muss dableiben
+      const stand = JSON.parse(JSON.stringify(g.toJSON()));
+      g.world.tent.x = 0;
+      g.world.tent.y = 0;
+      g.world.reindex(g.world.tent);
+      g.syncHouse();
+      const nachNeuaufbau = kachel(g.world.tent);
+
+      const zurueck = g.moveHome('camp');
+      const wiederDa = { haus: kachel(g.world.tent), kasten: kachel(g.world.mailbox) };
+
+      g.state.islePlot = 0;
+      g.world.islePlotStage = 0;
+      g.state.homeAt = 'camp';
+      g.state.house = 1;
+      g.syncHouse();
+      g.state.milestones = merkeMeilen;
+      g.state.coins = merkeMuenzen;
+      return {
+        imLager, drueben, wiederDa, ohneBucht, gezogen, zurueck,
+        region, kastenNah, stehtFrei, schlafbar, quellen, nachNeuaufbau,
+        gespeichert: stand.state.homeAt,
+      };
+    });
+    check('Ohne gekaufte Bucht bleibt das Haus im Lager',
+      umzug.ohneBucht === false, JSON.stringify(umzug));
+    check('Umgezogen steht das Haus auf der Insel',
+      umzug.gezogen === true && umzug.region === 3 &&
+      umzug.drueben.haus !== umzug.imLager.haus, JSON.stringify(umzug));
+    check('Der Briefkasten zieht mit',
+      umzug.kastenNah && umzug.drueben.kasten !== umzug.imLager.kasten,
+      JSON.stringify(umzug));
+    check('Vor dem Haus kann man stehen und schlafen',
+      umzug.stehtFrei === true && umzug.schlafbar === true, JSON.stringify(umzug));
+    check('Der alte Platz bleibt gefärbt – jeder Platz hat seine Quelle',
+      umzug.quellen === 2, JSON.stringify(umzug));
+    check('Nach dem Neuaufbau der Welt wohnt man noch drüben',
+      umzug.nachNeuaufbau === umzug.drueben.haus && umzug.gespeichert === 'isle',
+      JSON.stringify(umzug));
+    check('Zurückziehen stellt Haus und Kasten wieder ins Lager',
+      umzug.zurueck === true && umzug.wiederDa.haus === umzug.imLager.haus &&
+      umzug.wiederDa.kasten === umzug.imLager.kasten, JSON.stringify(umzug));
 
     /* ---- Vom Zelt zum Haus ---- */
     const haus = await page.evaluate(async () => {

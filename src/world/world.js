@@ -397,12 +397,38 @@ export class World {
    * Nicht auf das Boot selbst, sondern eine Kachel daneben: Man soll drüben
    * stehen und das Boot sehen, nicht darin.
    */
+  /**
+   * Wo einen die Überfahrt absetzt.
+   *
+   * Gesucht wird ein Platz, auf dem man wirklich STEHEN kann, nicht nur
+   * begehbarer Boden: `findWalkableNear` kennt die Kacheln, aber nicht, was
+   * darauf steht. Über sechzig Seeds gemessen landete man einmal in einem
+   * Findling und steckte fest – nie im Wasser, immer an einem Objekt.
+   */
   boatTarget(boat) {
     const anderes = boat === this.dock ? this.isleDock : this.dock;
     if (!anderes) return null;
     const tx = Math.floor(anderes.x / TILE_SIZE);
     const ty = Math.floor(anderes.y / TILE_SIZE);
-    const spot = findWalkableNear(this.tiles, tx, ty + 1, 8, regionAt(tx, ty)) || { x: tx, y: ty };
+    const region = regionAt(tx, ty);
+    for (let r = 0; r <= 8; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = tx + dx;
+          const y = ty + 1 + dy;
+          if (x < 1 || y < 1 || x >= MAP_W - 1 || y >= MAP_H - 1) continue;
+          if (regionAt(x, y) !== region) continue;
+          if (!isWalkable(this.tileAtTile(x, y))) continue;
+          const px = (x + 0.5) * TILE_SIZE;
+          const py = (y + 0.5) * TILE_SIZE;
+          if (!this.canStand(px, py, 12, 8)) continue;
+          return { x: px, y: py };
+        }
+      }
+    }
+    // Notnagel: lieber auf freiem Boden als gar nicht übersetzen.
+    const spot = findWalkableNear(this.tiles, tx, ty + 1, 8, region) || { x: tx, y: ty };
     return { x: (spot.x + 0.5) * TILE_SIZE, y: (spot.y + 0.5) * TILE_SIZE };
   }
 

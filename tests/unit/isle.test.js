@@ -345,3 +345,20 @@ test('Am Anleger gewinnt das Boot, nicht das Gras unter den Füßen', () => {
     'im Boot stehend muss das Boot gewinnen, nicht ' + ziel.entity.kind);
 });
 
+
+test('Die Überfahrt setzt einen auf festen Boden', () => {
+  // `findWalkableNear` kennt die Kacheln, aber nicht, was darauf steht.
+  // Über sechzig Seeds gemessen landete man einmal in einem Findling und
+  // steckte fest – nie im Wasser, immer an einem Objekt. Ein Boot, das
+  // einen gelegentlich einsperrt, ist kein Boot.
+  for (let i = 0; i < 60; i++) {
+    const w = new World(1000 + i * 7919).populate();
+    for (const boot of [w.dock, w.isleDock]) {
+      assert.ok(boot, 'Seed ' + i + ': ein Boot fehlt');
+      const ziel = w.boatTarget(boot);
+      assert.ok(ziel, 'Seed ' + i + ': kein Ziel');
+      assert.ok(w.canStand(ziel.x, ziel.y, 12, 8),
+        'Seed ' + (1000 + i * 7919) + ': man landet auf einem besetzten Platz');
+    }
+  }
+});
