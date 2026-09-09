@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   SEASONS, SEASON_IDS, EVENTS, EVENT_IDS,
-  seasonOf, eventOf, dayNumber, todayOf, shoalIndex,
+  seasonOf, eventOf, dayNumber, todayOf, shoalIndex, forceSeason,
 } from '../../src/game/calendar.js';
 import { SEASON_PALETTE, applySeason, currentSeason } from '../../src/art/season.js';
+import { seasonTint } from '../../src/game/seasons.js';
 import { INK } from '../../src/art/painted.js';
 import { TILE_DEF, T } from '../../src/art/tiles.js';
 
@@ -138,25 +139,67 @@ test('Der Wechsel lässt nichts von der Jahreszeit davor stehen', () => {
   applySeason('summer');
 });
 
+/** Sättigung eines Hexwerts – 0 ist Grau. */
+function saettigung(r, g, b) {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  return max === 0 ? 0 : (max - min) / max;
+}
+
+function rgb(hex) {
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16)];
+}
+
 test('Keine Jahreszeit ist grau', () => {
   // Das Spiel handelt davon, Farbe zurückzubringen. Eine entsättigte
   // Jahreszeit würde genau dem Signal widersprechen, um das sich alles dreht.
-  function saettigung(hex) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    return max === 0 ? 0 : (max - min) / max;
-  }
   for (const id of SEASON_IDS) {
     applySeason(id);
-    assert.ok(saettigung(INK.grass) > 0.07,
+    assert.ok(saettigung.apply(null, rgb(INK.grass)) > 0.07,
       id + ': die Wiese ist zu grau (' + INK.grass + ')');
-    assert.ok(saettigung(INK.leaf) > 0.1,
+    assert.ok(saettigung.apply(null, rgb(INK.leaf)) > 0.1,
       id + ': das Laub ist zu grau (' + INK.leaf + ')');
   }
   applySeason('summer');
+});
+
+test('Auch der Farbschleier macht nichts grau', () => {
+  // Über der Palette liegt seit den Jahreszeiten ein Farbton über dem ganzen
+  // Bild. Er ist schwach, aber die Regel oben gilt für das, was man am Ende
+  // SIEHT – und das ist Palette PLUS Schleier, nicht die Palette allein.
+  for (const id of SEASON_IDS) {
+    applySeason(id);
+    const t = seasonTint(id);
+    if (!t) continue;
+    for (const [name, hex, grenze] of [['Wiese', INK.grass, 0.07], ['Laub', INK.leaf, 0.1]]) {
+      const [r, g, b] = rgb(hex);
+      const ueber = [
+        r * (1 - t.a) + t.r * t.a,
+        g * (1 - t.a) + t.g * t.a,
+        b * (1 - t.a) + t.b * t.a,
+      ];
+      assert.ok(saettigung.apply(null, ueber) > grenze,
+        id + ': ' + name + ' wird unter dem Schleier grau (' + hex + ')');
+    }
+  }
+  applySeason('summer');
+});
+
+test('Eine erzwungene Jahreszeit schlägt den Kalender – und lässt sich lösen', () => {
+  // Der Schalter hinter `?season=` ist zum Nachsehen da. Er muss vollständig
+  // wirken, sonst malt man den Winter und fischt im Sommer.
+  const echt = seasonOf(tag(2025, 6, 15)).id;
+  assert.equal(echt, 'summer');
+  for (const id of SEASON_IDS) {
+    assert.equal(forceSeason(id), id);
+    assert.equal(seasonOf(tag(2025, 6, 15)).id, id, id + ': nicht durchgesetzt');
+    assert.equal(todayOf(tag(2025, 6, 15)).season.id, id, id + ': der Tag weiß nichts davon');
+  }
+  assert.equal(forceSeason('regenzeit'), null, 'Unsinn wird nicht übernommen');
+  assert.equal(seasonOf(tag(2025, 6, 15)).id, 'summer');
+  assert.equal(forceSeason(null), null);
+  assert.equal(seasonOf(tag(2025, 0, 15)).id, 'winter', 'danach gilt wieder der Kalender');
 });
 
 test('Unbekannte Jahreszeit fällt still auf Sommer zurück', () => {

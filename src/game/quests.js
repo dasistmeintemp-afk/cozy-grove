@@ -8,6 +8,7 @@
 import { SPIRITS, SPIRIT_IDS, friendshipLevel } from './spirits.js';
 import { charmAround } from './cosiness.js';
 import { MEMORY_IDS, getItem, CAT, fishesOf, bugsOf } from './items.js';
+import { inSeason } from './seasons.js';
 import { dailyRng, randInt, randPick } from '../core/rng.js';
 import { makeEntity } from '../world/entities.js';
 import { TILE_SIZE } from '../world/worldgen.js';
@@ -178,10 +179,19 @@ export class QuestBook {
    * @returns {Array} die entfernten Aufträge
    */
   expire(day, world, ctx) {
+    const jahreszeit = ctx && ctx.today && ctx.today.season ? ctx.today.season.id : null;
     const raus = [];
     for (let i = this.quests.length - 1; i >= 0; i--) {
       const q = this.quests[i];
-      if (q.turnedIn || q.expires == null || q.expires > day) continue;
+      if (q.turnedIn) continue;
+      // Erst der Kalender, dann die Frist. Eine Bitte um einen Fisch, den es
+      // seit heute Nacht nicht mehr gibt, ist unlösbar geworden – sie hier
+      // stehen zu lassen hieße, den Spieler drei Tage lang an ein Wasser zu
+      // schicken, in dem nichts steht. Der Jahreszeitenwechsel trifft nur
+      // eine Handvoll Arten und nur an einem Tag im Vierteljahr, aber genau
+      // dieser Tag darf keine tote Aufgabe hinterlassen.
+      const fort = q.itemId && !inSeason(q.itemId, jahreszeit);
+      if (!fort && (q.expires == null || q.expires > day)) continue;
       if (ctx && this.progress(q, ctx) >= q.need) continue;
       this.dropHidden(q, world);
       this.quests.splice(i, 1);
@@ -241,6 +251,8 @@ export class QuestBook {
     // eine Zahl ohne Wirkung.
     const friends = friendshipLevel(this.completedBySpirit[spiritId] || 0);
     const scale = 1 + Math.min(1.6, day * 0.06) + friends * 0.09;
+    const jahreszeit = state && state.today && state.today.season
+      ? state.today.season.id : null;
 
     if (type === 'find') {
       const count = randInt(rng, 2, 3);
@@ -314,7 +326,11 @@ export class QuestBook {
 
     if (type === 'catch') {
       const q = this._base(spiritId, QTYPE.CATCH, 1, day);
-      const pool = fishesOf(spirit.water || 'sea', true);
+      // Nur, was jetzt auch beißt. Sonst bittet ein Geist im Winter um den
+      // Goldkarpfen, und die Bitte läuft nach fünf Tagen ungelöst ab – der
+      // Fisch steht bis zum Frühling nicht im Wasser.
+      const pool = fishesOf(spirit.water || 'sea', true, jahreszeit);
+      if (!pool.length) return null;
       q.itemId = randPick(rng, pool).id;
       q.rewards = rewardFor(QTYPE.CATCH, 1, scale, rng);
       return q;
@@ -325,7 +341,7 @@ export class QuestBook {
     // bleiben, statt sofort schlafen zu gehen.
     if (type === 'catch_bug') {
       const q = this._base(spiritId, QTYPE.CATCH, 1, day);
-      const pool = bugsOf(rng() < 0.4);
+      const pool = bugsOf(rng() < 0.4, jahreszeit);
       if (!pool.length) return null;
       q.itemId = randPick(rng, pool).id;
       q.rewards = rewardFor(QTYPE.CATCH, 1, scale, rng);

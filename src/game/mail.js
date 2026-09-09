@@ -103,11 +103,26 @@ const HAENDLER = [
   'Ich habe Saat dabei. Frisch, ehrlich, teuer.',
 ];
 
+/**
+ * Der Brief zum Jahreszeitenwechsel.
+ *
+ * Die Schlüssel sind die Kennungen aus `calendar.js` – englisch, wie dort.
+ * Vorher standen hier deutsche Wörter (`fruehling`, `sommer`, `herbst`), und
+ * nur `winter` traf zufällig zu: Drei von vier Briefen sind nie angekommen.
+ *
+ * Jeder Brief sagt in einem Nebensatz, was die Jahreszeit ändert. Das ist
+ * die einzige Stelle, an der man es erfährt – wer im Winter vergeblich nach
+ * dem Goldkarpfen sucht, soll wenigstens gelesen haben, warum.
+ */
 const JAHRESZEIT = {
-  fruehling: 'Es riecht nach nassem Holz. Alles fängt wieder an.',
-  sommer: 'Lange Tage. Die See ist warm bis zum Abend.',
-  herbst: 'Die Bäume geben Farbe ab, als wäre sie ihnen zu schwer.',
-  winter: 'Still. Das Feuer ist die wärmste Stelle der Insel.',
+  spring: 'Es riecht nach nassem Holz. Alles fängt wieder an – und was man '
+    + 'abschlägt, steht schneller wieder da.',
+  summer: 'Lange Tage, kaum Wolken. Der Goldkarpfen steht im Flachwasser, '
+    + 'und abends geht der Mondfalter auf die Reise.',
+  autumn: 'Die Bäume geben Farbe ab, als wäre sie ihnen zu schwer. Morgens '
+    + 'liegt jetzt oft Nebel über allem.',
+  winter: 'Still, und es schneit. Das Feuer ist die wärmste Stelle der '
+    + 'Insel. Draußen im Meer steht jetzt der Mondfisch.',
 };
 
 let mailSeq = 1;

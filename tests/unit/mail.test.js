@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { mailFor, fileMail, unreadCount, MAILBOX_MAX } from '../../src/game/mail.js';
 import { SPIRITS, SPIRIT_IDS } from '../../src/game/spirits.js';
 import { getItem } from '../../src/game/items.js';
+import { SEASONS, SEASON_IDS } from '../../src/game/calendar.js';
 
 const WELT = { seed: 4711 };
 
@@ -79,11 +80,24 @@ test('Jeder Brief trägt Kennung, Tag, Absender und Betreff', () => {
 });
 
 test('Zum Wechsel der Jahreszeit kommt ein Wort – und sonst nicht', () => {
-  const jahreszeit = { id: 'herbst', name: 'Herbst' };
-  const mit = mailFor(5, WELT, { geholfen: [], jahreszeit: jahreszeit, tagNeu: true });
-  assert.equal(mit.filter((b) => b.kind === 'season').length, 1);
-  const ohne = mailFor(5, WELT, { geholfen: [], jahreszeit: jahreszeit, tagNeu: false });
-  assert.equal(ohne.filter((b) => b.kind === 'season').length, 0);
+  // JEDE Jahreszeit, und mit den echten Kennungen aus dem Kalender.
+  //
+  // Vorher stand hier ein selbstgebautes `{ id: 'herbst' }`, und genau daran
+  // ist der Fehler jahrelang vorbeigelaufen: In der Brieftabelle standen
+  // deutsche Schlüssel, im Kalender englische. Drei von vier Briefen kamen
+  // nie an – nur der Winter traf zufällig zu, weil er in beiden Sprachen
+  // gleich heißt.
+  for (const id of SEASON_IDS) {
+    const jahreszeit = SEASONS[id];
+    const mit = mailFor(5, WELT, { geholfen: [], jahreszeit: jahreszeit, tagNeu: true });
+    const brief = mit.filter((b) => b.kind === 'season');
+    assert.equal(brief.length, 1, id + ': kein Brief zum Wechsel');
+    assert.equal(brief[0].subject, jahreszeit.name);
+    assert.ok(brief[0].text.length > 20, id + ': der Brief ist leer');
+
+    const ohne = mailFor(5, WELT, { geholfen: [], jahreszeit: jahreszeit, tagNeu: false });
+    assert.equal(ohne.filter((b) => b.kind === 'season').length, 0);
+  }
 });
 
 test('Der Kasten läuft nicht über – die ältesten weichen', () => {

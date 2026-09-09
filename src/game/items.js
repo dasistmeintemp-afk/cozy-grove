@@ -1,4 +1,5 @@
 /** Gegenstandsdatenbank. */
+import { inSeason } from './seasons.js';
 
 export const CAT = {
   MATERIAL: 'material',
@@ -204,13 +205,22 @@ export function isPlaceable(id) {
   return !!(it2 && it2.cat === CAT.DECOR && it2.prop);
 }
 
-export function fishesOf(water, night) {
+/**
+ * Was hier gerade beißt.
+ *
+ * `season` darf fehlen – dann zählt der ganze Kalender. Diese Nachsicht ist
+ * Absicht: Wer die Liste nur ansehen will (Fundbuch, Tests, Preisrechnung),
+ * soll keine Jahreszeit erfinden müssen. Nur wer wirklich auswirft, gibt
+ * eine an, und erst dann wird gefiltert.
+ */
+export function fishesOf(water, night, season) {
   const out = [];
   for (let i = 0; i < LIST.length; i++) {
     const f = LIST[i];
     if (f.cat !== CAT.FISH) continue;
     if (f.water !== water) continue;
     if (f.night && !night) continue;
+    if (!inSeason(f.id, season)) continue;
     out.push(f);
   }
   return out;
@@ -228,9 +238,11 @@ export const CONDITIONAL = LIST.filter(function (i) { return !!i.onlyAt; });
 /** Alle Falter. */
 export const BUGS = LIST.filter(function (i) { return i.cat === CAT.BUG; });
 
-/** Falter, die zu dieser Tageszeit fliegen. */
-export function bugsOf(night) {
-  return BUGS.filter(function (b) { return !!b.night === !!night; });
+/** Falter, die zu dieser Tageszeit fliegen – und zu dieser Jahreszeit. */
+export function bugsOf(night, season) {
+  return BUGS.filter(function (b) {
+    return !!b.night === !!night && inSeason(b.id, season);
+  });
 }
 
 export const MEMORY_IDS = LIST

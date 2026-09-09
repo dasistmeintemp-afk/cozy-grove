@@ -15,6 +15,7 @@
  * Einteilung daneben, die veralten könnte.
  */
 import { CAT, CAT_NAMES, ITEM_LIST, getItem } from './items.js';
+import { seasonPhrase } from './seasons.js';
 
 /**
  * Was eine vollständige Reihe einbringt.
@@ -112,7 +113,7 @@ export const HINTS = {
   fish_sardine: 'Im Meer, bei Tag und Nacht.',
   fish_mackerel: 'Im Meer, häufig genug.',
   fish_cod: 'Im Meer, etwas seltener.',
-  fish_moonfish: 'Im Meer – und nur nachts.',
+  fish_moonfish: 'Im Meer, nachts.',
   fish_roach: 'Im Fluss, überall.',
   fish_trout: 'Im Fluss, mit etwas Geduld.',
   fish_catfish: 'Im Fluss, nur nachts.',
@@ -181,9 +182,17 @@ export const HINTS = {
   keepsake_shellchain: 'Wandas Andenken, wenn ihre Kette voll ist.',
 };
 
-/** Der Fingerzeig zu einem Gegenstand – nie leer. */
+/**
+ * Der Fingerzeig zu einem Gegenstand – nie leer.
+ *
+ * Die Jahreszeit steht nicht in der Tabelle oben, sondern kommt hier dazu:
+ * Sonst müsste man sie an zwei Stellen ändern, und die eine würde vergessen.
+ * Ohne den Satz sucht man den Goldkarpfen im November, bis man aufgibt.
+ */
 export function hintFor(id) {
-  return HINTS[id] || 'Irgendwo auf der Insel.';
+  const basis = HINTS[id] || 'Irgendwo auf der Insel.';
+  const wann = seasonPhrase(id);
+  return wann ? basis + ' Nur ' + wann + '.' : basis;
 }
 
 /** Alle Gegenstände einer Reihe. */

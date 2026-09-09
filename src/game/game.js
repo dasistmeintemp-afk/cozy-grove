@@ -47,6 +47,7 @@ import {
   LAUNE_MAX, LAUNE_PRO_FUTTER, ZAHM_NOETIG,
 } from './pet.js';
 import { rollSize, noteSize, bestSize, sizeWord, emptyRecords } from './records.js';
+import { regrowDays } from './seasons.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
@@ -146,11 +147,12 @@ export class Game {
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
 
-    this.weather.setDay(this.world.seed, this.day.day);
+    // Vor dem Wetter: Welches Wetter ein Tag hat, hängt an der Jahreszeit,
+    // und die steht erst hier fest.
+    this.refreshToday();
+    this.weather.setDay(this.world.seed, this.day.day, this.season());
     this.weather.snap();
     this._placeStoryPieces(this.day.day);
-
-    this.refreshToday();
 
     // Strichliste für den Rückblick: neu anlegen, wenn es keine gibt oder sie
     // noch von einem früheren Tag stammt (etwa aus einem alten Spielstand).
@@ -719,7 +721,8 @@ export class Game {
 
   _castRod() {
     const ok = this.fishing.cast(
-      this.world, this.player, Math.random, this.day.isNight(), this.player.levels.rod
+      this.world, this.player, Math.random, this.day.isNight(),
+      this.player.levels.rod, this.season()
     );
     if (ok) {
       this.player.startSwing();
@@ -815,10 +818,10 @@ export class Game {
       e.kind = def.becomes;
       e.sprite = spriteFor(def.becomes, e.x, e.y) || e.sprite;
       e.hp = 0;
-      e.respawnDay = this.day.day + (def.respawn || 1);
+      e.respawnDay = this.day.day + regrowDays(def.respawn || 1, this.season());
     } else if (def.respawn) {
       e.gone = true;
-      e.respawnDay = this.day.day + def.respawn;
+      e.respawnDay = this.day.day + regrowDays(def.respawn, this.season());
     } else {
       this.world.remove(e);
     }
@@ -2481,13 +2484,23 @@ export class Game {
     return this.today.event && this.today.event.id !== vorher;
   }
 
+  /** Die Jahreszeit als Kennung – oder null, solange der Tag nicht steht. */
+  season() {
+    return this.today && this.today.season ? this.today.season.id : null;
+  }
+
   /** Die Wirkungen des Tagesereignisses an die Systeme weitergeben. */
   _applyToday() {
     const ev = this.today && this.today.event ? this.today.event.id : null;
+    const js = this.season();
     this.shop.dayBonus = ev === 'market' ? 1.35 : 1;
     this.wildlife.swarm = ev === 'moths';
+    this.wildlife.season = js;
     if (ev === 'shoal') {
-      const pool = fishesOf('sea', false).concat(fishesOf('fresh', false));
+      // Ein Schwarm einer Art, die gerade gar nicht da ist, wäre ein
+      // Versprechen ohne Deckung: Der Tag hieße „Fischschwarm", und am Wasser
+      // bisse nichts Besonderes.
+      const pool = fishesOf('sea', false, js).concat(fishesOf('fresh', false, js));
       const fisch = pool[shoalIndex(new Date(), pool.length)];
       this.fishing.boost = fisch ? fisch.id : null;
     } else {
@@ -3190,7 +3203,7 @@ export class Game {
     this.world.newDay(day, this._todayWorldEffects());
     // Erst das Wetter des neuen Tages, dann wachsen lassen: Regen zählt
     // doppelt, und das soll der Regen von heute sein, nicht der von gestern.
-    this.weather.setDay(this.world.seed, day);
+    this.weather.setDay(this.world.seed, day, this.season());
     const frischReif = this.growCrops(this.weather.kind);
     const zurueckgezogen = this.quests.newDay(day, this.world, this);
     this.shop.refresh(day, this.world.seed);
@@ -3222,11 +3235,19 @@ export class Game {
       }, 2600);
     }
     if (this.weather.strength > 0) {
-      const self = this;
-      setTimeout(function () {
-        self.ui.toast(self.weather.kind === 'rain' ? 'Es regnet' : 'Nebel liegt über der Insel',
-          self.weather.kind === 'rain' ? 'icon_bottle' : 'icon_ghost');
-      }, 1400);
+      // Eine Zeile je Wetter statt einer Abfrage mit zwei Ausgängen: Beim
+      // Schnee stand sonst „Nebel liegt über der Insel", weil alles, was
+      // nicht Regen war, als Nebel durchging.
+      const worte = {
+        rain: ['Es regnet', 'icon_bottle'],
+        fog: ['Nebel liegt über der Insel', 'icon_ghost'],
+        snow: ['Es schneit', 'icon_star'],
+      };
+      const sagen = worte[this.weather.kind];
+      if (sagen) {
+        const self = this;
+        setTimeout(function () { self.ui.toast(sagen[0], sagen[1]); }, 1400);
+      }
     }
     if (this.today && this.today.event) {
       const self3 = this;

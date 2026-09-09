@@ -501,11 +501,16 @@ export class Panels {
     // Meldung, die nach vier Sekunden weg ist.
     const heute = g.today;
     if (heute) {
+      // Jahreszeit und Wetter stehen daneben: Beide entscheiden inzwischen
+      // mit, was heute beißt und fliegt – dann müssen sie auch ablesbar sein
+      // und nicht nur am Himmel zu erraten.
+      const wetter = g.weather ? g.weather.label : '';
       html += '<div class="rows" style="margin-bottom:12px"><div class="row">' +
         ico(heute.event ? heute.event.icon : 'icon_day', 'lg') +
         '<div class="grow"><div class="title">' +
         escapeHtml(heute.event ? heute.event.name : 'Ein ruhiger Tag') +
-        ' · ' + escapeHtml(heute.season.name) + '</div>' +
+        ' · ' + escapeHtml(heute.season.name) +
+        (wetter ? ' · ' + escapeHtml(wetter) : '') + '</div>' +
         '<div class="meta"><span>' +
         escapeHtml(heute.event ? heute.event.hint : 'Nichts Besonderes – auch das gibt es.') +
         '</span></div></div></div></div>';

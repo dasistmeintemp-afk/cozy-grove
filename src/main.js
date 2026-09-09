@@ -9,7 +9,7 @@ import { openFile } from './core/savefile.js';
 import * as storage from './core/storage.js';
 import { makeClock, advance, FIXED_DT } from './core/clock.js';
 import { applySeason } from './art/season.js';
-import { seasonOf } from './game/calendar.js';
+import { seasonOf, forceSeason } from './game/calendar.js';
 
 const canvas = document.getElementById('game');
 const stage = document.getElementById('stage');
@@ -166,6 +166,21 @@ function setupLifecycle() {
   canvas.addEventListener('pointerdown', function () { audio.resume(); });
 }
 
+/**
+ * Eine Jahreszeit aus der Adresse: `?season=winter`.
+ *
+ * Nur zum Nachsehen. Steht dort Unsinn, gibt es null zurück, und der
+ * Kalender behält recht.
+ */
+function erwuenschteJahreszeit() {
+  try {
+    const p = new URLSearchParams(window.location.search).get('season');
+    return p || null;
+  } catch (err) {
+    return null;
+  }
+}
+
 /** Die Grafik entsteht erst beim Start – das dauert einen Moment. */
 function paintArt(done) {
   const note = document.createElement('p');
@@ -180,6 +195,12 @@ function paintArt(done) {
       // Die Jahreszeit MUSS vor dem Malen feststehen: Danach stehen die
       // Grafiken, und ein Wechsel bliebe ohne Wirkung. Dafür kostet er so
       // auch nichts – die Wiese und die Kronen kommen von selbst richtig.
+      //
+      // `?season=winter` schaltet sie um, damit man im Juni nachsehen kann,
+      // wie der Schnee fällt. Es geht durch `forceSeason`, weil daran auch
+      // Wetter, Fische und Falter hängen – ein zweiter Schalter wäre eine
+      // zweite Wahrheit.
+      forceSeason(erwuenschteJahreszeit());
       applySeason(seasonOf(new Date()).id);
       initArt();
       const ms = Math.round(((window.performance || Date).now()) - t0);

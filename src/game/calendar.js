@@ -28,8 +28,24 @@ export const SEASONS = {
 
 export const SEASON_IDS = ['spring', 'summer', 'autumn', 'winter'];
 
+/**
+ * Eine erzwungene Jahreszeit – zum Nachsehen, nicht zum Spielen.
+ *
+ * Der Winter kommt sonst im Winter, und wer im Juni prüfen will, ob der
+ * Schnee richtig fällt, müsste die Uhr des Rechners stellen. Die Umschaltung
+ * sitzt hier und nicht bei der Palette: An `seasonOf` hängen Farben, Wetter,
+ * Fische und Falter gleichzeitig – zwei Schalter wären zwei Wahrheiten.
+ */
+let erzwungen = null;
+
+export function forceSeason(id) {
+  erzwungen = SEASONS[id] ? id : null;
+  return erzwungen;
+}
+
 /** Jahreszeit zu einem Datum (Monat 0 = Januar). */
 export function seasonOf(date) {
+  if (erzwungen) return SEASONS[erzwungen];
   const m = (date || new Date()).getMonth();
   for (let i = 0; i < SEASON_IDS.length; i++) {
     const s = SEASONS[SEASON_IDS[i]];

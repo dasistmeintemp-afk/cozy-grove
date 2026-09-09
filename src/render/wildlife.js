@@ -32,6 +32,8 @@ export class Wildlife {
     this._spawnTimer = 0;
     /** Falterzug: mehr Falter, und sie kommen schneller nach. */
     this.swarm = false;
+    /** Jahreszeit – manche Falter fliegen nur zu ihrer. Null heißt: alle. */
+    this.season = null;
     /** Wird beim Fischsprung gerufen – das Spiel hängt dort den Klang an. */
     this.onJump = null;
   }
@@ -111,7 +113,7 @@ export class Wildlife {
       const x = camera.ox + randRange(rng, 40, viewW - 40);
       const y = camera.oy + randRange(rng, 40, viewH - 40);
       if (!isWalkable(world.tileAt(x, y))) continue;
-      const art = pickSpecies(rng, true);
+      const art = pickSpecies(rng, true, this.season);
       this.list.push({
         type: 'moth',
         species: art.id,
@@ -159,7 +161,7 @@ export class Wildlife {
       const x = camera.ox + randRange(rng, 40, viewW - 40);
       const y = camera.oy + randRange(rng, 40, viewH - 40);
       if (!isWalkable(world.tileAt(x, y))) continue;
-      const art = pickSpecies(rng, false);
+      const art = pickSpecies(rng, false, this.season);
       this.list.push({
         type: 'butterfly',
         species: art.id,
@@ -342,8 +344,8 @@ function nearestLight(lights, x, y) {
  * Wählt eine Art nach Gewicht. Der Mondfalter ist selten – ohne Gewichtung
  * wäre er so häufig wie der Zitronenfalter und damit nichts wert.
  */
-function pickSpecies(rng, night) {
-  const pool = bugsOf(night);
+function pickSpecies(rng, night, season) {
+  const pool = bugsOf(night, season);
   if (!pool.length) return { id: 'butterfly', flight: 1 };
   let total = 0;
   for (let i = 0; i < pool.length; i++) total += pool[i].weight || 1;

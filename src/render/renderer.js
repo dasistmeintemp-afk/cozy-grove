@@ -16,6 +16,7 @@ import { drawSprite, spr } from '../art/sprites.js';
 import { defOf } from '../world/entities.js';
 import { getItem } from '../game/items.js';
 import { campfireLevelFor } from '../game/recipes.js';
+import { seasonTint } from '../game/seasons.js';
 import { INK } from '../art/painted.js';
 import { TILE_SIZE } from '../art/tiles.js';
 
@@ -474,6 +475,14 @@ export class Renderer {
     lc.clearRect(0, 0, this.w, this.h);
     if (tint.a >= 0.02) {
       lc.fillStyle = 'rgba(' + tint.r + ',' + tint.g + ',' + tint.b + ',' + tint.a.toFixed(3) + ')';
+      lc.fillRect(0, 0, this.w, this.h);
+    }
+    // Die Jahreszeit legt ihren Ton unter das Wetter: Sie gilt den ganzen
+    // Tag, das Wetter ist die Abweichung darüber. Der Frühling hat keinen –
+    // er ist der Maßstab, an dem man die anderen drei überhaupt erkennt.
+    const jt = seasonTint(game.season ? game.season() : null);
+    if (jt) {
+      lc.fillStyle = 'rgba(' + jt.r + ',' + jt.g + ',' + jt.b + ',' + jt.a.toFixed(3) + ')';
       lc.fillRect(0, 0, this.w, this.h);
     }
     // Wetter färbt mit: Regen kühlt und graut ein, Nebel hellt flach auf.

@@ -435,10 +435,129 @@ async function run() {
       return {
         jahreszeit: txt.indexOf(g.today.season.name) >= 0,
         ereignis: !g.today.event || txt.indexOf(g.today.event.name) >= 0,
+        wetter: txt.indexOf(g.weather.label) >= 0,
       };
     });
     check('Aufgabenfenster nennt Jahreszeit und Tagesereignis',
       tagesZeile.jahreszeit && tagesZeile.ereignis, JSON.stringify(tagesZeile));
+    check('Und auch, was für ein Wetter ist',
+      tagesZeile.wetter === true, JSON.stringify(tagesZeile));
+
+    /* ---- Was die Jahreszeit bewirkt ---- */
+    // Vier Jahreszeiten standen im Kalender und taten nichts: ein Wort im
+    // Tagebuch, sonst war der Januar wie der Juli. Gemessen wird deshalb
+    // nicht, dass es sie gibt, sondern dass man sie SIEHT und MERKT.
+    const jahr = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      const R = g.renderer;
+      const alt = g.today.season;
+      const altWetter = { kind: g.weather.kind, strength: g.weather.strength };
+
+      // Wichtig: alles in EINEM synchronen Block. Dazwischen käme das
+      // nächste Bild der Schleife und übermalte die Messung.
+      const c = document.getElementById('game');
+      const ctx = c.getContext('2d');
+      const zeit = 12.5;
+      function bild(seasonId, wetter) {
+        g.today.season = { id: seasonId, name: seasonId };
+        g._applyToday();
+        g.weather.kind = wetter;
+        g.weather.strength = wetter === 'clear' ? 0 : 0.9;
+        g.weather.snap();
+        R.draw(g, zeit);
+        const d = ctx.getImageData(0, 0, c.width, c.height).data;
+        let r = 0; let gr = 0; let b = 0;
+        // Jedes 40. Pixel reicht für einen Mittelwert und ist schnell.
+        for (let i = 0; i < d.length; i += 160) { r += d[i]; gr += d[i + 1]; b += d[i + 2]; }
+        const n = Math.floor(d.length / 160);
+        return { r: r / n, g: gr / n, b: b / n, roh: d };
+      }
+
+      // Die Flocken allein, ohne den Farbschleier des Wetters: Die Wetter-
+      // schicht malt in jeden beliebigen Kontext. Auf mittlerem Grau ist
+      // eine Flocke hell (≈218), ein Regenstrich nicht (≈159) – der erste
+      // Anlauf zählte einfach geänderte Pixel, und den bestand der Schnee
+      // auch dann noch, als gar keine Flocke mehr gezeichnet wurde.
+      function flocken(kind) {
+        const off = document.createElement('canvas');
+        off.width = 400;
+        off.height = 300;
+        const o = off.getContext('2d');
+        o.fillStyle = '#808080';
+        o.fillRect(0, 0, 400, 300);
+        g.weather.kind = kind;
+        g.weather.strength = 0.9;
+        g.weather.snap();
+        g.weather.update(0.016);
+        g.weather.draw(o, 400, 300);
+        const d = o.getImageData(0, 0, 400, 300).data;
+        let hell = 0;
+        for (let i = 0; i < d.length; i += 4) if (d[i] > 200) hell++;
+        return hell;
+      }
+
+      const fruehling = bild('spring', 'clear');
+      const herbst = bild('autumn', 'clear');
+      const winter = bild('winter', 'clear');
+      const schnee = bild('winter', 'snow');
+      const regen = bild('winter', 'rain');
+
+      const out = {
+        // Herbst wärmer, Winter kühler – gemessen am Abstand Rot zu Blau.
+        fruehlingRB: fruehling.r - fruehling.b,
+        herbstRB: herbst.r - herbst.b,
+        winterRB: winter.r - winter.b,
+        // Schnee hellt auf, Regen dunkelt ab.
+        klarHell: (winter.r + winter.g + winter.b) / 3,
+        schneeHell: (schnee.r + schnee.g + schnee.b) / 3,
+        regenHell: (regen.r + regen.g + regen.b) / 3,
+        flockenSchnee: flocken('snow'),
+        flockenRegen: flocken('rain'),
+        flockenKlar: flocken('clear'),
+        label: (function () {
+          g.weather.kind = 'snow'; g.weather.strength = 0.9; g.weather.snap();
+          return { wort: g.weather.label, faellt: g.weather.snowing };
+        })(),
+      };
+
+      // Kommt die Jahreszeit bis zur Angel und bis zu den Faltern?
+      g.today.season = { id: 'winter', name: 'Winter' };
+      g._applyToday();
+      out.falter = g.wildlife.season;
+      const echt = g.fishing.cast;
+      let gesehen;
+      g.fishing.cast = function (welt, spieler, rng, nacht, stufe, js) {
+        gesehen = js;
+        return false;
+      };
+      g._castRod();
+      g.fishing.cast = echt;
+      out.angel = gesehen;
+
+      g.today.season = alt;
+      g._applyToday();
+      g.weather.kind = altWetter.kind;
+      g.weather.strength = altWetter.strength;
+      g.weather.snap();
+      return out;
+    });
+    check('Der Herbst färbt warm, der Winter kühl',
+      jahr.herbstRB > jahr.fruehlingRB + 2 && jahr.winterRB < jahr.fruehlingRB - 1,
+      JSON.stringify({ f: jahr.fruehlingRB.toFixed(1), h: jahr.herbstRB.toFixed(1),
+        w: jahr.winterRB.toFixed(1) }));
+    check('Schnee hellt auf, Regen dunkelt ab',
+      jahr.schneeHell > jahr.klarHell && jahr.regenHell < jahr.klarHell,
+      JSON.stringify({ klar: jahr.klarHell.toFixed(1), schnee: jahr.schneeHell.toFixed(1),
+        regen: jahr.regenHell.toFixed(1) }));
+    check('Es fallen wirklich Flocken – und sie sehen nicht aus wie Regen',
+      jahr.flockenSchnee > 300 && jahr.flockenRegen < jahr.flockenSchnee / 4 &&
+      jahr.flockenKlar === 0 &&
+      jahr.label.wort === 'Schnee' && jahr.label.faellt === true,
+      JSON.stringify({ schnee: jahr.flockenSchnee, regen: jahr.flockenRegen,
+        klar: jahr.flockenKlar, label: jahr.label }));
+    check('Die Jahreszeit kommt bis zur Angel und zu den Faltern',
+      jahr.angel === 'winter' && jahr.falter === 'winter',
+      JSON.stringify({ angel: jahr.angel, falter: jahr.falter }));
 
     /* ---- Der Garten ---- */
     // Der ganze Kreislauf an einem Stück: säen, Tage vergehen lassen, ernten.

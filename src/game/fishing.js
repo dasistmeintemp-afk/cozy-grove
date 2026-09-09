@@ -46,13 +46,13 @@ export class Fishing {
   }
 
   /** Wirft aus. Gibt false zurück, wenn dort kein Wasser ist. */
-  cast(world, player, rng, night, rodLevel) {
+  cast(world, player, rng, night, rodLevel, season) {
     if (this.active) return false;
     const p = player.facingPoint(CAST_REACH);
     if (!world.waterAt(p.x, p.y)) return false;
 
     const kind = world.waterKind(p.x, p.y);
-    const pool = fishesOf(kind, night);
+    const pool = fishesOf(kind, night, season);
     if (!pool.length) return false;
 
     // Am Fischschwarmtag steht eine Art dick vor der Küste. Das ist der

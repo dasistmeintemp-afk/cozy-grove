@@ -376,11 +376,21 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   ringsum auf, und sie fliegen zwei Sekunden lang doppelt so schnell – blind
   wischen lohnt sich nicht. Ist kein Falter in der Nähe, verhält sich der
   Kescher wie jedes andere Werkzeug und man kann damit reden und aufheben.
-* **Wetter.** Manche Tage bringen Regen, manche Nebel. Was ein Tag bekommt,
-  hängt nur an Insel und Tagnummer – es steht fest, bevor der Tag beginnt.
-  Und es zählt: **Mondblumen** wachsen nur nachts, **Regenpilze** nur an
-  Regentagen, **Nebelkristalle** nur im Nebel. Sie verschwinden wieder, sobald
-  die Bedingung fällt, und sind die Zutaten der Mondlaterne.
+* **Wetter.** Manche Tage bringen Regen, manche Nebel, im Winter fällt
+  **Schnee** – langsam und seitlich pendelnd, damit er nicht wie weißer Regen
+  aussieht. Was ein Tag bekommt, hängt an Insel, Tagnummer und **Jahreszeit**
+  und steht fest, bevor der Tag beginnt. Die Mischung unterscheidet sich
+  deutlich: im Sommer sind drei von vier Tagen klar, im Herbst liegt an fast
+  jedem dritten Nebel, im Winter schneit es an fast jedem dritten. Und es
+  zählt: **Mondblumen** wachsen nur nachts, **Regenpilze** nur an Regentagen,
+  **Nebelkristalle** nur im Nebel. Sie verschwinden wieder, sobald die
+  Bedingung fällt, und sind die Zutaten der Mondlaterne. Genau deshalb hat
+  jede Jahreszeit von jedem Wetter mindestens jeden zehnten Tag: Eine Sitzung
+  spielt immer in EINER Jahreszeit – der Kalender dreht sich mit dem echten
+  Datum, ein Inseltag dauert vierzehn Minuten –, und ein Winter mit fünf
+  Prozent Regen wäre für den Regenpilz keine Seltenheit mehr, sondern eine
+  Sperre. Ein Test rechnet das nach. Was für ein Tag ist, steht oben im
+  Aufgabenfenster: Jahreszeit und Wetter nebeneinander.
 * **Fundbuch.** Alles, was je durch die Tasche ging, mit Gesamtzahl. Was noch
   fehlt, steht als Schattenriss da.
 * **Erinnerungen.** Jeder Geist hat eine Geschichte aus vier Fundstücken, die
@@ -398,8 +408,25 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   frischem Grün, im Juli tief und satt, im Oktober in Gold, im Januar hell und
   kühl. Wiese, Kronen, Büsche und Moos wechseln mit – ohne eine einzige
   zusätzliche Grafik: Es wird ohnehin alles beim Start gemalt, und die
-  Jahreszeit steht davor fest. Keine davon ist grau; das Spiel handelt vom
-  Zurückbringen der Farbe, ein trister Winter widerspräche genau dem.
+  Jahreszeit steht davor fest. Darüber liegt ein schwacher Farbschleier über
+  dem ganzen Bild, der auch Sand, Wasser und Fels mitnimmt; der Frühling hat
+  keinen, er ist der Maßstab, an dem man die anderen drei erkennt. Keine
+  davon ist grau; das Spiel handelt vom Zurückbringen der Farbe, ein trister
+  Winter widerspräche genau dem – ein Test rechnet das für Palette *und*
+  Schleier nach.
+
+  Und die Jahreszeit ist nicht nur Farbe. Sie mischt das **Wetter** (siehe
+  oben), sie entscheidet, **wer unterwegs ist** – der Goldkarpfen steht im
+  Frühling und Sommer im Fluss, der Mondfisch im Herbst und Winter im Meer,
+  der Admiral fliegt im Sommer und Herbst, der Mondfalter im Frühling und
+  Sommer –, und sie ändert, **wie schnell nachwächst**, was man abschlägt:
+  Ein Baum steht im Frühling nach zwei Tagen wieder da, im Winter nach vier.
+  Die tägliche Runde bleibt davon unberührt: Beeren, Kräuter, Pilze, Blumen,
+  Muscheln und Treibholz kommen in jeder Jahreszeit jeden Tag. Im Fundbuch
+  steht bei den vier saisonalen Arten, wann es sie gibt, und ein Geist bittet
+  nie um etwas, das gerade gar nicht da ist – dieselbe Regel wie bei der
+  Feder, nur zeitlich. Zum Wechsel kommt ein Brief, der in einem Nebensatz
+  sagt, was sich ändert.
 * **Ein Tagesereignis je echtem Kalendertag.** Markttag (der Händler zahlt ein
   Drittel mehr), Fundtag (doppelt so viele Grabstellen), Blütentag (die Insel
   blüht, morgen wieder vorbei), Falterzug (viel mehr Falter), Fischschwarm
@@ -564,8 +591,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 200 Tests: Welt, Wetter, Aufgaben, Uhr, Garten, Kalender …
-npm run test:browser   # 151 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 267 Tests: Welt, Wetter, Jahreszeiten, Aufgaben, Uhr, Garten …
+npm run test:browser   # 205 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 
