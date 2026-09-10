@@ -20,13 +20,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { QuestBook } from '../../src/game/quests.js';
+import { QuestBook, QTYPE } from '../../src/game/quests.js';
 import { World } from '../../src/world/world.js';
 import { Inventory } from '../../src/game/inventory.js';
 import { SEASONS } from '../../src/game/calendar.js';
 import { STAGES as TRUHE } from '../../src/game/loan.js';
 import { PLOT_STAGES, ISLE_PLOT_STAGES } from '../../src/game/plot.js';
 import { KATALOG } from '../../src/game/catalog.js';
+import { Shop } from '../../src/game/shop.js';
+import { getItem } from '../../src/game/items.js';
 
 const SEED = 4711;
 
@@ -67,6 +69,48 @@ test('Ein Tag bringt genug für ein Zwischenziel, nicht für alles', () => {
   assert.ok(FRUEH.coins > 300, 'am Anfang muss sich ein Tag lohnen (' + FRUEH.coins + ')');
   assert.ok(FRUEH.coins < 1200, 'am Anfang zu viel (' + FRUEH.coins + ')');
   assert.ok(SPAET.coins < 2500, 'spät zu viel – dann ist jedes Ziel billig (' + SPAET.coins + ')');
+});
+
+test('Helfen lohnt mehr als verkaufen – bei JEDEM Gegenstand', () => {
+  // Die Regel, um die sich das ganze Spiel dreht, und sie stand nie irgendwo.
+  //
+  // Beim ersten Umbalancieren habe ich sie prompt gebrochen: Eine Holbitte
+  // zahlte `Wert × 0,7` je Stück, und damit lag das Abgeben bei allem, was
+  // mehr als Holz wert ist, nur vier bis sieben Prozent über dem
+  // Verkaufspreis. Man hätte das Kupfer verkauft und den Geistern das Holz
+  // gebracht – in einem Spiel, das vom Helfen handelt.
+  //
+  // Gemessen an ECHTEN Aufträgen gegen den ECHTEN Ladenpreis, nicht an einer
+  // hier abgeschriebenen Formel: Sonst prüfte der Test nur, dass ich zweimal
+  // dasselbe getippt habe.
+  const welt = new World(SEED).populate();
+  for (let r = 1; r <= 3; r++) welt.unlockRegion(r);
+  const ctx = { world: welt, inventory: new Inventory(60), today: { season: SEASONS.summer } };
+  const shop = new Shop();
+  shop.refresh(1, SEED);
+
+  const schlecht = [];
+  let geprueft = 0;
+  // Über viele Tage sammeln, damit jeder Gegenstand aus den Holpools
+  // mindestens einmal vorkommt – und am UNGÜNSTIGSTEN Tag: Tag eins.
+  for (let runde = 0; runde < 40; runde++) {
+    const qb = new QuestBook();
+    qb.newDay(1, welt, ctx);
+    for (const q of qb.active()) {
+      if (q.type !== QTYPE.GATHER || !q.itemId) continue;
+      const item = getItem(q.itemId);
+      if (!item || !item.value) continue;
+      geprueft++;
+      const verkauf = shop.sellPrice(q.itemId) * q.need;
+      if (q.rewards.coins <= verkauf * 1.2) {
+        schlecht.push(item.name + ' ×' + q.need + ': ' + q.rewards.coins
+          + ' abgeben vs ' + verkauf + ' verkaufen');
+      }
+    }
+  }
+  assert.ok(geprueft > 20, 'zu wenige Holbitten geprüft (' + geprueft + ')');
+  assert.deepEqual([...new Set(schlecht)], [],
+    'abgeben lohnt kaum mehr als verkaufen');
 });
 
 test('Der Lohn steigt, aber er explodiert nicht', () => {

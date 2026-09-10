@@ -161,19 +161,27 @@ async function run() {
     // Baum fällen: Figur direkt an einen Baum setzen und mehrfach schlagen
     const chopped = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
-      const tree = g.world.entities.find((e) => e.kind === 'tree_oak' && !e.gone);
-      if (!tree) return { ok: false, why: 'kein Baum' };
-      g.player.x = tree.x;
-      g.player.y = tree.y + 56;
-      g.player.dir = 'up';
+      // Eine Eiche suchen, die `findTarget` auch WIRKLICH anvisiert.
+      //
+      // Zwei Anläufe zuvor waren zu kurz gesprungen: Erst stand hier ein
+      // selbst herausgesuchter Baum (und auf mancher Zufallsinsel lag etwas
+      // anderes näher), dann wurde einfach geprüft, was findTarget wählt –
+      // und das war in einem Lauf ein GEIST, der erwartungsgemäß kein Stumpf
+      // wurde. Richtig ist beides zusammen: so lange Kandidaten durchgehen,
+      // bis Wunsch und Ziel übereinstimmen.
       g.player.selectTool(1);
+      let ziel = null;
+      let t = null;
+      const eichen = g.world.entities.filter((e) => e.kind === 'tree_oak' && !e.gone);
+      for (const kandidat of eichen.slice(0, 40)) {
+        g.player.x = kandidat.x;
+        g.player.y = kandidat.y + 56;
+        g.player.dir = 'up';
+        const versuch = g.player.findTarget(g.world);
+        if (versuch && versuch.entity === kandidat) { ziel = kandidat; t = versuch; break; }
+      }
+      if (!ziel) return { ok: false, why: 'keine anvisierbare Eiche' };
       const woodBefore = g.inventory.count('wood');
-      // Geprüft wird das Objekt, das findTarget WIRKLICH wählt. Vorher stand
-      // hier ein selbst herausgesuchter Baum, und auf mancher Zufallsinsel lag
-      // ein anderes Objekt näher – dann schlug der Test ins Leere.
-      const t = g.player.findTarget(g.world);
-      if (!t) return { ok: false, why: 'nichts anvisierbar' };
-      const ziel = t.entity;
       for (let i = 0; i < 8 && ziel.kind !== 'tree_stump' && !ziel.gone; i++) {
         g.target = t;
         g.onInteract();
@@ -810,6 +818,95 @@ async function run() {
     check('Danach stehen Wünsche offen', wunsch.offen > 0, JSON.stringify(wunsch));
     check('Und sie stehen im Aufgabenfenster',
       wunsch.imFenster === true, JSON.stringify(wunsch));
+    // Der Hinweis beim Aufstellen: Ohne ihn ist „am Wasser" ein Suchbild.
+    const hinweis = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      g.state.milestones.insel = g.state.milestones.insel || g.day.day;
+      const feuer = g.world.campfire;
+      g.state.wishes = { offen: [{
+        id: 'test2', spirit: 'flamey', sorte: 'sitz', ort: 'lager',
+        zugabe: 'keine', satz: 0, day: g.day.day, done: false,
+      }], erfuellt: 0 };
+
+      g.inventory.add('bench', 2);
+      g.inventory.add('lantern', 1);
+      // Richtige Sorte, richtiger Ort
+      g.player.x = feuer.x + 120;
+      g.player.y = feuer.y + 120;
+      g.startPlacing('bench');
+      await new Promise((res) => setTimeout(res, 140));
+      r.passt = g.ui._lastPrompt;
+      g.cancelPlacing();
+
+      // Richtige Sorte, falscher Ort – weit weg vom Feuer
+      g.player.x = feuer.x + 2400;
+      g.player.y = feuer.y;
+      g.startPlacing('bench');
+      await new Promise((res) => setTimeout(res, 140));
+      r.falscherOrt = g.ui._lastPrompt;
+      g.cancelPlacing();
+
+      // Falsche Sorte
+      g.player.x = feuer.x + 120;
+      g.player.y = feuer.y + 120;
+      g.startPlacing('lantern');
+      await new Promise((res) => setTimeout(res, 140));
+      r.falscheSorte = g.ui._lastPrompt;
+      g.cancelPlacing();
+      g.state.wishes = { offen: [], erfuellt: 0 };
+      return r;
+    });
+    check('Der Hinweis sagt, wenn die Stelle einen Wunsch erfüllt',
+      /erfüllt einen Wunsch/.test(hinweis.passt || ''), JSON.stringify(hinweis));
+    check('Und wohin es sonst gehört',
+      /gewünscht ist es/.test(hinweis.falscherOrt || ''), JSON.stringify(hinweis));
+    check('Bei anderer Deko steht nichts davon',
+      !/Wunsch|gewünscht/.test(hinweis.falscheSorte || ''), JSON.stringify(hinweis));
+
+    // Ein Wunsch, an dem nach zwölf Tagen gar nichts steht, wird
+    // zurückgezogen – sonst wären drei, die einem nicht liegen, für immer
+    // die einzigen drei. Wer angefangen hat, behält seinen.
+    const geduld = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.milestones.insel = g.state.milestones.insel || g.day.day;
+      const feuer = g.world.campfire;
+
+      // a) Uralt und unangetastet -> muss gehen
+      g.state.wishes = { offen: [{
+        id: 'alt1', spirit: 'mira', sorte: 'tiere', ort: 'klippen',
+        zugabe: 'keine', satz: 0, day: g.day.day - 40, done: false,
+      }], erfuellt: 0 };
+      g._wuenscheNachfuellen(g.day.day);
+      const weg = !g.state.wishes.offen.some((w) => w.id === 'alt1');
+
+      // b) Uralt, aber angefangen -> muss bleiben. Eine Bank ans Feuer
+      // stellen und dann einen alten Sitzwunsch fürs Lager eintragen.
+      const bank = g.world.add({
+        id: 950001, kind: 'decor', itemId: 'bench',
+        x: feuer.x + 100, y: feuer.y + 100, sprite: 'bench',
+      });
+      g.state.wishes = { offen: [{
+        id: 'alt2', spirit: 'mira', sorte: 'sitz', ort: 'lager',
+        zugabe: 'mehrere', satz: 0, day: g.day.day - 40, done: false,
+      }], erfuellt: 0 };
+      const angefangen = g.wunschStand(g.state.wishes.offen[0]).stueck;
+      g._wuenscheNachfuellen(g.day.day);
+      const bleibt = g.state.wishes.offen.some((w) => w.id === 'alt2');
+
+      // Und aufgefüllt wird trotzdem auf drei.
+      const voll = g.state.wishes.offen.length;
+      g.world.remove(bank);
+      g.state.wishes = { offen: [], erfuellt: 0 };
+      return { weg, bleibt, angefangen, voll };
+    });
+    check('Ein unangetasteter Wunsch wird nach langer Zeit zurückgezogen',
+      geduld.weg === true, JSON.stringify(geduld));
+    check('Ein angefangener bleibt stehen, so lange man will',
+      geduld.bleibt === true && geduld.angefangen > 0, JSON.stringify(geduld));
+    check('Die Liste füllt sich danach wieder auf drei',
+      geduld.voll === 3, JSON.stringify(geduld));
+
     check('Aufstellen erfüllt den Wunsch – und er zahlt',
       wunsch.standVorher === false && wunsch.standNachher === true &&
       wunsch.erfuellt === 1 && wunsch.lohn > 100,
@@ -881,8 +978,20 @@ async function run() {
       }
 
       // 3) Beim Geist darf Halten NICHTS tun
-      const geist = g.world.entities.find((e) => e.kind === 'spirit' &&
+      //
+      // Nicht den ERSTEN Geist der Liste nehmen und hoffen: Steht ihm ein
+      // Busch oder ein Findling näher, visiert `findTarget` den an, und die
+      // Prüfung fällt rot aus, ohne dass etwas kaputt ist. Dieselbe
+      // Zufallsfalle wie bei der Birke weiter oben – der Rauchtest würfelt
+      // seine Insel je Lauf neu.
+      let geist = null;
+      const geister = g.world.entities.filter((e) => e.kind === 'spirit' &&
         g.world.isUnlocked(e.region));
+      for (const kandidat of geister) {
+        g.player.x = kandidat.x; g.player.y = kandidat.y + 60; g.player.dir = 'up';
+        const t = g.player.findTarget(g.world);
+        if (t && t.entity === kandidat) { geist = kandidat; break; }
+      }
       if (geist) {
         g.player.x = geist.x; g.player.y = geist.y + 60; g.player.dir = 'up';
         g.target = g.player.findTarget(g.world);

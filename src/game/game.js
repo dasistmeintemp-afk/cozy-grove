@@ -54,6 +54,7 @@ import { regrowDays } from './seasons.js';
 import {
   MAX_OFFEN as MAX_WUENSCHE, WUNSCH_MEILENSTEIN, wunschBauen, pruefeWunsch,
   wunschLohn, wunschTitel, wunschIcon, emptyWishes,
+  wunschHier, wunschSorteHier, ORTE as WUNSCH_ORTE, GEDULD_TAGE as WUNSCH_GEDULD,
 } from './wishes.js';
 import {
   beetHilfe, BEET_HILFE, WIRK_RADIUS, klingt, istWetterhahn, wirkungVon,
@@ -2534,22 +2535,53 @@ export class Game {
     if (!this.wuenschenSchon()) return;
     const w = this.state.wishes;
     const rng = dailyRng(this.world.seed, day, 'wishes');
+
+    // Ein Wunsch, den man lange liegen lässt, wird zurückgezogen.
+    //
+    // Wünsche laufen bewusst NICHT ab – ein Ort ist keine Bitte mit Frist.
+    // Aber ohne jede Bewegung wären drei Wünsche, die einem nicht liegen,
+    // für immer die einzigen drei: Die Liste füllt ja nur auf. Deshalb geht
+    // einer, an dem nach zwölf Tagen noch gar nichts steht. Das ist keine
+    // Strafe, sondern ein Geist, der es sich anders überlegt hat – wer
+    // angefangen hat, behält seinen Wunsch, so lange er will.
+    for (let i = w.offen.length - 1; i >= 0; i--) {
+      const alt = w.offen[i];
+      if (day - (alt.day || day) < WUNSCH_GEDULD) continue;
+      if (pruefeWunsch(alt, this.world).stueck > 0) continue;
+      w.offen.splice(i, 1);
+      const geist = SPIRITS[alt.spirit];
+      this.ui.toast((geist ? geist.name + ': ' : '') + 'Wunsch zurückgezogen',
+        'icon_ghost');
+    }
+
     const belegt = Object.create(null);
+    // Wer schon einen Wunsch offen hat, kommt hinten an: Drei Wünsche von
+    // Flämmchen und keiner von den anderen sechs wäre kein Chor, sondern
+    // eine Person, die viel redet.
+    const hatSchon = Object.create(null);
     for (let i = 0; i < w.offen.length; i++) {
       belegt[w.offen[i].sorte + ':' + w.offen[i].ort] = 1;
+      hatSchon[w.offen[i].spirit] = 1;
     }
     // Nur Geister, deren Bereich offen ist – sonst wünscht sich jemand
     // etwas, den man noch gar nicht getroffen hat.
-    const wer = [];
+    const frei = [];
+    const rest = [];
     for (let i = 0; i < SPIRIT_IDS.length; i++) {
       const sid = SPIRIT_IDS[i];
-      if (this.world.isUnlocked(SPIRITS[sid].region)) wer.push(sid);
+      if (!this.world.isUnlocked(SPIRITS[sid].region)) continue;
+      if (hatSchon[sid]) rest.push(sid);
+      else frei.push(sid);
     }
-    if (!wer.length) return;
+    if (!frei.length && !rest.length) return;
     while (w.offen.length < MAX_WUENSCHE) {
-      const neu = wunschBauen(this.world, randPick(rng, wer), day, rng, belegt);
+      const topf = frei.length ? frei : rest;
+      const sid = randPick(rng, topf);
+      const neu = wunschBauen(this.world, sid, day, rng, belegt);
       if (!neu) break;
       belegt[neu.sorte + ':' + neu.ort] = 1;
+      const k = frei.indexOf(sid);
+      if (k >= 0) { frei.splice(k, 1); rest.push(sid); }
       w.offen.push(neu);
     }
   }
@@ -2569,7 +2601,7 @@ export class Game {
       if (!pruefeWunsch(wunsch, this.world).erfuellt) continue;
       w.offen.splice(i, 1);
       w.erfuellt = (w.erfuellt || 0) + 1;
-      const lohn = wunschLohn(wunsch);
+      const lohn = wunschLohn(wunsch, w.erfuellt);
       this.state.coins += lohn.coins;
       this.state.ember += lohn.ember;
       for (let k = 0; k < lohn.items.length; k++) {
@@ -3654,9 +3686,33 @@ export class Game {
 
   _updatePrompt() {
     if (this.placing) {
-      this.ui.setPrompt(this.placing.valid
-        ? (this.placing.plant ? 'Hier säen · X abbrechen' : 'Hier aufstellen · X abbrechen')
-        : (this.placing.reason || 'Kein Platz') + ' · X abbrechen');
+      if (!this.placing.valid) {
+        this.ui.setPrompt((this.placing.reason || 'Kein Platz') + ' · X abbrechen');
+        return;
+      }
+      if (this.placing.plant) {
+        this.ui.setPrompt('Hier säen · X abbrechen');
+        return;
+      }
+      // Passt die Stelle zu einem offenen Wunsch, steht das hier – und wenn
+      // nur die Stelle nicht passt, steht da, wohin es gehört. „Am Wasser"
+      // heißt in Zahlen 150 Pixel; wer die Bank zweihundert daneben
+      // hinstellt, sähe sonst nichts passieren und wüsste nicht, warum.
+      const offen = this.wuenschenSchon() ? this.wishes() : null;
+      const treffer = wunschHier(offen, this.placing.itemId,
+        this.placing.x, this.placing.y, this.world);
+      if (treffer) {
+        this.ui.setPrompt('Hier aufstellen – erfüllt einen Wunsch · X abbrechen');
+        return;
+      }
+      const sorte = wunschSorteHier(offen, this.placing.itemId);
+      if (sorte) {
+        const ort = WUNSCH_ORTE[sorte.ort];
+        this.ui.setPrompt('Hier aufstellen · gewünscht ist es '
+          + (ort ? ort.name : 'woanders') + ' · X abbrechen');
+        return;
+      }
+      this.ui.setPrompt('Hier aufstellen · X abbrechen');
       return;
     }
     if (this.player.tool.id === 'net' && this.bugInReach()) {

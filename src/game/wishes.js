@@ -45,6 +45,17 @@ import { randInt, randPick } from '../core/rng.js';
 export const MAX_OFFEN = 3;
 
 /**
+ * Nach wie vielen Tagen ein UNANGETASTETER Wunsch zurückgezogen wird.
+ *
+ * Wünsche laufen bewusst nicht ab – ein Ort ist keine Bitte mit Frist. Aber
+ * ohne jede Bewegung wären drei Wünsche, die einem nicht liegen, für immer
+ * die einzigen drei: Die Liste füllt ja nur auf. Wer angefangen hat, behält
+ * seinen Wunsch so lange er will; nur an dem, wo gar nichts steht, verliert
+ * der Geist irgendwann das Interesse.
+ */
+export const GEDULD_TAGE = 12;
+
+/**
  * Ab wann sich die Geister Orte wünschen.
  *
  * Bewusst NICHT erst bei hundert Prozent: Wer das Spiel zum ersten Mal
@@ -351,6 +362,51 @@ export function pruefeWunsch(w, welt) {
 }
 
 /**
+ * Erfüllt DIESER Gegenstand an DIESER Stelle einen der offenen Wünsche?
+ *
+ * Für die Zeile beim Aufstellen. Ohne sie ist ein Wunsch ein Ratespiel:
+ * „am Wasser" heißt in Zahlen 150 Pixel, und wer die Bank zweihundert
+ * daneben hinstellt, sieht nichts passieren und erfährt nicht, warum. Das
+ * ist der Unterschied zwischen einer Aufgabe und einem Suchbild.
+ *
+ * Geprüft wird nur SORTE und ORT, nicht die Zugabe: Ob ringsum genug
+ * Gemütlichkeit steht, sieht man erst, wenn das Stück steht – und die Zahl
+ * dazu steht im Aufgabenfenster.
+ *
+ * @returns {object|null} der passende Wunsch, oder null
+ */
+export function wunschHier(offen, itemId, x, y, welt) {
+  if (!offen || !itemId) return null;
+  for (let i = 0; i < offen.length; i++) {
+    const w = offen[i];
+    const sorte = SORTEN[w.sorte];
+    const ort = ORTE[w.ort];
+    if (!sorte || !ort) continue;
+    if (sorte.items.indexOf(itemId) < 0) continue;
+    if (!ort.test(welt, x, y)) continue;
+    return w;
+  }
+  return null;
+}
+
+/**
+ * Passt der Gegenstand zu einem Wunsch, steht aber am falschen Ort?
+ *
+ * Die nützlichere Hälfte der Auskunft: „Diese Bank ist richtig, die Stelle
+ * nicht" schickt einen los; „hier passt nichts" lässt einen stehen.
+ *
+ * @returns {object|null} der Wunsch, dessen Sorte passt
+ */
+export function wunschSorteHier(offen, itemId) {
+  if (!offen || !itemId) return null;
+  for (let i = 0; i < offen.length; i++) {
+    const sorte = SORTEN[offen[i].sorte];
+    if (sorte && sorte.items.indexOf(itemId) >= 0) return offen[i];
+  }
+  return null;
+}
+
+/**
  * Was ein erfüllter Wunsch einbringt.
  *
  * Deutlich mehr als eine Tagesbitte, denn er kostet Deko, die Geld gekostet
@@ -361,13 +417,23 @@ export function pruefeWunsch(w, welt) {
  * verbaut, soll Deko bekommen, sonst versiegt der Nachschub genau da, wo er
  * gebraucht wird.
  */
-export function wunschLohn(w) {
+export function wunschLohn(w, erfuellt) {
   const zugabe = ZUGABEN[w.zugabe] || ZUGABEN.keine;
   const extra = (zugabe.charme > 0 ? 1 : 0) + (zugabe.stueck > 1 ? 1 : 0);
+  // Der Lohn wächst mit der Zahl der schon erfüllten Wünsche.
+  //
+  // Das ist kein Bonbon, sondern nötig: Ein Tag Bitten bringt spät im Spiel
+  // rund 1 800 Münzen, und die Wünsche sollen ab da die Hauptbeschäftigung
+  // sein. Ein fester Lohn von 260 wäre dann Kleingeld für mehr Arbeit – man
+  // würde sie liegen lassen und weiter Bitten abarbeiten.
+  //
+  // Gedeckelt beim Dreifachen, erreicht nach 25 Wünschen: Ohne Deckel wäre
+  // der hundertste Wunsch mehr wert als alles davor zusammen.
+  const stufe = 1 + Math.min(2, (erfuellt || 0) * 0.08);
   return {
-    coins: 260 + extra * 140,
-    ember: 12 + extra * 6,
-    items: [{ id: 'gem', n: 1 }],
+    coins: Math.round((260 + extra * 140) * stufe),
+    ember: Math.round((12 + extra * 6) * stufe),
+    items: [{ id: 'gem', n: (erfuellt || 0) >= 12 ? 2 : 1 }],
   };
 }
 

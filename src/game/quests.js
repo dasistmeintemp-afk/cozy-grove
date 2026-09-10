@@ -581,7 +581,16 @@ export class QuestBook {
  */
 function rewardFor(type, count, scale, rng, item) {
   const perUnit = {
-    gather: item ? Math.max(3, item.value * 0.7) : 5,
+    // Eine Holbitte muss MEHR einbringen als dasselbe beim Händler zu
+    // verkaufen. Das klingt selbstverständlich und war es nicht: Mit dem
+    // Faktor 0,7 lag das Abgeben bei allem, was mehr als Holz wert ist, nur
+    // vier bis sieben Prozent über dem Verkaufspreis – man hätte das Kupfer
+    // verkauft und den Geistern das Holz gebracht. Ein Spiel, das vom Helfen
+    // handelt, darf das Helfen nicht zur teuren Variante machen.
+    //
+    // Mit 1,5 liegt die Abgabe je nach Tag und Freundschaft beim Anderthalb-
+    // bis Zweieinviertelfachen. Ein Test rechnet es für jeden Gegenstand nach.
+    gather: item ? Math.max(4, item.value * 1.5) : 8,
     // Eine Sammelbitte kostet mehr Wege als eine Holbitte – das muss sich
     // lohnen, sonst nimmt man lieber dreimal Holz.
     set: 15,

@@ -221,11 +221,33 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 
   Eine Sorte ist immer eine **Gruppe**: „ein Platz zum Sitzen" nimmt Bank,
   Stuhl, Hängematte oder Schaukel. Ein Wunsch nach genau einem Gegenstand
-  wäre eine Einkaufsliste. Im Aufgabenfenster steht, wie weit es noch ist
-  („Gemütlichkeit 9/14"), denn ohne Rückmeldung wäre es Raten. Keine Frist,
-  keine Strafe: Wer drei Tage überlegt, wo die Bank hinsoll, hat richtig
-  gespielt. Und wer die Deko später wieder wegnimmt, verliert die Belohnung
-  nicht – der Wunsch war erfüllt, und das bleibt er.
+  wäre eine Einkaufsliste. Jede Sorte enthält mindestens ein Stück von der
+  **Werkbank** – sonst hinge ein Wunsch am Geld, und wer gerade pleite ist,
+  sähe drei Wünsche stehen, an die er nicht herankommt.
+
+  **Beim Aufstellen sagt das Spiel, ob die Stelle passt.** „Am Wasser" heißt
+  in Zahlen 150 Pixel; wer die Bank zweihundert daneben hinstellt, sähe sonst
+  nichts passieren und wüsste nicht, warum. Steht die Bank richtig, heißt es
+  „Hier aufstellen – erfüllt einen Wunsch"; ist nur die Stelle falsch,
+  „gewünscht ist es am Wasser". Das ist der Unterschied zwischen einer
+  Aufgabe und einem Suchbild. Im Aufgabenfenster steht dazu, wie weit die
+  Zugabe noch ist („Gemütlichkeit 9/14").
+
+  Der Lohn **wächst mit der Zahl der erfüllten Wünsche** (280 → 1 200 Münzen,
+  gedeckelt nach 25). Nötig, weil ein Tag Bitten spät im Spiel rund 1 800
+  bringt: Ein fester Lohn von 260 wäre dann Kleingeld für mehr Arbeit, und
+  man ließe genau die Aufgabe liegen, die das späte Spiel tragen soll.
+
+  Keine Frist, keine Strafe: Wer drei Tage überlegt, wo die Bank hinsoll, hat
+  richtig gespielt. Und wer die Deko später wieder wegnimmt, verliert die
+  Belohnung nicht – der Wunsch war erfüllt, und das bleibt er.
+
+  Die drei offenen Wünsche kommen immer von **drei verschiedenen Geistern**;
+  sonst redet einer viel und die anderen sechs gar nicht. Und einer, an dem
+  nach zwölf Tagen noch **gar nichts** steht, wird zurückgezogen – nicht als
+  Frist, sondern weil sich sonst drei Wünsche, die einem nicht liegen, für
+  immer festsetzen: Die Liste füllt ja nur auf. Wer angefangen hat, behält
+  seinen Wunsch so lange er mag.
 
   Ein Test prüft **jede** der Kombinationen einzeln auf Erfüllbarkeit. Eine
   einzige unerfüllbare tauchte sonst irgendwann bei jedem auf und bliebe
@@ -681,8 +703,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 319 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Wirtschaft …
-npm run test:browser   # 218 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 325 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Wirtschaft …
+npm run test:browser   # 224 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

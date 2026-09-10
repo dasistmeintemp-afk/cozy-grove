@@ -18,7 +18,7 @@ import {
   SORTEN, SORT_IDS, ORTE, ORT_IDS, ZUGABEN, ZUGAB_IDS, MAX_OFFEN,
   WUNSCH_MEILENSTEIN, ZUGABE_RADIUS,
   wunschBauen, pruefeWunsch, wunschLohn, wunschText, wunschTitel, wunschIcon,
-  orteFuer, emptyWishes,
+  orteFuer, emptyWishes, wunschHier, wunschSorteHier, GEDULD_TAGE,
 } from '../../src/game/wishes.js';
 import { World, TILE_SIZE } from '../../src/world/world.js';
 import { isWalkable } from '../../src/art/tiles.js';
@@ -26,6 +26,8 @@ import { MAP_W, MAP_H } from '../../src/world/worldgen.js';
 import { getItem, CAT, ITEM_LIST } from '../../src/game/items.js';
 import { MILESTONES } from '../../src/game/milestones.js';
 import { makeRng } from '../../src/core/rng.js';
+import { RECIPES } from '../../src/game/recipes.js';
+import { SPIRITS, SPIRIT_IDS } from '../../src/game/spirits.js';
 
 const SEED = 4711;
 
@@ -46,6 +48,29 @@ function stelleFuer(welt, ortId) {
       const y = (ty + 0.5) * TILE_SIZE;
       if (!isWalkable(welt.tileAtTile(tx, ty))) continue;
       if (!ort.test(welt, x, y)) continue;
+      return { x: x, y: y };
+    }
+  }
+  return null;
+}
+
+/**
+ * Eine Stelle, die den einen Ort erfüllt und den anderen NICHT.
+ *
+ * Nötig, weil die Orte sich überlappen: Die erste begehbare Waldkachel der
+ * Karte liegt an der Küste und erfüllt „am Wasser" gleich mit. Wer die
+ * Trennung prüfen will, muss eine Stelle suchen, an der wirklich nur eines
+ * von beiden gilt.
+ */
+function stelleNur(welt, jaId, neinId) {
+  const ja = ORTE[jaId];
+  const nein = ORTE[neinId];
+  for (let ty = 2; ty < MAP_H - 2; ty++) {
+    for (let tx = 2; tx < MAP_W - 2; tx++) {
+      const x = (tx + 0.5) * TILE_SIZE;
+      const y = (ty + 0.5) * TILE_SIZE;
+      if (!isWalkable(welt.tileAtTile(tx, ty))) continue;
+      if (!ja.test(welt, x, y) || nein.test(welt, x, y)) continue;
       return { x: x, y: y };
     }
   }
@@ -214,6 +239,42 @@ test('Wünsche wiederholen sich nicht innerhalb der offenen Liste', () => {
   assert.equal(new Set(gebaut).size, MAX_OFFEN);
 });
 
+test('Drei Wünsche kommen von drei verschiedenen Geistern', () => {
+  // Sonst redet einer viel und die anderen sechs gar nicht. Nachgebaut wird
+  // hier die Auswahl aus `_wuenscheNachfuellen`: erst die, die noch keinen
+  // offenen Wunsch haben.
+  const alle = SPIRIT_IDS.filter((id) => WELT.isUnlocked(SPIRITS[id].region));
+  assert.ok(alle.length >= MAX_OFFEN, 'zu wenige Geister – Test prüft nichts');
+  for (let runde = 0; runde < 50; runde++) {
+    const rng = makeRng(runde * 31 + 7);
+    const offen = [];
+    const belegt = Object.create(null);
+    const frei = alle.slice();
+    const rest = [];
+    while (offen.length < MAX_OFFEN) {
+      const topf = frei.length ? frei : rest;
+      const sid = topf[Math.floor(rng() * topf.length)];
+      const w = wunschBauen(WELT, sid, 10, rng, belegt);
+      if (!w) break;
+      belegt[w.sorte + ':' + w.ort] = 1;
+      const k = frei.indexOf(sid);
+      if (k >= 0) { frei.splice(k, 1); rest.push(sid); }
+      offen.push(w);
+    }
+    const wer = new Set(offen.map((w) => w.spirit));
+    assert.equal(wer.size, offen.length,
+      'Runde ' + runde + ': zwei Wünsche vom selben Geist');
+  }
+});
+
+test('Die Geduld ist lang, aber nicht unendlich', () => {
+  // Wünsche laufen bewusst nicht ab – ein Ort ist keine Bitte mit Frist.
+  // Aber ohne jede Bewegung wären drei Wünsche, die einem nicht liegen, für
+  // immer die einzigen drei: Die Liste füllt ja nur auf.
+  assert.ok(GEDULD_TAGE >= 8, 'kürzer als eine Woche wäre eine Frist');
+  assert.ok(GEDULD_TAGE <= 30, 'länger als ein Monat merkt niemand');
+});
+
 test('Sie gehen nicht aus', () => {
   // Der ganze Sinn: Nach hundert erfüllten Wünschen muss noch einer kommen.
   const rng = makeRng(5);
@@ -265,13 +326,61 @@ test('Jeder Wunsch hat einen Satz, der wie ein Satz aussieht', () => {
   }
 });
 
-test('Ein Wunsch lohnt mehr als eine Tagesbitte – und gibt Deko zurück', () => {
-  const ohne = wunschLohn({ zugabe: 'keine' });
-  const mit = wunschLohn({ zugabe: 'gemuetlich' });
+test('Ein Wunsch lohnt spürbar – und gibt Deko zurück', () => {
+  const ohne = wunschLohn({ zugabe: 'keine' }, 0);
+  const mit = wunschLohn({ zugabe: 'gemuetlich' }, 0);
   assert.ok(ohne.coins >= 200, 'ein Wunsch kostet Deko, die Geld gekostet hat');
   assert.ok(mit.coins > ohne.coins, 'die Zugabe muss sich auszahlen');
   assert.ok(ohne.items.length > 0, 'wer Deko verbaut, soll auch etwas zurückbekommen');
   for (const it of ohne.items) assert.ok(getItem(it.id), it.id + ' gibt es nicht');
+});
+
+test('Der Lohn wächst mit – aber nicht ins Unendliche', () => {
+  // Nötig, weil ein Tag Bitten spät im Spiel rund 1 800 Münzen bringt: Ein
+  // fester Lohn von 260 wäre dann Kleingeld für mehr Arbeit, und man ließe
+  // genau die Aufgabe liegen, die das späte Spiel tragen soll.
+  const erster = wunschLohn({ zugabe: 'keine' }, 0).coins;
+  const spaeter = wunschLohn({ zugabe: 'keine' }, 25).coins;
+  const viel = wunschLohn({ zugabe: 'keine' }, 200).coins;
+  assert.ok(spaeter > erster * 2, 'nach 25 Wünschen muss es sich deutlich lohnen');
+  assert.equal(viel, spaeter, 'gedeckelt – der hundertste darf nicht alles davor schlagen');
+  assert.ok(viel < 2000, 'ein einzelner Wunsch darf keinen ganzen Tag ersetzen');
+});
+
+test('Jede Sorte lässt sich OHNE Geld erfüllen', () => {
+  // Sonst hinge ein Wunsch am Katalog, und wer gerade pleite ist, sieht drei
+  // Wünsche stehen, an die er nicht herankommt. Für jede Sorte muss also
+  // mindestens ein Stück an der Werkbank zu bauen sein.
+  const baubar = Object.create(null);
+  for (const r of RECIPES) if (r.out) baubar[r.out.id] = 1;
+  for (const id of SORT_IDS) {
+    const geht = SORTEN[id].items.filter((it) => baubar[it]);
+    assert.ok(geht.length > 0,
+      id + ': nichts davon lässt sich bauen – ' + SORTEN[id].items.join(', '));
+  }
+});
+
+test('Beim Aufstellen sagt das Spiel, ob die Stelle passt', () => {
+  // Ohne diese Auskunft ist ein Wunsch ein Suchbild: „am Wasser" heißt in
+  // Zahlen 150 Pixel, und wer die Bank zweihundert daneben hinstellt, sähe
+  // nichts passieren und wüsste nicht, warum.
+  const welt = offeneWelt();
+  const amWasser = stelleFuer(welt, 'wasser');
+  const imWald = stelleNur(welt, 'wald', 'wasser');
+  assert.ok(imWald, 'kein Waldplatz ohne Wasser gefunden');
+  const offen = [{ sorte: 'sitz', ort: 'wasser', zugabe: 'keine', satz: 0 }];
+
+  assert.ok(wunschHier(offen, 'bench', amWasser.x, amWasser.y, welt),
+    'die Bank am Wasser muss als Treffer erkannt werden');
+  assert.equal(wunschHier(offen, 'bench', imWald.x, imWald.y, welt), null,
+    'im Wald ist es kein Treffer');
+  assert.equal(wunschHier(offen, 'lantern', amWasser.x, amWasser.y, welt), null,
+    'eine Laterne ist kein Sitzplatz');
+
+  // Und die nützlichere Hälfte: richtige Sorte, falscher Ort.
+  assert.ok(wunschSorteHier(offen, 'hammock'), 'die Hängematte zählt als Sitzplatz');
+  assert.equal(wunschSorteHier(offen, 'lantern'), null);
+  assert.equal(wunschSorteHier(null, 'bench'), null, 'ohne offene Wünsche kein Absturz');
 });
 
 test('Ein frischer Spielstand hat eine leere Wunschliste', () => {
