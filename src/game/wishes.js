@@ -39,6 +39,7 @@
  * Spiels.
  */
 import { getItem, CAT } from './items.js';
+import { SPIRITS } from './spirits.js';
 import { randInt, randPick } from '../core/rng.js';
 
 /** Wie viele Wünsche gleichzeitig offen sind. */
@@ -112,8 +113,15 @@ export const SORT_IDS = Object.keys(SORTEN);
  * Die Orte.
  *
  * `region` ist die Bereichsnummer aus `worldgen.js` oder null für „überall".
- * `test` bekommt Welt und Weltkoordinate und sagt ja oder nein – mehr braucht
- * es nicht, und alles, was hier geprüft wird, weiß das Spiel schon.
+ * `test` bekommt Welt, Weltkoordinate und den Wunsch selbst und sagt ja oder
+ * nein – mehr braucht es nicht, und alles, was hier geprüft wird, weiß das
+ * Spiel schon.
+ *
+ * Den Wunsch braucht genau einer: `beiMir`. Er ist in Wahrheit SIEBEN Orte,
+ * je einer bei jedem Geist, und macht aus einer Ortsangabe eine persönliche
+ * Bitte – „Mira hätte gern etwas Grünes bei sich" ist etwas anderes als
+ * „etwas Grünes im Wald". Damit verdoppelt ein einziger Eintrag fast die
+ * Zahl der möglichen Wünsche.
  */
 export const ORTE = {
   wasser: {
@@ -162,6 +170,21 @@ export const ORTE = {
       return dx * dx + dy * dy >= 1600 * 1600;
     },
   },
+  beiMir: {
+    id: 'beiMir', name: 'bei ihm selbst', region: null,
+    /** Der Name hängt am Geist – deshalb eine Funktion statt eines Wortes. */
+    nameFuer: function (w) {
+      const g = w && SPIRITS[w.spirit];
+      return g ? 'bei ' + g.name : 'bei ihm selbst';
+    },
+    test: function (welt, x, y, w) {
+      const g = w && welt.spiritEntity ? welt.spiritEntity(w.spirit) : null;
+      if (!g) return false;
+      const dx = g.x - x;
+      const dy = g.y - y;
+      return dx * dx + dy * dy <= 400 * 400;
+    },
+  },
 };
 
 export const ORT_IDS = Object.keys(ORTE);
@@ -191,12 +214,56 @@ function nahWasser(welt, x, y, r) {
  * verlangt mehrere Stücke derselben Sorte.
  */
 export const ZUGABEN = {
-  keine: { id: 'keine', name: '', charme: 0, stueck: 1 },
-  gemuetlich: { id: 'gemuetlich', name: 'Und ringsum sollte es gemütlich sein.', charme: 14, stueck: 1 },
-  mehrere: { id: 'mehrere', name: 'Und nicht nur eins.', charme: 0, stueck: 3 },
+  keine: { id: 'keine', name: '', charme: 0, stueck: 1, dazu: null },
+  gemuetlich: {
+    id: 'gemuetlich', name: 'Und ringsum sollte es gemütlich sein.',
+    charme: 14, stueck: 1, dazu: null,
+  },
+  mehrere: {
+    id: 'mehrere', name: 'Und nicht nur eins.',
+    charme: 0, stueck: 3, dazu: null,
+  },
+  // Die vierte kommt erst später (siehe `DAZU_AB`): Sie verlangt ein Stück
+  // einer ZWEITEN Sorte am selben Platz und ist damit die einzige, bei der
+  // man zwei Dinge zusammendenken muss. Als vierte von Anfang an wäre sie
+  // eine Hürde; als Steigerung ist sie der Grund, weiterzumachen.
+  dazu: {
+    id: 'dazu', name: 'Und $DAZU sollte dabei sein.',
+    charme: 0, stueck: 1, dazu: true,
+  },
 };
 
 export const ZUGAB_IDS = Object.keys(ZUGABEN);
+
+/** Ab wie vielen erfüllten Wünschen die zweite Sorte dazukommt. */
+export const DAZU_AB = 8;
+
+/**
+ * Was ein Wunsch verlangt – abhängig davon, wie viele man schon erfüllt hat.
+ *
+ * Die Forderung wird beim ANLEGEN in den Wunsch geschrieben, nicht bei jeder
+ * Prüfung neu gerechnet. Sonst würde ein Wunsch, den man liegen lässt,
+ * hinter dem Rücken teurer – und das wäre eine Strafe fürs Nachdenken.
+ *
+ * Die Steigerung ist flach und gedeckelt. Sie soll verhindern, dass der
+ * fünfzigste Wunsch dieselbe Handbewegung ist wie der erste; sie soll nicht
+ * dazu führen, dass irgendwann eine halbe Insel voll Deko nötig ist.
+ */
+export function forderungFuer(zugabeId, erfuellt) {
+  const z = ZUGABEN[zugabeId] || ZUGABEN.keine;
+  const n = erfuellt || 0;
+  return {
+    charme: z.charme ? Math.min(38, z.charme + Math.floor(n / 6) * 3) : 0,
+    stueck: z.stueck > 1 ? Math.min(5, z.stueck + Math.floor(n / 14)) : 1,
+    dazu: !!z.dazu,
+  };
+}
+
+/** Die Forderung eines Wunsches – aus ihm selbst, mit Rückfall auf die Tabelle. */
+export function forderung(w) {
+  if (w && w.forderung) return w.forderung;
+  return forderungFuer(w ? w.zugabe : 'keine', 0);
+}
 
 /** Wie weit um ein Stück herum die Zugabe zählt. */
 export const ZUGABE_RADIUS = 260;
@@ -236,26 +303,34 @@ const SAETZE = {
   ],
 };
 
+/** Wie ein Ort in einem Satz heißt – manche hängen am Geist. */
+export function ortName(ortId, w) {
+  const o = ORTE[ortId];
+  if (!o) return 'irgendwo';
+  return o.nameFuer ? o.nameFuer(w) : o.name;
+}
+
 /** Der ausgeschriebene Satz eines Wunsches. */
 export function wunschText(w) {
-  const ort = ORTE[w.ort];
   const liste = SAETZE[w.sorte] || SAETZE.sitz;
   const satz = liste[(w.satz || 0) % liste.length];
-  let t = satz.replace('$ORT', ort ? ort.name : 'irgendwo');
+  let t = satz.replace('$ORT', ortName(w.ort, w));
   const zugabe = ZUGABEN[w.zugabe];
   // Als eigener Satz, nicht als Anhängsel: Der Grundsatz endet manchmal auf
   // ein Fragezeichen, und „…eine Laterne? – und nicht nur eins." liest sich
   // wie ein Formularfeld.
-  if (zugabe && zugabe.name) t += ' ' + zugabe.name;
+  if (zugabe && zugabe.name) {
+    const zweite = SORTEN[w.dazu];
+    t += ' ' + zugabe.name.replace('$DAZU', zweite ? zweite.name : 'noch etwas');
+  }
   return t;
 }
 
 /** Die Kurzfassung für die Auftragskarte. */
 export function wunschTitel(w) {
   const s = SORTEN[w.sorte];
-  const o = ORTE[w.ort];
   const kopf = s ? s.name.charAt(0).toUpperCase() + s.name.slice(1) : 'Ein Platz';
-  return kopf + ' ' + (o ? o.name : '');
+  return kopf + ' ' + ortName(w.ort, w);
 }
 
 export function wunschIcon(w) {
@@ -278,34 +353,97 @@ export function orteFuer(welt) {
 }
 
 /**
+ * Wie viele erfüllte Wünsche sich das Spiel merkt.
+ *
+ * Der Grund ist gemessen: Gemieden wurden anfangs nur die drei OFFENEN
+ * Kombinationen, und damit kam die erste Wiederholung im Median schon beim
+ * **elften** Wunsch, im schlechtesten Fall beim vierten. Von „gefühlt
+ * endlos" ist das weit entfernt – nichts wirkt schneller ausgelutscht als
+ * dieselbe Bitte, die man vorgestern erfüllt hat.
+ *
+ * Sechzehn ist knapp die Hälfte der Sorte-Ort-Paare: genug, dass sich nichts
+ * kurzfristig wiederholt, und nicht so viel, dass am Ende nichts mehr übrig
+ * bleibt, was der Bauplan zulässt.
+ */
+export const GEDAECHTNIS = 16;
+
+/**
+ * Der Schlüssel, unter dem ein Wunsch als „schon dagewesen" gilt.
+ *
+ * Bei ortsgebundenen Wünschen gehört der Geist dazu: „Ein Platz zum Sitzen
+ * bei Mira" und derselbe bei Bruno sind zwei verschiedene Plätze auf zwei
+ * verschiedenen Seiten der Insel. Über einen Kamm geschoren wären sie einer,
+ * und das Gedächtnis würde die Hälfte der Abwechslung wegsperren, die
+ * `beiMir` gerade erst gebracht hat.
+ */
+export function wunschKey(w) {
+  const o = ORTE[w.ort];
+  return w.sorte + ':' + w.ort + (o && o.nameFuer ? ':' + w.spirit : '');
+}
+
+/**
  * Ein neuer Wunsch.
  *
- * @param {object} welt   für die offenen Bereiche
- * @param {string} spirit wer ihn äußert
- * @param {number} day    Inseltag
+ * @param {object} welt     für die offenen Bereiche
+ * @param {string} spirit   wer ihn äußert
+ * @param {number} day      Inseltag
  * @param {function} rng
- * @param {object} belegt schon vergebene Kombinationen: { 'sitz:wasser': 1 }
+ * @param {object} belegt   gemiedene Kombinationen: { 'sitz:wasser': 1 }
+ * @param {number} erfuellt wie viele schon erfüllt sind – treibt die Ansprüche
  */
-export function wunschBauen(welt, spirit, day, rng, belegt) {
+export function wunschBauen(welt, spirit, day, rng, belegt, erfuellt) {
   const orte = orteFuer(welt);
   if (!orte.length) return null;
-  for (let versuch = 0; versuch < 12; versuch++) {
-    const sorte = randPick(rng, SORT_IDS);
-    const ort = randPick(rng, orte);
-    if (belegt && belegt[sorte + ':' + ort]) continue;
-    const zugabe = rng() < 0.45 ? randPick(rng, ['gemuetlich', 'mehrere']) : 'keine';
-    return {
-      id: 'w' + day + '_' + Math.floor(rng() * 1e6),
-      spirit: spirit,
-      sorte: sorte,
-      ort: ort,
-      zugabe: zugabe,
-      satz: randInt(rng, 0, 3),
-      day: day,
-      done: false,
-    };
+  const n = erfuellt || 0;
+  // Erst mit Rücksicht auf das Gedächtnis suchen; findet sich nichts, lieber
+  // eine Wiederholung als gar kein Wunsch. Eine leere Liste wäre schlimmer
+  // als ein bekannter Platz.
+  for (let runde = 0; runde < 2; runde++) {
+    for (let versuch = 0; versuch < 20; versuch++) {
+      const sorte = randPick(rng, SORT_IDS);
+      const ort = randPick(rng, orte);
+      if (runde === 0 && belegt
+        && belegt[wunschKey({ sorte: sorte, ort: ort, spirit: spirit })]) continue;
+      // Die vierte Zugabe kommt erst, wenn man den Dreh heraus hat.
+      const moeglich = ['gemuetlich', 'mehrere'];
+      if (n >= DAZU_AB) moeglich.push('dazu');
+      const zugabe = rng() < 0.5 ? randPick(rng, moeglich) : 'keine';
+      // Die zweite Sorte darf nicht dieselbe sein – „ein Sitzplatz, und ein
+      // Sitzplatz dabei" wäre keine Aufgabe, sondern ein Tippfehler.
+      let dazu = null;
+      if (zugabe === 'dazu') {
+        const andere = SORT_IDS.filter(function (id) { return id !== sorte; });
+        dazu = randPick(rng, andere);
+      }
+      return {
+        id: 'w' + day + '_' + Math.floor(rng() * 1e6),
+        spirit: spirit,
+        sorte: sorte,
+        ort: ort,
+        zugabe: zugabe,
+        dazu: dazu,
+        // Die Forderung wird HIER festgeschrieben, nicht bei jeder Prüfung
+        // neu gerechnet: Sonst würde ein Wunsch, den man liegen lässt,
+        // hinter dem Rücken teurer – eine Strafe fürs Nachdenken.
+        forderung: forderungFuer(zugabe, n),
+        satz: randInt(rng, 0, 3),
+        day: day,
+        done: false,
+      };
+    }
   }
   return null;
+}
+
+/**
+ * Einen erfüllten Wunsch ins Gedächtnis schreiben.
+ *
+ * Eine Liste mit fester Länge, ältestes fliegt hinten raus – dieselbe
+ * Mechanik wie beim Briefkasten.
+ */
+export function merken(liste, w) {
+  const neu = (liste || []).concat([wunschKey(w)]);
+  return neu.slice(Math.max(0, neu.length - GEDAECHTNIS));
 }
 
 /**
@@ -322,25 +460,33 @@ export function wunschBauen(welt, spirit, day, rng, belegt) {
 export function pruefeWunsch(w, welt) {
   const sorte = SORTEN[w.sorte];
   const ort = ORTE[w.ort];
-  const zugabe = ZUGABEN[w.zugabe] || ZUGABEN.keine;
-  const leer = { erfuellt: false, charme: 0, stueck: 0 };
+  const soll = forderung(w);
+  const leer = { erfuellt: false, charme: 0, stueck: 0, dabei: false, soll: soll };
   if (!sorte || !ort || !welt || !welt.entities) return leer;
 
   const passt = Object.create(null);
   for (let i = 0; i < sorte.items.length; i++) passt[sorte.items[i]] = 1;
+  // Die zweite Sorte, falls der Wunsch eine verlangt.
+  const zweite = Object.create(null);
+  if (soll.dazu && SORTEN[w.dazu]) {
+    const z = SORTEN[w.dazu];
+    for (let i = 0; i < z.items.length; i++) zweite[z.items[i]] = 1;
+  }
 
   let besteCharme = 0;
   let besteStueck = 0;
+  let besteDabei = false;
   for (let i = 0; i < welt.entities.length; i++) {
     const e = welt.entities[i];
     if (e.gone || e.kind !== 'decor' || !passt[e.itemId]) continue;
-    if (!ort.test(welt, e.x, e.y)) continue;
+    if (!ort.test(welt, e.x, e.y, w)) continue;
 
-    // Nachbarschaft: Charme aller Deko ringsum, und wie viele Stücke DIESER
-    // Sorte dabei sind.
+    // Nachbarschaft: Charme aller Deko ringsum, wie viele Stücke DIESER
+    // Sorte dabei sind – und ob die zweite Sorte vertreten ist.
     const nah = welt.queryNear(e.x, e.y, ZUGABE_RADIUS);
     let charme = 0;
     let stueck = 0;
+    let dabei = false;
     const r2 = ZUGABE_RADIUS * ZUGABE_RADIUS;
     for (let k = 0; k < nah.length; k++) {
       const d = nah[k];
@@ -351,14 +497,19 @@ export function pruefeWunsch(w, welt) {
       const item = getItem(d.itemId);
       if (item && item.cat === CAT.DECOR) charme += item.charm || 1;
       if (passt[d.itemId]) stueck++;
+      if (zweite[d.itemId]) dabei = true;
     }
     if (charme > besteCharme) besteCharme = charme;
     if (stueck > besteStueck) besteStueck = stueck;
-    if (charme >= zugabe.charme && stueck >= zugabe.stueck) {
-      return { erfuellt: true, charme: charme, stueck: stueck };
+    if (dabei) besteDabei = true;
+    if (charme >= soll.charme && stueck >= soll.stueck && (!soll.dazu || dabei)) {
+      return { erfuellt: true, charme: charme, stueck: stueck, dabei: dabei, soll: soll };
     }
   }
-  return { erfuellt: false, charme: besteCharme, stueck: besteStueck };
+  return {
+    erfuellt: false, charme: besteCharme, stueck: besteStueck,
+    dabei: besteDabei, soll: soll,
+  };
 }
 
 /**
@@ -383,7 +534,7 @@ export function wunschHier(offen, itemId, x, y, welt) {
     const ort = ORTE[w.ort];
     if (!sorte || !ort) continue;
     if (sorte.items.indexOf(itemId) < 0) continue;
-    if (!ort.test(welt, x, y)) continue;
+    if (!ort.test(welt, x, y, w)) continue;
     return w;
   }
   return null;
@@ -438,7 +589,39 @@ export function wunschLohn(w, erfuellt) {
 }
 
 export function emptyWishes() {
-  return { offen: [], erfuellt: 0 };
+  return { offen: [], erfuellt: 0, letzte: [] };
+}
+
+/**
+ * Wie die Insel einen nennt.
+ *
+ * Kein Rang mit Rechten, nur ein Wort – aber eines, das mitwächst. Bei
+ * einer Beschäftigung, die nie fertig wird, ist das die einzige Form von
+ * Fortschritt, die man aufschreiben kann, ohne sie zu beenden. Die letzte
+ * Stufe kommt bewusst spät und heißt bewusst nicht „Meisterin": Es bleibt
+ * ein Ort zum Wohnen, keine Rangliste.
+ */
+export const RAENGE = [
+  { ab: 0, name: 'Zugezogen' },
+  { ab: 3, name: 'Wer etwas hinstellt' },
+  { ab: 8, name: 'Inselgärtnerin' },
+  { ab: 16, name: 'Wer weiß, wo was hingehört' },
+  { ab: 30, name: 'Die Hand der Insel' },
+  { ab: 50, name: 'Hier ist alles an seinem Platz' },
+];
+
+export function rangFuer(erfuellt) {
+  let r = RAENGE[0];
+  for (let i = 0; i < RAENGE.length; i++) if ((erfuellt || 0) >= RAENGE[i].ab) r = RAENGE[i];
+  return r;
+}
+
+/** Wie viele Wünsche bis zum nächsten Wort – oder null auf der letzten Stufe. */
+export function bisZumNaechstenRang(erfuellt) {
+  for (let i = 0; i < RAENGE.length; i++) {
+    if ((erfuellt || 0) < RAENGE[i].ab) return RAENGE[i].ab - (erfuellt || 0);
+  }
+  return null;
 }
 
 /** Wie viele Wünsche insgesamt erfüllt wurden. */

@@ -214,10 +214,38 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   weiß: **Sorte** (ein Sitzplatz, ein Licht, etwas Grünes, etwas für die
   Tiere, ein Weg, ein gedeckter Tisch), **Ort** (am Wasser, im Wald, oben an
   den Klippen, drüben auf der Insel, beim Lagerfeuer, bei deinem Zuhause,
-  weit weg von allem) und **Zugabe** (ringsum gemütlich, oder nicht nur
-  eins). Das sind 126 Kombinationen, ohne dass eine davon geschrieben werden
-  müsste – die *Sätze* dagegen sind geschrieben, zwei je Sorte, sonst läse
-  sich jeder Wunsch wie eine Datenbankzeile.
+  weit weg von allem – **oder beim Geist selbst**, was in Wahrheit sieben
+  Orte sind) und **Zugabe** (ringsum gemütlich; nicht nur eins; oder eine
+  zweite Sorte am selben Platz). Das sind **84 unterscheidbare Plätze** und
+  mit den Zugaben über dreihundert Wünsche, ohne dass einer davon
+  geschrieben werden müsste – die *Sätze* dagegen sind geschrieben, zwei je
+  Sorte, sonst läse sich jeder Wunsch wie eine Datenbankzeile.
+
+  **Damit es sich endlos anfühlt**, reicht ein großer Vorrat nicht. Gemessen
+  kam die erste Wiederholung anfangs schon beim **elften** Wunsch, im
+  schlechtesten Fall beim vierten – gemieden wurden ja nur die drei gerade
+  offenen. Drei Dinge halten sie jetzt auf Abstand:
+
+  * Das Spiel **merkt sich die letzten 16 erfüllten** und wiederholt sie
+    nicht. Damit rückt die erste Wiederholung im Median auf den **24.**
+    Wunsch (frühestens den 18.).
+  * „Ein Sitzplatz bei Mira" und derselbe bei Bruno gelten als **zwei**
+    Wünsche – zwei Plätze auf zwei Seiten der Insel.
+  * Die **Ansprüche wachsen**: „ringsum gemütlich" verlangt mit 40 erfüllten
+    Wünschen 32 Punkte statt 14, „nicht nur eins" fünf Stück statt drei. Ab
+    dem achten Wunsch kommt die vierte Zugabe dazu – ein Stück einer
+    **zweiten** Sorte am selben Platz, die einzige, bei der man zwei Dinge
+    zusammendenken muss. Flach und gedeckelt: Der fünfzigste Wunsch soll
+    nicht dieselbe Handbewegung sein wie der erste, aber auch keine halbe
+    Insel voll Deko verlangen. Die Forderung wird beim Anlegen in den Wunsch
+    geschrieben – sonst würde einer, den man liegen lässt, hinter dem Rücken
+    teurer, und das wäre eine Strafe fürs Nachdenken.
+
+  Dazu ein **Wort statt einer Zahl**: „Zugezogen", „Inselgärtnerin", „Wer
+  weiß, wo was hingehört", zuletzt „Hier ist alles an seinem Platz". Kein
+  Rang mit Rechten – aber bei einer Beschäftigung, die nie fertig wird, ist
+  das die einzige Form von Fortschritt, die man aufschreiben kann, ohne sie
+  zu beenden.
 
   Eine Sorte ist immer eine **Gruppe**: „ein Platz zum Sitzen" nimmt Bank,
   Stuhl, Hängematte oder Schaukel. Ein Wunsch nach genau einem Gegenstand
@@ -703,8 +731,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 325 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Wirtschaft …
-npm run test:browser   # 224 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 333 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Wirtschaft …
+npm run test:browser   # 227 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

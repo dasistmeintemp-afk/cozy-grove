@@ -907,6 +907,46 @@ async function run() {
     check('Die Liste füllt sich danach wieder auf drei',
       geduld.voll === 3, JSON.stringify(geduld));
 
+    // Rang und Gedächtnis: das, was „endlos" tragen muss.
+    const endlos = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.milestones.insel = g.state.milestones.insel || g.day.day;
+      g.state.wishes = { offen: [], erfuellt: 0, letzte: [] };
+      g.openPanel('quests');
+      await new Promise((r) => setTimeout(r, 220));
+      const ohneRang = document.getElementById('panel-body').textContent;
+      g.panels.close();
+
+      g.state.wishes.erfuellt = 20;
+      g.openPanel('quests');
+      await new Promise((r) => setTimeout(r, 220));
+      const mitRang = document.getElementById('panel-body').textContent;
+      g.panels.close();
+
+      // Gedächtnis: was zuletzt erfüllt wurde, darf nicht sofort wiederkommen.
+      g.state.wishes = { offen: [], erfuellt: 5, letzte: [] };
+      g._wuenscheNachfuellen(g.day.day);
+      const ersteDrei = g.state.wishes.offen.map((w) => w.sorte + ':' + w.ort);
+      g.state.wishes.letzte = ersteDrei.slice();
+      g.state.wishes.offen = [];
+      g._wuenscheNachfuellen(g.day.day);
+      const neueDrei = g.state.wishes.offen.map((w) => w.sorte + ':' + w.ort);
+      const ueberschneidung = neueDrei.filter((k) => ersteDrei.indexOf(k) >= 0).length;
+
+      g.state.wishes = { offen: [], erfuellt: 0, letzte: [] };
+      return {
+        ohneRang: /Zugezogen/.test(ohneRang),
+        mitRang: /erfüllt/.test(mitRang) && /noch \d+ Wünsche|noch \d+ Wunsch|Hand der Insel/.test(mitRang),
+        ersteDrei, neueDrei, ueberschneidung,
+      };
+    });
+    check('Ohne erfüllte Wünsche steht kein Rang da',
+      endlos.ohneRang === false, JSON.stringify(endlos));
+    check('Mit erfüllten Wünschen steht der Rang im Fenster',
+      endlos.mitRang === true, JSON.stringify(endlos));
+    check('Zuletzt Erfülltes kommt nicht sofort wieder',
+      endlos.ueberschneidung === 0, JSON.stringify(endlos));
+
     check('Aufstellen erfüllt den Wunsch – und er zahlt',
       wunsch.standVorher === false && wunsch.standNachher === true &&
       wunsch.erfuellt === 1 && wunsch.lohn > 100,

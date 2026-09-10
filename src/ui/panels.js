@@ -19,7 +19,7 @@ import { HOUSE_STAGES, MAX_HOUSE_STAGE } from '../game/house.js';
 import { MAX_OFFEN as MAX_ORDERS } from '../game/catalog.js';
 import { wirkungVon } from '../game/decor.js';
 import {
-  wunschTitel, wunschText, wunschIcon, ZUGABEN as WUNSCH_ZUGABEN,
+  wunschTitel, wunschText, wunschIcon, rangFuer, bisZumNaechstenRang,
 } from '../game/wishes.js';
 import { UI_SCALES } from './uiscale.js';
 import { CROPS } from '../game/crops.js';
@@ -517,8 +517,18 @@ export class Panels {
     const offen = g.wishes();
     const erfuellt = (g.state.wishes && g.state.wishes.erfuellt) || 0;
 
+    // Der Rang ist kein Rang mit Rechten, nur ein Wort – aber bei einer
+    // Beschäftigung, die nie fertig wird, ist er die einzige Form von
+    // Fortschritt, die man aufschreiben kann, ohne sie zu beenden.
+    const rang = rangFuer(erfuellt);
+    const bis = bisZumNaechstenRang(erfuellt);
     let html = '<h3 style="font-size:0.95em;margin:4px 0 8px">Wunschplätze' +
       (erfuellt ? ' <span class="cap">' + erfuellt + ' erfüllt</span>' : '') + '</h3>';
+    if (erfuellt) {
+      html += '<p class="empty-note" style="margin:0 0 8px">' +
+        escapeHtml(rang.name) +
+        (bis ? ' · noch ' + bis + (bis === 1 ? ' Wunsch' : ' Wünsche') : '') + '</p>';
+    }
     if (!offen.length) {
       return html + '<p class="empty-note" style="margin-bottom:12px">' +
         'Gerade wünscht sich niemand etwas.</p>';
@@ -528,15 +538,20 @@ export class Panels {
       const w = offen[i];
       const spirit = SPIRITS[w.spirit];
       const stand = g.wunschStand ? g.wunschStand(w) : null;
-      const zugabe = WUNSCH_ZUGABEN[w.zugabe] || null;
+      // Die Forderung steht im Wunsch selbst – sie wächst mit der Zahl der
+      // erfüllten, und ein liegen gelassener Wunsch behält seine.
+      const soll = stand ? stand.soll : null;
       let fortschritt = '';
-      if (stand && zugabe) {
-        if (zugabe.charme > 0) {
-          fortschritt = '<span' + (stand.charme >= zugabe.charme ? '' : ' class="warn"') + '>' +
-            'Gemütlichkeit ' + stand.charme + '/' + zugabe.charme + '</span>';
-        } else if (zugabe.stueck > 1) {
-          fortschritt = '<span' + (stand.stueck >= zugabe.stueck ? '' : ' class="warn"') + '>' +
-            stand.stueck + '/' + zugabe.stueck + ' Stück beieinander</span>';
+      if (stand && soll) {
+        if (soll.charme > 0) {
+          fortschritt = '<span' + (stand.charme >= soll.charme ? '' : ' class="warn"') + '>' +
+            'Gemütlichkeit ' + stand.charme + '/' + soll.charme + '</span>';
+        } else if (soll.stueck > 1) {
+          fortschritt = '<span' + (stand.stueck >= soll.stueck ? '' : ' class="warn"') + '>' +
+            stand.stueck + '/' + soll.stueck + ' Stück beieinander</span>';
+        } else if (soll.dazu) {
+          fortschritt = '<span' + (stand.dabei ? '' : ' class="warn"') + '>' +
+            (stand.dabei ? 'beides steht beieinander' : 'das Zweite fehlt noch') + '</span>';
         }
       }
       html += '<div class="row">' + ico(wunschIcon(w), 'lg') +

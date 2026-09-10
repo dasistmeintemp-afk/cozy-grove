@@ -55,6 +55,7 @@ import {
   MAX_OFFEN as MAX_WUENSCHE, WUNSCH_MEILENSTEIN, wunschBauen, pruefeWunsch,
   wunschLohn, wunschTitel, wunschIcon, emptyWishes,
   wunschHier, wunschSorteHier, ORTE as WUNSCH_ORTE, GEDULD_TAGE as WUNSCH_GEDULD,
+  merken, rangFuer, wunschKey,
 } from './wishes.js';
 import {
   beetHilfe, BEET_HILFE, WIRK_RADIUS, klingt, istWetterhahn, wirkungVon,
@@ -298,6 +299,7 @@ export class Game {
     if (!this.state.pet || typeof this.state.pet !== 'object') this.state.pet = emptyPet();
     if (!this.state.records) this.state.records = emptyRecords();
     if (!this.state.wishes) this.state.wishes = emptyWishes();
+    if (!this.state.wishes.letzte) this.state.wishes.letzte = [];
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -2555,12 +2557,18 @@ export class Game {
     }
 
     const belegt = Object.create(null);
+    // Was zuletzt erfüllt wurde, kommt so bald nicht wieder. Ohne dieses
+    // Gedächtnis kam die erste Wiederholung gemessen schon beim elften
+    // Wunsch – und nichts wirkt schneller ausgelutscht als dieselbe Bitte,
+    // die man vorgestern erfüllt hat.
+    const letzte = w.letzte || [];
+    for (let i = 0; i < letzte.length; i++) belegt[letzte[i]] = 1;
     // Wer schon einen Wunsch offen hat, kommt hinten an: Drei Wünsche von
     // Flämmchen und keiner von den anderen sechs wäre kein Chor, sondern
     // eine Person, die viel redet.
     const hatSchon = Object.create(null);
     for (let i = 0; i < w.offen.length; i++) {
-      belegt[w.offen[i].sorte + ':' + w.offen[i].ort] = 1;
+      belegt[wunschKey(w.offen[i])] = 1;
       hatSchon[w.offen[i].spirit] = 1;
     }
     // Nur Geister, deren Bereich offen ist – sonst wünscht sich jemand
@@ -2577,9 +2585,9 @@ export class Game {
     while (w.offen.length < MAX_WUENSCHE) {
       const topf = frei.length ? frei : rest;
       const sid = randPick(rng, topf);
-      const neu = wunschBauen(this.world, sid, day, rng, belegt);
+      const neu = wunschBauen(this.world, sid, day, rng, belegt, w.erfuellt || 0);
       if (!neu) break;
-      belegt[neu.sorte + ':' + neu.ort] = 1;
+      belegt[wunschKey(neu)] = 1;
       const k = frei.indexOf(sid);
       if (k >= 0) { frei.splice(k, 1); rest.push(sid); }
       w.offen.push(neu);
@@ -2601,6 +2609,7 @@ export class Game {
       if (!pruefeWunsch(wunsch, this.world).erfuellt) continue;
       w.offen.splice(i, 1);
       w.erfuellt = (w.erfuellt || 0) + 1;
+      w.letzte = merken(w.letzte, wunsch);
       const lohn = wunschLohn(wunsch, w.erfuellt);
       this.state.coins += lohn.coins;
       this.state.ember += lohn.ember;
