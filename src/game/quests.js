@@ -249,8 +249,14 @@ export class QuestBook {
     // Der Tag treibt die Belohnung, die Freundschaft ebenso: wer einem Geist
     // oft geholfen hat, bekommt von ihm mehr. Vorher war die Freundschaftsstufe
     // eine Zahl ohne Wirkung.
+    // Der Tag treibt den Lohn, die Freundschaft ebenso – aber beide flacher
+    // als früher. Vorher stand hier `1 + min(1.6, Tag*0.06) + Stufe*0.09`,
+    // also bis zum Dreieinhalbfachen. Wer am Tag 40 dreimal so viel für
+    // dieselbe Bitte bekommt, für den ist das letzte Ziel billiger als das
+    // erste – und dann gibt es kein spätes Spiel mehr. Jetzt höchstens das
+    // Doppelte, und der Zuwachs ist über die ersten Wochen verteilt.
     const friends = friendshipLevel(this.completedBySpirit[spiritId] || 0);
-    const scale = 1 + Math.min(1.6, day * 0.06) + friends * 0.09;
+    const scale = 1 + Math.min(0.6, day * 0.015) + friends * 0.04;
     const jahreszeit = state && state.today && state.today.season
       ? state.today.season.id : null;
 
@@ -552,27 +558,48 @@ export class QuestBook {
   }
 }
 
+/**
+ * Was eine erledigte Bitte einbringt.
+ *
+ * Die Zahlen sind einmal komplett neu gesetzt worden, und zwar nach einer
+ * Messung, die das ganze Spiel betraf: Wer an einem Tag alle 21 offenen
+ * Bitten erledigte, verdiente **3 400 bis 6 000 Münzen**. Alles, was es im
+ * Spiel überhaupt zu kaufen gibt – Vorratstruhe, Bucht und der komplette
+ * Katalog – kostete zusammen 30 085. Das Spiel war nach sechs bis acht Tagen
+ * leergekauft, während die Farbanzeige rund sechzehn Tage braucht: Man besaß
+ * alles, lange bevor die Insel fertig war.
+ *
+ * Bei der Glut war es noch deutlicher – 460 für das ganze Lagergrundstück
+ * gegen 130 bis 250 am Tag, also zwei Tage für ein Vorhaben, das im Text
+ * „ein Vorhaben, kein Nachmittag" heißt.
+ *
+ * Also weniger je Bitte. Wichtiger aber: eine FLACHERE Kurve (siehe `scale`
+ * bei `generate`). Vorher verdreifachte sich der Lohn im Lauf des Spiels,
+ * und genau das macht späte Ziele wertlos – wer am Tag 40 das Vierfache
+ * verdient, für den kostet die letzte Truhenstufe weniger Arbeit als die
+ * erste.
+ */
 function rewardFor(type, count, scale, rng, item) {
   const perUnit = {
-    gather: item ? Math.max(6, item.value * 1.6) : 10,
+    gather: item ? Math.max(3, item.value * 0.7) : 5,
     // Eine Sammelbitte kostet mehr Wege als eine Holbitte – das muss sich
     // lohnen, sonst nimmt man lieber dreimal Holz.
-    set: 34,
+    set: 15,
     // Ein Botengang kostet vor allem Laufweg.
-    deliver: 26,
+    deliver: 12,
     // Ein Beet steht zwei bis vier Tage, bevor es etwas hergibt.
-    grow: 32,
-    find: 26,
-    fish: 20,
-    catch: 70,
-    visit: 54,
-    burn: 9,
-    craft: 46,
-    decorate: 30,
-  }[type] || 10;
+    grow: 15,
+    find: 12,
+    fish: 9,
+    catch: 30,
+    visit: 24,
+    burn: 4,
+    craft: 20,
+    decorate: 14,
+  }[type] || 5;
 
   const coins = Math.round(perUnit * count * scale);
-  const ember = Math.round((type === 'burn' ? 1 : 2) + count * 0.7 * scale);
+  const ember = Math.round((type === 'burn' ? 1 : 1) + count * 0.3 * scale);
   const items = [];
   if (rng() < 0.35) {
     items.push({ id: randPick(rng, ['fiber', 'stone', 'wood', 'clay', 'resin']), n: randInt(rng, 2, 4) });

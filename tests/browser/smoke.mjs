@@ -754,6 +754,67 @@ async function run() {
     check('Die gefangenen Falter stehen im Fundbuch',
       zaehler.steht === true, JSON.stringify(zaehler));
 
+    /* ---- Wunschplätze: das Spiel nach dem Spiel ---- */
+    // Bei hundert Prozent lief nur der Tagesbetrieb weiter. Wünsche sind
+    // das, was nicht aufhört – und sie werden nicht durch Abgeben erfüllt,
+    // sondern durch AUFSTELLEN. Genau das wird hier gemessen.
+    const wunsch = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      // Vor dem Meilenstein wünscht sich niemand etwas.
+      const gemerkt = g.state.milestones.insel;
+      delete g.state.milestones.insel;
+      r.vorher = g.wuenschenSchon();
+      g.state.milestones.insel = gemerkt || g.day.day;
+      r.nachher = g.wuenschenSchon();
+
+      g.state.wishes = { offen: [], erfuellt: 0 };
+      g._wuenscheNachfuellen(g.day.day);
+      r.offen = g.wishes().length;
+
+      // Einen Wunsch von Hand setzen, der sich sicher erfüllen lässt: ein
+      // Sitzplatz beim Lagerfeuer.
+      g.state.wishes.offen = [{
+        id: 'test1', spirit: 'flamey', sorte: 'sitz', ort: 'lager',
+        zugabe: 'keine', satz: 0, day: g.day.day, done: false,
+      }];
+      r.standVorher = g.wunschStand(g.state.wishes.offen[0]).erfuellt;
+
+      // Im Fenster muss der Wunsch stehen.
+      g.openPanel('quests');
+      await new Promise((res) => setTimeout(res, 240));
+      const txt = document.getElementById('panel-body').textContent;
+      r.imFenster = txt.indexOf('Wunschplätze') >= 0 && txt.indexOf('zum Sitzen') >= 0;
+      g.panels.close();
+
+      // Bank neben das Lagerfeuer stellen – auf dem normalen Weg, nicht
+      // per Hand in die Welt geschoben.
+      const feuer = g.world.campfire;
+      const muenzenVorher = g.state.coins;
+      g.inventory.add('bench', 1);
+      g.player.x = feuer.x + 120;
+      g.player.y = feuer.y + 120;
+      g.startPlacing('bench');
+      await new Promise((res) => setTimeout(res, 120));
+      r.platziert = !!g.placing;
+      g.confirmPlacing();
+      await new Promise((res) => setTimeout(res, 120));
+
+      r.standNachher = g.state.wishes.offen.length === 0;
+      r.erfuellt = g.state.wishes.erfuellt;
+      r.lohn = g.state.coins - muenzenVorher;
+      return r;
+    });
+    check('Vor dem Meilenstein wünscht sich niemand einen Ort',
+      wunsch.vorher === false && wunsch.nachher === true, JSON.stringify(wunsch));
+    check('Danach stehen Wünsche offen', wunsch.offen > 0, JSON.stringify(wunsch));
+    check('Und sie stehen im Aufgabenfenster',
+      wunsch.imFenster === true, JSON.stringify(wunsch));
+    check('Aufstellen erfüllt den Wunsch – und er zahlt',
+      wunsch.standVorher === false && wunsch.standNachher === true &&
+      wunsch.erfuellt === 1 && wunsch.lohn > 100,
+      JSON.stringify(wunsch));
+
     /* ---- Bequemlichkeiten ---- */
     const bequem = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
@@ -2494,10 +2555,17 @@ async function run() {
       // Und jetzt kaufen
       g.state.coins = 99999;
       const vorher = g.state.coins;
+      // Der Preis kommt aus der Quelle, nicht aus diesem Test – und er wird
+      // VOR dem Kauf abgelesen, denn danach steht dort schon die nächste
+      // Stufe. Abgeschrieben stand hier die 800, und beim ersten
+      // Umbalancieren der Wirtschaft fiel die Prüfung rot aus, obwohl der
+      // Kauf tadellos funktionierte.
+      const sollPreis = g.islePlotStatus().kosten;
       g.expandIslePlot();
       const gekauft = {
         stufe: g.state.islePlot,
         bezahlt: vorher - g.state.coins,
+        soll: sollPreis,
         welt: g.world.islePlotStage,
         rechteck: !!g.islePlotRect(),
       };
@@ -2525,7 +2593,7 @@ async function run() {
     check('Ohne Münzen bleibt sie zu',
       bucht.ohneGeld === 0, JSON.stringify(bucht));
     check('Gekauft gehört sie dir, und die Welt weiß es',
-      bucht.gekauft.stufe === 1 && bucht.gekauft.bezahlt === 800 &&
+      bucht.gekauft.stufe === 1 && bucht.gekauft.bezahlt === bucht.gekauft.soll &&
       bucht.gekauft.welt === 1 && bucht.gekauft.rechteck,
       JSON.stringify(bucht.gekauft));
     check('Dort gelten dieselben milden Abstände wie im Lager',

@@ -37,11 +37,11 @@ import { isWalkable } from '../art/tiles.js';
 export const PLOT_STAGES = [
   { id: 1, name: 'Die Lichtung', halfW: 7, halfH: 5, ember: 0,
     note: 'Der Platz, der ohnehin dir gehört.' },
-  { id: 2, name: 'Der Hinterhof', halfW: 10, halfH: 7, ember: 40,
+  { id: 2, name: 'Der Hinterhof', halfW: 10, halfH: 7, ember: 120,
     note: 'Ein Stück mehr nach hinten hinaus.' },
-  { id: 3, name: 'Der Garten', halfW: 13, halfH: 9, ember: 120,
+  { id: 3, name: 'Der Garten', halfW: 13, halfH: 9, ember: 400,
     note: 'Genug für Beete, Wege und eine Bank am Rand.' },
-  { id: 4, name: 'Das Anwesen', halfW: 16, halfH: 11, ember: 300,
+  { id: 4, name: 'Das Anwesen', halfW: 16, halfH: 11, ember: 1100,
     note: 'So weit, wie das Lager reicht.' },
 ];
 
@@ -67,13 +67,13 @@ export const MAX_PLOT_STAGE = PLOT_STAGES.length;
 export const ISLE_PLOT_TILE = { x: 9, y: 60 };
 
 export const ISLE_PLOT_STAGES = [
-  { id: 1, name: 'Die Bucht', halfW: 6, halfH: 7, coins: 800,
+  { id: 1, name: 'Die Bucht', halfW: 6, halfH: 7, coins: 1000,
     note: 'Ein Stück Ufer, das dir gehört.' },
-  { id: 2, name: 'Der Hain', halfW: 7, halfH: 10, coins: 1800,
+  { id: 2, name: 'Der Hain', halfW: 7, halfH: 10, coins: 3000,
     note: 'Bis an die Kiefern heran.' },
-  { id: 3, name: 'Die Wiese', halfW: 8, halfH: 12, coins: 3400,
+  { id: 3, name: 'Die Wiese', halfW: 8, halfH: 12, coins: 7500,
     note: 'Genug für einen Garten, der etwas darstellt.' },
-  { id: 4, name: 'Die ganze Bucht', halfW: 9, halfH: 15, coins: 6000,
+  { id: 4, name: 'Die ganze Bucht', halfW: 9, halfH: 15, coins: 16000,
     note: 'Von der Landzunge bis zum Wald.' },
 ];
 

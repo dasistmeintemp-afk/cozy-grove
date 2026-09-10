@@ -18,7 +18,10 @@ import { todayOf, shoalIndex } from './calendar.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
-import { SPIRITS, friendshipLevel, friendshipGift, spiritsOfRegion, favouriteOf, isFavourite } from './spirits.js';
+import {
+  SPIRITS, SPIRIT_IDS, friendshipLevel, friendshipGift, spiritsOfRegion,
+  favouriteOf, isFavourite,
+} from './spirits.js';
 import { StoryBook, STAGES, storyArt, keepsakeOf, storyLine, storyClose, storyIntro } from './stories.js';
 import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
 import { getItem, itemName, CAT, CONDITIONAL, fishesOf } from './items.js';
@@ -49,11 +52,15 @@ import {
 import { rollSize, noteSize, bestSize, sizeWord, emptyRecords } from './records.js';
 import { regrowDays } from './seasons.js';
 import {
+  MAX_OFFEN as MAX_WUENSCHE, WUNSCH_MEILENSTEIN, wunschBauen, pruefeWunsch,
+  wunschLohn, wunschTitel, wunschIcon, emptyWishes,
+} from './wishes.js';
+import {
   beetHilfe, BEET_HILFE, WIRK_RADIUS, klingt, istWetterhahn, wirkungVon,
 } from './decor.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
-import { randInt, dailyRng } from '../core/rng.js';
+import { randInt, randPick, dailyRng } from '../core/rng.js';
 import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { UI } from '../ui/ui.js';
@@ -175,6 +182,9 @@ export class Game {
     // Grafik, Kollision und Farbkreis des Zuhauses hängen an der Ausbaustufe.
     this.syncHouse();
     this.syncPet();
+    // Alte Spielstände kennen noch keine Wünsche; wer den Meilenstein längst
+    // hat, soll sie beim ersten Laden vorfinden und nicht erst morgen.
+    this._wuenscheNachfuellen(this.day.day);
     // Still: beim Laden steht die Deko ja schon da, da wäre eine Meldung
     // für jede Stufe eine Meldungslawine beim Spielstart.
     this.syncCosiness(true);
@@ -233,6 +243,7 @@ export class Game {
       homeAt: 'camp',
       pet: emptyPet(),
       records: emptyRecords(),
+      wishes: emptyWishes(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -285,6 +296,7 @@ export class Game {
     if (this.state.homeAt !== 'isle') this.state.homeAt = 'camp';
     if (!this.state.pet || typeof this.state.pet !== 'object') this.state.pet = emptyPet();
     if (!this.state.records) this.state.records = emptyRecords();
+    if (!this.state.wishes) this.state.wishes = emptyWishes();
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -1467,6 +1479,10 @@ export class Game {
       if (faellig[i].id === 'ganz') this._startFinale();
     }
     this._perksChanged();
+    // Der Meilenstein, ab dem sich die Geister Orte wünschen, soll sofort
+    // wirken und nicht erst nach dem Schlafen: Er ist genau der Moment, in
+    // dem man erfährt, dass es diese Sorte Aufgabe gibt.
+    this._wuenscheNachfuellen(this.day.day);
     this._note('milestones', faellig.length);
 
     // Mehrere auf einmal gibt es nur beim ersten Start eines alten
@@ -2488,6 +2504,99 @@ export class Game {
     return this.today.event && this.today.event.id !== vorher;
   }
 
+  /* ---------------- Wunschplätze ---------------- */
+
+  /**
+   * Wünschen sich die Geister schon Orte?
+   *
+   * Bewusst nicht erst bei hundert Prozent: Wer zum ersten Mal durchspielt,
+   * soll diese Sorte Aufgabe kennen, bevor sie die einzige ist. Ab der
+   * Hälfte steht genug Deko zur Verfügung, dass man wirklich wählen kann.
+   */
+  wuenschenSchon() {
+    return this.hasMilestone(WUNSCH_MEILENSTEIN);
+  }
+
+  /** Die offenen Wünsche. */
+  wishes() {
+    const w = this.state.wishes || (this.state.wishes = emptyWishes());
+    return w.offen || [];
+  }
+
+  /**
+   * Offene Wünsche auffüllen.
+   *
+   * Anders als Tagesbitten laufen Wünsche NICHT ab. Ein Ort ist kein Auftrag
+   * mit Frist – wer drei Tage überlegt, wo die Bank hinsoll, hat richtig
+   * gespielt und nicht zu langsam.
+   */
+  _wuenscheNachfuellen(day) {
+    if (!this.wuenschenSchon()) return;
+    const w = this.state.wishes;
+    const rng = dailyRng(this.world.seed, day, 'wishes');
+    const belegt = Object.create(null);
+    for (let i = 0; i < w.offen.length; i++) {
+      belegt[w.offen[i].sorte + ':' + w.offen[i].ort] = 1;
+    }
+    // Nur Geister, deren Bereich offen ist – sonst wünscht sich jemand
+    // etwas, den man noch gar nicht getroffen hat.
+    const wer = [];
+    for (let i = 0; i < SPIRIT_IDS.length; i++) {
+      const sid = SPIRIT_IDS[i];
+      if (this.world.isUnlocked(SPIRITS[sid].region)) wer.push(sid);
+    }
+    if (!wer.length) return;
+    while (w.offen.length < MAX_WUENSCHE) {
+      const neu = wunschBauen(this.world, randPick(rng, wer), day, rng, belegt);
+      if (!neu) break;
+      belegt[neu.sorte + ':' + neu.ort] = 1;
+      w.offen.push(neu);
+    }
+  }
+
+  /**
+   * Nachsehen, ob ein Wunsch erfüllt ist.
+   *
+   * Wird nach jedem Aufstellen gerufen und einmal je Morgen – nicht in der
+   * Bildschleife: Die Prüfung läuft über alle Objekte, und sie ändert sich
+   * nur, wenn man etwas hinstellt.
+   */
+  checkWishes() {
+    if (!this.wuenschenSchon()) return;
+    const w = this.state.wishes;
+    for (let i = w.offen.length - 1; i >= 0; i--) {
+      const wunsch = w.offen[i];
+      if (!pruefeWunsch(wunsch, this.world).erfuellt) continue;
+      w.offen.splice(i, 1);
+      w.erfuellt = (w.erfuellt || 0) + 1;
+      const lohn = wunschLohn(wunsch);
+      this.state.coins += lohn.coins;
+      this.state.ember += lohn.ember;
+      for (let k = 0; k < lohn.items.length; k++) {
+        this.inventory.add(lohn.items[k].id, lohn.items[k].n);
+      }
+      const geist = SPIRITS[wunsch.spirit];
+      this.ui.toast((geist ? geist.name + ': ' : '') + wunschTitel(wunsch) + ' – erfüllt!',
+        wunschIcon(wunsch), 'good');
+      this.audio.play('questDone');
+      this.particles.burst('color', this.player.x, this.player.y - 40, 14);
+      this._note('wish');
+    }
+    this.ui.refreshQuests();
+    this.save();
+  }
+
+  /**
+   * Wie weit ein Wunsch ist – für die Anzeige.
+   *
+   * Gibt den BESTEN gefundenen Stand zurück, nicht irgendeinen: Wer drei
+   * Bänke verteilt hat, will wissen, wie nah die vielversprechendste dran
+   * ist, nicht die erstbeste in der Objektliste.
+   */
+  wunschStand(w) {
+    return pruefeWunsch(w, this.world);
+  }
+
   /** Die Jahreszeit als Kennung – oder null, solange der Tag nicht steht. */
   season() {
     return this.today && this.today.season ? this.today.season.id : null;
@@ -3197,6 +3306,9 @@ export class Game {
     this.particles.burst('dust', p.x, p.y, 5);
     this.syncCosiness();
     this.syncPet();
+    // Genau hier kann ein Wunsch erfüllt worden sein – ein Wunsch ist ein
+    // Ort, und Orte entstehen beim Aufstellen.
+    this.checkWishes();
     this.ui.refreshQuests();
 
     if (this.inventory.count(p.itemId) <= 0) this.cancelPlacing();
@@ -3299,6 +3411,8 @@ export class Game {
     this.weather.setDay(this.world.seed, day, this.season());
     const frischReif = this.growCrops(this.weather.kind);
     const zurueckgezogen = this.quests.newDay(day, this.world, this);
+    this._wuenscheNachfuellen(day);
+    this.checkWishes();
     this.shop.refresh(day, this.world.seed);
     this.particles.clear();
     this.wildlife.clear();

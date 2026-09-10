@@ -127,7 +127,7 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   von Dingen belegt, die nachwachsen. Freigeräumt gibt das volle Grundstück
   **22×22** her, also mehr als das Dreizehnfache an Fläche am Stück.
 
-  Vier Stufen, bezahlt in Glut (0/40/120/300): Lichtung 15×11 → Hinterhof
+  Vier Stufen, bezahlt in Glut (0/120/400/1100): Lichtung 15×11 → Hinterhof
   21×15 → Garten 27×19 → Anwesen 33×23. Zu roden sind auf der ersten Stufe
   ein knappes Dutzend Bäume und Steine, auf der letzten rund 120 – ein
   Vorhaben, kein Nachmittag. `L` öffnet das Fenster.
@@ -136,7 +136,7 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Werkbank, Händler und Briefkasten stehen mitten darin, und wer sich etwas
   Eigenes hinstellt, baut zwischen fremden Möbeln. Drüben gibt es das nicht.
 
-  Vier Stufen, bezahlt in **Münzen** (800 → 1800 → 3400 → 6000): Die Bucht
+  Vier Stufen, bezahlt in **Münzen** (1000 → 3000 → 7500 → 16000): Die Bucht
   13×15 → Der Hain 15×21 → Die Wiese 17×25 → Die ganze Bucht 19×31. Damit
   zieht jede Währung an ihrer eigenen Sache – Glut am Lagergrundstück,
   Material am Haus, Münzen an Truhe, Katalog und Bucht –, und es ist der
@@ -195,6 +195,42 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nicht zumachen, nur weil man fertig ist. Die sieben Sätze stehen zum
   Nachlesen im Erinnerungsfenster – eine Sprechblase ist nach acht Sekunden
   weg, und das sind die Sätze, auf die alles zuläuft.
+* **Wunschplätze – das Spiel nach dem Spiel.** Danach hörte das Spiel nicht
+  auf, aber es ging auch nicht weiter: derselbe Tagesbetrieb, dieselbe Runde.
+  Ab der Stillen Insel (also weit vor dem Ende) fangen die Geister an, sich
+  **Orte** zu wünschen statt Gegenstände:
+
+  > *Ich hätte gern einen Platz zum Sitzen am Wasser.*
+  > *Nachts ist es dunkel oben an den Klippen. Ein Licht wäre schön.*
+  > *Es fehlt etwas für die Vögel drüben auf der Stillen Insel. Und ringsum
+  > sollte es gemütlich sein.*
+
+  Erfüllt wird so ein Wunsch nicht durch Abgeben, sondern durch
+  **Aufstellen** – und was man hinstellt, bleibt stehen. Damit wird aus
+  Einrichten zum ersten Mal eine Aufgabe mit einer richtigen und vielen
+  falschen Antworten: Die Bank muss ans Wasser, nicht irgendwohin.
+
+  Ein Wunsch besteht aus drei Teilen, alle aus Dingen, die das Spiel ohnehin
+  weiß: **Sorte** (ein Sitzplatz, ein Licht, etwas Grünes, etwas für die
+  Tiere, ein Weg, ein gedeckter Tisch), **Ort** (am Wasser, im Wald, oben an
+  den Klippen, drüben auf der Insel, beim Lagerfeuer, bei deinem Zuhause,
+  weit weg von allem) und **Zugabe** (ringsum gemütlich, oder nicht nur
+  eins). Das sind 126 Kombinationen, ohne dass eine davon geschrieben werden
+  müsste – die *Sätze* dagegen sind geschrieben, zwei je Sorte, sonst läse
+  sich jeder Wunsch wie eine Datenbankzeile.
+
+  Eine Sorte ist immer eine **Gruppe**: „ein Platz zum Sitzen" nimmt Bank,
+  Stuhl, Hängematte oder Schaukel. Ein Wunsch nach genau einem Gegenstand
+  wäre eine Einkaufsliste. Im Aufgabenfenster steht, wie weit es noch ist
+  („Gemütlichkeit 9/14"), denn ohne Rückmeldung wäre es Raten. Keine Frist,
+  keine Strafe: Wer drei Tage überlegt, wo die Bank hinsoll, hat richtig
+  gespielt. Und wer die Deko später wieder wegnimmt, verliert die Belohnung
+  nicht – der Wunsch war erfüllt, und das bleibt er.
+
+  Ein Test prüft **jede** der Kombinationen einzeln auf Erfüllbarkeit. Eine
+  einzige unerfüllbare tauchte sonst irgendwann bei jedem auf und bliebe
+  dann für immer stehen – dieselbe Falle wie die Feder ohne Quelle, nur dass
+  sie sich selbst nachlegt.
 * **Meilensteine.** An der Farbanzeige hängen elf Stationen von 10 % bis
   100 %. Jede gibt entweder etwas Neues zu **bauen** oder etwas dauerhaft
   Besseres – nie nur eine Urkunde: die Gießkanne, eine dritte Taschen-
@@ -262,7 +298,7 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   aber **sichtbar** – wer die Schaukel durchgestrichen sieht, weiß, dass es
   weitergeht.
 * **Die Vorratstruhe.** Vier Ausbaustufen, in Raten beim Händler bezahlt:
-  600 → 1600 → 3600 → 7500 Münzen für am Ende 80 Fächer. Damit haben Münzen
+  800 → 2600 → 7000 → 16000 Münzen für am Ende 80 Fächer. Damit haben Münzen
   zum ersten Mal ein großes Ziel, und ein guter Markttag ist ein guter Tag.
   Kein Kredit im eigentlichen Sinn: keine Zinsen, keine Frist, keine Mahnung –
   wer nie einzahlt, verliert nichts. Dieselbe Regel wie im Garten.
@@ -645,8 +681,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 296 Tests: Welt, Wetter, Jahreszeiten, Deko, Aufgaben, Garten …
-npm run test:browser   # 214 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 319 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Wirtschaft …
+npm run test:browser   # 218 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

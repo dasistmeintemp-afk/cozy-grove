@@ -18,6 +18,9 @@ import { PLOT_STAGES, MAX_PLOT_STAGE, ISLE_PLOT_STAGES, MAX_ISLE_PLOT_STAGE } fr
 import { HOUSE_STAGES, MAX_HOUSE_STAGE } from '../game/house.js';
 import { MAX_OFFEN as MAX_ORDERS } from '../game/catalog.js';
 import { wirkungVon } from '../game/decor.js';
+import {
+  wunschTitel, wunschText, wunschIcon, ZUGABEN as WUNSCH_ZUGABEN,
+} from '../game/wishes.js';
 import { UI_SCALES } from './uiscale.js';
 import { CROPS } from '../game/crops.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
@@ -497,6 +500,55 @@ export class Panels {
 
   /* ---------------- Aufgaben ---------------- */
 
+  /**
+   * Die Wunschplätze.
+   *
+   * Über den Tagesbitten und nicht darunter: Sie laufen nicht ab, aber sie
+   * sind das, was nach hundert Prozent bleibt – und wer sie unter zwanzig
+   * Bitten sucht, findet sie nie.
+   *
+   * Angezeigt wird auch, WIE WEIT der Wunsch ist. „Ein Platz zum Sitzen am
+   * Wasser" ohne Rückmeldung ist Raten; „Gemütlichkeit 9 von 14" sagt, dass
+   * die Bank richtig steht und noch etwas danebengehört.
+   */
+  _wuensche() {
+    const g = this.game;
+    if (!g.wuenschenSchon || !g.wuenschenSchon()) return '';
+    const offen = g.wishes();
+    const erfuellt = (g.state.wishes && g.state.wishes.erfuellt) || 0;
+
+    let html = '<h3 style="font-size:0.95em;margin:4px 0 8px">Wunschplätze' +
+      (erfuellt ? ' <span class="cap">' + erfuellt + ' erfüllt</span>' : '') + '</h3>';
+    if (!offen.length) {
+      return html + '<p class="empty-note" style="margin-bottom:12px">' +
+        'Gerade wünscht sich niemand etwas.</p>';
+    }
+    html += '<div class="rows" style="margin-bottom:14px">';
+    for (let i = 0; i < offen.length; i++) {
+      const w = offen[i];
+      const spirit = SPIRITS[w.spirit];
+      const stand = g.wunschStand ? g.wunschStand(w) : null;
+      const zugabe = WUNSCH_ZUGABEN[w.zugabe] || null;
+      let fortschritt = '';
+      if (stand && zugabe) {
+        if (zugabe.charme > 0) {
+          fortschritt = '<span' + (stand.charme >= zugabe.charme ? '' : ' class="warn"') + '>' +
+            'Gemütlichkeit ' + stand.charme + '/' + zugabe.charme + '</span>';
+        } else if (zugabe.stueck > 1) {
+          fortschritt = '<span' + (stand.stueck >= zugabe.stueck ? '' : ' class="warn"') + '>' +
+            stand.stueck + '/' + zugabe.stueck + ' Stück beieinander</span>';
+        }
+      }
+      html += '<div class="row">' + ico(wunschIcon(w), 'lg') +
+        '<div class="grow"><div class="title">' + escapeHtml(wunschTitel(w)) + '</div>' +
+        '<div class="meta"><span>' + escapeHtml(wunschText(w)) + '</span>' +
+        (spirit ? '<span>' + escapeHtml(spirit.name) + '</span>' : '') +
+        fortschritt +
+        '</div></div></div>';
+    }
+    return html + '</div>';
+  }
+
   _quests() {
     const g = this.game;
     const quests = g.quests.active();
@@ -526,6 +578,8 @@ export class Panels {
         (morgen ? '<span>' + ico('icon_day') + ' morgen ' + escapeHtml(morgen.name) + '</span>' : '') +
         '</div></div></div></div>';
     }
+
+    html += this._wuensche();
 
     if (!quests.length) {
       html += '<p class="empty-note">Gerade nichts offen.<br>Schlaf im Zelt – morgen gibt es Neues.</p>';

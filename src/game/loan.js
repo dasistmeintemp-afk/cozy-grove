@@ -24,10 +24,10 @@
  * letzte ein Vorhaben für Wochen.
  */
 export const STAGES = [
-  { id: 1, name: 'Eine Kiste', cost: 600, slots: 16, note: 'Ein Anfang. Passt neben das Zelt.' },
-  { id: 2, name: 'Eine richtige Truhe', cost: 1600, slots: 32, note: 'Mit Deckel und Beschlag.' },
-  { id: 3, name: 'Ein Vorratsschrank', cost: 3600, slots: 52, note: 'Fächer, sogar beschriftet.' },
-  { id: 4, name: 'Der Schuppen', cost: 7500, slots: 80, note: 'Kein Möbelstück mehr. Ein Bauwerk.' },
+  { id: 1, name: 'Eine Kiste', cost: 800, slots: 16, note: 'Ein Anfang. Passt neben das Zelt.' },
+  { id: 2, name: 'Eine richtige Truhe', cost: 2600, slots: 32, note: 'Mit Deckel und Beschlag.' },
+  { id: 3, name: 'Ein Vorratsschrank', cost: 7000, slots: 52, note: 'Fächer, sogar beschriftet.' },
+  { id: 4, name: 'Der Schuppen', cost: 16000, slots: 80, note: 'Kein Möbelstück mehr. Ein Bauwerk.' },
 ];
 
 export const MAX_STAGE = STAGES.length;
