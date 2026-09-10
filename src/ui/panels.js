@@ -2,7 +2,9 @@
 import { iconUrl } from '../art/sprites.js';
 import { getItem, CAT_NAMES, CAT, ITEM_LIST } from '../game/items.js';
 import { RECIPES, missingFor, campfireLevelFor, nextCampfireLevel } from '../game/recipes.js';
-import { SPIRITS, friendshipLevel, friendshipProgress } from '../game/spirits.js';
+import {
+  SPIRITS, friendshipLevel, friendshipProgress, birthdayOn,
+} from '../game/spirits.js';
 import { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } from '../game/stories.js';
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
 import { canLink, linkedName, pendingLinkName, requestLinkPermission, linkNew, linkExisting, unlink, openFile, suggestName } from '../core/savefile.js';
@@ -581,6 +583,20 @@ export class Panels {
       // seine ganze Wirkung, und sie gehört genau hierhin: neben das Wetter
       // von heute, nicht in ein eigenes Fenster.
       const morgen = g.morgenWetter ? g.morgenWetter() : null;
+      // Wer heute Geburtstag hat, steht ganz oben – über allem anderen. Er
+      // kommt einmal im Jahr und lässt sich nicht herbeispielen; wer ihn
+      // erst abends im Vorbeigehen entdeckt, hat ihn verpasst.
+      const kind = birthdayOn(new Date());
+      if (kind) {
+        html += '<div class="rows" style="margin-bottom:12px"><div class="row">' +
+          ico('icon_heart', 'lg') +
+          '<div class="grow"><div class="title">' +
+          escapeHtml(kind.name) + ' hat heute Geburtstag</div>' +
+          '<div class="meta"><span>Ein Geschenk zählt heute dreifach.</span>' +
+          '<span>' + ico('icon_' + kind.favourite) + ' mag am liebsten ' +
+          escapeHtml((getItem(kind.favourite) || {}).name || kind.favourite) +
+          '</span></div></div></div></div>';
+      }
       html += '<div class="rows" style="margin-bottom:12px"><div class="row">' +
         ico(heute.event ? heute.event.icon : 'icon_day', 'lg') +
         '<div class="grow"><div class="title">' +

@@ -19,6 +19,8 @@
  * IndexedDB. Beim nächsten Öffnen fragt der Browser einmal nach Erlaubnis.
  */
 
+// Wie bei den Speicherschlüsseln: Der Datenbankname ist eine Adresse im
+// Browser des Spielers, kein Titel. Umbenannt wäre die verknüpfte Datei weg.
 const DB_NAME = 'cozy-grove';
 const STORE = 'handles';
 const HANDLE_KEY = 'save';
@@ -36,7 +38,7 @@ export function canLink() {
 export function suggestName(day) {
   const d = new Date();
   const p = function (n) { return (n < 10 ? '0' : '') + n; };
-  return 'cozy-grove-tag' + (day || 1) + '-' +
+  return 'seli-grove-tag' + (day || 1) + '-' +
     d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '.json';
 }
 
@@ -50,7 +52,7 @@ export function download(text, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename || 'cozy-grove.json';
+    a.download = filename || 'seli-grove.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -201,7 +203,7 @@ export function requestLinkPermission() {
 export function linkNew(suggested) {
   if (!canLink()) return Promise.resolve(null);
   return window.showSaveFilePicker({
-    suggestedName: suggested || 'cozy-grove.json',
+    suggestedName: suggested || 'seli-grove.json',
     types: [{ description: 'Cozy-Grove-Spielstand', accept: { 'application/json': ['.json'] } }],
   }).then(function (h) {
     handle = h;

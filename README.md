@@ -1,4 +1,4 @@
-# Cozy Grove – Web Edition
+# Seli Grove – Web Edition
 
 Ein gemütliches Insel-Sammelspiel im Browser. Die Insel hat ihre Farben verloren;
 **Seli** bringt sie zurück, indem sie sammelt, angelt, baut – und den Geistern hilft.
@@ -23,7 +23,12 @@ ein Klangbett aus vier Rauschschichten – Brandung, Wind, Grillen, Regen. Das
 Spiel mischt sie nach Ort und Uhrzeit; am Strand rauscht die See, im Wald der
 Wind, nachts zirpt es. Abschaltbar unter „Umgebung“.
 
-Unabhängige Fan-Hommage.
+Unabhängige Fan-Hommage an *Cozy Grove*.
+
+Die Speicherschlüssel im Browser (`cozy-grove:save:v1`, die IndexedDB
+`cozy-grove`) behalten bewusst ihren alten Namen: Sie stehen im Browser des
+Spielers und sind eine **Adresse**, kein Titel. Umbenannt wäre mit dem Namen
+jeder vorhandene Spielstand weg.
 
 ## Starten
 
@@ -38,7 +43,7 @@ Jeder andere statische Webserver funktioniert genauso.
 ## Verschenken
 
 ```bash
-npm run bundle     # dist/cozy-grove.html – baut und prüft in einem
+npm run bundle     # dist/seli-grove.html – baut und prüft in einem
 ```
 
 Das ganze Spiel in **einer HTML-Datei**: Oberfläche, Schrift und alle Module
@@ -553,6 +558,33 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nie um etwas, das gerade gar nicht da ist – dieselbe Regel wie bei der
   Feder, nur zeitlich. Zum Wechsel kommt ein Brief, der in einem Nebensatz
   sagt, was sich ändert.
+* **Geburtstage.** Jeder der sieben Geister hat einen – an einem echten
+  Kalendertag, über sieben verschiedene Monate verteilt, also im Mittel alle
+  sieben Wochen einer. Das Geburtstagskind sagt es **einmal** am Tag, bevor
+  es zum Tagesgeschäft übergeht (beim vierten Ansprechen wäre der Geburtstag
+  eine Sperre vor der Abgabe), und oben im Aufgabenfenster steht, wer heute
+  dran ist und was er am liebsten mag. Ein Geschenk zählt an dem Tag
+  **dreifach** – an Glut und an Farbe.
+
+  Das ist bewusst viel: Ein Geburtstag, an dem sich nichts ändert, ist ein
+  Datum. Es gibt ihn je Geist einmal im Jahr, und man kann ihn nicht
+  herbeispielen – er kommt, wenn er kommt. Ein Test rechnet nach, dass jeder
+  Geist genau einmal im Jahr drankommt, dass keine zwei am selben Tag sind
+  und dass kein Datum erwischt wurde, das es gar nicht jedes Jahr gibt (der
+  30. Juni ist in Ordnung, der 29. Februar wäre es nicht).
+* **Sternenstaub.** Am Morgen nach einer **Sternennacht** liegt er am
+  Spülsaum – ein seltener Fund, wertvoll wie eine Handvoll Fische.
+
+  Die Sternschnuppen selbst bleiben, was sie sind: ein Bild ohne Aufgabe.
+  Man muss nachts nicht draußen sein, nichts drücken und nichts treffen. Wer
+  durchgeschlafen hat, findet am Morgen dasselbe. Das ist der Unterschied
+  zwischen „schön, dass du aufgepasst hast" und „du hättest aufpassen
+  müssen" – und der Grund, warum die Belohnung einen Tag später kommt und
+  nicht im selben Moment.
+
+  Er wächst **nicht** nach wie Treibholz, sondern wird vom Ereignis ausgelegt
+  und am nächsten Morgen wieder abgeräumt. Sonst läge nach dem zehnten
+  Sternenhimmel überall Staub, und das Seltene wäre Kulisse.
 * **Ein Tagesereignis je Inseltag.** Markttag (der Händler zahlt ein
   Drittel mehr), Fundtag (doppelt so viele Grabstellen), Blütentag (die Insel
   blüht, morgen wieder vorbei), Falterzug (viel mehr Falter), Fischschwarm
@@ -731,8 +763,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 333 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Wirtschaft …
-npm run test:browser   # 227 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 344 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Wirtschaft …
+npm run test:browser   # 230 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

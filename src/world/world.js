@@ -519,7 +519,48 @@ export class World {
     this._respawnDigspots(rng, ev.digs || 1);
     this._featherUnderBirdhouses(rng);
     if (ev.bloom) this._scatterBloom(rng, ev.bloom);
+    if (ev.stardust) this._scatterStardust(rng, ev.stardust);
     return this;
+  }
+
+  /**
+   * Am Morgen nach einer Sternennacht liegt Sternenstaub am Spülsaum.
+   *
+   * Die Sternschnuppen selbst bleiben, was sie sind: ein Bild ohne Aufgabe.
+   * Wer nachts hochsieht, muss nichts tun und nichts drücken – genau das
+   * steht als Vorsatz über `_shootingStars`, und daran ändert sich nichts.
+   *
+   * Belohnt wird trotzdem, aber am nächsten Morgen und ohne Bedingung: Wer
+   * durchgeschlafen hat, findet dasselbe. Das ist der Unterschied zwischen
+   * „schön, dass du aufgepasst hast" und „du hättest aufpassen müssen".
+   *
+   * Am Sand, weil dort ohnehin Treibholz und Muscheln liegen – die
+   * Morgenrunde am Wasser bekommt damit einen seltenen Tag, keinen neuen Weg.
+   */
+  _scatterStardust(rng, count) {
+    const regions = ALL_REGIONS;
+    for (let r = 0; r < regions.length; r++) {
+      if (!this.unlocked[regions[r]]) continue;
+      const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
+        return t === T.SAND;
+      });
+      if (!spots.length) continue;
+      let placed = 0;
+      let guard = 0;
+      while (placed < count && guard++ < 400) {
+        const s = spots[Math.floor(rng() * spots.length)];
+        const wx = (s.x + 0.5) * TILE_SIZE;
+        const wy = (s.y + 0.5) * TILE_SIZE;
+        if (this._tooClose(wx, wy, 90)) continue;
+        const e = makeEntity('stardust', wx, wy);
+        // `fromEvent` räumt es am nächsten Morgen wieder weg, falls es
+        // liegen bleibt: Sonst läge nach dem zehnten Sternenhimmel überall
+        // Staub, und das Seltene wäre Kulisse.
+        e.fromEvent = true;
+        this.add(e);
+        placed++;
+      }
+    }
   }
 
   /**

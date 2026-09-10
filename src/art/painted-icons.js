@@ -181,6 +181,25 @@ export const ICON_PAINTERS = {
       function (g) { fill(g, body); },
       function (g) { inkLine(g, C - 6, C + 24, C + 6, C - 22, { width: 2.0, bend: 0.06, seed: 94 }); });
   },
+  stardust: function () {
+    // Fünf Zacken, weich gezogen – ein exakter Stern sähe aus wie ein Symbol
+    // aus einem Menü, und auf dieser Insel ist alles mit dem Pinsel gemacht.
+    const zacken = [];
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI * 2) / 5;
+      const b = a + Math.PI / 5;
+      zacken.push([C + Math.cos(a) * 26, C + Math.sin(a) * 26]);
+      zacken.push([C + Math.cos(b) * 11, C + Math.sin(b) * 11]);
+    }
+    const stern = smoothClosed(zacken, 3);
+    return icon(97,
+      function (g) {
+        wash(g, stern, '#fdf3c4', { seed: 97, scale: 1.05 });
+        wash(g, offsetShape(stern, 5, 4, 0.55), '#e8cf7c', { seed: 98, alpha: 0.65 });
+      },
+      function (g) { fill(g, stern); },
+      null);
+  },
   driftwood: function () {
     // Schräg gestellter Ast mit Gabel – als Blase war er nicht von einem
     // Kiesel zu unterscheiden.

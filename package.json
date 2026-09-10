@@ -1,8 +1,8 @@
 {
-  "name": "cozy-grove-web",
+  "name": "seli-grove-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Cozy Grove – Web Edition. Ein gemuetliches Insel-Sammelspiel im Browser (Safari, Firefox, Chrome). Fan-Hommage mit eigenen, prozedural erzeugten Assets.",
+  "description": "Seli Grove – Web Edition. Ein gemuetliches Insel-Sammelspiel im Browser (Safari, Firefox, Chrome). Fan-Hommage mit eigenen, prozedural erzeugten Assets.",
   "type": "module",
   "scripts": {
     "start": "node server.js",

@@ -161,6 +161,10 @@ export const ENTITY_DEFS = {
     sprite: 'feather', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('feather', 1, 1), respawn: 1, sway: true, category: 'forage',
   },
+  stardust: {
+    sprite: 'stardust', solid: false, reachR: 60, tool: TOOL.HAND, hits: 1,
+    yield: drop('stardust', 1, 1), category: 'forage',
+  },
   driftwood: {
     sprite: 'driftwood', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
     yield: drop('driftwood', 1, 1), respawn: 1, category: 'forage',

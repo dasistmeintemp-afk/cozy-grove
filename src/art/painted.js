@@ -1164,6 +1164,70 @@ export function paintShell(opts) {
   return made(res, w, h, cx, baseY);
 }
 
+/**
+ * Sternenstaub.
+ *
+ * Am Morgen nach einer Sternennacht liegt er am Spülsaum. Ein Stern, kein
+ * Kiesel: fünf Zacken, aber weich – ein exakter Stern sähe aus wie ein
+ * Symbol aus einem Menü, und auf dieser Insel ist alles mit dem Pinsel
+ * gemacht. Der Schein darunter ist ein zweiter, größerer Wasch in derselben
+ * Farbe; er lässt ihn im Sand leuchten, ohne dass eine Lichtquelle nötig
+ * wäre.
+ */
+export function paintStardust(opts) {
+  const o = opts || {};
+  const w = 60;
+  const h = 54;
+  const seed = o.seed || 293;
+  const cx = w / 2;
+  const baseY = h - 9;
+  const cy = baseY - 15;
+
+  // Fünf Zacken, jede etwas anders lang – von Hand gelegt, nicht gerechnet.
+  const zacken = [];
+  const lang = [15, 13.5, 14.5, 13, 14];
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI * 2) / 5;
+    const b = a + Math.PI / 5;
+    zacken.push([cx + Math.cos(a) * lang[i], cy + Math.sin(a) * lang[i]]);
+    zacken.push([cx + Math.cos(b) * 6.2, cy + Math.sin(b) * 6.2]);
+  }
+  const stern = smoothClosed(zacken, 2.2);
+  const schein = smoothClosed(zacken.map(function (p) {
+    return [cx + (p[0] - cx) * 1.7, cy + (p[1] - cy) * 1.7];
+  }), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.3,
+    shadow: function (g) { groundShadow(g, cx + 1, baseY, 13, 4, seed, 0.10); },
+    wash: function (g) {
+      wash(g, schein, '#f2e9b8', { seed: seed + 1, scale: 1.2, alpha: 0.28 });
+      wash(g, stern, '#fdf3c4', { seed: seed + 2, scale: 1.0 });
+      wash(g, offsetShape(stern, 3, 2, 0.5), '#e8cf7c', { seed: seed + 3, alpha: 0.55 });
+    },
+    shape: function (g) { fill(g, stern); },
+    ink: function (g) {
+      // Ein paar Körnchen daneben – Staub, nicht ein einzelner Stein.
+      const r = makeRng(seed + 40);
+      for (let i = 0; i < 5; i++) {
+        const a = r() * Math.PI * 2;
+        const d = 17 + r() * 10;
+        const px = cx + Math.cos(a) * d;
+        const py = cy + Math.sin(a) * d * 0.6;
+        g.globalAlpha = 0.5;
+        g.fillStyle = '#e8cf7c';
+        g.beginPath();
+        g.arc(px, py, 1 + r() * 1.4, 0, Math.PI * 2);
+        g.fill();
+      }
+      g.globalAlpha = 1;
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
 export function paintDriftwood(opts) {
   const o = opts || {};
   const w = 116;

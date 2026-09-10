@@ -14,7 +14,7 @@
  *
  * Kein Ersatz für `npm start` beim Entwickeln – nur der Ausgabeweg.
  *
- *   node tools/bundle.mjs [--out=dist/cozy-grove.html]
+ *   node tools/bundle.mjs [--out=dist/seli-grove.html]
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +22,7 @@ import { dirname, join, resolve, relative } from 'node:path';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
-const OUT = resolve(ROOT, (args.find((a) => a.startsWith('--out=')) || '=dist/cozy-grove.html').split('=')[1]);
+const OUT = resolve(ROOT, (args.find((a) => a.startsWith('--out=')) || '=dist/seli-grove.html').split('=')[1]);
 const ENTRY = join(ROOT, 'src', 'main.js');
 
 /* --------------------------------------------------------- Modulgraph */

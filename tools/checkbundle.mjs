@@ -8,7 +8,7 @@
  * Datei verschenkt, die er nur über http probiert hat, verschenkt eine
  * Vermutung.
  *
- *   node tools/checkbundle.mjs [dist/cozy-grove.html]
+ *   node tools/checkbundle.mjs [dist/seli-grove.html]
  */
 import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -17,7 +17,7 @@ import { dirname, join, resolve } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const FILE = resolve(ROOT, process.argv[2] || 'dist/cozy-grove.html');
+const FILE = resolve(ROOT, process.argv[2] || 'dist/seli-grove.html');
 
 function loadPlaywright() {
   const require = createRequire(import.meta.url);

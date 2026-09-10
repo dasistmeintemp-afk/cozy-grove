@@ -451,6 +451,42 @@ async function run() {
     check('Und auch, was für ein Wetter ist',
       tagesZeile.wetter === true, JSON.stringify(tagesZeile));
 
+    /* ---- Geburtstage und Sternenstaub ---- */
+    // Zwei Anleihen bei den Vorbildern: Der Nachbar mit Geburtstag aus
+    // Animal Crossing, und der Fund am Morgen nach den Sternschnuppen.
+    const feier = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      // Der Sternenstaub: Ereignis von gestern setzen, Tag wechseln lassen.
+      g.state.lastEvent = 'stars';
+      g.world.newDay(g.day.day + 1, g._todayWorldEffects());
+      r.staubNachSternen = g.world.entities.filter((e) => e.kind === 'stardust' && !e.gone).length;
+
+      // Und ohne Sternennacht liegt keiner da.
+      g.state.lastEvent = null;
+      g.world.newDay(g.day.day + 2, g._todayWorldEffects());
+      r.staubSonst = g.world.entities.filter((e) => e.kind === 'stardust' && !e.gone).length;
+
+      // Liegt er im Sand?
+      g.state.lastEvent = 'stars';
+      g.world.newDay(g.day.day + 3, g._todayWorldEffects());
+      const staub = g.world.entities.filter((e) => e.kind === 'stardust' && !e.gone);
+      r.imSand = staub.length > 0 && staub.every((e) => {
+        const t = g.world.tileAt(e.x, e.y);
+        return t === 2;   // T.SAND aus tiles.js
+      });
+      r.gemalt = staub.length > 0 && window.CozyGrove.art.has('stardust');
+      g.state.lastEvent = null;
+      g.world.newDay(g.day.day + 4, g._todayWorldEffects());
+      return r;
+    });
+    check('Nach einer Sternennacht liegt Sternenstaub am Strand',
+      feier.staubNachSternen >= 3, JSON.stringify(feier));
+    check('An anderen Morgen liegt keiner',
+      feier.staubSonst === 0, JSON.stringify(feier));
+    check('Er liegt im Sand und ist gemalt',
+      feier.imSand === true && feier.gemalt === true, JSON.stringify(feier));
+
     /* ---- Was die Jahreszeit bewirkt ---- */
     // Vier Jahreszeiten standen im Kalender und taten nichts: ein Wort im
     // Tagebuch, sonst war der Januar wie der Juli. Gemessen wird deshalb

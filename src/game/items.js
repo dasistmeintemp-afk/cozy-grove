@@ -52,6 +52,9 @@ const LIST = [
   it('shell', 'Muschel', CAT.MATERIAL, 5, 1),
   it('feather', 'Feder', CAT.MATERIAL, 4, 1),
   it('driftwood', 'Treibholz', CAT.MATERIAL, 4, 2),
+  // Liegt am Morgen nach einer Sternennacht am Spülsaum. Wertvoll, weil das
+  // Ereignis selten ist – nicht, weil er schwer zu finden wäre.
+  it('stardust', 'Sternenstaub', CAT.MATERIAL, 38, 6),
 
   // Sammelgut
   it('berry', 'Waldbeeren', CAT.FORAGE, 6, 2),

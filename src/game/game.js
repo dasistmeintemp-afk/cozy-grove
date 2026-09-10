@@ -20,7 +20,7 @@ import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
 import {
   SPIRITS, SPIRIT_IDS, friendshipLevel, friendshipGift, spiritsOfRegion,
-  favouriteOf, isFavourite,
+  favouriteOf, isFavourite, birthdayOn, hasBirthday, GEBURTSTAG_FAKTOR,
 } from './spirits.js';
 import { StoryBook, STAGES, storyArt, keepsakeOf, storyLine, storyClose, storyIntro } from './stories.js';
 import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
@@ -1290,6 +1290,23 @@ export class Game {
     // Der letzte Abend geht allem vor: Wer am Feuer steht und noch nicht
     // gesprochen hat, sagt jetzt seinen Satz – nicht „Noch nicht".
     if (this._finaleTalk(e, spirit)) return;
+
+    // Ein Geburtstagskind sagt es einmal am Tag, bevor es zum Tagesgeschäft
+    // übergeht. Einmal, nicht bei jedem Ansprechen: Beim vierten Mal wäre
+    // aus dem Geburtstag eine Sperre vor der Abgabe geworden.
+    if (hasBirthday(e.spiritId, new Date())) {
+      if (!this.state.gratuliert) this.state.gratuliert = {};
+      if (this.state.gratuliert[e.spiritId] !== this.day.day) {
+        this.state.gratuliert[e.spiritId] = this.day.day;
+        const mag = favouriteOf(e.spiritId);
+        this.ui.bubble(e.x, e.y - 190, 'Ich habe heute Geburtstag.',
+          [{ icon: 'icon_heart' }, { icon: 'icon_' + mag }], 4.2, true);
+        this.audio.play('levelup');
+        this.particles.burst('heart', e.x, e.y - 110, 10);
+        this.save();
+        return;
+      }
+    }
 
     // Abgegeben wird, was hierher gehört: die eigenen Bitten dieses Geistes
     // und die Botengänge, die ein anderer hierher schickt.
@@ -2695,10 +2712,15 @@ export class Game {
   /** Was der Tageswechsel an die Welt weiterreicht. */
   _todayWorldEffects() {
     const ev = this.today && this.today.event ? this.today.event.id : null;
+    // Der Sternenstaub gehört zum GESTRIGEN Ereignis, nicht zum heutigen:
+    // Er liegt am Morgen DANACH am Strand. Deshalb wird hier die Kennung des
+    // Vortags gelesen, die `_deliverMail` ohnehin schon führt.
+    const gestern = this.state.lastEvent || null;
     return {
       digs: ev === 'digs' ? 2 : 1,
       bloom: ev === 'bloom' ? 10 : 0,
       stars: ev === 'stars',
+      stardust: gestern === 'stars' ? 6 : 0,
     };
   }
 
@@ -2937,13 +2959,17 @@ export class Game {
     // oben lag; jetzt lohnt es sich, das Richtige aufzuheben.
     const lieb = isFavourite(e.spiritId, id);
     const basis = 2 + Math.floor((item && item.value ? item.value : 6) / 8);
-    const ember = lieb ? basis * 2 + 3 : basis;
+    // Am Geburtstag zählt alles dreifach. Ein Geburtstag, an dem sich nichts
+    // ändert, ist ein Datum – und es gibt ihn je Geist einmal im Jahr.
+    const geburtstag = hasBirthday(e.spiritId, new Date());
+    const faktor = geburtstag ? GEBURTSTAG_FAKTOR : 1;
+    const ember = Math.round((lieb ? basis * 2 + 3 : basis) * faktor);
     this.state.ember += ember;
     this._note('gifts');
     this._note('ember', ember);
 
     // Farbe: dauerhaft, wie bei einer erledigten Bitte – nur kleiner.
-    this.colorField.growByArea('spirit_' + e.spiritId, lieb ? 110000 : 45000);
+    this.colorField.growByArea('spirit_' + e.spiritId, (lieb ? 110000 : 45000) * faktor);
     this.colorField.markDirty();
 
     this.particles.burst('heart', e.x, e.y - 110, lieb ? 16 : 7);
@@ -2951,8 +2977,9 @@ export class Game {
     this.audio.play(lieb ? 'levelup' : 'ghost');
     this.ui.bubble(e.x, e.y - 190, pickLine(spirit.lines.thanks),
       [{ icon: 'icon_' + id }, { icon: 'icon_heart' }], 2.8);
-    this.ui.toast((lieb ? 'Genau das! ' : '') + '+' + ember + ' Glut · ' +
-      (lieb ? 'viel mehr Farbe' : 'etwas mehr Farbe'), 'icon_ember', 'good');
+    this.ui.toast((geburtstag ? 'Geburtstagsgeschenk! ' : lieb ? 'Genau das! ' : '') +
+      '+' + ember + ' Glut · ' +
+      (lieb || geburtstag ? 'viel mehr Farbe' : 'etwas mehr Farbe'), 'icon_ember', 'good');
     this.ui.refreshHud();
     this.save();
     return true;
@@ -3440,6 +3467,10 @@ export class Game {
       this.lastDaybook = buch;
     }
 
+    // Was GESTERN für ein Tag war, bevor `refreshToday` es überschreibt.
+    // Der Sternenstaub am Strand gehört zur Sternennacht der letzten Nacht,
+    // nicht zum heutigen Ereignis.
+    this.state.lastEvent = this.today && this.today.event ? this.today.event.id : null;
     this.day.sleep();
     const day = this.day.day;
     this._daybookStart();

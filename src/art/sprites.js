@@ -11,7 +11,7 @@ import {
   paintTree, paintPine, paintStump, paintLogBarrier,
   paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft,
   paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot,
-  paintFeather,
+  paintFeather, paintStardust,
   paintMoonflower, paintRainmushroom, paintFogcrystal,
   paintCrop, paintSeedPouch,
 } from './painted.js';
@@ -240,6 +240,7 @@ export function initArt() {
   addArt('herb', paintHerb({ seed: 241 }));
   addArt('shell', paintShell({ seed: 261 }));
   addArt('driftwood', paintDriftwood({ seed: 281 }));
+  addArt('stardust', paintStardust({ seed: 293 }));
   addArt('digspot', paintDigspot({ seed: 301 }));
 
   // Beete: je Art drei Wachstumsstufen

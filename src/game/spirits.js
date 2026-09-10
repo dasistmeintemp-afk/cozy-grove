@@ -14,6 +14,7 @@
 export const SPIRITS = {
   flamey: {
     id: 'flamey',
+    geburtstag: { monat: 10, tag: 7 },
     name: 'Flämmchen',
     art: 'spirit_flamey',
     region: 0,
@@ -32,6 +33,7 @@ export const SPIRITS = {
   },
   mira: {
     id: 'mira',
+    geburtstag: { monat: 3, tag: 21 },
     name: 'Mira Moos',
     art: 'spirit_mira',
     region: 0,
@@ -50,6 +52,7 @@ export const SPIRITS = {
   },
   kiesel: {
     id: 'kiesel',
+    geburtstag: { monat: 8, tag: 2 },
     name: 'Käpt\'n Kiesel',
     art: 'spirit_kiesel',
     region: 0,
@@ -69,6 +72,7 @@ export const SPIRITS = {
   },
   bruno: {
     id: 'bruno',
+    geburtstag: { monat: 1, tag: 14 },
     name: 'Bruno Borke',
     art: 'spirit_bruno',
     region: 1,
@@ -88,6 +92,7 @@ export const SPIRITS = {
   },
   tobi: {
     id: 'tobi',
+    geburtstag: { monat: 5, tag: 30 },
     name: 'Tobi Tüftler',
     art: 'spirit_tobi',
     region: 1,
@@ -106,6 +111,7 @@ export const SPIRITS = {
   },
   nelly: {
     id: 'nelly',
+    geburtstag: { monat: 0, tag: 19 },
     name: 'Nelly Nadel',
     art: 'spirit_nelly',
     region: 2,
@@ -124,6 +130,7 @@ export const SPIRITS = {
   },
   wanda: {
     id: 'wanda',
+    geburtstag: { monat: 6, tag: 11 },
     name: 'Wanda Watt',
     art: 'spirit_wanda',
     region: 3,
@@ -195,6 +202,44 @@ export function favouriteOf(spiritId) {
   const s = SPIRITS[spiritId];
   return (s && s.favourite) || null;
 }
+
+/**
+ * Wer heute Geburtstag hat – oder null.
+ *
+ * Am echten Kalender, wie die Jahreszeiten und die Tagesereignisse. Das ist
+ * die eine Sorte Termin, die man nicht verpassen kann, weil man sie nicht
+ * herbeispielen kann: Er kommt, wenn er kommt.
+ *
+ * Sieben Geburtstage über sieben Monate verteilt – nicht über zwölf, denn
+ * dann wären Monate ohne, und nicht gedrängt, denn dann käme alles auf
+ * einmal. Im Mittel alle sieben Wochen einer.
+ */
+export function birthdayOn(date) {
+  const d = date || new Date();
+  const m = d.getMonth();
+  const t = d.getDate();
+  for (let i = 0; i < SPIRIT_IDS.length; i++) {
+    const s = SPIRITS[SPIRIT_IDS[i]];
+    if (s.geburtstag && s.geburtstag.monat === m && s.geburtstag.tag === t) return s;
+  }
+  return null;
+}
+
+/** Hat dieser Geist heute Geburtstag? */
+export function hasBirthday(spiritId, date) {
+  const s = birthdayOn(date);
+  return !!(s && s.id === spiritId);
+}
+
+/**
+ * Was ein Geschenk am Geburtstag zusätzlich zählt.
+ *
+ * Dreifach, und das ist mit Absicht viel: Ein Geburtstag, an dem sich
+ * nichts ändert, ist ein Datum. Es gibt ihn je Geist einmal im Jahr – wer
+ * ihn trifft, soll das Gefühl haben, etwas gefunden zu haben, das man nicht
+ * kaufen kann.
+ */
+export const GEBURTSTAG_FAKTOR = 3;
 
 export function isFavourite(spiritId, itemId) {
   return !!itemId && favouriteOf(spiritId) === itemId;

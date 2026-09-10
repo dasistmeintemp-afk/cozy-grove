@@ -4,6 +4,10 @@
  * und fällt still auf einen Speicher im Arbeitsspeicher zurück.
  */
 
+// Die Speicherschlüssel behalten ihren alten Namen, obwohl das Spiel jetzt
+// „Seli Grove" heißt. Sie stehen im localStorage des Spielers: Wer sie
+// umbenennt, wirft mit der Umbenennung jeden vorhandenen Spielstand weg.
+// Ein Name im Browser-Speicher ist kein Titel, sondern eine Adresse.
 const KEY = 'cozy-grove:save:v1';
 const SETTINGS_KEY = 'cozy-grove:settings:v1';
 

@@ -92,6 +92,7 @@ export const HINTS = {
   shell: 'Am Strand, im Sand.',
   feather: 'Im Gras unter Bäumen und am Strand – und unter deinem Vogelhaus.',
   driftwood: 'Am Spülsaum, nach jedem Tag neu.',
+  stardust: 'Am Morgen nach einer Sternennacht, am Spülsaum.',
 
   // Sammelgut
   berry: 'An Beerensträuchern – oder aus dem Beet.',
