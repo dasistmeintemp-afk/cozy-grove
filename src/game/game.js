@@ -2479,7 +2479,7 @@ export class Game {
    */
   refreshToday() {
     const vorher = this.today && this.today.event ? this.today.event.id : null;
-    this.today = todayOf(new Date());
+    this.today = todayOf(new Date(), this.day.day);
     this._applyToday();
     return this.today.event && this.today.event.id !== vorher;
   }
@@ -2501,7 +2501,7 @@ export class Game {
       // Versprechen ohne Deckung: Der Tag hieße „Fischschwarm", und am Wasser
       // bisse nichts Besonderes.
       const pool = fishesOf('sea', false, js).concat(fishesOf('fresh', false, js));
-      const fisch = pool[shoalIndex(new Date(), pool.length)];
+      const fisch = pool[shoalIndex(new Date(), pool.length, this.day.day)];
       this.fishing.boost = fisch ? fisch.id : null;
     } else {
       this.fishing.boost = null;

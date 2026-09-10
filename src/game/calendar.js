@@ -126,25 +126,47 @@ function hashDay(n) {
 }
 
 /**
- * Das Ereignis eines Kalendertags – oder null.
+ * Aus Kalendertag UND Inseltag eine Zahl.
+ *
+ * Hier lag ein Fehler, den man erst beim Spielen merkt: Das Ereignis hing
+ * allein am Datum des Rechners. Ein Inseltag dauert aber vierzehn Minuten –
+ * wer einen Nachmittag spielt, schläft dreißigmal und hatte dreißigmal
+ * denselben Falterzug. Gemessen: 30 Inseltage an einem echten Tag ergaben
+ * GENAU EIN Ereignis, und die anderen fünf bekam man an diesem Tag nie zu
+ * sehen.
+ *
+ * Der Inseltag gehört also dazu. Was dabei erhalten bleibt: Zwei Leute, die
+ * am selben Kalendertag an ihrem Tag 7 stehen, erleben dasselbe – die
+ * Inselzahl steckt bewusst NICHT mit drin. Das war der Reiz am Datum, und
+ * der geht so nicht verloren.
+ */
+function tagesZahl(date, tag) {
+  return hashDay(dayNumber(date) ^ Math.imul(tag | 0, 0x27d4eb2d));
+}
+
+/**
+ * Das Ereignis eines Tages – oder null.
  *
  * Etwa jeder vierte Tag bleibt bewusst ohne. Ein Spiel, in dem jeden Tag
  * etwas Besonderes ist, hat nichts Besonderes mehr.
+ *
+ * @param {Date} date  der Kalendertag
+ * @param {number} tag der Inseltag – ohne ihn wechselt nichts vor Mitternacht
  */
-export function eventOf(date) {
-  const h = hashDay(dayNumber(date));
+export function eventOf(date, tag) {
+  const h = tagesZahl(date, tag);
   if ((h & 3) === 0) return null;
   return EVENTS[EVENT_IDS[(h >>> 4) % EVENT_IDS.length]];
 }
 
 /** Welcher Fisch heute im Schwarm steht (Index in einen Vorrat). */
-export function shoalIndex(date, poolSize) {
+export function shoalIndex(date, poolSize, tag) {
   if (!poolSize) return 0;
-  return (hashDay(dayNumber(date)) >>> 9) % poolSize;
+  return (tagesZahl(date, tag) >>> 9) % poolSize;
 }
 
 /** Kurzfassung für die Oberfläche: Jahreszeit und, falls vorhanden, Ereignis. */
-export function todayOf(date) {
+export function todayOf(date, tag) {
   const d = date || new Date();
-  return { season: seasonOf(d), event: eventOf(d), day: dayNumber(d) };
+  return { season: seasonOf(d), event: eventOf(d, tag), day: dayNumber(d), tag: tag | 0 };
 }

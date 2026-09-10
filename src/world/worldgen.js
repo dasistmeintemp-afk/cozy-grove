@@ -90,6 +90,27 @@ const LOBES = [
 ];
 
 /**
+ * Die beiden Landengen der Stillen Insel.
+ *
+ * Drei Kerne machen eine lange Insel – aber sie machen sie nicht
+ * zusammenhängend. Zwischen den Kernen zählt nur das Rauschen, und das ist
+ * ein Münzwurf je Kachel: Gemessen war das Hochland bei ALLEN geprüften
+ * Seeds vom Anleger aus zu Fuß unerreichbar, und die Bucht im Süden bei
+ * zweien von acht. Wer dort sein Grundstück gekauft hatte, stand vor Wasser.
+ *
+ * Deshalb werden die Verbindungen gegraben und nicht erhofft – genau wie die
+ * Furt über den Fluss und die Anlandungen der Brücke. Schmal gehalten: Eine
+ * Landenge, über die man in fünf Schritten geht, ist ein Ort. Ein Kern, der
+ * bis zum nächsten reicht, wäre nur eine große Scheibe.
+ */
+const ISTHMUS = [
+  { x: 8, y0: 30, y1: 42 },   // Hochland ↔ Mitte
+  { x: 9, y0: 51, y1: 61 },   // Mitte ↔ Süden
+];
+/** Halbe Breite einer Landenge: fünf Kacheln plus Saum. */
+const ISTHMUS_HALB = 2;
+
+/**
  * Wo auf der Stillen Insel das Hochland beginnt.
  *
  * Nördlich davon wird aus Gras Felsboden, und dort steht das Erz, an das man
@@ -179,6 +200,7 @@ export function generateTiles(seed) {
   carveChannel(tiles, detail);
   carveSound(tiles, detail);
   buildFord(tiles);
+  buildIsthmus(tiles, detail);
   flattenCamp(tiles);
   addBeachRim(tiles);
   return tiles;
@@ -247,6 +269,33 @@ function buildFord(tiles) {
       const i = tileIndex(tx, ty);
       if (ty >= RIVER_Y0 - 1 && ty <= RIVER_Y1 + 1) tiles[i] = T.DIRT;
       else if (tiles[i] === T.WATER || tiles[i] === T.WATER_DEEP) tiles[i] = T.SAND;
+    }
+  }
+}
+
+/**
+ * Die Landengen der Stillen Insel aufschütten.
+ *
+ * Nur Wasser wird zu Land – vorhandenes Gras bleibt Gras. Sonst zöge sich
+ * ein Sandstreifen quer über einen Kern, wo ohnehin schon Boden war, und man
+ * sähe eine Straße statt einer Küste.
+ *
+ * Das Schlingern kommt aus demselben Rauschen wie bei Fluss und Kanal. Es
+ * bleibt mit ±2 Kacheln kleiner als die halbe Breite, damit zwei benachbarte
+ * Zeilen sich immer noch überlappen – eine Landenge, die um drei Kacheln
+ * springt, ist zwei Landengen mit einer Lücke dazwischen.
+ */
+function buildIsthmus(tiles, detail) {
+  for (let k = 0; k < ISTHMUS.length; k++) {
+    const L = ISTHMUS[k];
+    for (let ty = L.y0; ty <= L.y1; ty++) {
+      const wobble = Math.round((fbm(detail, 501 + k * 37, ty * 0.13, 3, 2, 0.5) - 0.5) * 4);
+      const mitte = L.x + wobble;
+      for (let tx = mitte - ISTHMUS_HALB; tx <= mitte + ISTHMUS_HALB; tx++) {
+        if (tx < 1 || tx > ISLE_X1) continue;
+        const i = tileIndex(tx, ty);
+        if (tiles[i] === T.WATER || tiles[i] === T.WATER_DEEP) tiles[i] = T.SAND;
+      }
     }
   }
 }

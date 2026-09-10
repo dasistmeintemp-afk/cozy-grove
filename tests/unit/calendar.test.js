@@ -34,15 +34,51 @@ test('Die Jahreszeiten sitzen dort, wo man sie erwartet', () => {
   assert.equal(seasonOf(tag(2025, 11, 31)).id, 'winter', 'Silvester');
 });
 
-test('Ein Kalendertag hat immer dasselbe Ereignis', () => {
-  // Zwei Leute, die am selben Tag spielen, sollen dasselbe erleben – sonst
-  // kann man sich darüber nicht unterhalten.
+test('Derselbe Kalendertag und derselbe Inseltag geben dasselbe Ereignis', () => {
+  // Zwei Leute, die am selben Kalendertag an ihrem Tag 7 stehen, sollen
+  // dasselbe erleben – sonst kann man sich darüber nicht unterhalten. Die
+  // Inselzahl steckt bewusst NICHT in der Rechnung, nur Datum und Inseltag.
   for (let i = 0; i < 40; i++) {
     const d = tag(2025, 5, 1 + i);
-    const a = eventOf(d);
-    const b = eventOf(new Date(d.getTime() + 6 * 3600 * 1000));
-    assert.equal(a && a.id, b && b.id, 'Tag ' + (1 + i) + ' ändert sich im Lauf des Tages');
+    for (const inseltag of [1, 7, 23]) {
+      const a = eventOf(d, inseltag);
+      const b = eventOf(new Date(d.getTime() + 6 * 3600 * 1000), inseltag);
+      assert.equal(a && a.id, b && b.id,
+        'Tag ' + (1 + i) + '/Inseltag ' + inseltag + ' ändert sich im Lauf des Tages');
+    }
   }
+});
+
+test('Ein Nachmittag zeigt mehr als ein einziges Ereignis', () => {
+  // Der Fehler, den man erst beim Spielen merkt: Das Ereignis hing allein am
+  // Datum des Rechners, ein Inseltag dauert aber vierzehn Minuten. Wer einen
+  // Nachmittag spielte, schlief dreißigmal und hatte dreißigmal denselben
+  // Falterzug – gemessen genau EIN Ereignis in dreißig Inseltagen, und die
+  // anderen fünf bekam man an diesem Tag nie zu sehen.
+  //
+  // Geprüft wird über mehrere Kalendertage, denn eine einzelne Sitzung kann
+  // durchaus mal zwei gleiche hintereinander erwischen.
+  for (let d = 0; d < 8; d++) {
+    const heute = tag(2026, 8, 10 + d);
+    const gesehen = new Set();
+    for (let inseltag = 1; inseltag <= 30; inseltag++) {
+      const ev = eventOf(heute, inseltag);
+      gesehen.add(ev ? ev.id : 'ruhig');
+    }
+    assert.ok(gesehen.size >= 5,
+      'Kalendertag ' + (10 + d) + ': nur ' + gesehen.size
+      + ' verschiedene Ereignisse in dreißig Inseltagen (' + [...gesehen].join(', ') + ')');
+  }
+});
+
+test('Auch der Fischschwarm dreht sich mit dem Inseltag', () => {
+  // Sonst stünde einen ganzen Nachmittag lang derselbe Fisch vor der Küste –
+  // und der Schwarmtag ist der einzige verlässliche Weg zu einem seltenen.
+  const heute = tag(2026, 8, 10);
+  const gesehen = new Set();
+  for (let inseltag = 1; inseltag <= 30; inseltag++) gesehen.add(shoalIndex(heute, 8, inseltag));
+  assert.ok(gesehen.size >= 4, 'nur ' + gesehen.size + ' verschiedene Fische in dreißig Tagen');
+  assert.equal(shoalIndex(heute, 0, 5), 0, 'ohne Vorrat kein Absturz');
 });
 
 test('Verschiedene Tage bringen verschiedene Ereignisse', () => {
@@ -50,7 +86,7 @@ test('Verschiedene Tage bringen verschiedene Ereignisse', () => {
   let ohne = 0;
   const N = 400;
   for (let i = 0; i < N; i++) {
-    const ev = eventOf(new Date(2025, 0, 1 + i, 12));
+    const ev = eventOf(new Date(2025, 0, 1 + i, 12), 1 + (i % 17));
     if (!ev) { ohne++; continue; }
     gesehen[ev.id] = (gesehen[ev.id] || 0) + 1;
   }

@@ -13,7 +13,7 @@ import {
   generateTiles, MAP_W, MAP_H, tileIndex, regionAt, REGION, REGION_NAMES,
   ALL_REGIONS, CAMP_TILE, SOUND_X0, SOUND_X1, ISLE_X1, HIGHLAND_Y,
 } from '../../src/world/worldgen.js';
-import { isWalkable, T } from '../../src/art/tiles.js';
+import { isWalkable, T, TILE_SIZE } from '../../src/art/tiles.js';
 import { World } from '../../src/world/world.js';
 import { ColorField } from '../../src/world/colorfield.js';
 import { SPIRITS, SPIRIT_IDS, spiritsOfRegion } from '../../src/game/spirits.js';
@@ -73,6 +73,94 @@ test('Die Stille Insel ist bei keinem Seed zu Fuß erreichbar', () => {
       }
     }
     assert.equal(drueben, 0, 'Seed ' + seed + ': ' + drueben + ' Inselkacheln zu Fuß erreichbar');
+  }
+});
+
+/** Alles, was von einer Kachel aus zu Fuß erreichbar ist. */
+function erreichbarVon(tiles, sx, sy) {
+  const gesehen = new Uint8Array(MAP_W * MAP_H);
+  const stapel = [[sx, sy]];
+  gesehen[tileIndex(sx, sy)] = 1;
+  while (stapel.length) {
+    const p = stapel.pop();
+    const nb = [[p[0] + 1, p[1]], [p[0] - 1, p[1]], [p[0], p[1] + 1], [p[0], p[1] - 1]];
+    for (let i = 0; i < nb.length; i++) {
+      const nx = nb[i][0];
+      const ny = nb[i][1];
+      if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+      const idx = tileIndex(nx, ny);
+      if (gesehen[idx] || !isWalkable(tiles[idx])) continue;
+      gesehen[idx] = 1;
+      stapel.push([nx, ny]);
+    }
+  }
+  return gesehen;
+}
+
+test('Die Insel ist EINE Insel – vom Anleger kommt man überall hin', () => {
+  // Der teuerste Fehler dieses Spiels bisher, und er kam von der Vergrößerung
+  // selbst: Drei Kerne übereinander machen eine lange Insel, aber sie machen
+  // sie nicht zusammenhängend. Zwischen zwei Kernen entscheidet allein das
+  // Rauschen, und das ist ein Münzwurf je Kachel.
+  //
+  // Gemessen vor den Landengen: Das Hochland war bei ALLEN geprüften Seeds
+  // vom Anleger aus unerreichbar – Granit, Geoden und die vierte
+  // Spitzhackenstufe lagen hinter Wasser, das kein Boot überquert. Der Süden
+  // mit der Bucht war es bei zwei von acht: Wer sein Grundstück gekauft
+  // hatte, stand davor und kam nicht hin.
+  //
+  // Deshalb prüft dieser Test nicht die Form, sondern den Weg.
+  for (const seed of SEEDS) {
+    const welt = new World(seed).populate();
+    const dock = welt.isleDock;
+    assert.ok(dock, 'Seed ' + seed + ': kein Anleger auf der Insel');
+    const erreichbar = erreichbarVon(welt.tiles,
+      Math.floor(dock.x / TILE_SIZE), Math.floor(dock.y / TILE_SIZE));
+
+    let land = 0;
+    let zuFuss = 0;
+    let hochland = 0;
+    let hochlandErreicht = 0;
+    let sueden = 0;
+    let suedenErreicht = 0;
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        if (regionAt(tx, ty) !== REGION.ISLE) continue;
+        if (!isWalkable(welt.tiles[tileIndex(tx, ty)])) continue;
+        land++;
+        const da = !!erreichbar[tileIndex(tx, ty)];
+        if (da) zuFuss++;
+        if (ty < HIGHLAND_Y) { hochland++; if (da) hochlandErreicht++; }
+        if (ty >= 53) { sueden++; if (da) suedenErreicht++; }
+      }
+    }
+    const anteil = zuFuss / land;
+    assert.ok(anteil > 0.95, 'Seed ' + seed + ': nur ' + Math.round(anteil * 100)
+      + ' % der Insel sind vom Anleger aus zu Fuß erreichbar');
+    // Die beiden Enden einzeln, denn sie tragen den Inhalt: im Norden das
+    // Hochland mit dem Granit, im Süden die Bucht mit dem Grundstück.
+    assert.ok(hochlandErreicht > hochland * 0.9, 'Seed ' + seed + ': das Hochland ist abgeschnitten ('
+      + hochlandErreicht + '/' + hochland + ')');
+    assert.ok(suedenErreicht > sueden * 0.9, 'Seed ' + seed + ': der Süden ist abgeschnitten ('
+      + suedenErreicht + '/' + sueden + ')');
+  }
+});
+
+test('Die Landengen sind Engen, keine zweite Insel', () => {
+  // Die Gegenprobe zur Verbindung: Würde man sie breit genug schütten, um
+  // sicher zu gehen, wären aus drei Kernen eine Scheibe geworden – und die
+  // Länge der Insel war der ganze Grund für die drei Kerne.
+  for (const seed of SEEDS) {
+    const tiles = generateTiles(seed);
+    for (const ty of [36, 56]) {
+      let breite = 0;
+      for (let tx = 1; tx <= ISLE_X1; tx++) {
+        if (isWalkable(tiles[tileIndex(tx, ty)])) breite++;
+      }
+      assert.ok(breite >= 3, 'Seed ' + seed + ', Zeile ' + ty + ': nur ' + breite + ' Kacheln Land');
+      assert.ok(breite <= 14, 'Seed ' + seed + ', Zeile ' + ty + ': ' + breite
+        + ' Kacheln breit – das ist keine Enge mehr');
+    }
   }
 });
 

@@ -1476,10 +1476,43 @@ export class Panels {
       ctx.fillRect(px, py, size, size);
     }
 
+    /** Ein gestricheltes Rechteck – dieselbe Linie wie draußen am Grundstück. */
+    function rahmen(r, color) {
+      if (!r) return;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(
+        Math.round((r.x / TILE_SIZE) * s) + 0.5,
+        Math.round((r.y / TILE_SIZE) * s) + 0.5,
+        Math.round((r.w / TILE_SIZE) * s),
+        Math.round((r.h / TILE_SIZE) * s)
+      );
+      ctx.restore();
+    }
+
+    // Die eigenen Grundstücke. Ohne sie stand die Bucht auf der Insel nur im
+    // Fenstertext, und man suchte auf 96 mal 96 Kacheln nach etwas, das man
+    // schon bezahlt hatte.
+    rahmen(g.plotRect ? g.plotRect() : null, 'rgba(74,64,56,0.55)');
+    if (g.state.islePlot > 0) rahmen(g.islePlotRect ? g.islePlotRect() : null, 'rgba(74,64,56,0.55)');
+
     if (g.world.campfire) dot(g.world.campfire.x, g.world.campfire.y, '#ff9a3c', 5);
     for (let i = 0; i < g.world.entities.length; i++) {
       const e = g.world.entities[i];
       if (e.kind === 'spirit' && g.world.isUnlocked(e.region)) dot(e.x, e.y, '#5f86b0', 4);
+      // Die beiden Boote: Sie SIND der Weg hinüber, und der stand bisher
+      // nirgends auf der Karte. Dieselbe Regel wie bei den Fundstücken – nur
+      // zeigen, wo man auch hinkommt: Der Steg am Lager liegt von Anfang an
+      // vor der Nase und ist kein Geheimnis, das Boot drüben erscheint mit
+      // der Insel.
+      if (e.kind === 'boat' && g.world.isUnlocked(g.world.regionAtPixel(e.x, e.y))) {
+        dot(e.x, e.y, '#8a6a3c', 4);
+      }
+      // Das Zuhause. Es heißt bis zuletzt `tent`, auch als ausgebautes Haus –
+      // die Ausbaustufe wechselt nur die Grafik, nicht das Objekt.
+      if (e.kind === 'tent') dot(e.x, e.y, '#b6543f', 5);
       // Fundstücke nur dort zeigen, wo man auch hinkommt. Vorher standen sie
       // auch im Wald und auf den Klippen, lange bevor der Weg dorthin offen
       // war – man lief hin und stand vor der Sperre.

@@ -147,6 +147,16 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   ist die Stelle bei (9|60) die beste, die sie hergibt; gemessen sind 77 bis
   84 % davon Land (431 bis 469 Kacheln), gegen 93 bis 95 % im Lager. Dieselbe
   Regel wie dort: **innerhalb wächst nichts nach**, und man darf dicht bauen.
+
+  Und man kommt hin. Das klingt selbstverständlich und war es nicht: Die
+  Insel besteht aus drei übereinanderliegenden Kernen, und zwischen ihnen
+  entschied allein das Rauschen – ein Münzwurf je Kachel. Gemessen war das
+  **Hochland bei allen geprüften Seeds unerreichbar** und der Süden mit der
+  Bucht bei zwei von acht: Wer sein Grundstück gekauft hatte, stand davor,
+  und dazwischen lag Wasser. Jetzt werden zwei schmale **Landengen** gegraben
+  statt erhofft, wie die Furt über den Fluss und die Anlandungen der Brücke.
+  Über 40 Seeds sind seither mindestens 99,8 % der Insel vom Anleger aus zu
+  Fuß erreichbar, und ein Test prüft nicht mehr die Form, sondern den Weg.
 * **Der Umzug.** Sobald die Bucht dir gehört, kannst du **dein Haus dorthin
   umziehen** – und jederzeit zurück. Es bleibt EIN Zuhause: Ein zweites
   hieße zwei Fragen, die das Spiel nicht hat, nämlich in welchem man schläft
@@ -427,7 +437,7 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nie um etwas, das gerade gar nicht da ist – dieselbe Regel wie bei der
   Feder, nur zeitlich. Zum Wechsel kommt ein Brief, der in einem Nebensatz
   sagt, was sich ändert.
-* **Ein Tagesereignis je echtem Kalendertag.** Markttag (der Händler zahlt ein
+* **Ein Tagesereignis je Inseltag.** Markttag (der Händler zahlt ein
   Drittel mehr), Fundtag (doppelt so viele Grabstellen), Blütentag (die Insel
   blüht, morgen wieder vorbei), Falterzug (viel mehr Falter), Fischschwarm
   (eine Art beißt zwölfmal so oft – der einzige verlässliche Weg zu einem sehr
@@ -435,12 +445,19 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Mondblumen). Etwa jeder vierte Tag hat bewusst keines: Wäre jeden Tag etwas
   Besonderes, wäre nichts mehr besonders. Es steht oben im Aufgabenfenster.
 
-  Warum das **Datum** und nicht die Uhrzeit: Ein Inseltag dauert 14 Minuten.
-  An die echte Uhr gebunden liefen zwei Uhren gegeneinander – mittags auf der
-  Insel, Mitternacht im Fenster –, und wer abends spielt, käme an alles nicht
-  heran, was vormittags passiert. Das Datum ist grob genug: Es macht jeden Tag
-  anders, ohne jemanden auszusperren, und zwei Leute am selben Tag erleben
-  dasselbe.
+  Welches Ereignis kommt, hängt an **Kalendertag und Inseltag zusammen**. Der
+  Kalendertag allein war ein Fehler, den man erst beim Spielen merkt: Ein
+  Inseltag dauert 14 Minuten, wer einen Nachmittag spielt, schläft dreißigmal
+  – und hatte dreißigmal denselben Falterzug. Gemessen ergaben 30 Inseltage an
+  einem echten Tag **genau ein** Ereignis; die anderen fünf bekam man an
+  diesem Tag nie zu sehen. Mit dem Inseltag in der Rechnung sind es fünf bis
+  sechs verschiedene, und ein Test rechnet es nach.
+
+  Was dabei erhalten bleibt: Zwei Leute, die am selben Kalendertag an ihrem
+  Tag 7 stehen, erleben dasselbe – die Inselzahl steckt bewusst **nicht** mit
+  drin. An die echte **Uhr** ist weiterhin nichts gebunden: Sonst liefen zwei
+  Uhren gegeneinander (mittags auf der Insel, Mitternacht im Fenster), und wer
+  abends spielt, käme an alles nicht heran, was vormittags passiert.
 * **Der Garten.** Die eine Sache im Spiel, die von *gestern* abhängt: Saat
   kaufst du beim Händler (drei Sorten liegen immer im Regal, die Mondsaat nur
   manchmal), säst sie auf Wiese oder Erde, und in zwei bis vier Tagen steht
@@ -466,6 +483,13 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   ist: erledigte Bitten, Fundstücke, Fische, Falter, Aufgestelltes,
   Mitbringsel, Münzen, Glut – und ganz oben, wie viel Farbe dazugekommen ist.
   Nach einem Tag, an dem nichts geschah, bleibt er weg.
+* **Die Karte zeigt den Weg.** Lagerfeuer, Geister, Fundstücke, Auftragsziele
+  und du selbst standen von jeher darauf – die eigenen **Grundstücke**, das
+  **Zuhause** und die beiden **Boote** nicht. Damit stand die Bucht auf der
+  Insel nur im Fenstertext, und der einzige Weg hinüber stand nirgends: Wer
+  sie gekauft hatte, suchte sie auf 96 mal 96 Kacheln. Die Boote erscheinen
+  erst, wenn die Insel offen ist; vorher wären sie ein Hinweis auf eine Tür,
+  die noch zu ist.
 * **Fundstücke sind zu sehen.** Wo auf der Karte ein goldener Punkt liegt,
   steht in der Welt ein Flämmchen über den Baumkronen, dazu ein warmer Schein
   und ein Ring auf dem Boden. Der Punkt auf der Karte ist ein Versprechen, das
@@ -591,8 +615,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 267 Tests: Welt, Wetter, Jahreszeiten, Aufgaben, Uhr, Garten …
-npm run test:browser   # 205 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 276 Tests: Welt, Wetter, Jahreszeiten, Aufgaben, Uhr, Garten …
+npm run test:browser   # 209 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

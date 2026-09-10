@@ -715,7 +715,21 @@ async function run() {
       }
 
       // 2) Taste halten arbeitet weiter, aber nur bei Werkzeugarbeit
-      const baum = g.world.entities.find((e) => e.kind === 'tree_birch' && !e.gone);
+      //
+      // Nicht die erste Birke der Liste nehmen und hoffen: Der Rauchtest
+      // würfelt seine Insel je Lauf neu, und stand dem Ziel ein Findling oder
+      // ein zweiter Baum näher, visierte `findTarget` den an – dann fielen
+      // null Schläge, und die Prüfung war rot, ohne dass etwas kaputt war.
+      // Dieselbe Suche wie oben bei 1): eine nehmen, die wirklich anvisiert
+      // wird.
+      let baum = null;
+      const birken = g.world.entities.filter((e) => e.kind === 'tree_birch' && !e.gone);
+      for (const b of birken.slice(0, 40)) {
+        g.player.x = b.x; g.player.y = b.y + 56; g.player.dir = 'up';
+        g.player.selectTool(1);
+        const t = g.player.findTarget(g.world);
+        if (t && t.entity === b) { baum = b; break; }
+      }
       if (baum) {
         g.player.x = baum.x; g.player.y = baum.y + 56; g.player.dir = 'up';
         g.player.selectTool(1);
@@ -1176,6 +1190,79 @@ async function run() {
       karte.gesperrterBereich === false && karte.offenerBereich === true,
       JSON.stringify(karte));
 
+    /* ---- Karte zeigt den Weg: Boote, Zuhause, Grundstück ---- */
+    // Die Bucht auf der Insel stand nur im Fenstertext. Wer sie gekauft
+    // hatte, suchte sie auf 96 mal 96 Kacheln – und die beiden Boote, also
+    // der einzige Weg hinüber, standen auch nicht auf der Karte.
+    //
+    // Gemessen wird an den Pixeln, nicht am Code: Die Karte wird zweimal
+    // gezeichnet, einmal mit und einmal ohne die Marke, und die Bilder
+    // müssen sich unterscheiden.
+    const marken = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      g.state.islePlot = Math.max(1, g.state.islePlot || 0);
+      g.openPanel('map');
+      await new Promise((r) => setTimeout(r, 260));
+      const c = document.getElementById('map-canvas');
+      if (!c) { g.panels.close(); return { keineKarte: true }; }
+      const ctx = c.getContext('2d');
+      const lesen = function () {
+        g.panels._mapBase = null;
+        g.panels._drawMap();
+        return ctx.getImageData(0, 0, c.width, c.height).data;
+      };
+      const anders = function (a, b) {
+        let n = 0;
+        for (let i = 0; i < a.length; i += 4) {
+          if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2]) n++;
+        }
+        return n;
+      };
+
+      const voll = lesen();
+      // Boote weg – ändert sich das Bild?
+      const boote = g.world.entities.filter((e) => e.kind === 'boat');
+      for (const b of boote) b.kind = '_aus';
+      const ohneBoot = lesen();
+      for (const b of boote) b.kind = 'boat';
+      // Und das Boot drüben erscheint erst mit der Insel: einmal mit
+      // gesperrter, einmal mit offener Insel messen.
+      const standInsel = g.world.unlocked.slice();
+      g.world.unlocked[3] = false;
+      const inselZu = lesen();
+      g.world.unlocked[3] = true;
+      const inselAuf = lesen();
+      g.world.unlocked = standInsel;
+      // Bucht weg
+      const stand = g.state.islePlot;
+      g.state.islePlot = 0;
+      const ohneBucht = lesen();
+      g.state.islePlot = stand;
+      // Zuhause weg
+      const heim = g.world.tent;
+      const heimArt = heim ? heim.kind : null;
+      if (heim) heim.kind = '_aus';
+      const ohneHeim = lesen();
+      if (heim) heim.kind = heimArt;
+
+      g.panels.close();
+      return {
+        boote: boote.length,
+        dBoot: anders(voll, ohneBoot),
+        dBucht: anders(voll, ohneBucht),
+        dHeim: anders(voll, ohneHeim),
+        dInsel: anders(inselZu, inselAuf),
+      };
+    });
+    check('Die Karte zeigt den Steg am Lager',
+      marken.boote === 2 && marken.dBoot > 5, JSON.stringify(marken));
+    check('Das Boot drüben kommt erst mit der Insel',
+      marken.dInsel > 5, JSON.stringify(marken));
+    check('Die Karte zeigt die gekaufte Bucht',
+      marken.dBucht > 10, JSON.stringify(marken));
+    check('Die Karte zeigt, wo man wohnt',
+      marken.dHeim > 5, JSON.stringify(marken));
+
     /* ---- Randabdunklung bleibt dezent ---- */
     // Sie sitzt in der Bildmitte, und die Kamera folgt der Figur: ein starker
     // Verlauf ist ein heller Kreis, der mitwandert – und der überstimmt genau
@@ -1212,25 +1299,36 @@ async function run() {
         for (let i = 3; i < d.length; i += 4) { sum += d[i]; n++; }
         return Math.round(sum / n);
       }
-      const warten = () => new Promise((r) => setTimeout(r, 420));
+      // Warten, bis der Wert STEHT, statt eine feste Zeit abzusitzen.
+      // Vorher waren es 420 ms, und auf einem langsamen Bild kam die Messung
+      // vor dem neu gezeichneten Bild an: Die Prüfung fiel dann mit einer
+      // Deckung von 0 durch, obwohl nichts kaputt war.
+      const stabil = async function (wx, wy) {
+        let letzte = -1;
+        for (let i = 0; i < 30; i++) {
+          await new Promise((r) => setTimeout(r, 120));
+          const v = deckung(wx, wy);
+          if (v === letzte) return v;
+          letzte = v;
+        }
+        return letzte;
+      };
 
       g.colorField.sources.length = 0;
       g.colorField.sources.push({ x: px, y: py, r: 520, target: 520, key: 'gross' });
       g.colorField.markDirty();
-      await warten();
-      const alleine = deckung(px + 300, py);
+      const alleine = await stabil(px + 300, py);
 
       // Zweite, kleine Quelle dazu – wie ein Gemütlichkeitskreis neben einem
       // Geist. Der Messpunkt liegt weit außerhalb von ihr.
       g.colorField.sources.push({ x: px - 60, y: py, r: 150, target: 150, key: 'klein' });
       g.colorField.markDirty();
-      await warten();
-      const zuZweit = deckung(px + 300, py);
+      const zuZweit = await stabil(px + 300, py);
 
       g.colorField.sources.length = 0;
       for (const s of gemerkt) g.colorField.sources.push(s);
       g.colorField.markDirty();
-      await warten();
+      await new Promise((r) => setTimeout(r, 420));
       return { alleine, zuZweit };
     });
     check('Zweite Farbquelle löscht die erste nicht aus',
