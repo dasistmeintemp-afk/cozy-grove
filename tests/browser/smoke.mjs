@@ -683,6 +683,77 @@ async function run() {
       gartenSpeichern.eintrag.gw === 1,
       JSON.stringify(gartenSpeichern.eintrag));
 
+    /* ---- Deko, die etwas tut ---- */
+    // Von 26 aufstellbaren Stücken hing bei 17 außer dem Charmewert nichts.
+    // Gemessen wird hier nicht die Tabelle – das tut der Einheitstest –,
+    // sondern ob die Wirkung im laufenden Spiel wirklich ankommt.
+    const wirkt = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+
+      // Zwei gleiche Beete nebeneinander, eines mit Bienenkorb daneben.
+      // Beide bekommen denselben Morgen; nur die Nachbarschaft trennt sie.
+      const platz = { x: g.player.x + 200, y: g.player.y + 200 };
+      // Eigene Nummern weit oberhalb der vergebenen: `add` legt sie ins
+      // Register, und eine doppelte Nummer überschriebe ein echtes Objekt.
+      let nr = 900001;
+      const machBeet = (dx) => g.world.add({
+        id: nr++, kind: 'crop', cropId: 'moon', grown: 0, plantedDay: g.day.day,
+        x: platz.x + dx, y: platz.y, sprite: 'crop_moon_0',
+      });
+      const ohne = machBeet(0);
+      const mit = machBeet(900);            // weit weg vom Korb
+      const korb = g.world.add({
+        id: nr++, kind: 'decor', itemId: 'beehive', x: mit.x + 40, y: mit.y, sprite: 'beehive',
+      });
+      r.hilfeOhne = g.beetHilfe(ohne.x, ohne.y).wachstum;
+      r.hilfeMit = g.beetHilfe(mit.x, mit.y).wachstum;
+      g.growCrops('clear');
+      r.gewachsenOhne = ohne.grown;
+      r.gewachsenMit = mit.grown;
+
+      // Wetterhahn: ohne keiner, mit einem steht das Wetter von morgen da.
+      r.vorherHahn = g.morgenWetter();
+      const hahn = g.world.add({
+        id: nr++, kind: 'decor', itemId: 'weathervane',
+        x: g.player.x + 120, y: g.player.y, sprite: 'weathervane',
+      });
+      const m = g.morgenWetter();
+      r.nachherHahn = m ? m.name : null;
+      g.openPanel('quests');
+      await new Promise((res) => setTimeout(res, 220));
+      r.imFenster = document.getElementById('panel-body').textContent.indexOf('morgen ' + r.nachherHahn) >= 0;
+      g.panels.close();
+
+      // Aufräumen, damit der Rest des Tests eine normale Insel vorfindet
+      for (const e of [ohne, mit, korb, hahn]) g.world.remove(e);
+      return r;
+    });
+    check('Der Bienenkorb wirkt nur auf das Beet nebenan',
+      wirkt.hilfeOhne === 0 && wirkt.hilfeMit === 1, JSON.stringify(wirkt));
+    check('Und das Beet daneben wächst wirklich schneller',
+      wirkt.gewachsenMit > wirkt.gewachsenOhne, JSON.stringify(wirkt));
+    check('Ohne Wetterhahn keine Vorhersage, mit einem eine',
+      wirkt.vorherHahn === null && !!wirkt.nachherHahn, JSON.stringify(wirkt));
+    check('Und sie steht im Aufgabenfenster',
+      wirkt.imFenster === true, JSON.stringify(wirkt));
+
+    // Der Kescher zählte seine Falter mit und zeigte die Zahl nirgends.
+    const zaehler = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const vorher = g.state.bugsCaught || 0;
+      g.state.bugsCaught = vorher + 17;
+      g.panels.nurFehlend = false;
+      g.openPanel('found');
+      await new Promise((r) => setTimeout(r, 300));
+      const txt = document.getElementById('panel-body').textContent;
+      g.panels.close();
+      g.state.bugsCaught = vorher;
+      return { steht: txt.indexOf((vorher + 17) + ' Falter gefangen') >= 0 };
+    });
+    check('Die gefangenen Falter stehen im Fundbuch',
+      zaehler.steht === true, JSON.stringify(zaehler));
+
     /* ---- Bequemlichkeiten ---- */
     const bequem = await page.evaluate(async () => {
       const g = window.CozyGrove.game;

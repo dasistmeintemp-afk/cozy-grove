@@ -9,7 +9,7 @@ import { Renderer } from '../render/renderer.js';
 import { Camera } from '../render/camera.js';
 import { Particles } from '../render/particles.js';
 import { Wildlife } from '../render/wildlife.js';
-import { Weather } from '../render/weather.js';
+import { Weather, weatherFor, WEATHER_LABEL as WETTER_WORT } from '../render/weather.js';
 import { Player, TOOLS } from './player.js';
 import { Inventory } from './inventory.js';
 import { QuestBook, QTYPE } from './quests.js';
@@ -48,6 +48,9 @@ import {
 } from './pet.js';
 import { rollSize, noteSize, bestSize, sizeWord, emptyRecords } from './records.js';
 import { regrowDays } from './seasons.js';
+import {
+  beetHilfe, BEET_HILFE, WIRK_RADIUS, klingt, istWetterhahn, wirkungVon,
+} from './decor.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, dailyRng } from '../core/rng.js';
@@ -530,6 +533,7 @@ export class Game {
       dark ? this.lightSources(this.time) : null
     );
     this._ambient(dt);
+    this._windspiel(dt);
     this.weather.update(dt);
     this._syncConditionalSpawns();
     this._shootingStars(dt);
@@ -2489,6 +2493,36 @@ export class Game {
     return this.today && this.today.season ? this.today.season.id : null;
   }
 
+  /**
+   * Steht irgendwo ein Wetterhahn?
+   *
+   * Irgendwo, nicht in der Nähe: Ein Wetterhahn, den man aufsuchen muss, um
+   * ihn zu lesen, ist ein Weg statt einer Auskunft. Er hängt an der Insel,
+   * nicht an der Kachel, auf der man gerade steht.
+   */
+  hatWetterhahn() {
+    for (let i = 0; i < this.world.entities.length; i++) {
+      const e = this.world.entities[i];
+      if (e.kind === 'decor' && !e.gone && istWetterhahn(e.itemId)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Was für ein Wetter morgen wird – oder null ohne Wetterhahn.
+   *
+   * Kostet nichts auszurechnen: Das Wetter hing schon immer nur an Inselzahl,
+   * Tag und Jahreszeit und steht damit fest, lange bevor der Tag beginnt.
+   * Genau deshalb ist der Wetterhahn das Stück Deko, das am wenigsten
+   * Maschinerie braucht und am meisten sagt – wer weiß, dass es morgen
+   * regnet, gießt heute nicht.
+   */
+  morgenWetter() {
+    if (!this.hatWetterhahn()) return null;
+    const w = weatherFor(this.world.seed, this.day.day + 1, this.season());
+    return { kind: w.kind, name: WETTER_WORT[w.kind] || 'Klar' };
+  }
+
   /** Die Wirkungen des Tagesereignisses an die Systeme weitergeben. */
   _applyToday() {
     const ev = this.today && this.today.event ? this.today.event.id : null;
@@ -2559,13 +2593,24 @@ export class Game {
     if (!crop) { this.world.remove(e); return; }
     const rest = daysToRipe(crop, e.grown || 0);
     if (rest > 0) {
-      this.ui.toast(crop.name + ' wächst · noch ' + rest + (rest === 1 ? ' Tag' : ' Tage'),
+      // Steht Deko in Reichweite, gehört das in dieselbe Zeile: Die
+      // Restdauer ist genau die Zahl, die der Bienenkorb ändert.
+      const nachbarn = this.beetHilfe(e.x, e.y);
+      const dazu = nachbarn.arten.length
+        ? ' · ' + nachbarn.arten.map(itemName).join(', ') + ' hilft'
+        : '';
+      this.ui.toast(crop.name + ' wächst · noch ' + rest + (rest === 1 ? ' Tag' : ' Tage') + dazu,
         'icon_' + crop.seed);
       this.audio.play('forage');
       return;
     }
 
     const got = harvestOf(crop, Math.random);
+    // Ein Rankgitter nebenan legt ein Stück drauf – auf die ERNTE, nicht auf
+    // die Saat, die sich ohnehin selbst nachlegt. Sonst wäre der Garten nach
+    // einer Woche ein Saatgutlager.
+    const hilfe = this.beetHilfe(e.x, e.y);
+    if (hilfe.ernte > 0 && got.length && got[0].id !== crop.seed) got[0].n += hilfe.ernte;
     const wirklich = [];
     for (let i = 0; i < got.length; i++) {
       const n = this.inventory.add(got[i].id, got[i].n);
@@ -2587,6 +2632,16 @@ export class Game {
     this.save();
   }
 
+  /**
+   * Was ein Beet an dieser Stelle von der aufgestellten Deko bekommt.
+   *
+   * Über `queryNear` und nicht über alle Objekte: Auf einer eingerichteten
+   * Insel stehen mehrere hundert Stück, und das hier läuft je Beet.
+   */
+  beetHilfe(x, y) {
+    return beetHilfe(this.world.queryNear(x, y, WIRK_RADIUS), x, y);
+  }
+
   /** Alle Beete einen Tag weiterwachsen lassen. */
   growCrops(regen) {
     const grund = growthPerDay(regen) + this.perks().grow;
@@ -2597,7 +2652,10 @@ export class Game {
       const crop = CROPS[e.cropId];
       if (!crop) continue;
       // Gegossen zählt einen Schritt extra – und nur für diesen einen Morgen.
-      const zuwachs = grund + (e.watered === this.day.day ? 1 : 0);
+      // Ein Bienenkorb in der Nähe zählt genauso: derselbe Summand, kein
+      // zweiter Rechenweg daneben.
+      const nachbarn = this.beetHilfe(e.x, e.y);
+      const zuwachs = grund + nachbarn.wachstum + (e.watered === this.day.day ? 1 : 0);
       e.watered = 0;
       const vorher = stageOf(e.grown || 0, crop.days);
       e.grown = Math.min(crop.days, (e.grown || 0) + zuwachs);
@@ -3132,6 +3190,7 @@ export class Game {
       e.sprite = p.sprite;
       e.blockR = p.flat ? 0 : 26;
       this.world.add(e);
+      this._sagWasEsTut(e);
     }
     this.audio.play('place');
     this._note('decor');
@@ -3142,6 +3201,40 @@ export class Game {
 
     if (this.inventory.count(p.itemId) <= 0) this.cancelPlacing();
     this.save();
+  }
+
+  /**
+   * Was das eben aufgestellte Stück von hier aus bewirkt.
+   *
+   * Der Punkt, an dem eine unsichtbare Wirkung sichtbar wird. Ein Bienenkorb,
+   * der Beete schneller wachsen lässt, ist ohne diese Zeile ein Gerücht: Man
+   * müsste zwei Spielstände nebeneinander führen, um ihn zu bemerken.
+   *
+   * Deshalb steht hier eine ZAHL und kein Versprechen – „3 Beete in
+   * Reichweite" sagt auch, dass man ihn zwei Schritte weiter besser
+   * hinstellt.
+   */
+  _sagWasEsTut(e) {
+    const hilfe = BEET_HILFE[e.itemId];
+    if (hilfe) {
+      const nah = this.world.queryNear(e.x, e.y, WIRK_RADIUS);
+      let beete = 0;
+      const r2 = WIRK_RADIUS * WIRK_RADIUS;
+      for (let i = 0; i < nah.length; i++) {
+        const c = nah[i];
+        if (c.gone || c.kind !== 'crop') continue;
+        const dx = c.x - e.x;
+        const dy = c.y - e.y;
+        if (dx * dx + dy * dy <= r2) beete++;
+      }
+      this.ui.toast(beete === 0
+        ? 'Kein Beet in Reichweite'
+        : beete + (beete === 1 ? ' Beet in Reichweite' : ' Beete in Reichweite'),
+      'icon_seed_berry', beete ? 'good' : '');
+      return;
+    }
+    const tut = wirkungVon(e.itemId);
+    if (tut) this.ui.toast(tut, 'icon_star', 'good');
   }
 
   cancelPlacing() {
@@ -3296,6 +3389,40 @@ export class Game {
   }
 
   /* ---------------- Umgebung ---------------- */
+
+  /**
+   * Das Windspiel klingt, wenn man vorbeigeht.
+   *
+   * Es hieß Windspiel und tat nichts. Ein Klang ist die kleinste Wirkung, die
+   * es gibt – und für dieses Stück die einzig richtige.
+   *
+   * Zwei Regeln, damit es nicht nervt: nur beim GEHEN (wer davorsteht, hört
+   * es einmal und dann nicht mehr), und jedes Spiel merkt sich, dass es
+   * gerade geklungen hat, bis man wieder weg ist. Ohne das zweite klingelt
+   * es alle 0,4 Sekunden, solange man daneben steht.
+   */
+  _windspiel(dt) {
+    this._chimeTimer = (this._chimeTimer || 0) - dt;
+    if (this._chimeTimer > 0) return;
+    this._chimeTimer = 0.4;
+    if (!this.player.moving) { this._chimeLetztes = null; return; }
+
+    const nah = this.world.queryNear(this.player.x, this.player.y, 120);
+    let treffer = null;
+    for (let i = 0; i < nah.length; i++) {
+      const e = nah[i];
+      if (e.gone || e.kind !== 'decor' || !klingt(e.itemId)) continue;
+      const dx = e.x - this.player.x;
+      const dy = e.y - this.player.y;
+      if (dx * dx + dy * dy > 120 * 120) continue;
+      treffer = e;
+      break;
+    }
+    if (!treffer) { this._chimeLetztes = null; return; }
+    if (this._chimeLetztes === treffer.id) return;
+    this._chimeLetztes = treffer.id;
+    this.audio.play('chime');
+  }
 
   _ambient(dt) {
     this._ambientTimer = (this._ambientTimer || 0) - dt;

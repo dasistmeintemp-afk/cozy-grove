@@ -16,6 +16,7 @@
  */
 import { CAT, CAT_NAMES, ITEM_LIST, getItem } from './items.js';
 import { seasonPhrase } from './seasons.js';
+import { wirkungVon } from './decor.js';
 
 /**
  * Was eine vollständige Reihe einbringt.
@@ -170,7 +171,7 @@ export const HINTS = {
   beehive: 'Aus dem Katalog, wenn die Insel Farbe hat.',
   scarecrow: 'Aus dem Katalog.',
   weathervane: 'Aus dem Katalog, ganz hinten.',
-  bowl: 'Aus dem Katalog. Stell ihn hin und warte, wer kommt.',
+  bowl: 'Aus dem Katalog.',
   mat: 'Aus dem Katalog.',
   pond: 'Aus dem Katalog, ganz hinten.',
   keepsake_locket: 'Flämmchens Andenken, wenn seine Kette voll ist.',
@@ -190,7 +191,11 @@ export const HINTS = {
  * Ohne den Satz sucht man den Goldkarpfen im November, bis man aufgibt.
  */
 export function hintFor(id) {
-  const basis = HINTS[id] || 'Irgendwo auf der Insel.';
+  let basis = HINTS[id] || 'Irgendwo auf der Insel.';
+  // Bei Deko steht dahinter, was sie TUT – aus derselben Tabelle, die auch
+  // der Katalog liest. Zwei Tabellen wären zwei Wahrheiten.
+  const tut = wirkungVon(id);
+  if (tut) basis += ' ' + tut;
   const wann = seasonPhrase(id);
   return wann ? basis + ' Nur ' + wann + '.' : basis;
 }

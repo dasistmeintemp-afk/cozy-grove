@@ -14,6 +14,7 @@ import { drawSprite } from '../art/sprites.js';
 import { randRange } from '../core/rng.js';
 import { isWalkable, isWater } from '../art/tiles.js';
 import { bugsOf } from '../game/items.js';
+import { tierGunst, TIER_RADIUS } from '../game/decor.js';
 
 const MAX = 9;
 
@@ -104,30 +105,53 @@ export class Wildlife {
       return;
     }
     if (rng() < 0.72) this._spawnButterfly(camera, world, viewW, viewH);
-    else this._spawnBird(camera, viewW, viewH);
+    else this._spawnBird(camera, world, viewW, viewH);
   }
 
-  _spawnMoth(camera, world, viewW, viewH) {
+  /**
+   * Ein Platz im Bild, an dem ein Tier auftauchen darf.
+   *
+   * Hier hängt die Deko dran: Eine Vogeltränke zieht an, eine Vogelscheuche
+   * hält fern. Beides war vorher nur ein Charmewert – eine Tränke ohne
+   * Vögel, während über der Insel welche fliegen.
+   *
+   * „Der beste aus mehreren Versuchen" statt reiner Ablehnung: Gäbe man nur
+   * verscheuchte Plätze zurück, stünde die Insel bei einer Vogelscheuche im
+   * Bild ganz still. So verschiebt sich das Leben, statt aufzuhören.
+   */
+  _platz(camera, world, viewW, viewH) {
     const rng = this.rng;
+    let ersatz = null;
     for (let tries = 0; tries < 12; tries++) {
       const x = camera.ox + randRange(rng, 40, viewW - 40);
       const y = camera.oy + randRange(rng, 40, viewH - 40);
       if (!isWalkable(world.tileAt(x, y))) continue;
-      const art = pickSpecies(rng, true, this.season);
-      this.list.push({
-        type: 'moth',
-        species: art.id,
-        x: x, y: y,
-        dir: randRange(rng, 0, Math.PI * 2),
-        speed: randRange(rng, 42, 78) * (art.flight || 1),
-        life: randRange(rng, 8, 16),
-        t: 0,
-        phase: randRange(rng, 0, 6.28),
-        z: randRange(rng, 34, 76),
-        flee: 0,
-      });
-      return;
+      const gunst = world.queryNear
+        ? tierGunst(world.queryNear(x, y, TIER_RADIUS), x, y) : 1;
+      if (gunst === 0) continue;
+      if (gunst > 1) return { x: x, y: y };
+      if (!ersatz) ersatz = { x: x, y: y };
     }
+    return ersatz;
+  }
+
+  _spawnMoth(camera, world, viewW, viewH) {
+    const rng = this.rng;
+    const p = this._platz(camera, world, viewW, viewH);
+    if (!p) return;
+    const art = pickSpecies(rng, true, this.season);
+    this.list.push({
+      type: 'moth',
+      species: art.id,
+      x: p.x, y: p.y,
+      dir: randRange(rng, 0, Math.PI * 2),
+      speed: randRange(rng, 42, 78) * (art.flight || 1),
+      life: randRange(rng, 8, 16),
+      t: 0,
+      phase: randRange(rng, 0, 6.28),
+      z: randRange(rng, 34, 76),
+      flee: 0,
+    });
   }
 
   /** Sucht offenes Wasser im Bild und lässt dort einen Fisch springen. */
@@ -157,29 +181,36 @@ export class Wildlife {
 
   _spawnButterfly(camera, world, viewW, viewH) {
     const rng = this.rng;
-    for (let tries = 0; tries < 12; tries++) {
-      const x = camera.ox + randRange(rng, 40, viewW - 40);
-      const y = camera.oy + randRange(rng, 40, viewH - 40);
-      if (!isWalkable(world.tileAt(x, y))) continue;
-      const art = pickSpecies(rng, false, this.season);
-      this.list.push({
-        type: 'butterfly',
-        species: art.id,
-        x: x, y: y,
-        dir: randRange(rng, 0, Math.PI * 2),
-        speed: randRange(rng, 34, 66) * (art.flight || 1),
-        life: randRange(rng, 9, 20),
-        t: 0,
-        phase: randRange(rng, 0, 6.28),
-        z: randRange(rng, 30, 70),
-        flee: 0,
-      });
-      return;
-    }
+    const p = this._platz(camera, world, viewW, viewH);
+    if (!p) return;
+    const art = pickSpecies(rng, false, this.season);
+    this.list.push({
+      type: 'butterfly',
+      species: art.id,
+      x: p.x, y: p.y,
+      dir: randRange(rng, 0, Math.PI * 2),
+      speed: randRange(rng, 34, 66) * (art.flight || 1),
+      life: randRange(rng, 9, 20),
+      t: 0,
+      phase: randRange(rng, 0, 6.28),
+      z: randRange(rng, 30, 70),
+      flee: 0,
+    });
   }
 
-  _spawnBird(camera, viewW, viewH) {
+  /**
+   * Ein Vogel zieht durchs Bild.
+   *
+   * Er kommt von der Seite und fliegt geradeaus – aber er kommt gar nicht
+   * erst, wenn im Bild eine Vogelscheuche steht und keine Tränke. Der Vogel
+   * hat kein Ziel im Bild, deshalb wird die Mitte gefragt.
+   */
+  _spawnBird(camera, world, viewW, viewH) {
     const rng = this.rng;
+    const mx = camera.ox + viewW / 2;
+    const my = camera.oy + viewH / 2;
+    if (world && world.queryNear &&
+        tierGunst(world.queryNear(mx, my, TIER_RADIUS), mx, my) === 0) return;
     const fromLeft = rng() < 0.5;
     this.list.push({
       type: 'bird',

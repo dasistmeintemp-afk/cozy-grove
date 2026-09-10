@@ -16,6 +16,18 @@ import { makeCanvas, ctx2d } from '../core/util.js';
 
 export const WEATHER = { CLEAR: 'clear', RAIN: 'rain', FOG: 'fog', SNOW: 'snow' };
 
+/**
+ * Wie das Wetter heißt.
+ *
+ * Steht hier und nicht in der Oberfläche: Der Wetterhahn sagt das Wetter von
+ * MORGEN an und hat dafür kein `Weather`-Objekt, sondern nur eine Kennung
+ * aus `weatherFor`. Zwei Wörterlisten hießen, dass eine beim nächsten Wetter
+ * vergessen wird.
+ */
+export const WEATHER_LABEL = {
+  clear: 'Klar', rain: 'Regen', fog: 'Nebel', snow: 'Schnee',
+};
+
 /** Wie viele Tropfen bzw. Schwaden bei voller Stärke. */
 const DROPS = 260;
 const WISPS = 22;
@@ -80,10 +92,10 @@ export class Weather {
 
   /** Name für die Anzeige. */
   get label() {
-    if (this.raining) return 'Regen';
-    if (this.foggy) return 'Nebel';
-    if (this.snowing) return 'Schnee';
-    return 'Klar';
+    if (this.raining) return WEATHER_LABEL.rain;
+    if (this.foggy) return WEATHER_LABEL.fog;
+    if (this.snowing) return WEATHER_LABEL.snow;
+    return WEATHER_LABEL.clear;
   }
 
   _fill() {

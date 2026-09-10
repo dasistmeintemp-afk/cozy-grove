@@ -17,6 +17,7 @@ import { finaleLine, stillSilent, FINALE_CLOSE, FINALE_COUNT } from '../game/fin
 import { PLOT_STAGES, MAX_PLOT_STAGE, ISLE_PLOT_STAGES, MAX_ISLE_PLOT_STAGE } from '../game/plot.js';
 import { HOUSE_STAGES, MAX_HOUSE_STAGE } from '../game/house.js';
 import { MAX_OFFEN as MAX_ORDERS } from '../game/catalog.js';
+import { wirkungVon } from '../game/decor.js';
 import { UI_SCALES } from './uiscale.js';
 import { CROPS } from '../game/crops.js';
 import { num, clamp, makeCanvas, ctx2d } from '../core/util.js';
@@ -486,7 +487,11 @@ export class Panels {
     const gesamt = totalProgress(inv);
     html += '<p class="empty-note" style="padding-top:14px">' +
       gesamt.have + ' von ' + gesamt.total + ' Dingen gefunden' +
-      (g.state.caught ? ' · ' + g.state.caught + ' Fische geangelt' : '') + '</p>';
+      (g.state.caught ? ' · ' + g.state.caught + ' Fische geangelt' : '') +
+      // `bugsCaught` wurde bei jedem Kescherschlag hochgezählt und NIRGENDS
+      // gelesen – eine Zahl, die das Spiel führte und niemand je sah. Jetzt
+      // steht sie neben den Fischen, wo sie hingehört.
+      (g.state.bugsCaught ? ' · ' + g.state.bugsCaught + ' Falter gefangen' : '') + '</p>';
     return html;
   }
 
@@ -505,6 +510,10 @@ export class Panels {
       // mit, was heute beißt und fliegt – dann müssen sie auch ablesbar sein
       // und nicht nur am Himmel zu erraten.
       const wetter = g.weather ? g.weather.label : '';
+      // Der Wetterhahn sagt an, was morgen wird – wenn einer steht. Das ist
+      // seine ganze Wirkung, und sie gehört genau hierhin: neben das Wetter
+      // von heute, nicht in ein eigenes Fenster.
+      const morgen = g.morgenWetter ? g.morgenWetter() : null;
       html += '<div class="rows" style="margin-bottom:12px"><div class="row">' +
         ico(heute.event ? heute.event.icon : 'icon_day', 'lg') +
         '<div class="grow"><div class="title">' +
@@ -513,7 +522,9 @@ export class Panels {
         (wetter ? ' · ' + escapeHtml(wetter) : '') + '</div>' +
         '<div class="meta"><span>' +
         escapeHtml(heute.event ? heute.event.hint : 'Nichts Besonderes – auch das gibt es.') +
-        '</span></div></div></div></div>';
+        '</span>' +
+        (morgen ? '<span>' + ico('icon_day') + ' morgen ' + escapeHtml(morgen.name) + '</span>' : '') +
+        '</div></div></div></div>';
     }
 
     if (!quests.length) {
@@ -951,6 +962,10 @@ export class Panels {
           ? '<span class="cost' + (reicht ? '' : ' miss') + '">' +
             ico('icon_coin') + ' ' + num(e.preis) + '</span>'
           : '<span>Noch nicht im Katalog</span>') +
+        // Was das Stück TUT, direkt neben dem Preis. Eine Vogeltränke für
+        // 285 Münzen, von der man erst nach dem Auspacken erfährt, wofür sie
+        // gut ist, kauft man nicht – oder einmal und dann nie wieder.
+        (wirkungVon(e.id) ? '<span>' + escapeHtml(wirkungVon(e.id)) + '</span>' : '') +
         '</div></div>' +
         (e.offen
           ? '<button class="row-btn" data-act="order" data-arg="' + e.id + '"' +

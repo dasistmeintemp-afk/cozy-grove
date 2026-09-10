@@ -378,6 +378,36 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Stufen, im Aufgabenfenster als Punktreihe zu sehen. Packt man die Deko wieder
   ein, schrumpft der Kreis auch wieder – anders als die Farbe aus erledigten
   Aufgaben, die bleibt.
+* **Deko, die etwas tut.** Charmepunkte sind eine echte Wirkung, aber für
+  jedes Stück dieselbe: Nachgezählt hing bei **17 von 26** aufstellbaren
+  Stücken außer dem Punktwert nichts. Bei den meisten ist das ehrlich – ein
+  Tisch ist ein Tisch. Bei einigen stand der Name für ein Versprechen, das
+  nichts einlöste. Die haben jetzt genau das, was ihr Name behauptet:
+
+  | | |
+  |---|---|
+  | **Bienenkorb** | Beete in Reichweite wachsen einen Schritt schneller |
+  | **Rankgitter** | Beete in Reichweite geben ein Stück mehr her |
+  | **Vogeltränke**, **Zierteich** | Vögel und Falter kommen näher |
+  | **Vogelscheuche** | hält sie fern – auch die, die du fangen willst |
+  | **Wetterhahn** | sagt an, was für ein Wetter morgen wird |
+  | **Windspiel** | klingt, wenn du vorbeigehst |
+  | **Zierteich** | das Haustier legt sich gern daneben |
+
+  Die Reichweite ist rund zweieinhalb Kacheln – groß genug, dass ein Korb
+  mehrere Beete deckt, klein genug, dass man ihn **wohin** stellen muss.
+  Jede Sorte zählt nur einmal, egal wie viele danebenstehen: Sonst wäre die
+  beste Einrichtung ein Feld aus zwanzig Bienenkörben. Tränke und
+  Vogelscheuche heben einander auf, und genau daran sieht man, dass beide
+  etwas tun. Beim Aufstellen sagt eine Zeile, wie viele Beete in Reichweite
+  liegen – ohne sie wäre die Wirkung ein Gerücht.
+
+  Nachgerechnet ist der Bienenkorb **genau so stark wie die Gießkanne**, die
+  es längst gibt (Beeren zwei Tage → einer, Mondsaat vier → zwei). Er führt
+  also nichts Neues ein, sondern nimmt den täglichen Handgriff ab – für 380
+  Münzen und die Entscheidung, wohin er kommt. Der Wetterhahn kostet gar
+  keine Maschinerie: Das Wetter hing immer schon nur an Insel, Tag und
+  Jahreszeit und steht damit fest, lange bevor der Tag beginnt.
 * **Leben ringsum – und zum Anfassen.** Tags Falter, nachts Motten, die zum
   nächsten Licht streben, dazu Vögel und springende Fische. Fünf Falterarten
   lassen sich mit dem **Kescher** fangen: drei am Tag, zwei nur nachts, jede
@@ -615,8 +645,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 276 Tests: Welt, Wetter, Jahreszeiten, Aufgaben, Uhr, Garten …
-npm run test:browser   # 209 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 296 Tests: Welt, Wetter, Jahreszeiten, Deko, Aufgaben, Garten …
+npm run test:browser   # 214 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

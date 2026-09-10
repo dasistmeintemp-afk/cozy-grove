@@ -148,6 +148,9 @@ export function petStatus(pet, tag) {
 export const RUHE_DEKO = {
   bench: 1, rug: 1, mat: 1, hammock: 1, chair: 1, firebowl: 1,
   swing: 1, table: 1, bowl: 1,
+  // Der Zierteich war das teuerste Stück im Katalog ohne jede Wirkung. Ein
+  // Tier, das sich ans Wasser legt, ist die naheliegendste, die es hat.
+  pond: 1,
 };
 
 export function istRuheplatz(itemId) {
