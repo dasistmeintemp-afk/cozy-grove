@@ -334,7 +334,9 @@ async function run() {
       // prüfte der Test gar nichts.
       window.CozyGrove.game.frozen = true;
       for (const k of Object.keys(localStorage)) {
-        if (k.indexOf('cozy-grove:save') === 0) localStorage.removeItem(k);
+        if (k.indexOf('seli-grove:save') === 0 || k.indexOf('cozy-grove:save') === 0) {
+          localStorage.removeItem(k);
+        }
       }
     });
     await page.reload({ waitUntil: 'load' });
@@ -356,7 +358,7 @@ async function run() {
     await page.waitForTimeout(900);
     const geladen = await page.evaluate(() => {
       const g = window.CozyGrove.game;
-      return { tag: g.day.day, muenzen: g.state.coins, gespeichert: !!localStorage.getItem('cozy-grove:save:v1') };
+      return { tag: g.day.day, muenzen: g.state.coins, gespeichert: !!localStorage.getItem('seli-grove:save:v1') };
     });
     check('Spielstand aus der Datei startet das Spiel dort weiter',
       geladen.tag === merkmal.tag && geladen.muenzen === merkmal.muenzen,
@@ -452,8 +454,8 @@ async function run() {
       tagesZeile.wetter === true, JSON.stringify(tagesZeile));
 
     /* ---- Geburtstage und Sternenstaub ---- */
-    // Zwei Anleihen bei den Vorbildern: Der Nachbar mit Geburtstag aus
-    // Animal Crossing, und der Fund am Morgen nach den Sternschnuppen.
+    // Zwei Tage im Jahr, die anders sind: der Geburtstag eines Geistes und
+    // der Fund am Morgen nach einer Sternennacht.
     const feier = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
       const r = {};
@@ -3612,6 +3614,29 @@ async function run() {
       g.player.x = boot.x;
       g.player.y = boot.y + 60;
       g.player.dir = 'up';
+
+      // Den Steg freimachen, solange gemessen wird.
+      //
+      // `findTarget` gibt versteckten Aufgabenstücken 90 Punkte Vorsprung –
+      // liegt auf dieser Zufallsinsel zufällig eines am Steg, gewinnt es
+      // gegen das Boot, und die Prüfung liest den Hinweis für das falsche
+      // Ding („Aufheben" statt „Vertäut"). Gemessen an einem Lauf, der
+      // genau daran scheiterte.
+      //
+      // Verschoben statt gelöscht: Die Insel gehört den Prüfungen danach
+      // noch, und ein weggeräumtes Aufgabenstück wäre eine Aufgabe, die
+      // niemand mehr erfüllen kann.
+      const beiseite = [];
+      for (const e of g.world.queryNear(boot.x, boot.y, 300)) {
+        if (e === boot || e.gone) continue;
+        beiseite.push({ e, x: e.x, y: e.y });
+        e.x += 4000;
+        g.world.reindex(e);
+      }
+      const zurueckstellen = () => {
+        for (const b of beiseite) { b.e.x = b.x; b.e.y = b.y; g.world.reindex(b.e); }
+      };
+
       const vorher = { x: g.player.x, y: g.player.y };
       // Vertäut: ansprechen darf nichts bewirken
       g.useStation('boat', boot);
@@ -3631,6 +3656,7 @@ async function run() {
       g.target = g.player.findTarget(g.world);
       g._updatePrompt();
       const hinweisAuf = el ? el.textContent : '';
+      zurueckstellen();
 
       // Übersetzen
       g.useStation('boat', boot);
@@ -3782,6 +3808,11 @@ async function run() {
       const c = daten.color.filter((s) => s.k === 'campfire')[0];
       if (c) { c.r = 1500; c.t = 1500; }
       g.frozen = true;
+      // Unter der ALTEN Adresse, aus der Zeit, als das Spiel anders hieß.
+      // Damit prüft dieser Abschnitt zwei Dinge auf einmal: dass ein
+      // Spielstand ohne die neuen Felder lädt – und dass er dabei auf die
+      // heutige Adresse umzieht.
+      window.localStorage.removeItem('seli-grove:save:v1');
       window.localStorage.setItem('cozy-grove:save:v1', JSON.stringify(daten));
       return { geschrieben: true, farbeVorher: c ? c.r : 0 };
     });
@@ -3807,8 +3838,12 @@ async function run() {
         farbe: Math.round(g.colorField.coverage(g.world) * 100),
         meilensteine: Object.keys(g.state.milestones || {}).length,
         verkauf: g.perks().sell,
+        neueAdresse: !!window.localStorage.getItem('seli-grove:save:v1'),
+        alteAdresse: !!window.localStorage.getItem('cozy-grove:save:v1'),
       };
     });
+    check('Der Stand zieht dabei auf die heutige Adresse um',
+      alt.neueAdresse === true && alt.alteAdresse === false, JSON.stringify(alt));
     // Mehr Münzen als gespeichert sind in Ordnung und sogar gewollt: die
     // nachgeholten Meilensteine zahlen ihre Beigabe aus. Weniger wäre der
     // Fehler, den diese Prüfung sucht.

@@ -17,7 +17,7 @@ import {
 } from './brush.js';
 import { makeRng } from '../core/rng.js';
 
-/** Farbwelt nach dem Vorbild: warmes Papier, Tinte in Sepia statt Schwarz. */
+/** Die Farbwelt: warmes Papier, Tinte in Sepia statt Schwarz. */
 export const INK = {
   line: '#4a4038',
   lineSoft: '#7a6f5e',
@@ -223,7 +223,7 @@ export function leafClumps(g, cx, cy, rx, ry, seed, color) {
 /**
  * Nadelsaum: kurze Striche, die von einer Etagenkante nach unten außen
  * ausfransen. Ohne sie bleibt ein Nadelbaum ein gestapelter, glatter Kegel;
- * mit ihnen bekommt er die zerfaserte Kante des Vorbilds.
+ * mit ihnen bekommt er eine zerfaserte, gezeichnete Kante.
  */
 export function needleFringe(g, cx, y, halfW, seed, color) {
   const rng = makeRng(seed >>> 0);

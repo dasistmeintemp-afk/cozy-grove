@@ -1,17 +1,15 @@
 /**
- * Geburtstage und Sternenstaub – zwei Anleihen bei den Vorbildern.
+ * Geburtstage und Sternenstaub – zwei Tage im Jahr, die anders sind.
  *
- * **Geburtstage** kommen aus Animal Crossing: Ein Nachbar hat einmal im Jahr
- * Geburtstag, sagt es, und wer ihm an dem Tag etwas mitbringt, hat etwas
- * gefunden, das man nicht kaufen kann. Das Spiel hatte alles dafür schon –
- * einen echten Kalender, Lieblingsgeschenke, Freundschaft – nur den Termin
- * nicht.
+ * **Geburtstage** geben der Freundschaft einen Termin. Jeder Geist hat einen,
+ * er sagt es, und wer ihm an dem Tag etwas mitbringt, hat etwas erwischt, das
+ * man nicht kaufen kann. Das Spiel hatte alles dafür schon – einen echten
+ * Kalender, Lieblingsgeschenke, Freundschaft – nur den Termin nicht.
  *
- * **Sternenstaub** kommt von den Sternschnuppen dort und in Cozy Grove: Wer
- * nachts hochsieht, findet am nächsten Morgen etwas am Strand. Die
- * Sternschnuppen hier bleiben ausdrücklich das, was sie sind – ein Bild ohne
- * Aufgabe. Belohnt wird trotzdem, aber ohne Bedingung und am Morgen danach:
- * Wer durchgeschlafen hat, findet dasselbe.
+ * **Sternenstaub** gibt der Sternennacht eine Folge. Die Sternschnuppen
+ * bleiben ausdrücklich das, was sie sind – ein Bild ohne Aufgabe, niemand
+ * muss hochsehen oder etwas anklicken. Belohnt wird trotzdem, aber ohne
+ * Bedingung und am Morgen danach: Wer durchgeschlafen hat, findet dasselbe.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';

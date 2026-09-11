@@ -19,9 +19,15 @@
  * IndexedDB. Beim nächsten Öffnen fragt der Browser einmal nach Erlaubnis.
  */
 
-// Wie bei den Speicherschlüsseln: Der Datenbankname ist eine Adresse im
-// Browser des Spielers, kein Titel. Umbenannt wäre die verknüpfte Datei weg.
-const DB_NAME = 'cozy-grove';
+const DB_NAME = 'seli-grove';
+/**
+ * Der Name von früher. Steht hier aus demselben Grund wie in `storage.js`:
+ * Der Zeiger auf die verknüpfte Datei liegt unter dieser Adresse, und wer
+ * einfach umbenennt, verliert ihn. Gelesen wird er nur, wenn unter dem neuen
+ * Namen nichts liegt – danach steht der Zeiger an beiden Stellen, und die
+ * alte fällt beim nächsten Löschen der Browserdaten von selbst weg.
+ */
+const ALT_DB_NAME = 'cozy-grove';
 const STORE = 'handles';
 const HANDLE_KEY = 'save';
 
@@ -106,9 +112,9 @@ export function openFile() {
 
 /* ---------------------------------------------------------- Verknüpfen */
 
-function idb() {
+function idb(name) {
   return new Promise(function (resolve, reject) {
-    const req = window.indexedDB.open(DB_NAME, 1);
+    const req = window.indexedDB.open(name || DB_NAME, 1);
     req.onupgradeneeded = function () {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
@@ -129,13 +135,32 @@ function idbPut(key, value) {
   });
 }
 
-function idbGet(key) {
-  return idb().then(function (db) {
+function idbGet(key, name) {
+  return idb(name).then(function (db) {
     return new Promise(function (resolve, reject) {
       const tx = db.transaction(STORE, 'readonly');
       const req = tx.objectStore(STORE).get(key);
       req.onsuccess = function () { resolve(req.result || null); };
       req.onerror = function () { reject(req.error); };
+    });
+  });
+}
+
+/**
+ * Den Dateizeiger holen – notfalls von der alten Adresse.
+ *
+ * Der Umzug passiert beim Fund: einmal unter den neuen Namen schreiben,
+ * danach wird die alte Datenbank nicht mehr gelesen. Schlägt das Schreiben
+ * fehl, ist das kein Beinbruch – der Zeiger ist trotzdem da, und beim
+ * nächsten Start wird es noch einmal versucht.
+ */
+function holeZeiger(key) {
+  return idbGet(key).then(function (gefunden) {
+    if (gefunden) return gefunden;
+    return idbGet(key, ALT_DB_NAME).then(function (alt) {
+      if (!alt) return null;
+      return idbPut(key, alt).then(function () { return alt; },
+        function () { return alt; });
     });
   });
 }
@@ -166,7 +191,7 @@ export function pendingLinkName() {
  */
 export function restoreLink() {
   if (!canLink()) return Promise.resolve(null);
-  return idbGet(HANDLE_KEY).then(function (h) {
+  return holeZeiger(HANDLE_KEY).then(function (h) {
     if (!h) { pendingName = null; return null; }
     pendingName = h.name || null;
     // Ohne Nutzergeste lässt sich Erlaubnis nur abfragen, nicht erbitten.
@@ -185,7 +210,7 @@ export function restoreLink() {
  */
 export function requestLinkPermission() {
   if (!canLink()) return Promise.resolve(null);
-  return idbGet(HANDLE_KEY).then(function (h) {
+  return holeZeiger(HANDLE_KEY).then(function (h) {
     if (!h || !h.requestPermission) return null;
     return h.requestPermission({ mode: 'readwrite' }).then(function (state) {
       if (state !== 'granted') return null;

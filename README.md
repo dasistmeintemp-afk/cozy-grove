@@ -3,12 +3,12 @@
 Ein gemütliches Insel-Sammelspiel im Browser. Die Insel hat ihre Farben verloren;
 **Seli** bringt sie zurück, indem sie sammelt, angelt, baut – und den Geistern hilft.
 
-**Die Änderung gegenüber dem Vorbild: fast keine Dialoge.** Was ein Geist möchte,
-zeigt eine Karte aus Symbolen – kein Dialogbaum, kein Textblock. Gesprochen wird
-nur, wo es etwas zu erzählen gibt: ein Satz zur Vorstellung, ein Satz je
-Erinnerungsstück. Sieben Geister, je sechs Sätze; zusammen ergeben sie eine
-kleine Biografie. Alles davon lässt sich in den Einstellungen abschalten
-(„Nur Symbole“).
+**Die Grundentscheidung: fast keine Dialoge.** Was ein Geist möchte, zeigt eine
+Karte aus Symbolen – kein Dialogbaum, kein Textblock, kein Weiterklicken.
+Gesprochen wird nur, wo es etwas zu erzählen gibt: ein Satz zur Vorstellung,
+ein Satz je Erinnerungsstück. Sieben Geister, je sechs Sätze; zusammen ergeben
+sie eine kleine Biografie. Alles davon lässt sich in den Einstellungen
+abschalten („Nur Symbole“).
 
 Die Grafik ist **Tusche und Aquarell**, kein Pixelbrei – und sie entsteht
 komplett im Browser: wackelige Tuschelinien, Farbflächen, die absichtlich ein
@@ -23,12 +23,8 @@ ein Klangbett aus vier Rauschschichten – Brandung, Wind, Grillen, Regen. Das
 Spiel mischt sie nach Ort und Uhrzeit; am Strand rauscht die See, im Wald der
 Wind, nachts zirpt es. Abschaltbar unter „Umgebung“.
 
-Unabhängige Fan-Hommage an *Cozy Grove*.
-
-Die Speicherschlüssel im Browser (`cozy-grove:save:v1`, die IndexedDB
-`cozy-grove`) behalten bewusst ihren alten Namen: Sie stehen im Browser des
-Spielers und sind eine **Adresse**, kein Titel. Umbenannt wäre mit dem Namen
-jeder vorhandene Spielstand weg.
+Ein eigenständiges Spiel – Welt, Figuren, Regeln, Grafik und Klang stammen
+aus diesem Projekt.
 
 ## Starten
 
@@ -738,9 +734,9 @@ Browser zeichenweise zurück.
 Der Schleier hinter einem Fenster ist eine schlichte warme Fläche, kein
 `backdrop-filter`. Der kostet jedes Bild einen bildschirmfüllenden Durchgang,
 und ohne Grafikkarte liefert er statt der Insel eine schwarze Fläche – im
-Testbrowser gemessen. Das Vorbild dimmt seine Szene ohnehin nur ab.
+Testbrowser gemessen. Abdunkeln reicht völlig.
 
-**Die Küste** trägt den Saum des Vorbilds: Wasser dicht am Land wird fast weiß,
+**Die Küste** hat einen dreistufigen Saum: Wasser dicht am Land wird fast weiß,
 eine Kachel weiter hell türkis, danach erst die Tiefe. Daneben läuft eine breite
 weiße Linie um die Insel – die Brandung.
 
@@ -807,8 +803,15 @@ Prüfung gegen die Rechtecke im Boden.
 ## Speicherstand
 
 Wird automatisch im `localStorage` gesichert (alle 20 Sekunden, beim Schlafen und
-beim Verlassen der Seite). Im privaten Modus von Safari fällt das Spiel still auf
-einen Speicher im Arbeitsspeicher zurück – die Einstellungen weisen darauf hin.
+beim Verlassen der Seite), unter `seli-grove:save:v1`. Im privaten Modus von
+Safari fällt das Spiel still auf einen Speicher im Arbeitsspeicher zurück – die
+Einstellungen weisen darauf hin.
+
+**Spielstände aus früheren Fassungen ziehen von selbst um.** Sie lagen unter
+einem anderen Schlüssel; beim ersten Start wird ein Stand von dort einmal
+übernommen und der alte Platz geräumt. Ein Name im Browser-Speicher ist eine
+**Adresse**, kein Titel – deshalb wird umgezogen und nicht umbenannt. Wer
+umbenennt, wirft damit jeden vorhandenen Spielstand weg.
 
 **Ein Spielstand überlebt neue Fassungen.** Die Fassungsnummer steht auf 1
 und bleibt dort, solange nur ergänzt wird – Beete, Saat, Fristen, Tagebuch,

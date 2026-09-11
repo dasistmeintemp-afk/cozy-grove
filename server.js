@@ -60,5 +60,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Cozy Grove läuft auf http://${HOST}:${PORT}`);
+  console.log(`Seli Grove läuft auf http://${HOST}:${PORT}`);
 });

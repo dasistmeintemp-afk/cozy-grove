@@ -573,7 +573,7 @@ html, body {
 /* Ein warmer Schleier, kein `backdrop-filter`. Der Weichzeichner kostet
    jedes Bild einen bildschirmfüllenden Durchgang, und ohne Grafikkarte
    liefert er statt der Insel eine schwarze Fläche – gemessen im Testbrowser.
-   Das Vorbild dimmt seine Szene ohnehin nur ab. */
+   Abdunkeln reicht völlig. */
 #panel-backdrop {
   position: absolute;
   inset: 0;

@@ -2,7 +2,9 @@
   "name": "seli-grove-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Seli Grove – Web Edition. Ein gemuetliches Insel-Sammelspiel im Browser (Safari, Firefox, Chrome). Fan-Hommage mit eigenen, prozedural erzeugten Assets.",
+  "description": "Seli Grove – Web Edition. Ein gemuetliches Insel-Sammelspiel im Browser (Safari, Firefox, Chrome): Seli bringt einer verblassten Insel ihre Farben zurueck. Fast ohne Dialoge, in Tusche und Aquarell. Ohne Abhaengigkeiten, ohne Build-Schritt, ohne eine einzige Bild- oder Klangdatei - Grafik und Klang entstehen zur Laufzeit im Browser.",
+  "keywords": ["spiel", "game", "canvas", "cozy", "insel", "sammelspiel", "browser"],
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "start": "node server.js",

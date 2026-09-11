@@ -4,12 +4,24 @@
  * und fällt still auf einen Speicher im Arbeitsspeicher zurück.
  */
 
-// Die Speicherschlüssel behalten ihren alten Namen, obwohl das Spiel jetzt
-// „Seli Grove" heißt. Sie stehen im localStorage des Spielers: Wer sie
-// umbenennt, wirft mit der Umbenennung jeden vorhandenen Spielstand weg.
-// Ein Name im Browser-Speicher ist kein Titel, sondern eine Adresse.
-const KEY = 'cozy-grove:save:v1';
-const SETTINGS_KEY = 'cozy-grove:settings:v1';
+const KEY = 'seli-grove:save:v1';
+const SETTINGS_KEY = 'seli-grove:settings:v1';
+
+/**
+ * Die Adressen aus der Zeit, als das Spiel anders hieß.
+ *
+ * Ein Name im Browser-Speicher ist keine Beschriftung, sondern eine Adresse:
+ * Wer ihn einfach ändert, wirft damit jeden vorhandenen Spielstand weg.
+ * Deshalb wird nicht umbenannt, sondern UMGEZOGEN – beim ersten Lesen einmal
+ * kopiert und der alte Platz geräumt. Wer das Spiel schon gespielt hat,
+ * merkt davon nichts; wer neu anfängt, hinterlässt den alten Namen nie.
+ *
+ * Stehen bleiben dürfen die beiden Zeilen trotzdem nicht ewig: Sobald
+ * absehbar ist, dass niemand mehr einen Stand von vorher hat, können sie
+ * samt `umziehen` weg.
+ */
+const ALT_KEY = 'cozy-grove:save:v1';
+const ALT_SETTINGS_KEY = 'cozy-grove:settings:v1';
 
 let memoryFallback = Object.create(null);
 let usesFallback = false;
@@ -72,12 +84,29 @@ export function isPersistent() {
   return backend() !== null;
 }
 
+/**
+ * Unter der neuen Adresse nachsehen – und sonst unter der alten nachziehen.
+ *
+ * Das Räumen hängt am Erfolg des Schreibens: Im privaten Fenster schlägt es
+ * fehl, und dann bleibt der alte Platz das Original. Einen Stand zu löschen,
+ * den man nicht woanders untergebracht hat, wäre der eine Fehler, den man
+ * hier nicht machen darf.
+ */
+function umziehen(key, altKey) {
+  const jetzt = readRaw(key);
+  if (jetzt !== null) return jetzt;
+  const alt = readRaw(altKey);
+  if (alt === null) return null;
+  if (writeRaw(key, alt)) removeRaw(altKey);
+  return alt;
+}
+
 export function hasSave() {
-  return readRaw(KEY) !== null;
+  return umziehen(KEY, ALT_KEY) !== null;
 }
 
 export function loadSave() {
-  const raw = readRaw(KEY);
+  const raw = umziehen(KEY, ALT_KEY);
   if (!raw) return null;
   try {
     const data = JSON.parse(raw);
@@ -95,10 +124,13 @@ export function writeSave(data) {
 
 export function clearSave() {
   removeRaw(KEY);
+  // Auch den alten Platz, sonst käme ein gelöschter Stand beim nächsten
+  // Start als „Weiterspielen" zurück.
+  removeRaw(ALT_KEY);
 }
 
 export function loadSettings() {
-  const raw = readRaw(SETTINGS_KEY);
+  const raw = umziehen(SETTINGS_KEY, ALT_SETTINGS_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw);
