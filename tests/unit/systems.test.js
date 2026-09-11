@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { Inventory } from '../../src/game/inventory.js';
 import {
   QuestBook, QTYPE, questTitle, questIcon, QUEST_VERB, lifetimeOf, daysLeft,
+  craftableAsks, CRAFTABLE_ASKS,
 } from '../../src/game/quests.js';
 import { World } from '../../src/world/world.js';
 import { DayCycle, DAY_START, DAY_END } from '../../src/game/daycycle.js';
@@ -17,7 +18,7 @@ import { weatherFor, WEATHER } from '../../src/render/weather.js';
 import { getItem, ITEM_LIST, CAT } from '../../src/game/items.js';
 import { parseSave, SAVE_VERSION } from '../../src/game/game.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
-import { RECIPES } from '../../src/game/recipes.js';
+import { RECIPES, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
 import {
   StoryBook, STORIES, STAGES, QUESTS_PER_STAGE, keepsakeOf, storyIcon,
 } from '../../src/game/stories.js';
@@ -436,6 +437,113 @@ test('Aufgabenbuch überlebt Speichern und Laden', () => {
   const back = QuestBook.fromJSON(json);
   assert.equal(back.active().length, qb.active().length);
   assert.equal(back.totalCompleted, qb.totalCompleted);
+});
+
+/* ---------------- Baubitten ---------------- */
+
+/**
+ * Ein Spiel mit einem Lagerfeuer einer bestimmten Stufe.
+ *
+ * `CAMPFIRE_LEVELS` nennt den Brennstoff je Stufe; hier wird so viel
+ * eingelegt, dass genau diese Stufe erreicht ist.
+ */
+function ctxMitFeuer(stufe) {
+  const ctx = makeCtx();
+  const lvl = CAMPFIRE_LEVELS.filter((l) => l.level <= stufe).pop();
+  ctx.state = { campfireFuel: lvl.fuel };
+  return ctx;
+}
+
+test('Die Baubitten kommen aus den Bauplänen, nicht aus einer Handliste', () => {
+  // Der Anlass: Zwölf neue Baupläne kamen dazu, und niemand bat um sie.
+  // Jetzt genügt ein Rezept, damit auch gefragt werden kann.
+  const alle = CRAFTABLE_ASKS;
+  assert.ok(alle.length >= 15,
+    'nur ' + alle.length + ' Baubitten – die Liste hinkt den Bauplänen hinterher');
+  for (const id of alle) {
+    const rec = RECIPES.find((r) => r.id === id);
+    assert.ok(rec, id + ': dazu gibt es gar keinen Bauplan');
+    assert.equal(rec.out && rec.out.id, id,
+      id + ': der Bauplan liefert etwas anderes, die Bitte zeigt ins Leere');
+  }
+  // Die Gegenprobe: Jede Deko, die sich bauen lässt, kommt auch vor.
+  for (const rec of RECIPES) {
+    if (rec.kind !== 'item' || rec.once || rec.needs) continue;
+    if (!rec.out || rec.out.id !== rec.id) continue;
+    const bedingt = rec.cost.some((c) => { const z = getItem(c.id); return !!(z && z.onlyAt); });
+    if (bedingt) continue;
+    assert.ok(alle.indexOf(rec.id) >= 0, rec.name + ' steht im Bauplan, aber in keiner Bitte');
+  }
+});
+
+test('Niemand bittet um Werkzeug, Tasche oder die einmalige Brücke', () => {
+  for (const id of CRAFTABLE_ASKS) {
+    const rec = RECIPES.find((r) => r.id === id);
+    assert.equal(rec.kind, 'item', id + ': das kann man gar nicht abgeben');
+    assert.ok(!rec.once, id + ': einmalig – nach dem ersten Mal unerfüllbar');
+    assert.ok(!rec.needs, id + ': hängt an einem Meilenstein');
+  }
+});
+
+test('Keine Baubitte hängt an Wetter oder Nachtzeit', () => {
+  // Vier Tage Frist und kein einziger Nebeltag wären dieselbe tote Aufgabe,
+  // die beim Fischfang schon einmal auffiel.
+  for (const id of CRAFTABLE_ASKS) {
+    const rec = RECIPES.find((r) => r.id === id);
+    for (const c of rec.cost) {
+      const z = getItem(c.id);
+      assert.ok(!(z && z.onlyAt),
+        id + ' braucht ' + c.id + ', und das gibt es nur bei ' + z.onlyAt);
+    }
+  }
+});
+
+test('Am kleinen Feuer wird nur erbeten, was am kleinen Feuer geht', () => {
+  // Der eigentliche Fehler: Die alte Liste enthielt Laterne und Vogelhaus,
+  // beide ab Stufe 2. Wer am ersten Tag danach gefragt wurde, bekam an der
+  // Werkbank „Das Feuer ist noch zu klein" und sah vier Tage lang zu.
+  for (let stufe = 1; stufe <= 3; stufe++) {
+    const pool = craftableAsks(stufe);
+    assert.ok(pool.length > 0, 'Stufe ' + stufe + ': gar nichts zu bauen');
+    for (const id of pool) {
+      const rec = RECIPES.find((r) => r.id === id);
+      assert.ok((rec.fire || 1) <= stufe,
+        'Stufe ' + stufe + ': ' + id + ' braucht Feuerstufe ' + rec.fire);
+    }
+  }
+});
+
+test('Ein größeres Feuer macht die Bitten reicher', () => {
+  const a = craftableAsks(1);
+  const b = craftableAsks(2);
+  const c = craftableAsks(3);
+  assert.ok(b.length > a.length, 'Stufe 2 bringt nichts Neues');
+  assert.ok(c.length > b.length, 'Stufe 3 bringt nichts Neues');
+  // Und nichts fällt wieder weg – was man einmal bauen konnte, bleibt.
+  for (const id of a) assert.ok(b.indexOf(id) >= 0, id + ' verschwindet bei Stufe 2');
+  for (const id of b) assert.ok(c.indexOf(id) >= 0, id + ' verschwindet bei Stufe 3');
+});
+
+test('Am ersten Tag ist jede Baubitte auch wirklich baubar', () => {
+  // Die Probe am laufenden Aufgabenbuch statt nur an der Liste: Hier hängt
+  // alles zusammen – Feuerstufe, Bittenwahl und was die Werkbank hergibt.
+  const ctx = ctxMitFeuer(1);
+  const qb = new QuestBook();
+  let gesehen = 0;
+  for (let tag = 1; tag <= 40; tag++) {
+    qb.newDay(tag, ctx.world, ctx);
+    for (const q of qb.active()) {
+      if (q.type !== QTYPE.CRAFT) continue;
+      gesehen++;
+      const rec = RECIPES.find((r) => r.out && r.out.id === q.itemId && r.id === q.itemId);
+      assert.ok(rec, q.itemId + ': keine Bauanleitung');
+      assert.equal(rec.fire || 1, 1,
+        'Tag ' + tag + ': „' + q.itemId + '" braucht Feuerstufe ' + rec.fire +
+        ', das Feuer hat 1');
+    }
+    for (const q of qb.active()) q.expires = tag;   // Platz für den nächsten Tag
+  }
+  assert.ok(gesehen >= 5, 'nur ' + gesehen + ' Baubitten in 40 Tagen – prüft nichts');
 });
 
 /* ---------------- Tageslauf ---------------- */

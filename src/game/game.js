@@ -18,6 +18,7 @@ import { todayOf, shoalIndex } from './calendar.js';
 import {
   festOn, festSatz, SCHMUCK_RADIUS, SCHMUCK_ANZAHL, SCHMUCK_ABSTAND, emptyFeste,
 } from './festivals.js';
+import { emptyDaybook, daybookHasContent } from './daybook.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
@@ -72,7 +73,7 @@ import {
 } from './talk.js';
 import {
   GERICHTE, gerichtFuer, istGericht, kannKochen, staerkungVon, staerkungHeute,
-  tempoFaktor, wuchtBonus, glueckBonus,
+  tempoFaktor, wuchtBonus, glueckBonus, emptyKitchen,
 } from './kitchen.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
@@ -298,7 +299,7 @@ export class Game {
       records: emptyRecords(),
       gedanken: [],
       plausch: Object.create(null),
-      staerkung: null,
+      staerkung: emptyKitchen(),
       feste: emptyFeste(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
@@ -3279,25 +3280,18 @@ export class Game {
 
   /* ---------------- Tagebuch ---------------- */
 
-  /**
-   * Strichliste für den Tagesrückblick.
-   *
-   * Sie liegt in `state` und wandert damit in den Spielstand: Wer mitten am
-   * Tag aufhört und morgen weitermacht, soll am nächsten Morgen den ganzen
-   * Tag sehen, nicht nur den Rest nach dem Laden.
-   */
   _daybookStart() {
-    this.state.daybook = {
-      day: this.day.day,
-      quests: 0, finds: 0, fish: 0, bugs: 0, decor: 0, gifts: 0,
-      planted: 0, harvest: 0, watered: 0, milestones: 0, sets: 0,
-      // Wem geholfen wurde – daraus wird morgen früh die Post.
-      helped: Object.create(null),
-      coins: 0, ember: 0,
-      colorStart: this.colorField.coverage(this.world),
-    };
+    this.state.daybook = emptyDaybook(this.day.day, this.colorField.coverage(this.world));
   }
 
+  /**
+   * Einen Strich machen.
+   *
+   * `feld` gehört in `DAYBOOK_ROWS` (siehe daybook.js), sonst zählt hier
+   * etwas mit, das niemand je zu sehen bekommt – genau so sind „gekocht",
+   * „wish" und „sets" ins Leere gelaufen. Ein Test liest diese Datei und
+   * hält beide Seiten beieinander.
+   */
   _note(feld, n) {
     const b = this.state.daybook;
     if (!b) return;
@@ -3536,7 +3530,6 @@ export class Game {
       neu.icon, 'good');
     this.audio.play('levelup');
     this.particles.burst('heart', this.player.x, this.player.y - 70, 6);
-    this._note('gegessen');
     this.save();
     return true;
   }
@@ -4386,7 +4379,26 @@ export class Game {
     this.audio.setVolume(this.settings.volume);
     this.day.dayMinutes = this.settings.dayMinutes;
     applyUiScale(this.settings.uiScale);
+    this._applyScaling();
     if (this.onSettingsChanged) this.onSettingsChanged(this.settings);
+  }
+
+  /**
+   * Wie die Leinwand hochskaliert wird, wenn sie kleiner ist als das Fenster.
+   *
+   * Das ist nicht immer gleich: Wird es eng, rechnet der Renderer von selbst
+   * gröber (siehe `Renderer.adapt`), und dann liegt zwischen Leinwand und
+   * Fenster ein echter Faktor. „Füllen" lässt den Browser weich
+   * dazwischenrechnen, „Pixelgenau" nicht.
+   *
+   * Diese Zeile hat gefehlt. Die Einstellung stand seit jeher im Menü, mit
+   * Erklärung und zwei Knöpfen – und wurde von keiner Stelle im Spiel
+   * gelesen. Wer sie umstellte, sah nichts passieren.
+   */
+  _applyScaling() {
+    if (!this.canvas) return;
+    this.canvas.style.imageRendering =
+      this.settings.scaling === 'crisp' ? 'pixelated' : 'auto';
   }
 
   confirmReset() {
@@ -4408,13 +4420,6 @@ function ensureFade() {
     document.getElementById('stage').appendChild(el);
   }
   return el;
-}
-
-/** Lohnt sich ein Rückblick auf gestern? */
-export function daybookHasContent(b) {
-  if (!b) return false;
-  return !!(b.quests || b.finds || b.fish || b.bugs || b.decor || b.gifts ||
-    b.planted || b.harvest || b.coins || b.ember || (b.colorEnd - b.colorStart) > 0.002);
 }
 
 function pickLine(list) {

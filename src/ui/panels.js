@@ -12,6 +12,7 @@ import { questTitle, questIcon, QTYPE, daysLeft } from '../game/quests.js';
 import { MILESTONES, nextOpen } from '../game/milestones.js';
 import { SETS, SET_IDS, setById, progressOf, itemsOf, hintFor, totalProgress } from '../game/collection.js';
 import { unreadCount } from '../game/mail.js';
+import { DAYBOOK_ROWS } from '../game/daybook.js';
 import {
   GERICHTE, STAERKUNG, kannKochen, staerkungHeute,
 } from '../game/kitchen.js';
@@ -1526,20 +1527,9 @@ export class Panels {
     const b = this.game.lastDaybook;
     if (!b) return '<p class="empty-note">Noch kein Tag vergangen.</p>';
 
-    const zeilen = [
-      ['icon_check', b.quests, 'Bitte erfüllt', 'Bitten erfüllt'],
-      ['icon_sparkle', b.finds, 'Fundstück gehoben', 'Fundstücke gehoben'],
-      ['icon_fish_trout', b.fish, 'Fisch gefangen', 'Fische gefangen'],
-      ['icon_net', b.bugs, 'Falter gefangen', 'Falter gefangen'],
-      ['icon_flowerbed', b.decor, 'Stück aufgestellt', 'Stücke aufgestellt'],
-      ['icon_seed_berry', b.planted, 'Beet gesät', 'Beete gesät'],
-      ['icon_berry', b.harvest, 'Beet geerntet', 'Beete geerntet'],
-      ['icon_can', b.watered, 'Beet gegossen', 'Beete gegossen'],
-      ['icon_heart', b.gifts, 'Mitbringsel verschenkt', 'Mitbringsel verschenkt'],
-      ['icon_star', b.milestones, 'Meilenstein erreicht', 'Meilensteine erreicht'],
-      ['icon_coin', b.coins, 'Münze verdient', 'Münzen verdient'],
-      ['icon_ember', b.ember, 'Glut gesammelt', 'Glut gesammelt'],
-    ].filter(function (z) { return z[1] > 0; });
+    // Eine Liste für alles: gezählt, angezeigt und „lohnt sich das Fenster".
+    // Vorher standen die drei nebeneinander und waren auseinandergelaufen.
+    const zeilen = DAYBOOK_ROWS.filter(function (z) { return b[z.key] > 0; });
 
     // Die Farbe steht oben: sie ist das Maß, an dem dieses Spiel hängt.
     // Weiter unten wäre sie beim Aufwachen unter der Fensterkante.
@@ -1560,9 +1550,10 @@ export class Panels {
       html += '<div class="rows">';
       for (let i = 0; i < zeilen.length; i++) {
         const z = zeilen[i];
-        html += '<div class="row">' + ico(z[0], 'lg') +
-          '<div class="grow"><div class="title">' + num(z[1]) + ' ' +
-          escapeHtml(z[1] === 1 ? z[2] : z[3]) + '</div></div></div>';
+        const n = b[z.key];
+        html += '<div class="row">' + ico(z.icon, 'lg') +
+          '<div class="grow"><div class="title">' + num(n) + ' ' +
+          escapeHtml(n === 1 ? z.ein : z.mehr) + '</div></div></div>';
       }
       html += '</div>';
     }

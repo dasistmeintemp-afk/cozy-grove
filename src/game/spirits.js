@@ -119,7 +119,9 @@ export const SPIRITS = {
     colorStart: 240,
     colorArea: 151000,
     questTypes: ['find', 'visit', 'decorate', 'craft', 'gather', 'set', 'grow', 'deliver'],
-    likes: ['fiber', 'flower_violet', 'gem'],
+    // Bernstein dazu: Sie wohnt oben am Stein, ihr Lieblingsstück ist der
+    // Meerkristall, und der Bernstein kommt aus den Geoden im Hochland.
+    likes: ['fiber', 'flower_violet', 'gem', 'amber'],
     favourite: 'gem',
     lines: {
       greet: ['Oh, Besuch.', 'Hier oben!', 'Puh, windig.'],
@@ -140,7 +142,11 @@ export const SPIRITS = {
     colorStart: 360,
     colorArea: 158000,
     questTypes: ['find', 'catch_bug', 'gather_beach', 'fish', 'visit', 'set', 'deliver', 'grow'],
-    likes: ['shell', 'driftwood', 'bottle', 'moonflower'],
+    // Sternenstaub gehört zu ihr: Er liegt am Morgen nach einer Sternennacht
+    // am Spülsaum, und Wanda ist die, die nachsieht, was über Nacht angetrieben
+    // ist. Vorher mochte ihn NIEMAND – der seltenste Fund des Spiels war das
+    // einzige, was man nicht verschenken konnte.
+    likes: ['shell', 'driftwood', 'bottle', 'moonflower', 'stardust'],
     favourite: 'moonflower',
     lines: {
       greet: ['Wer rudert denn da?', 'Still hier, nicht?', 'Ich zähle Wellen.'],

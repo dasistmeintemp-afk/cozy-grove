@@ -78,6 +78,36 @@ function erreichbar() {
 }
 
 const QUELLEN = erreichbar();
+
+/* ---------------- Wohin das Seltene geht ---------------- */
+
+test('Was selten ist, hat auch eine Verwendung', () => {
+  // Gemessen, bevor diese Prüfung stand: Die drei wertvollsten Materialien
+  // des Spiels – Sternenstaub (38), Bernstein (70), Granit (19) – mochte
+  // NIEMAND, und Sternenstaub kam in keinem einzigen Rezept vor. Der
+  // seltenste Fund des Spiels, aus einem Ereignis, das ein paarmal im Monat
+  // kommt, war ausschließlich Geld.
+  //
+  // „Verwendung" heißt: in einem Bauplan, in einem Gericht, oder ein Geist
+  // freut sich darüber. Verkaufen zählt nicht – das kann man mit Holz auch.
+  const mag = new Set();
+  for (const id of SPIRIT_IDS) for (const l of SPIRITS[id].likes) mag.add(l);
+  const inRezept = new Set();
+  for (const r of RECIPES) for (const c of r.cost) inRezept.add(c.id);
+  for (const g of GERICHTE) for (const z of g.zutaten) inRezept.add(z.id);
+
+  const ohne = [];
+  for (const it of ITEM_LIST) {
+    // Nur Material und Fundstücke: Fische und Falter gehören ins Fundbuch
+    // und in die Bitten, Deko wird aufgestellt, Gerichte werden gegessen.
+    if (it.cat !== CAT.MATERIAL && it.cat !== CAT.RELIC) continue;
+    if (it.value < 15) continue;          // Billiges darf schlicht Geld sein
+    if (it.id === 'coin_pouch') continue; // öffnet sich von selbst
+    if (mag.has(it.id) || inRezept.has(it.id)) continue;
+    ohne.push(it.name + ' (' + it.value + ')');
+  }
+  assert.deepEqual(ohne, [], 'selten und zu nichts zu gebrauchen: ' + ohne.join(', '));
+});
 /** Kommt aus den Erinnerungsketten, nicht aus der Welt. */
 const AUS_GESCHICHTEN = function (id) {
   return id.indexOf('memory_') === 0 || id.indexOf('keepsake_') === 0;

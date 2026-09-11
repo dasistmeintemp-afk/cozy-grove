@@ -1287,7 +1287,11 @@ async function run() {
         g.world.isUnlocked(e.region));
       if (geist) {
         const { festSatz } = await import('/src/game/festivals.js');
-        g.state.met = g.state.met || {};
+        // Der Geist muss schon bekannt sein, sonst stellt er sich erst vor.
+        // Gemerkt und danach zurückgelegt: Eine spätere Prüfung lebt davon,
+        // dass es noch einen Geist gibt, den Seli NICHT kennt.
+        const merkMet2 = Object.assign({}, g.state.met || {});
+        g.state.met = Object.assign({}, merkMet2);
         g.state.met[geist.spiritId] = 1;
         // Tasche leeren: Sonst nimmt der Geist beim zweiten Ansprechen ein
         // Mitbringsel an, und DAS gibt auch Glut – gemessen hielt die
@@ -1312,6 +1316,7 @@ async function run() {
         r.nurEinmal = g.state.ember === glutJetzt &&
           (!b2 || b2.el.textContent.indexOf(soll) < 0);
         g.inventory.slots = merkSlots2;
+        g.state.met = merkMet2;
       }
 
       // Am nächsten Tageswechsel ist der Schmuck weg.
@@ -1409,6 +1414,54 @@ async function run() {
       JSON.stringify(kueche));
     check('Die Stärkung von gestern wirkt heute nicht mehr',
       kueche.gesternWirktNicht === true, JSON.stringify(kueche));
+
+    // Drei Kleinigkeiten, die beim Durchsehen aufgefallen sind: ein Eintrag
+    // im Rückblick, der nirgends ankam, und eine Einstellung, die nichts tat.
+    const reste = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+
+      // Jede Zeile des Rückblicks kommt auch wirklich an – mit Text UND Bild.
+      // Drei Zeilen wurden gezählt und nie gezeigt; eine vierte hätte ein
+      // Symbol nennen können, das es gar nicht gibt.
+      const { DAYBOOK_ROWS } = await import('/src/game/daybook.js');
+      const buch = { day: g.day.day, colorStart: 0.1, colorEnd: 0.1, helped: {} };
+      for (const z of DAYBOOK_ROWS) buch[z.key] = 2;
+      g.lastDaybook = buch;
+      g.openPanel('daybook');
+      await new Promise((res) => setTimeout(res, 220));
+      const koerper = document.getElementById('panel-body');
+      const text = koerper.textContent;
+      r.fehlendeZeilen = DAYBOOK_ROWS.filter((z) => text.indexOf(z.mehr) < 0).map((z) => z.key);
+      // „2 Bitten erfüllt" – die Zahl gehört dazu, sonst steht die Zeile da
+      // wie eine Überschrift.
+      r.ohneZahl = DAYBOOK_ROWS.filter((z) => text.indexOf('2 ' + z.mehr) < 0).map((z) => z.key);
+      // `iconUrl` liefert für ein Symbol, das es nicht gibt, eine LEERE
+      // Adresse – die Zeile bliebe stumm, aber ohne Bild. Gefragt ist
+      // deshalb, ob wirklich ein Bild drinsteht.
+      const bilder = Array.from(koerper.querySelectorAll('.rows .row .ico'));
+      r.ohneBild = bilder.filter((el) => !/data:image/.test(el.style.backgroundImage)).length;
+      r.bilder = bilder.length;
+      r.imRueckblick = r.fehlendeZeilen.length === 0;
+      g.panels.close();
+
+      // Die Bilddarstellung wirkt wirklich auf die Leinwand.
+      const merk = g.settings.scaling;
+      g.changeSetting('scaling', 'crisp');
+      r.crisp = g.canvas.style.imageRendering;
+      g.changeSetting('scaling', 'fill');
+      r.fill = g.canvas.style.imageRendering;
+      g.changeSetting('scaling', merk);
+      return r;
+    });
+    check('Jede Zeile des Rückblicks kommt auch an – mit Zahl',
+      reste.imRueckblick === true && reste.ohneZahl.length === 0,
+      JSON.stringify({ fehlend: reste.fehlendeZeilen, ohneZahl: reste.ohneZahl }));
+    check('Und jede hat ein Bild',
+      reste.bilder >= 10 && reste.ohneBild === 0,
+      JSON.stringify({ bilder: reste.bilder, ohneBild: reste.ohneBild }));
+    check('Die Einstellung „Bilddarstellung" tut auch etwas',
+      reste.crisp === 'pixelated' && reste.fill === 'auto', JSON.stringify(reste));
 
     /* ---- Die Geister plaudern ---- */
 

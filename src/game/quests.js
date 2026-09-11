@@ -12,6 +12,7 @@ import { inSeason } from './seasons.js';
 import { dailyRng, randInt, randPick } from '../core/rng.js';
 import { makeEntity } from '../world/entities.js';
 import { TILE_SIZE } from '../world/worldgen.js';
+import { RECIPES, campfireLevelFor } from './recipes.js';
 
 export const QTYPE = {
   GATHER: 'gather',
@@ -53,7 +54,69 @@ export const POOLS = {
   gather: ['wood', 'stone', 'fiber', 'berry', 'shell', 'herb', 'mushroom', 'clay'],
 };
 
-export const CRAFTABLE_ASKS = ['fence', 'path_tile', 'lantern', 'flowerbed', 'bench', 'birdhouse'];
+/**
+ * Worum ein Geist zu bauen bitten darf.
+ *
+ * Das war eine von Hand geschriebene Liste aus sechs Namen – und sie ist
+ * nicht mitgewachsen. Als zwölf neue Baupläne dazukamen, bat weiterhin
+ * niemand um sie: Igelhaus, Torbogen und Steinbank standen an der Werkbank,
+ * aber in keiner Bitte. Deshalb wird die Liste jetzt **aus den Bauplänen
+ * gerechnet**. Ein neues Möbelstück braucht nichts weiter als sein Rezept.
+ *
+ * Vier Bedingungen, und jede hat einen Grund:
+ *
+ * 1. **Nur Gegenstände.** Werkzeuge und Taschen baut man für sich, nicht für
+ *    jemand anderen – man könnte sie gar nicht abgeben.
+ * 2. **Nichts Einmaliges und nichts hinter einem Meilenstein.** Der
+ *    Brückenbausatz wird gebaut und ist danach für immer weg; eine Bitte
+ *    darum wäre nach dem ersten Mal unerfüllbar.
+ * 3. **Nur Rezepte, deren Ergebnis so heißt wie sie selbst.** Der
+ *    „Steinlampe"-Bauplan liefert eine Mondlaterne. Eine Bitte um „Steinlampe"
+ *    zeigte auf ein Ding, das es im Fundbuch gar nicht gibt.
+ * 4. **Nur, was am HEUTIGEN Feuer auch gebaut werden kann.** Das ist die
+ *    eigentliche Reparatur: Die alte Liste enthielt Laterne und Vogelhaus,
+ *    beide ab Feuerstufe 2. Wer am ersten Tag gefragt wurde, bekam an der
+ *    Werkbank „Das Feuer ist noch zu klein" zu hören und konnte vier Tage
+ *    lang zusehen, wie die Bitte abläuft. Genau dieselbe Überlegung wie beim
+ *    Fischfang, wo nur gefragt wird, was zur Jahreszeit auch anbeißt.
+ *
+ * Dazu fällt weg, was an Wetter oder Nachtzeit hängt (Mondlaterne): Vier Tage
+ * Frist und kein einziger Nebeltag wäre dieselbe tote Aufgabe.
+ */
+export function craftableAsks(fire) {
+  const stufe = fire >= 1 ? fire : 1;
+  const raus = [];
+  for (let i = 0; i < RECIPES.length; i++) {
+    const rec = RECIPES[i];
+    if (rec.kind !== 'item' || rec.once || rec.needs) continue;
+    if (!rec.out || rec.out.id !== rec.id) continue;
+    if ((rec.fire || 1) > stufe) continue;
+    let bedingt = false;
+    for (let k = 0; k < rec.cost.length; k++) {
+      const z = getItem(rec.cost[k].id);
+      if (z && z.onlyAt) { bedingt = true; break; }
+    }
+    if (bedingt) continue;
+    raus.push(rec.id);
+  }
+  return raus;
+}
+
+/** Alles, worum jemals gebeten werden kann – für Prüfungen und Übersichten. */
+export const CRAFTABLE_ASKS = craftableAsks(99);
+
+/**
+ * Die Feuerstufe, so wie das Spiel sie gerade sieht.
+ *
+ * `state` ist hier das Spiel selbst (so wird es überall hereingereicht).
+ * Fehlt es – in Prüfungen kommt das vor –, gilt die kleinste Stufe: lieber
+ * eine Bitte um einen Zaun als eine um etwas Unbaubares.
+ */
+function feuerStufe(state) {
+  const fuel = state && state.state ? state.state.campfireFuel : null;
+  if (typeof fuel !== 'number') return 1;
+  return campfireLevelFor(fuel).level;
+}
 
 /**
  * Vorräte für Sammelbitten: drei VERSCHIEDENE aus einer Gruppe.
@@ -373,8 +436,12 @@ export class QuestBook {
     }
 
     if (type === 'craft') {
+      // Nur, was am heutigen Feuer wirklich gebaut werden kann – sonst läuft
+      // die Bitte vier Tage lang gegen „Das Feuer ist noch zu klein".
+      const pool = craftableAsks(feuerStufe(state));
+      if (!pool.length) return null;
       const q = this._base(spiritId, QTYPE.CRAFT, 1, day);
-      q.itemId = randPick(rng, CRAFTABLE_ASKS);
+      q.itemId = randPick(rng, pool);
       q.rewards = rewardFor(QTYPE.CRAFT, 1, scale, rng);
       return q;
     }
