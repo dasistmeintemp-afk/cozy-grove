@@ -19,6 +19,7 @@ import { ITEM_LIST, getItem, CAT } from '../../src/game/items.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES } from '../../src/game/recipes.js';
 import { KATALOG } from '../../src/game/catalog.js';
+import { GERICHTE } from '../../src/game/kitchen.js';
 import { CROPS, CROP_IDS } from '../../src/game/crops.js';
 import { SPIRITS, SPIRIT_IDS, friendshipGift } from '../../src/game/spirits.js';
 import { MILESTONES } from '../../src/game/milestones.js';
@@ -55,6 +56,7 @@ function erreichbar() {
   }
   for (const r of RECIPES) if (r.out) mark(r.out.id, 'werkbank:' + r.id);
   for (const e of KATALOG) mark(e.id, 'katalog');
+  for (const g of GERICHTE) mark(g.id, 'kochstelle:' + g.id);
   for (const id of CROP_IDS) {
     for (const y of CROPS[id].yields) mark(y, 'ernte:' + id);
     mark(CROPS[id].seed, 'saat');

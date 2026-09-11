@@ -17,6 +17,7 @@ import {
 } from './painted.js';
 import {
   paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench, paintBoat, paintMailbox,
+  paintKitchen,
   paintHouse,
   paintLantern, paintBench, paintFence, paintFlowerbed, paintBirdhouse,
   paintWindchime, paintRug, paintSignpost, paintCrate, paintChest,
@@ -308,6 +309,7 @@ export function initArt() {
   addArt('mat', paintMat({ seed: 1331 }));
   addArt('pond', paintPond({ seed: 1341 }));
   // Nachschub für die Wünsche – zwei je Sorte, siehe painted-decor.js.
+  addArt('kitchen', paintKitchen({ seed: 1601 }));
   addArt('stump', paintStumpStool({ seed: 1401 }));
   addArt('stonebench', paintStonebench({ seed: 1411 }));
   addArt('stonelamp', paintStonelamp({ seed: 1421 }));

@@ -582,7 +582,163 @@ export const ICON_PAINTERS = {
       },
       function (g) { fill(g, logA); fill(g, flame); }, null);
   },
+
+  /* ---------------------------------------------------------- Gerichte -- */
+  //
+  // Neun Symbole aus drei Formen: Schüssel, Tasse, Kuchen. Das ist keine
+  // Sparmaßnahme, sondern richtig – Gerichte sind eine Warengruppe, und man
+  // soll auf einen Blick sehen, dass sie zusammengehören. Unterschieden
+  // werden sie durch Farbe und Einlage, wie in einer echten Speisekarte.
+
+  dish_berrymash: function () { return schuessel(410, ink.berry, '#b0485a', 'punkte'); },
+  dish_flowersalad: function () { return schuessel(420, ink.leaf, ink.leafDark, 'blueten'); },
+  dish_herbtea: function () { return tasse(430, '#9dc06a', '#7ba045'); },
+  dish_mushroompan: function () { return schuessel(440, '#c98a63', '#a56b48', 'kappen'); },
+  dish_violetsyrup: function () { return glas(450, ink.petalViolet, '#8e77b8'); },
+  dish_forestsoup: function () { return schuessel(460, '#b98a52', '#94693a', 'kappen'); },
+  dish_berrycake: function () { return kuchen(470, ink.petalPink, ink.berry); },
+  dish_rainstew: function () { return schuessel(480, '#7f9a86', '#5f7a67', 'punkte'); },
+  dish_mooncake: function () { return kuchen(490, '#e6eef6', '#b9cbd8', true); },
 };
+
+/* ------------------------------------------------------------- Geschirr -- */
+
+/**
+ * Eine Schüssel mit Inhalt.
+ *
+ * Der Inhalt liegt als Wölbung ÜBER dem Rand, nicht darin: Eine Schüssel,
+ * in die man hineinsieht, braucht eine Ellipse und einen zweiten Blickwinkel;
+ * von der Seite gesehen wölbt sich einfach etwas heraus, und das liest sich
+ * auf 64 Punkten besser.
+ *
+ * @param {'punkte'|'kappen'|'blueten'} einlage was obendrauf liegt
+ */
+function schuessel(seed, farbe, dunkel, einlage) {
+  const schale = smoothClosed([
+    [C - 24, C + 2], [C + 24, C + 2], [C + 17, C + 21], [C - 17, C + 21],
+  ], 5);
+  const fuss = smoothClosed(blob(C, C + 22, 13, 4, seed + 1, 0.1, 10), 4);
+  const inhalt = smoothClosed(blob(C, C + 1, 22, 10, seed + 2, 0.12, 14), 5);
+  return icon(seed,
+    function (g) {
+      wash(g, fuss, '#cfc6b2', { seed: seed + 3 });
+      wash(g, inhalt, farbe, { seed: seed + 4, scale: 1.05 });
+      wash(g, offsetShape(inhalt, 0, 5, 0.6), dunkel, { seed: seed + 5, alpha: 0.7 });
+      wash(g, schale, '#eee6d4', { seed: seed + 6, scale: 1.02 });
+      wash(g, offsetShape(schale, 0, 7, 0.8), '#d3c8ae', { seed: seed + 7, alpha: 0.6 });
+    },
+    function (g) { fill(g, fuss); fill(g, inhalt); fill(g, schale); },
+    function (g) {
+      inkStroke(g, schale, { width: 2.0, vary: 0.3, seed: seed + 8, color: ink.line, alpha: 0.8 });
+      if (einlage === 'punkte') {
+        for (let i = 0; i < 3; i++) {
+          dot(null, g, C - 11 + i * 11, C - 4 - (i % 2) * 3, 4, ink.line, seed + 10 + i);
+        }
+      } else if (einlage === 'kappen') {
+        for (let i = 0; i < 2; i++) {
+          const x = C - 8 + i * 16;
+          inkLine(g, x - 7, C - 3, x + 7, C - 3,
+            { width: 1.8, bend: -0.5, seed: seed + 20 + i, color: ink.line, alpha: 0.75 });
+        }
+      } else {
+        for (let i = 0; i < 3; i++) {
+          dot(null, g, C - 12 + i * 12, C - 5 + (i % 2) * 4, 3.5, ink.line, seed + 30 + i);
+        }
+      }
+    });
+}
+
+/** Eine Tasse mit Henkel und Dampf. */
+function tasse(seed, farbe, dunkel) {
+  const becher = smoothClosed([
+    [C - 16, C - 6], [C + 14, C - 6], [C + 10, C + 20], [C - 12, C + 20],
+  ], 5);
+  const spiegel = smoothClosed(blob(C - 1, C - 6, 15, 4, seed + 1, 0.1, 12), 4);
+  const henkel = smoothClosed([
+    [C + 14, C - 1], [C + 25, C + 1], [C + 24, C + 11], [C + 13, C + 12],
+    [C + 18, C + 8], [C + 19, C + 3],
+  ], 5);
+  return icon(seed,
+    function (g) {
+      wash(g, henkel, '#eee6d4', { seed: seed + 2 });
+      wash(g, becher, '#f4eddc', { seed: seed + 3, scale: 1.02 });
+      wash(g, offsetShape(becher, 0, 8, 0.8), '#d8cdb4', { seed: seed + 4, alpha: 0.55 });
+      wash(g, spiegel, farbe, { seed: seed + 5, scale: 1.06 });
+      wash(g, offsetShape(spiegel, 4, 1, 0.6), dunkel, { seed: seed + 6, alpha: 0.7 });
+    },
+    function (g) { fill(g, henkel); fill(g, becher); fill(g, spiegel); },
+    function (g) {
+      inkStroke(g, becher, { width: 2.0, vary: 0.3, seed: seed + 7, color: ink.line, alpha: 0.8 });
+      inkStroke(g, spiegel, { width: 1.5, vary: 0.3, seed: seed + 8, color: ink.line, alpha: 0.6 });
+      // Dampf: zwei Schlangenlinien. Ohne sie ist es ein Becher, kein Tee.
+      for (let i = 0; i < 2; i++) {
+        inkLine(g, C - 7 + i * 12, C - 12, C - 5 + i * 12, C - 25,
+          { width: 1.4, bend: i ? 0.5 : -0.5, seed: seed + 9 + i, color: ink.lineSoft, alpha: 0.6 });
+      }
+    });
+}
+
+/** Ein Glas mit Sirup und Korken. */
+function glas(seed, farbe, dunkel) {
+  const bauch = smoothClosed([
+    [C - 13, C - 8], [C + 13, C - 8], [C + 15, C + 20], [C - 15, C + 20],
+  ], 5);
+  const hals = smoothClosed([
+    [C - 6, C - 20], [C + 6, C - 20], [C + 7, C - 7], [C - 7, C - 7],
+  ], 4);
+  const korken = smoothClosed(blob(C, C - 22, 7, 5, seed + 1, 0.1, 10), 4);
+  const inhalt = smoothClosed([
+    [C - 12, C + 1], [C + 12, C + 1], [C + 14, C + 19], [C - 14, C + 19],
+  ], 5);
+  return icon(seed,
+    function (g) {
+      wash(g, inhalt, farbe, { seed: seed + 2, scale: 1.04 });
+      wash(g, offsetShape(inhalt, 0, 6, 0.7), dunkel, { seed: seed + 3, alpha: 0.7 });
+      wash(g, bauch, '#e7eef0', { seed: seed + 4, alpha: 0.45 });
+      wash(g, hals, '#e7eef0', { seed: seed + 5, alpha: 0.45 });
+      wash(g, korken, ink.bark, { seed: seed + 6 });
+    },
+    function (g) { fill(g, inhalt); fill(g, bauch); fill(g, hals); fill(g, korken); },
+    function (g) {
+      inkStroke(g, bauch, { width: 2.0, vary: 0.3, seed: seed + 7, color: ink.line, alpha: 0.8 });
+      inkStroke(g, hals, { width: 1.7, vary: 0.3, seed: seed + 8, color: ink.line, alpha: 0.75 });
+      inkLine(g, C - 12, C + 1, C + 12, C + 1,
+        { width: 1.5, bend: 0.05, seed: seed + 9, color: ink.line, alpha: 0.6 });
+    });
+}
+
+/** Ein Kuchenstück von der Seite – mit Guss und einer Zier obendrauf. */
+function kuchen(seed, farbe, dunkel, stern) {
+  const boden = smoothClosed([
+    [C - 22, C - 2], [C + 22, C - 2], [C + 17, C + 19], [C - 17, C + 19],
+  ], 5);
+  const guss = smoothClosed(blob(C, C - 4, 23, 8, seed + 1, 0.14, 14), 5);
+  const teller = smoothClosed(blob(C, C + 21, 26, 5, seed + 2, 0.08, 14), 4);
+  return icon(seed,
+    function (g) {
+      wash(g, teller, '#e4dcc8', { seed: seed + 3 });
+      wash(g, boden, '#e3c78f', { seed: seed + 4, scale: 1.02 });
+      wash(g, offsetShape(boden, 0, 8, 0.8), '#c9a86a', { seed: seed + 5, alpha: 0.6 });
+      wash(g, guss, farbe, { seed: seed + 6, scale: 1.05 });
+      wash(g, offsetShape(guss, 0, 4, 0.6), dunkel, { seed: seed + 7, alpha: 0.65 });
+    },
+    function (g) { fill(g, teller); fill(g, boden); fill(g, guss); },
+    function (g) {
+      inkStroke(g, boden, { width: 2.0, vary: 0.3, seed: seed + 8, color: ink.line, alpha: 0.8 });
+      inkStroke(g, guss, { width: 1.6, vary: 0.35, seed: seed + 9, color: ink.line, alpha: 0.6 });
+      // Zwei Teigschichten, sonst ist es ein Klotz mit Deckel.
+      inkLine(g, C - 19, C + 7, C + 19, C + 7,
+        { width: 1.2, bend: 0.04, seed: seed + 10, color: ink.lineSoft, alpha: 0.5 });
+      if (stern) {
+        // Der Mondblütenkuchen bekommt eine Blüte obendrauf – er ist das
+        // teuerste Gericht und soll auch so aussehen.
+        for (let i = 0; i < 5; i++) {
+          const a = -Math.PI / 2 + (i * Math.PI * 2) / 5;
+          dot(null, g, C + Math.cos(a) * 7, C - 8 + Math.sin(a) * 5, 3, ink.line, seed + 20 + i);
+        }
+      }
+    });
+}
 
 /** Fisch-Symbol mit austauschbaren Farben. */
 export function paintFishIcon(body, belly, fin, seed) {

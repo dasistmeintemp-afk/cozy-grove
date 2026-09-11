@@ -12,6 +12,9 @@ import { questTitle, questIcon, QTYPE, daysLeft } from '../game/quests.js';
 import { MILESTONES, nextOpen } from '../game/milestones.js';
 import { SETS, SET_IDS, setById, progressOf, itemsOf, hintFor, totalProgress } from '../game/collection.js';
 import { unreadCount } from '../game/mail.js';
+import {
+  GERICHTE, STAERKUNG, kannKochen, staerkungHeute,
+} from '../game/kitchen.js';
 import { bestSize, spanneFuer } from '../game/records.js';
 import { petStatus as petStatusOf, launeWort, ZAHM_NOETIG } from '../game/pet.js';
 import { STAGES as LOAN_STAGES, statusOf } from '../game/loan.js';
@@ -34,6 +37,7 @@ const TITLES = {
   inventory: 'Tasche',
   quests: 'Aufgaben',
   craft: 'Werkbank',
+  kitchen: 'Kochstelle',
   shop: 'Laden',
   campfire: 'Lagerfeuer',
   found: 'Fundbuch',
@@ -142,6 +146,14 @@ export class Panels {
         break;
       case 'craft':
         g.craftRecipe(arg);
+        this.render();
+        break;
+      case 'cook':
+        g.cookDish(arg);
+        this.render();
+        break;
+      case 'eat':
+        g.eatDish(arg);
         this.render();
         break;
       case 'buy':
@@ -1267,6 +1279,55 @@ export class Panels {
           ? '<span class="row-btn ghost">' + ico('icon_lock') + ' Feuer ' + rec.fire + '</span>'
           : '<button class="row-btn" data-act="craft" data-arg="' + rec.id + '"' +
             (can ? '' : ' disabled') + '>Bauen</button>') +
+        '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  /* ---------------- Kochstelle ---------------- */
+
+  /**
+   * Kochen und essen in einem Fenster.
+   *
+   * Oben steht, was heute wirkt – oder dass nichts wirkt. Das ist die
+   * wichtigste Zeile: Ohne sie wüsste niemand, dass eine Stärkung überhaupt
+   * läuft, und das Essen wäre eine Zahl, die im Verborgenen passiert.
+   */
+  _kitchen() {
+    const g = this.game;
+    const heute = staerkungHeute(g.state.staerkung, g.day.day);
+    let html = '<p class="empty-note" style="padding:0 0 12px">' +
+      (heute
+        ? ico(heute.icon) + ' <b>' + escapeHtml(heute.name) + '</b> · ' +
+          escapeHtml(heute.note) + ' Hält bis zum Schlafen.'
+        : 'Nichts gegessen heute. Ein Gericht hält bis zum Schlafen.') +
+      '</p><div class="rows">';
+
+    for (let i = 0; i < GERICHTE.length; i++) {
+      const rec = GERICHTE[i];
+      const item = getItem(rec.id);
+      const wirkt = STAERKUNG[rec.staerkung];
+      const geht = kannKochen(rec, g.inventory);
+      const imBeutel = g.inventory.count(rec.id);
+
+      let kosten = '';
+      for (let z = 0; z < rec.zutaten.length; z++) {
+        const zu = rec.zutaten[z];
+        const da = g.inventory.count(zu.id);
+        kosten += '<span class="cost' + (da < zu.n ? ' miss' : '') + '">' +
+          ico(getItem(zu.id).icon) + zu.n + '</span>';
+      }
+
+      html += '<div class="row">' + ico(item.icon, 'lg') +
+        '<div class="grow"><div class="title">' + escapeHtml(item.name) +
+        (imBeutel ? ' <span class="meta">×' + imBeutel + '</span>' : '') + '</div>' +
+        '<div class="meta">' + kosten +
+        '<span>' + ico(wirkt.icon) + ' ' + escapeHtml(wirkt.name) + '</span></div></div>' +
+        (imBeutel
+          ? '<button class="row-btn" data-act="eat" data-arg="' + rec.id + '">Essen</button>'
+          : '<button class="row-btn" data-act="cook" data-arg="' + rec.id + '"' +
+            (geht ? '' : ' disabled') + '>Kochen</button>') +
         '</div>';
     }
     html += '</div>';

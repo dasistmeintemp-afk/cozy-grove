@@ -10,6 +10,7 @@ export const CAT = {
   MEMORY: 'memory',
   DECOR: 'decor',
   SEED: 'seed',
+  DISH: 'dish',
 };
 
 export const CAT_NAMES = {
@@ -21,6 +22,7 @@ export const CAT_NAMES = {
   memory: 'Erinnerungen',
   decor: 'Deko',
   seed: 'Saat',
+  dish: 'Küche',
 };
 
 function it(id, name, cat, value, burn, extra) {
@@ -162,6 +164,21 @@ const LIST = [
   it('arch', 'Torbogen', CAT.DECOR, 196, 0, { prop: 'arch', charm: 11 }),
   it('clothesline', 'Wäscheleine', CAT.DECOR, 68, 0, { prop: 'clothesline', charm: 6 }),
   it('bookstack', 'Bücherkiste', CAT.DECOR, 92, 0, { prop: 'bookstack', charm: 7 }),
+
+  // Gerichte aus der Küche. Der Wert liegt bei rund dem Doppelten der
+  // Zutaten – das ist der wirtschaftliche Sinn der Sache, siehe
+  // `kitchen.js`. Verbrennbar sind sie NICHT: Etwas Gekochtes ins Feuer zu
+  // werfen wäre die zweite Handlung nach der Saat, die hier wirklich schade
+  // wäre.
+  it('dish_berrymash', 'Beerenmus', CAT.DISH, 34, 0),
+  it('dish_flowersalad', 'Blütensalat', CAT.DISH, 40, 0),
+  it('dish_herbtea', 'Kräutertee', CAT.DISH, 38, 0),
+  it('dish_mushroompan', 'Pilzpfanne', CAT.DISH, 52, 0),
+  it('dish_violetsyrup', 'Glockensirup', CAT.DISH, 50, 0),
+  it('dish_forestsoup', 'Waldsuppe', CAT.DISH, 62, 0),
+  it('dish_berrycake', 'Beerenkuchen', CAT.DISH, 58, 0),
+  it('dish_rainstew', 'Regenpilz-Eintopf', CAT.DISH, 140, 0),
+  it('dish_mooncake', 'Mondblütenkuchen', CAT.DISH, 168, 0),
 
   // Saat. `plant` sagt dem Aufstellen, dass hier ein Beet entsteht und keine
   // Deko; `prop` ist die reife Pflanze – so sieht man beim Setzen schon, was

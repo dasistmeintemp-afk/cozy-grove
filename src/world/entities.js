@@ -223,6 +223,10 @@ export const ENTITY_DEFS = {
   tent: { sprite: 'tent', solid: true, blockR: 72, blockH: 40, reachR: 112, category: 'station', station: 'tent' },
   workbench: { sprite: 'workbench', solid: true, blockR: 56, blockH: 28, reachR: 104, category: 'station', station: 'craft' },
   stall: { sprite: 'stall', solid: true, blockR: 80, blockH: 40, reachR: 120, category: 'station', station: 'shop' },
+  // Die Kochstelle steht im Lager, gleich neben dem Feuer. Kein Meilenstein
+  // davor: Sie nimmt, was ohnehin herumliegt, und wer am ersten Tag drei
+  // Beeren findet, soll damit etwas anfangen können.
+  kitchen: { sprite: 'kitchen', solid: true, blockR: 54, blockH: 26, reachR: 104, category: 'station', station: 'kitchen' },
   bridge_spot: { sprite: 'signpost', solid: false, reachR: 120, category: 'station', station: 'bridge' },
   /**
    * Das Ruderboot: an beiden Ufern eines. Nicht fest, damit man am schmalen

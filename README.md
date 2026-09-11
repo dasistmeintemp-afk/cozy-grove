@@ -81,6 +81,7 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | `1`–`7`, `Tab` | Werkzeug wählen (7 = Gießkanne, sobald gebaut) |
 | Mausrad | Werkzeug wechseln, ohne die Finger zu bewegen |
 | `E` an Bank, Stuhl, Hängematte, Schaukel | hinsetzen · nochmal tippen: aufstehen · halten: einpacken |
+| `E` an der Kochstelle | kochen und essen |
 | `E` am Boot | zur Stillen Insel übersetzen und zurück |
 | `I` `Q` `C` `M` | Tasche · Aufgaben · Werkbank · Karte |
 | `B` | Fundbuch |
@@ -354,6 +355,21 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   zum ersten Mal ein großes Ziel, und ein guter Markttag ist ein guter Tag.
   Kein Kredit im eigentlichen Sinn: keine Zinsen, keine Frist, keine Mahnung –
   wer nie einzahlt, verliert nichts. Dieselbe Regel wie im Garten.
+* **Die Küche.** Das Spiel hatte 86 Gegenstände, und alles Gesammelte ging
+  genau zwei Wege: verkaufen oder abgeben. Die **Kochstelle** im Lager ist der
+  dritte. Neun Gerichte aus dem, was wächst – Beerenmus, Waldsuppe,
+  Mondblütenkuchen –, und jedes ist **etwa doppelt so viel wert wie seine
+  Zutaten**. Ein Test rechnet das für jedes einzelne nach.
+
+  Wer eines **isst**, bekommt bis zum Schlafengehen eine **Stärkung**: `Flink`
+  (man läuft schneller), `Kräftig` (Werkzeuge nehmen einen Schlag weniger) oder
+  `Glücklich` (seltene Fische beißen öfter an). Immer nur eine; ein zweites
+  Gericht tauscht sie.
+
+  **Kein Hunger, keine Anzeige, keine Strafe.** Niemand muss essen – wer nie
+  kocht, spielt das Spiel von gestern, und ein Test hält genau das fest. Und
+  **Seli isst kein Tier**: kein Fisch, kein Ei, kein Honig. Auch das steht als
+  Prüfung da, nicht nur als Vorsatz.
 * **Genug Deko, dass die Wünsche eine Wahl bleiben.** Ein Wunsch lautet „ein
   Platz zum Sitzen am Wasser", nicht „eine Bank" – die **Sorte** ist die
   Entscheidung. Bei vier Möglichkeiten ist sie nach zwölf Wünschen keine mehr.
@@ -791,8 +807,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 395 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Wirtschaft …
-npm run test:browser   # 247 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 415 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Wirtschaft …
+npm run test:browser   # 252 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

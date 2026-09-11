@@ -30,7 +30,7 @@ const SPRITE_NAMES = (function () {
     'shell', 'driftwood', 'digspot', 'feather', 'stardust',
     'moonflower', 'rainmushroom', 'fogcrystal',
     'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
-    'campfire', 'tent', 'stall', 'workbench', 'boat', 'mailbox', 'chest',
+    'campfire', 'tent', 'stall', 'workbench', 'kitchen', 'boat', 'mailbox', 'chest',
     'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',
     'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge', 'moonlamp',
     // Deko zum Einrichten

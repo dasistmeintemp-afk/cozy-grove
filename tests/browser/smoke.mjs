@@ -1245,6 +1245,76 @@ async function run() {
       bequem.geist && bequem.geist.zielIstGeist && bequem.geist.gerufen === 0,
       JSON.stringify(bequem.geist));
 
+    /* ---- Die Küche ---- */
+
+    const kueche = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const { GERICHTE } = await import('/src/game/kitchen.js');
+
+      // Die Kochstelle steht im Lager und lässt sich ansprechen.
+      const herd = g.world.entities.find((e) => e.kind === 'kitchen');
+      r.stehtDa = !!herd;
+      if (herd) {
+        g.player.x = herd.x;
+        g.player.y = herd.y + 70;
+        g.player.dir = 'up';
+        g.player.selectTool(0);
+        g.target = g.player.findTarget(g.world);
+        r.anvisierbar = !!(g.target && g.target.entity === herd);
+        g._updatePrompt();
+        r.hinweis = g.ui._lastPrompt;
+      }
+
+      // Kochen: Zutaten weg, Gericht da.
+      const rez = GERICHTE[0];
+      const merkSlots = g.inventory.slots;
+      g.inventory.slots = [];
+      for (const z of rez.zutaten) g.inventory.add(z.id, z.n);
+      const zutatenVorher = rez.zutaten.map((z) => g.inventory.count(z.id));
+      r.gekocht = g.cookDish(rez.id);
+      r.imBeutel = g.inventory.count(rez.id);
+      r.zutatenWeg = rez.zutaten.every((z, i) => g.inventory.count(z.id) < zutatenVorher[i]);
+
+      // Ohne Zutaten geht es nicht, und es kostet auch nichts.
+      const vorher = g.inventory.count(rez.id);
+      r.ohneZutaten = g.cookDish(rez.id);
+      r.nichtsPassiert = g.inventory.count(rez.id) === vorher;
+
+      // Essen: Stärkung da, Gericht weg, Tempo wirkt.
+      g.state.staerkung = null;
+      const tempoVorher = g.player.tempo;
+      r.gegessen = g.eatDish(rez.id);
+      r.staerkung = g.staerkung() ? g.staerkung().id : null;
+      r.aufgegessen = g.inventory.count(rez.id) === 0;
+      r.tempoVorher = tempoVorher;
+      r.tempoNachher = g.player.tempo;
+
+      // Und sie hält nur heute.
+      g.state.staerkung = { id: 'flink', tag: g.day.day - 1 };
+      r.gesternWirktNicht = g.staerkung() === null;
+
+      g.state.staerkung = null;
+      g.player.tempo = 1;
+      g.inventory.slots = merkSlots;
+      return r;
+    });
+    check('Die Kochstelle steht im Lager und lässt sich ansprechen',
+      kueche.stehtDa && kueche.anvisierbar && kueche.hinweis === 'Kochstelle',
+      JSON.stringify(kueche));
+    check('Kochen nimmt die Zutaten und gibt das Gericht',
+      kueche.gekocht === true && kueche.imBeutel === 1 && kueche.zutatenWeg === true,
+      JSON.stringify(kueche));
+    check('Ohne Zutaten passiert gar nichts',
+      kueche.ohneZutaten === false && kueche.nichtsPassiert === true,
+      JSON.stringify(kueche));
+    check('Essen gibt eine Stärkung, die man auch spürt',
+      kueche.gegessen === true && !!kueche.staerkung && kueche.aufgegessen === true &&
+      kueche.tempoNachher > kueche.tempoVorher,
+      JSON.stringify(kueche));
+    check('Die Stärkung von gestern wirkt heute nicht mehr',
+      kueche.gesternWirktNicht === true, JSON.stringify(kueche));
+
     /* ---- Die Geister plaudern ---- */
 
     const plausch = await page.evaluate(async () => {

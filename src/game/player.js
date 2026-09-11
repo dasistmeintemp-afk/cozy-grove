@@ -61,6 +61,14 @@ export class Player {
      * Nicht gespeichert: Wer das Spiel schließt, steht beim nächsten Mal.
      */
     this.sitzt = null;     // { entity, itemId, zurueck: {x, y, dir} }
+    /**
+     * Wie schnell heute gelaufen wird – 1 ist normal.
+     *
+     * Das Spiel setzt den Wert aus der Stärkung des Tages (siehe
+     * `kitchen.js`); die Figur multipliziert nur. So steht die Zahl an genau
+     * einer Stelle, und wer sie ohne Frühstück sucht, findet eine Eins.
+     */
+    this.tempo = 1;
   }
 
   get tool() {
@@ -130,7 +138,7 @@ export class Player {
       mx = move.x;
       my = move.y;
     }
-    const speed = WALK_SPEED;
+    const speed = WALK_SPEED * (this.tempo || 1);
     this.moving = (mx !== 0 || my !== 0);
 
     if (this.moving) {

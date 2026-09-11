@@ -2094,3 +2094,96 @@ export function paintFox(frame, opts) {
   });
   return made(res, w, h, cx, baseY);
 }
+
+/**
+ * Die Kochstelle.
+ *
+ * Ein Dreibein mit Kessel über einer Feuerstelle, daneben ein Brett mit
+ * Kraut. Absichtlich NICHT wie das Lagerfeuer: Das ist rund und lodert, die
+ * Kochstelle steht auf drei Beinen und hat einen Topf – man muss sie aus
+ * zwanzig Metern auseinanderhalten können, sonst läuft man zum falschen.
+ *
+ * Die Glut darunter glimmt nur. Eine zweite große Flamme im Lager würde dem
+ * Feuer die Rolle nehmen, und die Farbe der Insel hängt an genau dieser
+ * einen Flamme.
+ */
+export function paintKitchen(opts) {
+  const o = opts || {};
+  const w = 196;
+  const h = 168;
+  const seed = o.seed || 1601;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  // Drei Beine, die sich oben treffen. Zwei sähen aus wie ein Torbogen.
+  const beinL = poly([
+    [cx - 46, baseY - 4], [cx - 34, baseY - 4], [cx - 2, baseY - 116], [cx - 9, baseY - 118],
+  ], 2);
+  const beinR = poly([
+    [cx + 34, baseY - 4], [cx + 46, baseY - 4], [cx + 9, baseY - 118], [cx + 2, baseY - 116],
+  ], 2);
+  const beinM = poly([
+    [cx + 12, baseY - 10], [cx + 20, baseY - 12], [cx + 5, baseY - 114], [cx - 1, baseY - 113],
+  ], 2);
+
+  const steine = [];
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI * (0.15 + (i / 4) * 0.7);
+    steine.push(smoothClosed(blob(cx - Math.cos(a) * 40, baseY - 6 - Math.sin(a) * 5,
+      11, 8, seed + 10 + i, 0.2, 12), 5));
+  }
+  const glut = smoothClosed(blob(cx, baseY - 14, 22, 7, seed + 3, 0.18, 14), 5);
+
+  const kessel = smoothClosed([
+    [cx - 30, baseY - 78], [cx + 30, baseY - 78],
+    [cx + 25, baseY - 40], [cx, baseY - 33], [cx - 25, baseY - 40],
+  ], 6);
+  const rand = slab(cx - 32, baseY - 84, cx + 32, baseY - 74, seed + 4, 1.4);
+  const brett = slab(cx + 40, baseY - 34, cx + 84, baseY - 26, seed + 5, 1.3);
+  const bock = slab(cx + 56, baseY - 26, cx + 66, baseY - 3, seed + 6, 1.2);
+  const kraut = smoothClosed(blob(cx + 62, baseY - 40, 14, 9, seed + 7, 0.2, 12), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx + 6, baseY - 3, 82, 13, seed, 0.16); },
+    wash: function (g) {
+      for (let i = 0; i < steine.length; i++) {
+        wash(g, steine[i], i % 2 ? ink.rock : ink.rockShade, { seed: seed + 20 + i, scale: 1.03 });
+      }
+      wash(g, glut, ink.emberDeep, { seed: seed + 30, scale: 1.06 });
+      wash(g, offsetShape(glut, 0, -2, 0.6), ink.ember, { seed: seed + 31, alpha: 0.8 });
+      wash(g, beinL, ink.woodDark, { seed: seed + 32 });
+      wash(g, beinR, ink.woodDark, { seed: seed + 33 });
+      wash(g, beinM, ink.bark, { seed: seed + 34 });
+      wash(g, bock, ink.woodDark, { seed: seed + 35 });
+      wash(g, brett, ink.wood, { seed: seed + 36, scale: 1.02 });
+      wash(g, kraut, ink.leafDark, { seed: seed + 37, scale: 1.04 });
+      wash(g, kessel, '#6f767c', { seed: seed + 38, scale: 1.02 });
+      wash(g, offsetShape(kessel, 20, 6, 0.6), '#565c61', { seed: seed + 39, alpha: 0.65 });
+      wash(g, rand, '#8a9196', { seed: seed + 40, scale: 1.02 });
+    },
+    shape: function (g) {
+      for (let i = 0; i < steine.length; i++) fill(g, steine[i]);
+      fill(g, beinM); fill(g, beinL); fill(g, beinR);
+      fill(g, bock); fill(g, brett);
+      fill(g, kessel); fill(g, rand);
+    },
+    ink: function (g) {
+      inkStroke(g, kessel, { width: 2.2, vary: 0.3, seed: seed + 50, color: ink.line, alpha: 0.8 });
+      inkStroke(g, rand, { width: 2.0, vary: 0.3, seed: seed + 51, color: ink.line, alpha: 0.85 });
+      inkStroke(g, brett, { width: 1.8, vary: 0.3, seed: seed + 52, color: ink.line, alpha: 0.7 });
+      inkStroke(g, kraut, { width: 1.5, vary: 0.35, seed: seed + 53, color: ink.line, alpha: 0.65 });
+      // Der Bügel, an dem der Kessel hängt – ohne ihn schwebt er.
+      inkLine(g, cx - 28, baseY - 82, cx, baseY - 104,
+        { width: 2.2, bend: 0.18, seed: seed + 54, alpha: 0.85 });
+      inkLine(g, cx + 28, baseY - 82, cx, baseY - 104,
+        { width: 2.2, bend: -0.18, seed: seed + 55, alpha: 0.85 });
+      for (let i = 0; i < steine.length; i++) {
+        inkStroke(g, steine[i], { width: 1.4, vary: 0.35, seed: seed + 60 + i, color: ink.line, alpha: 0.6 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}

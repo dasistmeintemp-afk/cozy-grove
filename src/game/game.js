@@ -67,6 +67,10 @@ import {
 import {
   waehlePlauderei, merkePlauderei, FREUND_AB, GEMUETLICH_AB, KAHL_BIS,
 } from './talk.js';
+import {
+  GERICHTE, gerichtFuer, istGericht, kannKochen, staerkungVon, staerkungHeute,
+  tempoFaktor, wuchtBonus, glueckBonus,
+} from './kitchen.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, randPick, dailyRng } from '../core/rng.js';
@@ -290,6 +294,7 @@ export class Game {
       records: emptyRecords(),
       gedanken: [],
       plausch: Object.create(null),
+      staerkung: null,
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -315,6 +320,12 @@ export class Game {
     // Dasselbe für die Geister, je Geist getrennt – siehe `_plaudern`.
     if (!this.state.plausch || typeof this.state.plausch !== 'object') {
       this.state.plausch = Object.create(null);
+    }
+    // Die Stärkung von heute. Ein alter Spielstand hat keine, und ein Stand
+    // von gestern hat eine, die heute nicht mehr gilt – beides erledigt
+    // `staerkungHeute` über den Tag, an dem gegessen wurde.
+    if (!this.state.staerkung || typeof this.state.staerkung !== 'object') {
+      this.state.staerkung = null;
     }
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
@@ -537,6 +548,12 @@ export class Game {
     }
 
     const move = this.input.moveVector();
+    // Die Stärkung des Tages wirkt hier – an einer Stelle, jedes Bild. Beim
+    // Laden, nach dem Schlafen und nach dem Essen stimmt der Wert damit von
+    // selbst; ein zweiter Ort, an dem er gesetzt wird, liefe irgendwann
+    // auseinander.
+    this.player.tempo = tempoFaktor(this.state.staerkung, this.day.day);
+    this.fishing.glueck = glueckBonus(this.state.staerkung, this.day.day);
     this.player.busy = this.fishing.active;
     this.player.update(dt, move, this.world);
     // Nach dem Schritt, vor dem Zielen: Steht sie in diesem Bild auf, soll
@@ -821,7 +838,9 @@ export class Game {
         : def.category === 'dig' ? '#a9855e' : '#7cb567';
     this.particles.burst(def.category === 'dig' ? 'dust' : 'chip', e.x, e.y - 32, 5, { color: chipColor });
 
-    e.hp = (e.hp || 1) - 1;
+    // „Kräftig" nimmt einen Schlag ab: Eine Kiefer braucht dann vier statt
+    // fünf. Ohne Stärkung ist der Bonus null, und die Zeile rechnet wie zuvor.
+    e.hp = (e.hp || 1) - (1 + wuchtBonus(this.state.staerkung, this.day.day));
     if (e.hp > 0) {
       this.camera.kick(0.12);
       return;
@@ -1376,6 +1395,7 @@ export class Game {
     switch (station) {
       case 'campfire': this.openPanel('campfire'); break;
       case 'craft': this.openPanel('craft'); break;
+      case 'kitchen': this.openPanel('kitchen'); break;
       case 'shop': this.openPanel('shop'); break;
       case 'tent': this.sleep(false); break;
       case 'bridge': this._tryBridge(entity); break;
@@ -3172,6 +3192,11 @@ export class Game {
   likedInBag(spiritId) {
     const spirit = SPIRITS[spiritId];
     if (!spirit || !spirit.likes) return null;
+    // Gekochtes nimmt jeder gern, aber erst NACH dem, was dieser Geist
+    // besonders mag: Sonst verschenkte man den Mondblütenkuchen an
+    // Flämmchen, der eigentlich auf Harz wartet. Die eigene Vorliebe bleibt
+    // die Vorliebe; ein Gericht ist das freundliche Allgemeine.
+    const gericht = this._gerichtImBeutel();
     // Das Lieblingsstück hat Vorrang. Sonst verschenkte man es versehentlich
     // als „irgendwas Gemochtes" und merkte nie, dass es eines gibt.
     const lieb = favouriteOf(spiritId);
@@ -3182,7 +3207,22 @@ export class Game {
       if (this._neededForQuest(id)) continue;
       return id;
     }
-    return null;
+    return gericht;
+  }
+
+  /** Das wertvollste Gericht in der Tasche, das keine Aufgabe braucht. */
+  _gerichtImBeutel() {
+    let best = null;
+    let bestWert = 0;
+    for (let i = 0; i < GERICHTE.length; i++) {
+      const id = GERICHTE[i].id;
+      if (this.inventory.count(id) <= 0) continue;
+      if (this._neededForQuest(id)) continue;
+      const item = getItem(id);
+      const wert = item ? item.value : 0;
+      if (wert > bestWert) { bestWert = wert; best = id; }
+    }
+    return best;
   }
 
   /** Jeder Geist nimmt ein Mitbringsel am Tag – sonst wäre es eine Münzquelle. */
@@ -3302,6 +3342,74 @@ export class Game {
   }
 
   /* ---------------- Werkbank / Laden / Feuer ---------------- */
+
+  /* ---------------- Die Küche ---------------- */
+
+  /**
+   * Ein Gericht kochen.
+   *
+   * Die Zutaten gehen weg, das Gericht kommt in die Tasche. Gegessen wird
+   * damit noch nicht – man kann es auch verkaufen oder verschenken, und das
+   * ist der Punkt: Die Küche ist ein dritter Weg für Sammelgut, nicht nur
+   * ein Knopf für einen Tagesbonus.
+   */
+  cookDish(id) {
+    const rec = gerichtFuer(id);
+    if (!rec) return false;
+    if (!kannKochen(rec, this.inventory)) {
+      this.ui.toast('Es fehlt noch etwas', 'icon_craft', 'bad');
+      return false;
+    }
+    // Erst Platz prüfen, dann Zutaten nehmen. Andersherum wären bei voller
+    // Tasche die Zutaten weg und das Gericht nirgends.
+    if (this.inventory.isFull() && this.inventory.count(id) <= 0) {
+      this.ui.toast('Tasche ist voll!', 'icon_bag', 'bad');
+      return false;
+    }
+    for (let i = 0; i < rec.zutaten.length; i++) {
+      this.inventory.remove(rec.zutaten[i].id, rec.zutaten[i].n);
+    }
+    this.inventory.add(id, 1);
+    const item = getItem(id);
+    this.ui.toast(item.name + ' gekocht', item.icon, 'good');
+    this.audio.play('craft');
+    this._note('gekocht');
+    this.ui.refreshQuests();
+    this.save();
+    return true;
+  }
+
+  /**
+   * Ein Gericht essen.
+   *
+   * Eine Stärkung auf einmal, bis zum Schlafengehen. Wer ein zweites isst,
+   * tauscht – das sagt die Meldung auch, sonst hielte man es für einen
+   * Fehler.
+   */
+  eatDish(id) {
+    if (!istGericht(id) || this.inventory.count(id) <= 0) return false;
+    const neu = staerkungVon(id);
+    if (!neu) return false;
+    const alt = staerkungHeute(this.state.staerkung, this.day.day);
+
+    this.inventory.remove(id, 1);
+    this.state.staerkung = { id: neu.id, tag: this.day.day };
+    this.player.tempo = tempoFaktor(this.state.staerkung, this.day.day);
+
+    this.ui.toast(
+      alt && alt.id !== neu.id ? neu.name + ' – statt ' + alt.name : neu.name + ' · ' + neu.note,
+      neu.icon, 'good');
+    this.audio.play('levelup');
+    this.particles.burst('heart', this.player.x, this.player.y - 70, 6);
+    this._note('gegessen');
+    this.save();
+    return true;
+  }
+
+  /** Die Stärkung von heute – oder null. Für Fenster und Prüfungen. */
+  staerkung() {
+    return staerkungHeute(this.state.staerkung, this.day.day);
+  }
 
   craftRecipe(id) {
     const rec = recipeById(id);
@@ -4108,6 +4216,7 @@ export class Game {
     }
     if (def.station === 'campfire') { this.ui.setPrompt('Lagerfeuer'); return; }
     if (def.station === 'craft') { this.ui.setPrompt('Werkbank'); return; }
+    if (def.station === 'kitchen') { this.ui.setPrompt('Kochstelle'); return; }
     if (def.station === 'shop') { this.ui.setPrompt('Laden'); return; }
     if (def.station === 'tent') { this.ui.setPrompt('Schlafen'); return; }
     if (def.station === 'bridge') { this.ui.setPrompt('Brücke bauen'); return; }

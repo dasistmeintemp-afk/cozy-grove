@@ -37,6 +37,8 @@ export class Fishing {
     this.fish = null;
     /** Fisch-Kennung, die heute besonders oft beißt – oder null. */
     this.boost = null;
+    /** Stärkung des Tages: seltene Fische beißen öfter an. 0 = keine. */
+    this.glueck = 0;
     this.result = null;
     this.hint = '';
   }
@@ -59,8 +61,13 @@ export class Fishing {
     // einzige Weg, an einen sehr seltenen Fisch verlässlich heranzukommen –
     // sonst hängt er allein am Glück.
     const boost = this.boost;
+    // „Glücklich" aus der Küche: Seltenes zählt doppelt. Das verschiebt die
+    // Verteilung spürbar, ohne den Schwarmtag zu entwerten – der gibt einer
+    // EINZIGEN Art das Zwölffache, hier bekommen alle seltenen das Doppelte.
+    const glueck = this.glueck || 0;
     const weighted = pool.map(function (f) {
-      const w = 1 / (f.rarity * f.rarity);
+      let w = 1 / (f.rarity * f.rarity);
+      if (glueck && f.rarity >= 3) w *= 1 + glueck;
       return { f: f, weight: f.id === boost ? w * 12 : w };
     });
     this.fish = pickWeighted(weighted, rng).f;

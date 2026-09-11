@@ -62,6 +62,11 @@ export const SETS = [
     reward: { coins: 600, ember: 50 },
   },
   {
+    id: CAT.DISH, name: CAT_NAMES[CAT.DISH],
+    note: 'Neun Gerichte – zwei davon nur bei bestimmtem Wetter oder nachts.',
+    reward: { coins: 400, ember: 25, items: [{ id: 'seed_moon', n: 2 }] },
+  },
+  {
     id: CAT.DECOR, name: CAT_NAMES[CAT.DECOR],
     note: 'Gebautes, Gekauftes und jedes Andenken.',
     reward: { coins: 800, ember: 60, items: [{ id: 'gem', n: 3 }] },
@@ -194,6 +199,17 @@ export const HINTS = {
   keepsake_music: 'Tobis Andenken, wenn seine Kette voll ist.',
   keepsake_teacup: 'Nellys Andenken, wenn ihre Kette voll ist.',
   keepsake_shellchain: 'Wandas Andenken, wenn ihre Kette voll ist.',
+
+  // Küche
+  dish_berrymash: 'Kochstelle – aus Waldbeeren.',
+  dish_flowersalad: 'Kochstelle – aus Blumen und Kraut.',
+  dish_herbtea: 'Kochstelle – Kraut und eine Sternblume.',
+  dish_mushroompan: 'Kochstelle – aus Pilzen.',
+  dish_violetsyrup: 'Kochstelle – aus Glockenblumen.',
+  dish_forestsoup: 'Kochstelle – Pilze, Kraut, Beeren.',
+  dish_berrycake: 'Kochstelle – viele Beeren.',
+  dish_rainstew: 'Kochstelle – braucht Regenpilze, also einen Regentag.',
+  dish_mooncake: 'Kochstelle – braucht Mondblüten, also eine Nacht.',
 };
 
 /**

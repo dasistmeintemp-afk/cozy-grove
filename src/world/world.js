@@ -216,6 +216,9 @@ export class World {
     this.tent = this.add(makeEntity('tent', px(cx - 5), px(cy - 2)));
     this.workbench = this.add(makeEntity('workbench', px(cx + 5), px(cy - 1)));
     this.stall = this.add(makeEntity('stall', px(cx + 4), px(cy + 5)));
+    // Neben dem Feuer, gegenüber der Werkbank: Was man kocht, kocht man am
+    // Feuer, und wer morgens aus dem Zelt kommt, läuft daran vorbei.
+    this.kitchen = this.add(makeEntity('kitchen', px(cx - 4), px(cy + 4)));
     // Der Briefkasten steht neben dem Zelt: Wer morgens aufwacht, läuft
     // an ihm vorbei, ohne ihn suchen zu müssen.
     this.mailbox = this.add(makeEntity('mailbox', px(cx - 7), px(cy - 1)));
