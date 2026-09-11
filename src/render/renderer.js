@@ -211,6 +211,10 @@ export class Renderer {
         sprite: (item && item.prop) || null, x: s.x,
       });
     }
+    // Das Tier sortiert sich mit ein – sonst säße es vor dem Tisch, an dem
+    // es gerade vorbeigelaufen ist.
+    const tier = game.innenPetBild();
+    if (tier) liste.push({ y: tier.y, flach: false, sprite: tier.sprite, x: tier.x, flip: tier.blick < 0 });
     liste.sort(function (a, b) { return a.y - b.y; });
 
     const px = game.innen.x;
@@ -233,7 +237,7 @@ export class Renderer {
         this._drawInnenSeli(ctx, game, bx + px, by + py);
         selizeichnet = true;
       }
-      if (s.sprite) drawSprite(ctx, s.sprite, bx + s.x, by + s.y, false);
+      if (s.sprite) drawSprite(ctx, s.sprite, bx + s.x, by + s.y, false, s.flip ? { flip: true } : null);
     }
     if (!selizeichnet) this._drawInnenSeli(ctx, game, bx + px, by + py);
 

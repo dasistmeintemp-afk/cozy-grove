@@ -3492,6 +3492,106 @@ async function run() {
     check('Die Wand steht im Spielstand',
       wandTest.imSpielstand === 1, JSON.stringify(wandTest));
 
+    /* ---- Das Tier im Zimmer und die Gruppen ---- */
+
+    const innen3 = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const { GRUPPE_BONUS } = await import('/src/game/interior.js');
+      const { getItem } = await import('/src/game/items.js');
+
+      const merkHaus = g.state.house;
+      const merkInterior = g.state.interior;
+      const merkPet = g.state.pet;
+      g.state.house = 3;
+      g.state.interior = { stuecke: [], wand: [], ausstattung: 'holz' };
+      g.syncHouse();
+
+      // Ohne zahmes Tier kommt drinnen keines mit.
+      g.state.pet = { art: 'cat', zahm: 0, laune: 50, gefuettertAm: 0, fundAm: 0, name: '', seit: 0 };
+      g.betritt();
+      r.ohneZahmesTier = g.innenPetBild();
+      g.verlaesst();
+
+      // Mit zahmem Tier schon – und es folgt Seli.
+      g.state.pet = { art: 'cat', zahm: 9, laune: 90, gefuettertAm: 0, fundAm: 0, name: '', seit: 1 };
+      g.betritt();
+      const bild = g.innenPetBild();
+      r.tierDa = !!bild;
+      r.tierSprite = bild ? bild.sprite : null;
+      const raum = g.raum();
+
+      // Seli geht quer durchs Zimmer, das Tier kommt hinterher.
+      g.innen.x = Math.round(raum.w * 0.2);
+      g.innen.y = Math.round(raum.h * 0.3);
+      g.innenPet.x = Math.round(raum.w * 0.85);
+      g.innenPet.y = Math.round(raum.h * 0.85);
+      const weit = Math.hypot(g.innenPet.x - g.innen.x, g.innenPet.y - g.innen.y);
+      g.player.moving = true;
+      for (let i = 0; i < 400; i++) g._innenPetUpdate(1 / 30);
+      const nah = Math.hypot(g.innenPet.x - g.innen.x, g.innenPet.y - g.innen.y);
+      r.folgtNach = weit > 300 && nah < 140;
+      r.ruhtBeimLaufen = g.innenPetBild().ruht;
+      r.imRaumGeblieben = g._innenBegehbar(g.innenPet.x, g.innenPet.y) ||
+        (g.innenPet.x > 0 && g.innenPet.x < raum.w);
+
+      // Bleibt sie stehen, legt es sich dazu.
+      g.player.moving = false;
+      for (let i = 0; i < 300; i++) g._innenPetUpdate(1 / 30);
+      const daneben = g.innenPetBild();
+      // Gefragt ist der ZUSTAND, nicht das Bild: Das Tier sitzt auch dann,
+      // wenn es hinterhergelaufen und angekommen ist.
+      r.legtSichDazu = daneben.ruht === true && /_sit$/.test(daneben.sprite);
+      r.abstandDaneben = Math.round(
+        Math.hypot(g.innenPet.x - g.innen.x, g.innenPet.y - g.innen.y));
+
+      // Und draußen ist es wieder weg.
+      g.verlaesst();
+      r.draussenWeg = g.innenPetBild();
+
+      // Gruppen: ein Teppich mit Tisch und Stuhl darauf.
+      g.betritt();
+      const mitte = { x: Math.round(raum.w * 0.5), y: Math.round(raum.h * 0.5) };
+      const st = g.innenStuecke();
+      st.push({ id: 'table', x: mitte.x, y: mitte.y });
+      st.push({ id: 'chair', x: mitte.x + 36, y: mitte.y });
+      r.ohneTeppich = g.wohnGruppen().length;
+      const ohnePunkte = g.wohnPunkte();
+      st.push({ id: 'rug', x: mitte.x, y: mitte.y });
+      const gr = g.wohnGruppen();
+      r.mitTeppich = gr.length;
+      r.gebunden = gr.length ? gr[0].n : 0;
+      // Der Zuschlag steckt wirklich in der Zahl – nicht nur im Fenster.
+      // Der Charme des Teppichs kommt aus der QUELLE, nicht von Hand
+      // abgeschrieben: Sonst prüfte der Vergleich nur, dass ich zweimal
+      // dieselbe Zahl getippt habe.
+      r.zuschlag = g.wohnPunkte() - ohnePunkte - getItem('rug').charm;
+      r.erwartet = 2 * GRUPPE_BONUS;
+
+      g.verlaesst();
+      g.state.house = merkHaus;
+      g.state.interior = merkInterior;
+      g.state.pet = merkPet;
+      g.syncHouse();
+      return r;
+    });
+    check('Ein Streuner folgt einem nicht ins Haus',
+      innen3.ohneZahmesTier === null, JSON.stringify(innen3));
+    check('Das zahme Tier kommt mit hinein und läuft hinterher',
+      innen3.tierDa === true && innen3.folgtNach === true &&
+      innen3.imRaumGeblieben === true, JSON.stringify(innen3));
+    check('Bleibt Seli stehen, legt es sich neben sie',
+      innen3.ruhtBeimLaufen === false && innen3.legtSichDazu === true &&
+      innen3.abstandDaneben >= 20 && innen3.abstandDaneben <= 140,
+      JSON.stringify(innen3));
+    check('Draußen ist es wieder das Tier der Insel',
+      innen3.draussenWeg === null, JSON.stringify(innen3));
+    check('Ein Teppich bindet Tisch und Stuhl zu einer Gruppe',
+      innen3.ohneTeppich === 0 && innen3.mitTeppich === 1 &&
+      innen3.gebunden === 2, JSON.stringify(innen3));
+    check('Und der Zuschlag steckt wirklich in der Zahl',
+      innen3.zuschlag === innen3.erwartet, JSON.stringify(innen3));
+
     /* ---- Das Haustier ---- */
     const tier = await page.evaluate(async () => {
       const g = window.CozyGrove.game;

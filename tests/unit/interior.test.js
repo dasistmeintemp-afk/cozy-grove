@@ -25,6 +25,7 @@ import {
   AUSSTATTUNG, AUSSTATTUNG_IDS, ausstattungFuer,
   fensterFuer, wandHoehe, maxWandStuecke, anDerWand, wandPlatzFrei, wandStueckAn,
   WAND_ABSTAND, WAND_RAND,
+  gruppen, gruppenPunkte, GRUPPE_BONUS, GRUPPE_MAX, GRUPPE_RADIUS,
 } from '../../src/game/interior.js';
 import { HOUSE_STAGES, MAX_HOUSE_STAGE, houseColor } from '../../src/game/house.js';
 import { getItem, ITEM_LIST, CAT } from '../../src/game/items.js';
@@ -487,4 +488,65 @@ test('Die Wand übersteht Speichern und Laden', () => {
     assert.ok(s.x >= WAND_RAND && s.x <= r.w - WAND_RAND, s.id + ' hängt neben der Wand');
   }
   assert.deepEqual(interiorAus(null, r, null).wand, []);
+});
+
+/* ---------------- Gruppen ---------------- */
+
+test('Ein Teppich bindet, was darauf steht', () => {
+  // Vorher war Einrichten eine Frage der ZAHL: Acht Stühle an acht Wänden
+  // zählten so viel wie eine Sitzgruppe.
+  const stuecke = [
+    { id: 'rug', x: 300, y: 300 },
+    { id: 'table', x: 300, y: 300 },
+    { id: 'chair', x: 340, y: 300 },
+  ];
+  const g = gruppen(stuecke, getItem);
+  assert.equal(g.length, 1, 'gefunden: ' + JSON.stringify(g));
+  assert.equal(g[0].n, 2);
+  assert.equal(gruppenPunkte(stuecke, getItem), 2 * GRUPPE_BONUS);
+});
+
+test('Was weit weg steht, gehört nicht dazu', () => {
+  const stuecke = [
+    { id: 'rug', x: 300, y: 300 },
+    { id: 'chair', x: 300 + GRUPPE_RADIUS + 20, y: 300 },
+  ];
+  assert.deepEqual(gruppen(stuecke, getItem), []);
+  assert.equal(gruppenPunkte(stuecke, getItem), 0);
+});
+
+test('Ohne Teppich gibt es keine Gruppe', () => {
+  const stuecke = [
+    { id: 'table', x: 300, y: 300 },
+    { id: 'chair', x: 330, y: 300 },
+  ];
+  assert.deepEqual(gruppen(stuecke, getItem), []);
+});
+
+test('Ein Teppich bindet höchstens drei', () => {
+  // Sonst wäre die beste Antwort ein Teppich mit zwanzig Stühlen darauf, und
+  // aus dem Einrichten würde ein Stapeln.
+  const stuecke = [{ id: 'rug', x: 300, y: 300 }];
+  for (let i = 0; i < 12; i++) stuecke.push({ id: 'chair', x: 300 + i, y: 300 });
+  const g = gruppen(stuecke, getItem);
+  assert.equal(g[0].n, GRUPPE_MAX);
+  assert.equal(gruppenPunkte(stuecke, getItem), GRUPPE_MAX * GRUPPE_BONUS);
+});
+
+test('Teppich auf Teppich ist keine Gruppe', () => {
+  const stuecke = [
+    { id: 'rug', x: 300, y: 300 },
+    { id: 'mat', x: 310, y: 300 },
+  ];
+  assert.deepEqual(gruppen(stuecke, getItem), []);
+});
+
+test('Der Zuschlag bleibt ein Zuschlag', () => {
+  // Eine Gruppe soll sich lohnen, aber ein Zimmer voller Teppiche darf nicht
+  // mehr zählen als eines voller Möbel.
+  const teppich = getItem('rug').charm;
+  assert.ok(GRUPPE_BONUS * GRUPPE_MAX < teppich * 3,
+    'ein Teppich mit drei Stühlen schlägt drei Teppiche');
+  assert.deepEqual(gruppen(null, getItem), []);
+  assert.equal(gruppenPunkte([], getItem), 0);
 });

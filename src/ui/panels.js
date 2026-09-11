@@ -15,6 +15,7 @@ import { unreadCount } from '../game/mail.js';
 import { DAYBOOK_ROWS } from '../game/daybook.js';
 import {
   wohnStufe, bisZurNaechstenWohnstufe, wohnBonus, maxStuecke, AUSSTATTUNG,
+  GRUPPE_BONUS,
 } from '../game/interior.js';
 import {
   GERICHTE, STAERKUNG, kannKochen, staerkungHeute,
@@ -986,6 +987,9 @@ export class Panels {
     const bis = bisZurNaechstenWohnstufe(punkte);
     const bonus = wohnBonus(punkte);
     const n = g.innenStuecke().length;
+    const gruppen = g.wohnGruppen();
+    let gebunden = 0;
+    for (let i = 0; i < gruppen.length; i++) gebunden += gruppen[i].n;
 
     return '<h3 style="font-size:0.95em;margin:18px 0 8px">Dein Zimmer</h3>' +
       '<div class="rows"><div class="row">' + ico('icon_flowerbed', 'lg') +
@@ -993,6 +997,13 @@ export class Panels {
       escapeHtml(stufe.name) + '</div>' +
       '<div class="meta">' +
       '<span>' + n + ' von ' + maxStuecke(raum) + ' Stücken</span>' +
+      (g.innenWand().length ? '<span>' + g.innenWand().length + ' an der Wand</span>' : '') +
+      // Gruppen nur nennen, wenn es welche gibt: Eine Zeile „0 Gruppen" wäre
+      // ein Vorwurf, und drinnen gibt es keine.
+      (gruppen.length
+        ? '<span>' + gruppen.length + (gruppen.length === 1 ? ' Gruppe' : ' Gruppen') +
+          ' · +' + gebunden * GRUPPE_BONUS + '</span>'
+        : '') +
       (bis != null
         ? '<span>noch ' + bis + ' bis „' + escapeHtml(wohnStufe(punkte + bis).name) + '"</span>'
         : '<span>schöner geht es nicht</span>') +
@@ -1016,8 +1027,10 @@ export class Panels {
       '</div>' +
       '<p class="empty-note" style="padding:8px 0 0">' +
       'Am Haus <b>E</b> drücken, dann bist du drinnen. Hinstellen wie draußen – ' +
-      'aus der Tasche auswählen, auf Sitzmöbel setzt du dich. Am Bett wird ' +
-      'geschlafen, an der Tür geht es wieder hinaus.</p>';
+      'aus der Tasche auswählen, auf Sitzmöbel setzt du dich. Bilder und ' +
+      'Kränze hängen an der Rückwand. Am Bett wird geschlafen, an der Tür ' +
+      'geht es wieder hinaus.<br>Was auf einem Teppich steht, gehört ' +
+      'zusammen und zählt doppelt – bis zu drei Stücke je Teppich.</p>';
   }
 
   /* ---------------- Vorratstruhe ---------------- */

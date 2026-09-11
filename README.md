@@ -257,6 +257,19 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   erste nähme dem Zimmer sein Licht, das zweite wäre ein Bild, das man
   aufhängt und nie wieder sieht. Abgenommen wird nah an der Wand mit Blick
   nach oben – sonst hinge man beim Vorbeilaufen Bilder ab.
+* **Das Tier kommt mit hinein.** Ist es zahm, folgt es dir durch die Tür,
+  läuft dir im Zimmer hinterher und legt sich neben dich, sobald du stehen
+  bleibst oder dich hinsetzt. Ein Streuner, der noch am Napf sitzt, folgt
+  einem nicht ins Haus.
+* **Ein Teppich bindet zusammen, was darauf steht.** Bis hierher war
+  Einrichten eine Frage der **Zahl**: acht Stühle an acht Wänden zählten so
+  viel wie eine Sitzgruppe. Jetzt zählt auch das Danebenstellen – ein Tisch
+  mit zwei Stühlen auf einem Teppich ist eine **Gruppe**, und jedes gebundene
+  Stück zählt doppelt.
+
+  Nur flache Stücke binden (Teppich, Matte, Trittsteine), und ein Teppich
+  bindet höchstens drei. Sonst wäre die beste Antwort ein Teppich mit zwanzig
+  Stühlen darauf, und aus dem Einrichten würde ein Stapeln.
 * **Gedanken im eigenen Zimmer.** Wer sich drinnen hinsetzt, bekommt nach ein
   paar Sekunden einen Satz – aus einer eigenen Gruppe, nicht aus der, die vom
   Haus von *außen* handelt. „Draußen ist noch einiges zu tun. Draußen."
@@ -946,8 +959,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 514 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
-npm run test:browser   # 299 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 520 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
+npm run test:browser   # 305 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

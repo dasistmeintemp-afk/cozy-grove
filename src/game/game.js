@@ -27,6 +27,7 @@ import {
   gemuetlichkeit, wohnBonus, wohnStufe, emptyInterior, interiorAus, RAND,
   bettFuer, amBett, ausstattungFuer, AUSSTATTUNG_IDS,
   wandPlatzFrei, wandStueckAn, wandHoehe, maxWandStuecke, WAND_RAND, WAND_ABSTAND,
+  klemmeInRaum, gruppen, gruppenPunkte,
 } from './interior.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
@@ -156,6 +157,9 @@ const INNEN_NACHT = 0.4;
  * und die Wand waere ein Stolperdraht statt einer Ebene.
  */
 const WAND_GRIFF = 96;
+
+/** Wie lange Seli stillstehen muss, bis sich das Tier im Zimmer dazulegt. */
+const INNEN_PET_WARTET = 2.5;
 
 const AUTOSAVE_SECONDS = 20;
 
@@ -3491,6 +3495,90 @@ export class Game {
     return (this.state.interior && this.state.interior.stuecke) || [];
   }
 
+  /**
+   * Das Tier kommt mit hinein.
+   *
+   * Draußen legt es sich längst neben Seli, wenn sie sitzt – drinnen fehlte
+   * es spürbar. Es bekommt eigene Zimmerkoordinaten wie Seli auch; das
+   * Weltobjekt draußen bleibt stehen, wo es steht.
+   *
+   * Nur, wenn es wirklich dazugehört. Ein Streuner, der noch am Napf sitzt,
+   * folgt einem nicht ins Haus.
+   */
+  _innenPetStart() {
+    if (!istZahm(this.state.pet)) { this.innenPet = null; return; }
+    const raum = this.raum();
+    const t = tuerFuer(raum);
+    this.innenPet = {
+      x: t.x + t.w / 2 + 60,
+      y: raum.h - RAND - 10,
+      art: this.state.pet.art || 'cat',
+      laeuft: false, schritt: 0, blick: -1, stillZeit: 0,
+    };
+  }
+
+  /**
+   * Wo das Tier im Zimmer gerade ist.
+   *
+   * Dieselbe Regel wie draußen, nur kürzer: Es folgt mit Abstand, und bleibt
+   * Seli stehen oder sitzt sie, legt es sich neben sie. Ein Möbelstück sucht
+   * es sich drinnen nicht – in einem Zimmer ist ohnehin alles nah, und ein
+   * Tier, das quer durchs Zimmer zur Bank läuft, statt sich dazuzulegen,
+   * wäre die schlechtere Gesellschaft.
+   */
+  _innenPetUpdate(dt) {
+    const p = this.innenPet;
+    if (!p) return;
+    const raum = this.raum();
+    const seli = this.innen;
+    const ruht = this.player.sitzt || !this.player.moving;
+    p.stillZeit = ruht ? (p.stillZeit || 0) + dt : 0;
+
+    let ziel;
+    // `ruht` ist ein eigenes Merkmal und nicht am Bild abzulesen: Das Tier
+    // sitzt auch dann, wenn es hinterhergelaufen und angekommen ist. Eine
+    // Prüfung, die am `_sit`-Bild hängt, misst deshalb nichts – so
+    // geschehen, und der Gegentest fiel nicht.
+    p.ruht = p.stillZeit >= INNEN_PET_WARTET;
+    if (p.ruht) {
+      // Auf der Seite, auf der es ohnehin steht – wie draußen.
+      const seite = p.x < seli.x ? -1 : 1;
+      ziel = { x: seli.x + seite * 62, y: seli.y + 8 };
+      if (!imRaum(ziel.x, ziel.y, raum)) ziel = { x: seli.x - seite * 62, y: seli.y + 8 };
+    } else {
+      const dir = this.player.dir === 'right' ? -1 : this.player.dir === 'left' ? 1 : -1;
+      ziel = { x: seli.x + dir * 56, y: seli.y + 24 };
+    }
+    ziel = klemmeInRaum(ziel.x, ziel.y, raum);
+
+    const dx = ziel.x - p.x;
+    const dy = ziel.y - p.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d > 24) {
+      const s = Math.min(d, 170 * dt);
+      const nx = p.x + (dx / d) * s;
+      const ny = p.y + (dy / d) * s;
+      if (imRaum(nx, p.y, raum)) p.x = nx;
+      if (imRaum(p.x, ny, raum)) p.y = ny;
+      p.laeuft = true;
+      p.schritt = (p.schritt || 0) + dt * 7;
+      if (Math.abs(dx) > 4) p.blick = dx < 0 ? -1 : 1;
+    } else {
+      p.laeuft = false;
+    }
+  }
+
+  /** Wie das Tier im Zimmer gerade aussieht – oder null. */
+  innenPetBild() {
+    const p = this.innenPet;
+    if (!p) return null;
+    return {
+      x: p.x, y: p.y, blick: p.blick, ruht: !!p.ruht,
+      sprite: 'pet_' + p.art + '_' +
+        (p.laeuft ? (Math.floor(p.schritt || 0) % 2 === 0 ? '0' : '1') : 'sit'),
+    };
+  }
+
   /** Was an der Wand hängt. */
   innenWand() {
     return (this.state.interior && this.state.interior.wand) || [];
@@ -3597,6 +3685,7 @@ export class Game {
     this.player.dir = 'up';
     // Das Zimmerbild wird erst hier gemalt, falls es das noch nicht gibt.
     this.raumSprite();
+    this._innenPetStart();
     this.audio.play('ui');
     this.ui.clearBubbles();
     // Und den Blasenbehälter hart leeren. `clearBubbles` räumt die Liste,
@@ -3625,6 +3714,7 @@ export class Game {
     this.stehAufInnen(true);
     this.cancelPlacing();
     this.innen = null;
+    this.innenPet = null;
     this._blasenLeeren();
     this.player.moving = false;
     this.player.dir = 'down';
@@ -3852,6 +3942,7 @@ export class Game {
     this.player.tempo = tempoFaktor(this.state.staerkung, this.day.day);
     // Sitzt sie, übernimmt das Ausruhen die ganze Eingabe – wie draußen.
     if (this._innenRuhen(dt, move)) {
+      this._innenPetUpdate(dt);
       this._innenPrompt();
       this.ui.refreshHud();
       this.ui.updateBubbles(dt);
@@ -3860,6 +3951,7 @@ export class Game {
       return;
     }
     this._innenBewegen(dt, move);
+    this._innenPetUpdate(dt);
     if (this.player.consumeStep()) this.audio.play('step');
     this._innenPlacingUpdate();
     this._innenPrompt();
@@ -4068,7 +4160,16 @@ export class Game {
 
   /** Wie gemütlich es drinnen gerade ist. */
   wohnPunkte() {
-    return gemuetlichkeit(this.innenStuecke(), getItem, this.innenWand());
+    // Der Zuschlag für Gruppen steht hier und nicht in `gemuetlichkeit`:
+    // Diese Zahl ist die reine Summe der Stücke, und die gilt drinnen wie
+    // draußen. Das Zusammenstellen ist etwas, das es nur drinnen gibt.
+    return gemuetlichkeit(this.innenStuecke(), getItem, this.innenWand()) +
+      gruppenPunkte(this.innenStuecke(), getItem);
+  }
+
+  /** Welche Gruppen im Zimmer stehen – fürs Fenster. */
+  wohnGruppen() {
+    return gruppen(this.innenStuecke(), getItem);
   }
 
   /**

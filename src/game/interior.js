@@ -489,3 +489,70 @@ export function interiorAus(roh, raum, kennt) {
   }
   return { stuecke: raus, wand: wand, ausstattung: ausstattungFuer(roh.ausstattung).id };
 }
+
+/* ---------------------------------------------------------------- Gruppen */
+
+/**
+ * Ein Teppich bindet zusammen, was darauf steht.
+ *
+ * Bis hierher war Einrichten eine Frage der ZAHL: Mehr Stücke, mehr Punkte,
+ * und wo sie standen, war gleichgültig. Damit ist ein Zimmer mit acht
+ * Stühlen an acht Wänden genauso viel wert wie eine Sitzgruppe.
+ *
+ * Jetzt zählt auch das Danebenstellen: Ein Tisch mit zwei Stühlen auf einem
+ * Teppich ist eine **Gruppe**, und die gibt einen Zuschlag.
+ *
+ * Zwei Dinge sind daran Absicht:
+ *
+ * 1. **Nur flache Stücke binden.** Teppich, Matte, Trittsteine – was man
+ *    unterlegt. Ein Tisch, der Stühle bindet, wäre dieselbe Mechanik mit
+ *    mehr Regeln und weniger Bild.
+ * 2. **Ein Teppich bindet höchstens drei.** Sonst wäre die beste Antwort ein
+ *    Teppich mit zwanzig Stühlen darauf, und aus dem Einrichten würde ein
+ *    Stapeln.
+ */
+
+/** Wie nah an einem flachen Stück etwas stehen muss, um dazuzugehören. */
+export const GRUPPE_RADIUS = 78;
+
+/** Was ein gebundenes Stück zusätzlich zählt. */
+export const GRUPPE_BONUS = 2;
+
+/** Wie viele Stücke ein einzelner Teppich binden kann. */
+export const GRUPPE_MAX = 3;
+
+/**
+ * Die Gruppen im Zimmer.
+ *
+ * @returns {Array} je flachem Stück: { id, x, y, n } – n = gebundene Stücke
+ */
+export function gruppen(stuecke, getItem) {
+  const liste = stuecke || [];
+  const raus = [];
+  for (let i = 0; i < liste.length; i++) {
+    const unten = liste[i];
+    const it = getItem(unten.id);
+    if (!it || !it.flat) continue;
+    let n = 0;
+    for (let k = 0; k < liste.length && n < GRUPPE_MAX; k++) {
+      if (k === i) continue;
+      const oben = liste[k];
+      const o = getItem(oben.id);
+      if (!o || o.flat) continue;   // Teppich auf Teppich ist keine Gruppe
+      const dx = oben.x - unten.x;
+      const dy = oben.y - unten.y;
+      if (dx * dx + dy * dy > GRUPPE_RADIUS * GRUPPE_RADIUS) continue;
+      n++;
+    }
+    if (n > 0) raus.push({ id: unten.id, x: unten.x, y: unten.y, n: n });
+  }
+  return raus;
+}
+
+/** Was die Gruppen zusammen zusätzlich zählen. */
+export function gruppenPunkte(stuecke, getItem) {
+  const g = gruppen(stuecke, getItem);
+  let summe = 0;
+  for (let i = 0; i < g.length; i++) summe += g[i].n * GRUPPE_BONUS;
+  return summe;
+}
