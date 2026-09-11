@@ -35,6 +35,12 @@ export const KATALOG = [
   { id: 'scarecrow', preis: 200 },
   { id: 'feeder', preis: 215, needs: 'fleck' },
   { id: 'paperlamp', preis: 230, needs: 'fleck' },
+  // Für die Wand im Zimmer – der Händler führt sie, seit es eine gibt.
+  // Beide unter 250 und damit ausdrücklich ohne Mechanik: Die Regel „was
+  // viel kostet, tut etwas" gilt weiter, und ein Zimmer ist der eine Ort,
+  // an dem nichts etwas tun muss.
+  { id: 'hangplant', preis: 235, needs: 'fleck' },
+  { id: 'wreath', preis: 240, needs: 'fleck' },
   { id: 'trellis', preis: 250, needs: 'fleck' },
   { id: 'bowl', preis: 260, needs: 'werkzeugtag' },
   { id: 'birdbath', preis: 285, needs: 'tasche' },

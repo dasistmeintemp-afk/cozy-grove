@@ -36,8 +36,12 @@ import {
 import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
-import { paintRoom, paintBed } from './painted-interior.js';
-import { RAEUME, TUER_BREITE, raumFuer, ausstattungFuer } from '../game/interior.js';
+import {
+  paintRoom, paintBed, paintPicture, paintWreath, paintShelf, paintHangplant,
+} from './painted-interior.js';
+import {
+  RAEUME, TUER_BREITE, raumFuer, ausstattungFuer, fensterFuer,
+} from '../game/interior.js';
 import { BUGS, MEMORY_KINDS } from '../game/items.js';
 import { CROPS, CROP_IDS } from '../game/crops.js';
 import { TOOL_ART } from '../game/player.js';
@@ -278,6 +282,11 @@ export function initArt() {
   // wird – siehe `ensureRoom`. Vier Ausbaustufen mal vier Ausstattungen sind
   // sechzehn Bilder bis 1000×810; gebraucht wird eines.
   addArt('bed', paintBed({ seed: 1971 }));
+  // Was an der Wand hängt. Anker in der Mitte, nicht am Fuß.
+  addArt('picture', paintPicture({ seed: 2101 }));
+  addArt('wreath', paintWreath({ seed: 2111 }));
+  addArt('shelf', paintShelf({ seed: 2121 }));
+  addArt('hangplant', paintHangplant({ seed: 2131 }));
   addArt('stall', paintStall({ seed: 351 }));
   addArt('workbench', paintWorkbench({ seed: 371 }));
   addArt('boat', paintBoat({ seed: 391 }));
@@ -409,6 +418,8 @@ function buildIcons() {
     ['moonflower', 'moonflower'], ['rainmushroom', 'rainmushroom'],
     ['fogcrystal', 'fogcrystal'], ['moonlamp', 'lantern'],
     ['boat', 'boat'], ['mailbox', 'mailbox'],
+    ['picture', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
+    ['hangplant', 'hangplant'],
     ['table', 'table'], ['chair', 'chair'], ['hammock', 'hammock'],
     ['swing', 'swing'], ['firebowl', 'firebowl'],
     ['stringlights', 'stringlights'], ['paperlamp', 'paperlamp'],
@@ -493,6 +504,7 @@ export function ensureRoom(stufe, ausstattungId) {
     tuerX: r.w / 2 - TUER_BREITE / 2, tuerW: TUER_BREITE,
     seed: 1900 + r.stufe * 7 + a.id.length * 13,
     farben: a,
+    fenster: fensterFuer(r),
   });
   art.line = makeCanvas(1, 1);
   addArt(name, art);

@@ -67,6 +67,14 @@ export const RECIPES = [
     { ember: 3, fire: 2 }),
   r('clothesline', 'Wäscheleine', { id: 'clothesline', n: 1 },
     [{ id: 'wood', n: 3 }, { id: 'fiber', n: 6 }], { ember: 3, fire: 2 }),
+  // Für die Wand im Zimmer. Beide aus dem, was ohnehin herumliegt: Was man
+  // sich an die eigene Wand hängt, soll man sich selbst gemacht haben.
+  r('picture', 'Bild', { id: 'picture', n: 1 },
+    [{ id: 'wood', n: 4 }, { id: 'fiber', n: 3 }, { id: 'flower_pink', n: 1 }],
+    { ember: 3, fire: 2, note: 'Hängt an der Zimmerwand.' }),
+  r('shelf', 'Wandbrett', { id: 'shelf', n: 1 },
+    [{ id: 'hardwood', n: 3 }, { id: 'fiber', n: 2 }],
+    { ember: 3, fire: 2, note: 'Hängt an der Zimmerwand.' }),
   r('hedgehogbox', 'Igelhaus', { id: 'hedgehogbox', n: 1 },
     [{ id: 'wood', n: 3 }, { id: 'fiber', n: 5 }, { id: 'mushroom', n: 1 }],
     { ember: 4, fire: 2 }),

@@ -242,6 +242,21 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Und zwar **Dämmerung, nicht Nacht**: Man sieht abends alles, auch ohne
   eine einzige Lampe. Ein Zimmer, in dem man ohne Laterne festsitzt, machte
   aus dem Aufstellen eine Pflicht.
+* **An die Wand.** Die Rückwand ist eine eigene Ebene mit eigenen Stücken:
+  **Bild**, **Wandbrett**, **Kranz** und **Hängepflanze**. Zwei baut man an
+  der Werkbank, zwei kommen aus dem Katalog. Sie hängen, sie stehen nicht –
+  man läuft darunter hindurch, und draußen gibt es dafür keinen Platz (das
+  Spiel sagt es auch, statt einen raten zu lassen).
+
+  Die Höhe steht fest. Wer sie selbst wählen könnte, richtete zwanzig Minuten
+  lang Bilder gerade aus; eine Reihe auf gleicher Höhe sieht ohnehin besser
+  aus. Waagerecht folgt der Vorschaupunkt Seli und weicht nach links und
+  rechts aus, wenn es eng wird.
+
+  **Zwei Stellen bleiben frei:** vor dem Fenster und hinter dem Bett. Das
+  erste nähme dem Zimmer sein Licht, das zweite wäre ein Bild, das man
+  aufhängt und nie wieder sieht. Abgenommen wird nah an der Wand mit Blick
+  nach oben – sonst hinge man beim Vorbeilaufen Bilder ab.
 * **Gedanken im eigenen Zimmer.** Wer sich drinnen hinsetzt, bekommt nach ein
   paar Sekunden einen Satz – aus einer eigenen Gruppe, nicht aus der, die vom
   Haus von *außen* handelt. „Draußen ist noch einiges zu tun. Draußen."
@@ -931,8 +946,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 505 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
-npm run test:browser   # 293 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 514 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
+npm run test:browser   # 299 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

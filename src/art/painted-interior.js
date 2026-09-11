@@ -13,7 +13,9 @@
 import {
   offsetShape, inkStroke, inkLine, wash, paintObject,
 } from './brush.js';
-import { INK as ink, fill, made, poly } from './painted.js';
+import { INK as ink, fill, made, poly, dot } from './painted.js';
+import { smoothClosed } from './brush.js';
+import { makeRng } from '../core/rng.js';
 
 /**
  * Holztöne der Dielen und der Wand – wärmer als draußen, es ist ja drinnen.
@@ -62,21 +64,15 @@ export function paintRoom(opts) {
     [tuerX, h - 26], [tuerX + tuerW, h - 26], [tuerX + tuerW, h], [tuerX, h],
   ], 2);
 
-  const fenster = [];
-  if (!zelt) {
-    const n = stufe >= 4 ? 2 : 1;
-    const fw = 92;
-    const fh = Math.min(66, wand - 36);
-    for (let i = 0; i < n; i++) {
-      // Gleichmäßig verteilt: bei einem in der Mitte, bei zweien gedrittelt.
-      const cx = w * ((i + 1) / (n + 1));
-      const y0 = Math.round((wand - fh) / 2);
-      fenster.push(poly([
-        [cx - fw / 2, y0], [cx + fw / 2, y0],
-        [cx + fw / 2, y0 + fh], [cx - fw / 2, y0 + fh],
-      ], 2));
-    }
-  }
+  // Die Fenstermaße kommen aus `interior.js`, nicht von hier: Die Frage, wo
+  // ein Bild an der Wand hängen darf, hängt an denselben Zahlen. Zwei
+  // Rechnungen liefen irgendwann auseinander, und dann hinge das Bild quer
+  // über dem Fenster.
+  const fenster = (o.fenster || []).map(function (f) {
+    return poly([
+      [f.x, f.y], [f.x + f.w, f.y], [f.x + f.w, f.y + f.h], [f.x, f.y + f.h],
+    ], 2);
+  });
 
   const res = paintObject(w, h, {
     seed: seed,
@@ -265,4 +261,220 @@ export function paintBed(opts) {
   // Fußpunkt unten: Das Bett steht auf dem Boden wie jedes Möbelstück, und
   // die Tiefensortierung im Zimmer rechnet mit dem Fuß.
   return made(res, w, h, cx, h - 10);
+}
+
+/* ------------------------------------------------------------- Wandstücke */
+
+/**
+ * Was an der Wand hängt.
+ *
+ * Alle vier mit dem Anker in der MITTE, nicht am Fuß: Sie stehen nicht auf
+ * dem Boden, sie hängen. Deshalb sind sie auch kleiner gezeichnet als
+ * Möbelstücke – auf einer Wand von 140 Punkten Höhe hat ein Bild von
+ * hundert Punkten keinen Platz.
+ */
+
+const RAHMEN = { holz: '#b08556', holzTief: '#8a6640', leinen: '#f4ecda' };
+
+/** Ein gerahmtes Bild – die Insel, in drei Streifen. */
+export function paintPicture(opts) {
+  const o = opts || {};
+  const w = 84;
+  const h = 68;
+  const seed = o.seed || 2101;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  const rahmen = poly([
+    [cx - 38, cy - 28], [cx + 38, cy - 28], [cx + 38, cy + 28], [cx - 38, cy + 28],
+  ], 3);
+  const blatt = poly([
+    [cx - 30, cy - 20], [cx + 30, cy - 20], [cx + 30, cy + 20], [cx - 30, cy + 20],
+  ], 3);
+  const himmel = poly([
+    [cx - 30, cy - 20], [cx + 30, cy - 20], [cx + 30, cy - 4], [cx - 30, cy - 4],
+  ], 2);
+  const huegel = poly([
+    [cx - 30, cy - 6], [cx - 8, cy - 14], [cx + 14, cy - 5], [cx + 30, cy - 9],
+    [cx + 30, cy + 8], [cx - 30, cy + 8],
+  ], 3);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.3,
+    outline: 1.6,
+    shadow: null,
+    wash: function (g) {
+      wash(g, rahmen, RAHMEN.holz, { seed: seed + 1, scale: 1.02 });
+      wash(g, blatt, RAHMEN.leinen, { seed: seed + 2, scale: 1.02 });
+      wash(g, himmel, '#cfe2ea', { seed: seed + 3, alpha: 0.9 });
+      wash(g, huegel, '#9dbb7c', { seed: seed + 4, alpha: 0.92 });
+      wash(g, poly([[cx - 30, cy + 6], [cx + 30, cy + 6], [cx + 30, cy + 20], [cx - 30, cy + 20]], 2),
+        '#8fb2c4', { seed: seed + 5, alpha: 0.8 });
+    },
+    shape: function (g) { fill(g, rahmen); },
+    ink: function (g) {
+      inkStroke(g, rahmen, { width: 1.9, seed: seed + 10 });
+      inkStroke(g, blatt, { width: 1.2, seed: seed + 11 });
+      inkStroke(g, huegel, { width: 1.1, seed: seed + 12 });
+      // Der Nagel, an dem es hängt.
+      inkLine(g, cx, cy - 30, cx, cy - 27,
+        { width: 2.0, bend: 0, seed: seed + 13, color: ink.line, alpha: 0.8 });
+    },
+  });
+  return made(res, w, h, cx, cy);
+}
+
+/** Ein Kranz aus Blättern und Blüten. */
+export function paintWreath(opts) {
+  const o = opts || {};
+  const w = 80;
+  const h = 80;
+  const seed = o.seed || 2111;
+  const cx = w / 2;
+  const cy = h / 2;
+  const rng = makeRng(seed);
+
+  const ring = [];
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2;
+    const r = 28 + (rng() - 0.5) * 3;
+    ring.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    // Dünn: Die Silhouette eines Kranzes ist ein Kreis, und ein kräftiger
+    // Strich darum machte aus dem Gesteck einen Reifen.
+    outline: 0.9,
+    shadow: null,
+    wash: function (g) {
+      // Der Kranz ist ein Ring aus Tupfen, kein Reifen: Ein sauberer Kreis
+      // sähe gedruckt aus, und hier ist alles gemalt.
+      for (let i = 0; i < 22; i++) {
+        const a = (i / 22) * Math.PI * 2 + 0.2;
+        const r = 28 + (rng() - 0.5) * 6;
+        dot(g, null, cx + Math.cos(a) * r, cy + Math.sin(a) * r,
+          7 + rng() * 3, i % 5 === 0 ? '#a8c47f' : '#8fb26a', seed + i);
+      }
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + 0.9;
+        dot(g, null, cx + Math.cos(a) * 28, cy + Math.sin(a) * 28,
+          5, i % 2 ? ink.petalPink : ink.petalYellow, seed + 50 + i);
+      }
+    },
+    // GAR KEINE Silhouette: Die Umrisslinie einer geschlossenen Ringform ist
+    // ein Kreis, und zwei Versuche später sah der Kranz immer noch aus wie
+    // ein schwarzer Reifen mit Grün daneben. Ein Kranz ist ein Gesteck – er
+    // besteht aus Tupfen und Blattstrichen, nicht aus einer Kontur.
+    shape: null,
+    ink: function (g) {
+      // KEIN Strich am Ring entlang: Der machte aus dem Gesteck einen
+      // Reifen – im Bild ein schwarzer Kreis mit Grün drumherum. Ein Kranz
+      // hat keine Kontur, er hat Blätter.
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2;
+        inkLine(g, cx + Math.cos(a) * 23, cy + Math.sin(a) * 23,
+          cx + Math.cos(a + 0.42) * 33, cy + Math.sin(a + 0.42) * 33,
+          { width: 1.1, bend: 0.24, seed: seed + 70 + i, color: ink.lineSoft, alpha: 0.6 });
+      }
+    },
+  });
+  return made(res, w, h, cx, cy);
+}
+
+/** Ein Wandbrett mit ein paar Kleinigkeiten darauf. */
+export function paintShelf(opts) {
+  const o = opts || {};
+  const w = 96;
+  const h = 66;
+  const seed = o.seed || 2121;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  const brett = poly([
+    [cx - 42, cy + 8], [cx + 42, cy + 8], [cx + 42, cy + 18], [cx - 42, cy + 18],
+  ], 3);
+  const halterL = poly([[cx - 34, cy + 18], [cx - 26, cy + 18], [cx - 30, cy + 28]], 2);
+  const halterR = poly([[cx + 26, cy + 18], [cx + 34, cy + 18], [cx + 30, cy + 28]], 2);
+  const buch = poly([[cx - 30, cy - 12], [cx - 12, cy - 12], [cx - 12, cy + 8], [cx - 30, cy + 8]], 2);
+  const topf = poly([[cx + 8, cy - 4], [cx + 28, cy - 4], [cx + 25, cy + 8], [cx + 11, cy + 8]], 3);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.3,
+    outline: 1.6,
+    shadow: null,
+    wash: function (g) {
+      wash(g, brett, RAHMEN.holz, { seed: seed + 1, scale: 1.02 });
+      wash(g, halterL, RAHMEN.holzTief, { seed: seed + 2 });
+      wash(g, halterR, RAHMEN.holzTief, { seed: seed + 3 });
+      wash(g, buch, '#c2705f', { seed: seed + 4, scale: 1.02 });
+      wash(g, topf, '#b98a63', { seed: seed + 5, scale: 1.02 });
+      dot(g, null, cx + 18, cy - 12, 11, '#8fb26a', seed + 6);
+      dot(g, null, cx + 10, cy - 8, 7, '#a8c47f', seed + 7);
+    },
+    shape: function (g) {
+      fill(g, brett); fill(g, halterL); fill(g, halterR);
+      fill(g, buch); fill(g, topf);
+    },
+    ink: function (g) {
+      inkStroke(g, brett, { width: 1.8, seed: seed + 10 });
+      inkStroke(g, buch, { width: 1.4, seed: seed + 11 });
+      inkStroke(g, topf, { width: 1.4, seed: seed + 12 });
+      inkLine(g, cx - 24, cy - 10, cx - 24, cy + 6,
+        { width: 1.0, bend: 0.02, seed: seed + 13, color: ink.lineSoft, alpha: 0.6 });
+    },
+  });
+  return made(res, w, h, cx, cy);
+}
+
+/** Eine Hängepflanze – der Topf oben, die Ranken darunter. */
+export function paintHangplant(opts) {
+  const o = opts || {};
+  const w = 78;
+  const h = 96;
+  const seed = o.seed || 2131;
+  const cx = w / 2;
+  const cy = h / 2;
+  const rng = makeRng(seed);
+
+  const topf = poly([
+    [cx - 20, cy - 20], [cx + 20, cy - 20], [cx + 15, cy - 2], [cx - 15, cy - 2],
+  ], 3);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.5,
+    shadow: null,
+    wash: function (g) {
+      wash(g, topf, '#c08a5e', { seed: seed + 1, scale: 1.02 });
+      // Ranken: drei, verschieden lang, sonst sieht es gekämmt aus.
+      for (let k = 0; k < 3; k++) {
+        const x0 = cx - 12 + k * 12;
+        const lang = 22 + k * 9 + rng() * 8;
+        for (let i = 0; i < 6; i++) {
+          const t = i / 5;
+          dot(g, null, x0 + Math.sin(t * 3 + k) * 6, cy - 4 + t * lang,
+            6 - t * 2, t > 0.6 ? '#7fa35c' : '#96b86f', seed + k * 10 + i);
+        }
+      }
+    },
+    shape: function (g) { fill(g, topf); },
+    ink: function (g) {
+      inkStroke(g, topf, { width: 1.7, seed: seed + 30 });
+      for (let k = 0; k < 3; k++) {
+        const x0 = cx - 12 + k * 12;
+        const lang = 22 + k * 9;
+        inkLine(g, x0, cy - 4, x0 + Math.sin(3 + k) * 6, cy - 4 + lang,
+          { width: 1.1, bend: 0.18, seed: seed + 40 + k, color: ink.lineSoft, alpha: 0.55 });
+      }
+      // Die Schnur, an der er hängt.
+      inkLine(g, cx, cy - 42, cx, cy - 21,
+        { width: 1.2, bend: 0.02, seed: seed + 50, color: ink.lineSoft, alpha: 0.7 });
+    },
+  });
+  return made(res, w, h, cx, cy);
 }

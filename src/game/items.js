@@ -117,6 +117,13 @@ const LIST = [
   it('rainmushroom', 'Regenpilz', CAT.FORAGE, 30, 6, { onlyAt: 'rain', spawn: 8 }),
   it('fogcrystal', 'Nebelkristall', CAT.RELIC, 48, 9, { onlyAt: 'fog', spawn: 5 }),
 
+  // An die Wand – nur im Zimmer. `wand` sagt: Das hängt, es steht nicht.
+  // Draußen gibt es dafür keinen Platz, und das Spiel sagt es auch.
+  it('picture', 'Bild', CAT.DECOR, 64, 0, { prop: 'picture', wand: true, charm: 5 }),
+  it('shelf', 'Wandbrett', CAT.DECOR, 58, 0, { prop: 'shelf', wand: true, charm: 4 }),
+  it('wreath', 'Kranz', CAT.DECOR, 96, 0, { prop: 'wreath', wand: true, charm: 6 }),
+  it('hangplant', 'Hängepflanze', CAT.DECOR, 130, 0, { prop: 'hangplant', wand: true, charm: 7 }),
+
   // Deko (aufstellbar)
   it('lantern', 'Laterne', CAT.DECOR, 40, 0, { prop: 'lantern', light: 62, charm: 4 }),
   it('moonlamp', 'Mondlaterne', CAT.DECOR, 120, 0, { prop: 'lantern', light: 128, charm: 9 }),

@@ -192,6 +192,11 @@ export const HINTS = {
   steppingstones: 'Werkbank – drei auf einmal.',
   arch: 'Werkbank, braucht ein großes Feuer.',
   clothesline: 'Werkbank.',
+  // An die Wand im Zimmer.
+  picture: 'Werkbank. Hängt an der Zimmerwand.',
+  shelf: 'Werkbank. Hängt an der Zimmerwand.',
+  wreath: 'Aus dem Katalog. Hängt an der Zimmerwand.',
+  hangplant: 'Aus dem Katalog. Hängt an der Zimmerwand.',
   bookstack: 'Aus dem Katalog.',
   keepsake_locket: 'Flämmchens Andenken, wenn seine Kette voll ist.',
   keepsake_ribbon: 'Miras Andenken, wenn ihre Kette voll ist.',

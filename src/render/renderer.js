@@ -186,6 +186,16 @@ export class Renderer {
     ctx.scale(z, z);
     drawSprite(ctx, game.raumSprite(), ox, oy, false);
 
+    // Was an der Wand hängt, liegt VOR dem Wandbild und HINTER allem, was
+    // auf dem Boden steht. Eine eigene Ebene, keine Tiefensortierung: Eine
+    // Wand hat keine Tiefe.
+    const wandStuecke = game.innenWand();
+    for (let i = 0; i < wandStuecke.length; i++) {
+      const s = wandStuecke[i];
+      const item = getItem(s.id);
+      if (item && item.prop) drawSprite(ctx, item.prop, ox + s.x, oy + s.y, false);
+    }
+
     // Stücke und Seli in EINER Liste, nach Tiefe sortiert. Das Bett steht
     // fest eingebaut mit drin: Es soll sich genauso einordnen wie ein Stuhl,
     // sonst liefe Seli davor, wenn sie dahinter steht.
@@ -231,7 +241,9 @@ export class Renderer {
     const p = game.placing;
     if (p && p.sprite) {
       ctx.globalAlpha = p.valid ? 0.72 : 0.34;
-      drawSprite(ctx, p.sprite, bx + p.x, by + p.y, false);
+      // Wandstücke zählen von der Wandoberkante, nicht vom Boden.
+      if (p.wand) drawSprite(ctx, p.sprite, ox + p.x, oy + p.y, false);
+      else drawSprite(ctx, p.sprite, bx + p.x, by + p.y, false);
       ctx.globalAlpha = 1;
     }
     ctx.restore();

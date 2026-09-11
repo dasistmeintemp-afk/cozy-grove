@@ -28,6 +28,7 @@ const SPRITE_NAMES = (function () {
     'rock_granite', 'rock_geode',
     'bush_berry', 'bush_plain', 'grass_tuft', 'reeds', 'mushroom', 'herb',
     'shell', 'driftwood', 'digspot', 'feather', 'stardust',
+    'picture', 'wreath', 'shelf', 'hangplant',
     'moonflower', 'rainmushroom', 'fogcrystal',
     'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
     'campfire', 'tent', 'stall', 'workbench', 'kitchen', 'boat', 'mailbox', 'chest',

@@ -23,6 +23,8 @@ import {
   klemmeInRaum, platzFrei, stueckAn, maxStuecke, gemuetlichkeit, wohnStufe,
   bisZurNaechstenWohnstufe, wohnBonus, emptyInterior, interiorAus, BETT_HOEHE,
   AUSSTATTUNG, AUSSTATTUNG_IDS, ausstattungFuer,
+  fensterFuer, wandHoehe, maxWandStuecke, anDerWand, wandPlatzFrei, wandStueckAn,
+  WAND_ABSTAND, WAND_RAND,
 } from '../../src/game/interior.js';
 import { HOUSE_STAGES, MAX_HOUSE_STAGE, houseColor } from '../../src/game/house.js';
 import { getItem, ITEM_LIST, CAT } from '../../src/game/items.js';
@@ -373,4 +375,116 @@ test('Eine kaputte Ausstattung im Spielstand wird gerade gezogen', () => {
     AUSSTATTUNG[0].id);
   assert.equal(interiorAus({ stuecke: [], ausstattung: 'moos' }, RAUM, null).ausstattung, 'moos');
   assert.equal(interiorAus(null, RAUM, null).ausstattung, AUSSTATTUNG[0].id);
+});
+
+/* ---------------- Die Wand ---------------- */
+
+test('In jedem Zimmer ist Wand frei – auch in der Zeltecke', () => {
+  // Genau das war NICHT so: Waagerechter und senkrechter Rand waren
+  // dieselbe Zahl (54), und die Zeltwand ist 96 hoch – in der Zeltecke blieb
+  // kein einziger Platz übrig. Gemessen, nicht vermutet.
+  for (const r of RAEUME) {
+    let frei = 0;
+    for (let x = 0; x <= r.w; x += 10) {
+      if (wandPlatzFrei([], x, wandHoehe(r), r)) frei++;
+    }
+    assert.ok(frei >= 8, r.name + ': nur ' + frei + ' freie Wandstellen');
+    assert.ok(maxWandStuecke(r) >= 3, r.name + ': dort passt fast nichts an die Wand');
+  }
+});
+
+test('Nichts hängt über dem Fenster', () => {
+  // Ein Bild vor dem Fenster nähme dem Zimmer sein Licht – und das Licht ist
+  // das, was den Raum von einem Karton unterscheidet.
+  for (const r of RAEUME) {
+    for (const f of fensterFuer(r)) {
+      for (let x = f.x; x <= f.x + f.w; x += 10) {
+        assert.equal(wandPlatzFrei([], x, wandHoehe(r), r), false,
+          r.name + ': über dem Fenster ging etwas hin (' + Math.round(x) + ')');
+      }
+    }
+  }
+});
+
+test('Und nichts hinter dem Bett', () => {
+  // Physikalisch richtig wäre es – aber ein Bild, das man aufhängt und nie
+  // wieder sieht, ist ein verschenktes Bild.
+  for (const r of RAEUME) {
+    const b = bettFuer(r);
+    assert.equal(wandPlatzFrei([], b.x, wandHoehe(r), r), false, r.name);
+  }
+});
+
+test('Zwei Wandstücke hängen nicht übereinander', () => {
+  const r = raumFuer(4);
+  const y = wandHoehe(r);
+  let x0 = null;
+  for (let x = 0; x <= r.w && x0 === null; x += 5) {
+    if (wandPlatzFrei([], x, y, r)) x0 = x;
+  }
+  assert.ok(x0 !== null, 'gar keine freie Stelle gefunden');
+  const wand = [{ id: 'picture', x: x0, y: y }];
+  assert.equal(wandPlatzFrei(wand, x0, y, r), false);
+  assert.equal(wandPlatzFrei(wand, x0 + WAND_ABSTAND - 4, y, r), false, 'zu nah');
+  // Beim Verschieben darf das Stück selbst nicht im Weg stehen.
+  assert.equal(wandPlatzFrei(wand, x0, y, r, wand[0]), true);
+});
+
+test('Nur an der Wand, nicht im Boden und nicht im Nichts', () => {
+  const r = raumFuer(3);
+  assert.equal(anDerWand(r.w / 2, wandHoehe(r), r), true);
+  assert.equal(anDerWand(-5, wandHoehe(r), r), false);
+  assert.equal(anDerWand(r.w + 5, wandHoehe(r), r), false);
+  assert.equal(anDerWand(r.w / 2, -5, r), false);
+  assert.equal(anDerWand(r.w / 2, r.wand + 5, r), false, 'das ist schon der Boden');
+});
+
+test('Ein Wandstück wird angesprochen, das daneben nicht', () => {
+  const wand = [{ id: 'picture', x: 300, y: 40 }, { id: 'wreath', x: 460, y: 40 }];
+  assert.equal(wandStueckAn(wand, 305, 40), wand[0]);
+  assert.equal(wandStueckAn(wand, 455, 40), wand[1]);
+  assert.equal(wandStueckAn(wand, 900, 40), null);
+  assert.equal(wandStueckAn([], 300, 40), null);
+});
+
+test('Was hängt, ist als hängend gekennzeichnet – und hat eine Grafik', () => {
+  const haenger = ITEM_LIST.filter((i) => i.wand);
+  assert.ok(haenger.length >= 4, 'nur ' + haenger.length + ' Wandstücke');
+  for (const it of haenger) {
+    assert.equal(it.cat, CAT.DECOR, it.id + ' ist keine Deko');
+    assert.ok(it.prop, it.id + ' hat keine Weltgrafik');
+    assert.ok(it.charm > 0, it.id + ' zählt nicht für die Gemütlichkeit');
+    // Nichts, was hängt, liegt flach oder ist eine Bodenkachel.
+    assert.ok(!it.flat && !it.tile, it.id + ': hängt und liegt zugleich');
+  }
+});
+
+test('Was an der Wand hängt, zählt für die Gemütlichkeit mit', () => {
+  // Ein Bild macht ein Zimmer wohnlicher als ein weiterer Stuhl.
+  const boden = [{ id: 'bench', x: 1, y: 1 }];
+  const wand = [{ id: 'picture', x: 2, y: 2 }];
+  const nurBoden = gemuetlichkeit(boden, getItem);
+  const mitWand = gemuetlichkeit(boden, getItem, wand);
+  assert.equal(mitWand, nurBoden + getItem('picture').charm);
+  assert.equal(gemuetlichkeit(null, getItem, wand), getItem('picture').charm);
+});
+
+test('Die Wand übersteht Speichern und Laden', () => {
+  const r = raumFuer(3);
+  const roh = { stuecke: [], wand: [
+    { id: 'picture', x: 400, y: 999 },
+    { id: 'gibtsnicht', x: 400 },
+    null,
+    { id: 'wreath', x: 'links' },
+    { id: 'shelf', x: 99999 },
+  ] };
+  const i = interiorAus(roh, r, (id) => !!(getItem(id) && getItem(id).prop));
+  assert.equal(i.wand.length, 2, 'durchgekommen: ' + JSON.stringify(i.wand));
+  for (const s of i.wand) {
+    // Die Höhe kommt aus dem Raum, nicht aus dem Spielstand: Eine „999" darin
+    // hinge sonst unter dem Fussboden.
+    assert.equal(s.y, wandHoehe(r), s.id + ' hängt auf einer erfundenen Höhe');
+    assert.ok(s.x >= WAND_RAND && s.x <= r.w - WAND_RAND, s.id + ' hängt neben der Wand');
+  }
+  assert.deepEqual(interiorAus(null, r, null).wand, []);
 });

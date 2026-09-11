@@ -26,6 +26,7 @@ import {
   raumFuer, tuerFuer, anDerTuer, imRaum, platzFrei, stueckAn, maxStuecke,
   gemuetlichkeit, wohnBonus, wohnStufe, emptyInterior, interiorAus, RAND,
   bettFuer, amBett, ausstattungFuer, AUSSTATTUNG_IDS,
+  wandPlatzFrei, wandStueckAn, wandHoehe, maxWandStuecke, WAND_RAND, WAND_ABSTAND,
 } from './interior.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
@@ -147,6 +148,14 @@ const INNEN_SICHT = 200;
  * das Lampenaufstellen eine Pflicht.
  */
 const INNEN_NACHT = 0.4;
+
+/**
+ * Wie nah an der Rueckwand Seli stehen muss, um ein Bild abzunehmen.
+ *
+ * Mit Blickrichtung nach oben: Sonst haenge sie beim Vorbeilaufen Bilder ab,
+ * und die Wand waere ein Stolperdraht statt einer Ebene.
+ */
+const WAND_GRIFF = 96;
 
 const AUTOSAVE_SECONDS = 20;
 
@@ -3482,6 +3491,11 @@ export class Game {
     return (this.state.interior && this.state.interior.stuecke) || [];
   }
 
+  /** Was an der Wand hängt. */
+  innenWand() {
+    return (this.state.interior && this.state.interior.wand) || [];
+  }
+
   /** Wo das Bett steht – in Raumkoordinaten. */
   bettPunkt() {
     return bettFuer(this.raum());
@@ -3690,7 +3704,13 @@ export class Game {
   innenZiel() {
     if (!this.innen || this.placing) return null;
     const p = this._innenVorDerNase();
-    return stueckAn(this.innenStuecke(), p.x, p.y, 54);
+    const boden = stueckAn(this.innenStuecke(), p.x, p.y, 54);
+    if (boden) return boden;
+    // Die Wand kommt erst danach – und nur, wenn Seli nah genug davor steht
+    // und nach oben schaut. Sonst nähme sie ein Bild ab, während sie quer
+    // durchs Zimmer läuft.
+    if (this.innen.y > WAND_GRIFF || this.player.dir !== 'up') return null;
+    return wandStueckAn(this.innenWand(), this.innen.x, 60);
   }
 
   /**
@@ -3867,8 +3887,9 @@ export class Game {
       return;
     }
     if (this.placing) {
+      const tu = this.placing.wand ? 'aufhängen' : 'hinstellen';
       this.ui.setPrompt(this.placing.valid
-        ? 'E hinstellen · X abbrechen'
+        ? 'E ' + tu + ' · X abbrechen'
         : (this.placing.reason || 'Hier passt es nicht') + ' · X abbrechen');
       return;
     }
@@ -3888,8 +3909,9 @@ export class Game {
           : 'Hinsetzen');
         return;
       }
+      const it = getItem(s.id);
       this.ui.setPrompt(this.player.tool.id === 'hand'
-        ? itemName(s.id) + ' einpacken'
+        ? itemName(s.id) + (it && it.wand ? ' abnehmen' : ' einpacken')
         : 'Mit der Hand aufheben');
       return;
     }
@@ -3912,6 +3934,39 @@ export class Game {
   _innenPlacingUpdate() {
     if (!this.placing) return;
     const raum = this.raum();
+    // Wandstücke haben ihre eigene Ebene: Die Höhe steht fest (siehe
+    // `wandHoehe`), waagerecht folgt der Punkt Seli. Wer die Höhe selbst
+    // wählen kann, richtet zwanzig Minuten lang Bilder gerade aus.
+    if (this.placing.wand) {
+      const wand = this.innenWand();
+      const y = wandHoehe(raum);
+      const px = Math.round(Math.max(WAND_RAND, Math.min(raum.w - WAND_RAND, this.innen.x)));
+      if (wandPlatzFrei(wand, px, y, raum)) {
+        this.placing.x = px;
+        this.placing.y = y;
+        this.placing.valid = true;
+        this.placing.reason = null;
+        return;
+      }
+      // Zur Seite ausweichen, links und rechts abwechselnd.
+      for (let d = WAND_ABSTAND; d <= WAND_ABSTAND * 4; d += 18) {
+        for (let s2 = -1; s2 <= 1; s2 += 2) {
+          const x = Math.round(px + s2 * d);
+          if (wandPlatzFrei(wand, x, y, raum)) {
+            this.placing.x = x;
+            this.placing.y = y;
+            this.placing.valid = true;
+            this.placing.reason = null;
+            return;
+          }
+        }
+      }
+      this.placing.x = px;
+      this.placing.y = y;
+      this.placing.valid = false;
+      this.placing.reason = 'An der Wand ist kein Platz';
+      return;
+    }
     const stuecke = this.innenStuecke();
     const p = this._innenVorDerNase(64);
     const px = Math.round(p.x);
@@ -3957,6 +4012,22 @@ export class Game {
       return;
     }
     if (this.inventory.count(p.itemId) <= 0) { this.cancelPlacing(); return; }
+    if (p.wand) {
+      const wand = this.innenWand();
+      if (wand.length >= maxWandStuecke(this.raum())) {
+        this.ui.toast('Die Wand ist voll', 'icon_lock', 'bad');
+        this.audio.play('fail');
+        return;
+      }
+      this.inventory.remove(p.itemId, 1);
+      wand.push({ id: p.itemId, x: p.x, y: p.y });
+      this.audio.play('place');
+      this._note('decor');
+      this.cancelPlacing();
+      this._innenWirkung();
+      this.save();
+      return;
+    }
     const stuecke = this.innenStuecke();
     if (stuecke.length >= maxStuecke(this.raum())) {
       this.ui.toast('Das Zimmer ist voll', 'icon_lock', 'bad');
@@ -3984,6 +4055,11 @@ export class Game {
     const stuecke = this.innenStuecke();
     const i = stuecke.indexOf(s);
     if (i >= 0) stuecke.splice(i, 1);
+    else {
+      const wand = this.innenWand();
+      const k = wand.indexOf(s);
+      if (k >= 0) wand.splice(k, 1);
+    }
     this.audio.play('place');
     this.ui.toast(itemName(s.id) + ' eingepackt', getItem(s.id).icon);
     this._innenWirkung();
@@ -3992,7 +4068,7 @@ export class Game {
 
   /** Wie gemütlich es drinnen gerade ist. */
   wohnPunkte() {
-    return gemuetlichkeit(this.innenStuecke(), getItem);
+    return gemuetlichkeit(this.innenStuecke(), getItem, this.innenWand());
   }
 
   /**
@@ -4423,6 +4499,11 @@ export class Game {
         item.icon);
       return;
     }
+    // Und umgekehrt: Was hängt, braucht eine Wand. Draußen gibt es keine.
+    if (!this.innen && item.wand) {
+      this.ui.toast('Das gehört an eine Zimmerwand', item.icon);
+      return;
+    }
     // Zum Aufstellen muss man aufstehen. Sonst säße sie fest: Beim Sitzen
     // gehört die E-Taste dem Ausruhen, und der Platz ließe sich nie
     // bestätigen – man käme mit dem Stück in der Hand nicht mehr heraus.
@@ -4437,6 +4518,8 @@ export class Game {
       flat: !!item.flat,
       tile: !!item.tile,
       plant: item.plant || null,
+      // Wandstücke hängen auf einer eigenen Ebene mit eigenen Koordinaten.
+      wand: !!(item.wand && this.innen),
     };
     this.ui.toast(item.plant
       ? 'Platz wählen · E säen · X abbrechen'

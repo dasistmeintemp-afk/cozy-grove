@@ -3379,6 +3379,119 @@ async function run() {
       innen2.lichterOhne === 0 && innen2.lichterMit === 1 &&
       innen2.lichtReicht === true, JSON.stringify(innen2));
 
+    /* ---- An der Wand ---- */
+
+    const wandTest = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const { wandHoehe, anDerWand, fensterFuer, bettFuer } =
+        await import('/src/game/interior.js');
+
+      const merkHaus = g.state.house;
+      const merkInterior = g.state.interior;
+      const merkSlots = g.inventory.slots;
+      g.state.house = 3;
+      g.state.interior = { stuecke: [], wand: [], ausstattung: 'holz' };
+      g.inventory.slots = [];
+      g.syncHouse();
+
+      // Draußen geht ein Bild gar nicht erst.
+      g.inventory.add('picture', 1);
+      g.startPlacing('picture');
+      r.draussenAbgelehnt = !g.placing;
+
+      g.betritt();
+      const raum = g.raum();
+
+      // Drinnen schon – und der Vorschaupunkt liegt auf der WAND, nicht am Boden.
+      g.innen.x = Math.round(raum.w * 0.8);
+      g.innen.y = 60;
+      g.player.dir = 'up';
+      g.startPlacing('picture');
+      r.drinnenGeht = !!g.placing;
+      r.alsWand = !!(g.placing && g.placing.wand);
+      g._innenPlacingUpdate();
+      r.platzGefunden = !!(g.placing && g.placing.valid);
+      r.aufDerWand = !!(g.placing && anDerWand(g.placing.x, g.placing.y, raum));
+      r.hoeheStimmt = !!(g.placing && g.placing.y === wandHoehe(raum));
+      g._innenPrompt();
+      r.hinweisHaengen = g.ui._lastPrompt;
+      g._innenInteract();
+      r.haengt = g.innenWand().length;
+      r.ausDerTasche = g.inventory.count('picture');
+      r.punkte = g.wohnPunkte();
+
+      // Es steht NICHT im Weg: Man läuft unter einem Bild hindurch.
+      const hing = g.innenWand()[0];
+      r.laeuftDrunterDurch = g._innenBegehbar(hing.x, 60) === true;
+
+      // Vor dem Fenster geht nichts hin.
+      const f = fensterFuer(raum)[0];
+      g.inventory.add('wreath', 1);
+      g.startPlacing('wreath');
+      g.innen.x = f.x + f.w / 2;
+      g._innenPlacingUpdate();
+      r.nichtVorsFenster = Math.abs(g.placing.x - (f.x + f.w / 2)) > 40 ||
+        g.placing.valid === false;
+      g.cancelPlacing();
+
+      // Und nicht hinter das Bett.
+      const b = bettFuer(raum);
+      g.startPlacing('wreath');
+      g.innen.x = b.x;
+      g._innenPlacingUpdate();
+      r.nichtHinterDasBett = Math.abs(g.placing.x - b.x) > 40 || g.placing.valid === false;
+      g.cancelPlacing();
+
+      // Abnehmen: nah an der Wand, Blick nach oben.
+      g.innen.x = hing.x;
+      g.innen.y = 60;
+      g.player.dir = 'up';
+      r.zielGefunden = g.innenZiel() === hing;
+      g._innenPrompt();
+      r.hinweisAbnehmen = g.ui._lastPrompt;
+      // Quer durchs Zimmer laufend nicht.
+      g.innen.y = Math.round(raum.h * 0.7);
+      r.vonWeitemNicht = g.innenZiel() === null;
+      g.innen.y = 60;
+      g._innenInteract();
+      r.danachAnDerWand = g.innenWand().length;
+      r.zurueckInDerTasche = g.inventory.count('picture');
+
+      // Und die Wand steht im Spielstand.
+      g.innenWand().push({ id: 'wreath', x: Math.round(raum.w * 0.8), y: wandHoehe(raum) });
+      const json = JSON.parse(JSON.stringify(g.toJSON()));
+      r.imSpielstand = (json.state.interior.wand || []).length;
+
+      g.verlaesst();
+      g.state.house = merkHaus;
+      g.state.interior = merkInterior;
+      g.inventory.slots = merkSlots;
+      g.syncHouse();
+      return r;
+    });
+    check('Ein Bild gehört an die Wand – draußen geht es nicht',
+      wandTest.draussenAbgelehnt === true && wandTest.drinnenGeht === true &&
+      wandTest.alsWand === true, JSON.stringify(wandTest));
+    check('Der Vorschaupunkt liegt auf der Wand, auf der richtigen Höhe',
+      wandTest.platzGefunden === true && wandTest.aufDerWand === true &&
+      wandTest.hoeheStimmt === true && wandTest.hinweisHaengen === 'E aufhängen · X abbrechen',
+      JSON.stringify(wandTest));
+    check('Aufgehängt zählt es für die Gemütlichkeit und steht nicht im Weg',
+      wandTest.haengt === 1 && wandTest.ausDerTasche === 0 &&
+      wandTest.punkte > 0 && wandTest.laeuftDrunterDurch === true,
+      JSON.stringify(wandTest));
+    check('Vor dem Fenster und hinter dem Bett hängt nichts',
+      wandTest.nichtVorsFenster === true && wandTest.nichtHinterDasBett === true,
+      JSON.stringify(wandTest));
+    check('Abgenommen wird nah an der Wand – nicht im Vorbeilaufen',
+      wandTest.zielGefunden === true && wandTest.vonWeitemNicht === true &&
+      wandTest.hinweisAbnehmen === 'Bild abnehmen' &&
+      wandTest.danachAnDerWand === 0 && wandTest.zurueckInDerTasche === 1,
+      JSON.stringify(wandTest));
+    check('Die Wand steht im Spielstand',
+      wandTest.imSpielstand === 1, JSON.stringify(wandTest));
+
     /* ---- Das Haustier ---- */
     const tier = await page.evaluate(async () => {
       const g = window.CozyGrove.game;

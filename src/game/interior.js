@@ -101,6 +101,121 @@ export function ausstattungFuer(id) {
 /** Wie breit die Tür ist – dort geht es wieder hinaus. */
 export const TUER_BREITE = 104;
 
+/* ------------------------------------------------------------------- Wand */
+
+/**
+ * Die Fenster in der Rückwand.
+ *
+ * Steht hier und nicht im Maler, weil es zwei Stellen gibt, die es wissen
+ * müssen: das Bild UND die Frage, wo ein Wandstück hängen darf. Ein Bild
+ * quer über dem Fenster wäre genau die Sorte Fehler, die man erst sieht,
+ * wenn sie schon im Spielstand steht.
+ *
+ * Die Zeltecke hat keines – ein Zelt hat kein Fenster.
+ */
+export const FENSTER_B = 92;
+
+export function fensterFuer(raum) {
+  if (raum.stufe <= 1) return [];
+  const n = raum.stufe >= 4 ? 2 : 1;
+  const h = Math.min(66, raum.wand - 36);
+  const y0 = Math.round((raum.wand - h) / 2);
+  const raus = [];
+  for (let i = 0; i < n; i++) {
+    const cx = raum.w * ((i + 1) / (n + 1));
+    raus.push({ x: cx - FENSTER_B / 2, y: y0, w: FENSTER_B, h: h });
+  }
+  return raus;
+}
+
+/**
+ * Wie viel Platz ein Wandstück um sich braucht.
+ *
+ * Enger als am Boden: An einer Wand hängt man Bilder dichter nebeneinander
+ * als man Stühle hinstellt.
+ */
+export const WAND_ABSTAND = 74;
+
+/**
+ * Abstand zum Rand der Wand – waagerecht und senkrecht GETRENNT.
+ *
+ * Waagerecht muss auch das breiteste Wandstück (das Wandbrett, 96 Punkte)
+ * mit seinem Mittelpunkt noch ganz auf die Wand passen. Senkrecht darf der
+ * Rand dagegen kaum etwas sein: Die Zeltwand ist 96 Punkte hoch, und mit
+ * demselben Rand von 54 oben und unten blieb dort **kein einziger Platz**
+ * übrig – gemessen, nicht vermutet. Eine Zahl für beide Richtungen sah
+ * sauber aus und machte die Zeltecke wandlos.
+ */
+export const WAND_RAND = 54;
+export const WAND_RAND_Y = 8;
+
+/**
+ * Auf welcher Höhe ein Wandstück hängt.
+ *
+ * Eine Höhe, nicht mehrere: Wer die Höhe selbst wählen kann, richtet
+ * zwanzig Minuten lang Bilder gerade aus. Eine Reihe auf gleicher Höhe sieht
+ * ohnehin besser aus, und das Spiel nimmt einem die Entscheidung ab, die
+ * keine ist.
+ */
+export function wandHoehe(raum) {
+  return Math.round(raum.wand * 0.5);
+}
+
+/** Wie viele Stücke an eine Wand passen. */
+export function maxWandStuecke(raum) {
+  return Math.max(3, Math.floor((raum.w - WAND_RAND * 2) / WAND_ABSTAND));
+}
+
+/** Liegt der Punkt auf der Rückwand? */
+export function anDerWand(x, y, raum) {
+  return x >= WAND_RAND && x <= raum.w - WAND_RAND &&
+    y >= WAND_RAND_Y && y <= raum.wand - WAND_RAND_Y;
+}
+
+/**
+ * Ist an der Wand hier Platz?
+ *
+ * Zwei Bedingungen: nicht über einem anderen Stück und nicht über dem
+ * Fenster. Ein Bild vor dem Fenster nähme dem Zimmer sein Licht – und das
+ * Licht ist das, was den Raum von einem Karton unterscheidet.
+ */
+export function wandPlatzFrei(wand, x, y, raum, ausser) {
+  if (!anDerWand(x, y, raum)) return false;
+  const fenster = fensterFuer(raum);
+  for (let i = 0; i < fenster.length; i++) {
+    const f = fenster[i];
+    if (x > f.x - WAND_ABSTAND * 0.6 && x < f.x + f.w + WAND_ABSTAND * 0.6) return false;
+  }
+  // Und nicht hinter das Bett. Das Bett steht davor und verdeckt die Wand –
+  // physikalisch richtig, aber ein Bild, das man aufhängt und nie wieder
+  // sieht, ist ein verschenktes Bild. Im Bild nachgesehen und dort gefunden.
+  const b = bettFuer(raum);
+  // Grosszügig gerechnet: Bei knapperem Abstand schaute die Ecke des
+  // Wandbretts hinter dem Kopfteil hervor – halb verdeckt ist schlechter als
+  // gar nicht dort.
+  if (Math.abs(b.x - x) < BETT_BREITE / 2 + WAND_ABSTAND * 0.7) return false;
+  const liste = wand || [];
+  for (let i = 0; i < liste.length; i++) {
+    const s = liste[i];
+    if (s === ausser) continue;
+    if (Math.abs(s.x - x) < WAND_ABSTAND) return false;
+  }
+  return true;
+}
+
+/** Das Wandstück über diesem Punkt – oder null. */
+export function wandStueckAn(wand, x, reichweite) {
+  const liste = wand || [];
+  const r = reichweite || WAND_ABSTAND;
+  let best = null;
+  let bestD = r;
+  for (let i = 0; i < liste.length; i++) {
+    const d = Math.abs(liste[i].x - x);
+    if (d <= bestD) { bestD = d; best = liste[i]; }
+  }
+  return best;
+}
+
 /**
  * Wie viel Platz ein Möbelstück um sich braucht.
  *
@@ -178,6 +293,9 @@ export function bettFuer(raum) {
 /** Wie hoch das Bett über seinem Fußpunkt steht – siehe `paintBed`. */
 export const BETT_HOEHE = 180;
 
+/** Und wie breit – für die Frage, welches Stück Wand es verdeckt. */
+export const BETT_BREITE = 150;
+
 /** Steht Seli am Bett? */
 export function amBett(x, y, raum) {
   const b = bettFuer(raum);
@@ -250,13 +368,19 @@ export function stueckAn(stuecke, x, y, reichweite) {
  * Bewertungen nebeneinander stehen, die verschiedene Dinge meinen. Eine
  * Mondlaterne ist drinnen so viel wert wie draußen.
  */
-export function gemuetlichkeit(stuecke, getItem) {
-  const liste = stuecke || [];
+export function gemuetlichkeit(stuecke, getItem, wand) {
   let summe = 0;
-  for (let i = 0; i < liste.length; i++) {
-    const it = getItem(liste[i].id);
-    summe += (it && it.charm) || 0;
-  }
+  const zaehle = function (liste) {
+    const l = liste || [];
+    for (let i = 0; i < l.length; i++) {
+      const it = getItem(l[i].id);
+      summe += (it && it.charm) || 0;
+    }
+  };
+  zaehle(stuecke);
+  // Was an der Wand hängt, zählt genauso: Ein Bild macht ein Zimmer
+  // wohnlicher als ein weiterer Stuhl.
+  zaehle(wand);
   return summe;
 }
 
@@ -313,7 +437,7 @@ export function wohnBonus(punkte) {
 
 /** Leeres Zimmer – wie `emptyPet` und `emptyFeste`. */
 export function emptyInterior() {
-  return { stuecke: [], ausstattung: AUSSTATTUNG[0].id };
+  return { stuecke: [], wand: [], ausstattung: AUSSTATTUNG[0].id };
 }
 
 /**
@@ -345,5 +469,23 @@ export function interiorAus(roh, raum, kennt) {
     if (anDerTuer(p.x, p.y, raum)) p.y = raum.h - TUER_TIEFE - STUECK_ABSTAND;
     raus.push({ id: s.id, x: p.x, y: Math.max(RAND, p.y) });
   }
-  return { stuecke: raus, ausstattung: ausstattungFuer(roh.ausstattung).id };
+  // Die Wand führt eine eigene Liste: Ihre Koordinaten zählen von der
+  // Wandoberkante, nicht vom Boden, und gezeichnet wird sie hinter allem.
+  // Zwei Listen sind ehrlicher als ein Merkmal an jedem Stück.
+  const wand = [];
+  const wandRein = Array.isArray(roh.wand) ? roh.wand : [];
+  const wandGrenze = maxWandStuecke(raum);
+  for (let i = 0; i < wandRein.length && wand.length < wandGrenze; i++) {
+    const s = wandRein[i];
+    if (!s || typeof s.id !== 'string') continue;
+    if (kennt && !kennt(s.id)) continue;
+    const x = Number(s.x);
+    if (!isFinite(x)) continue;
+    wand.push({
+      id: s.id,
+      x: Math.max(WAND_RAND, Math.min(raum.w - WAND_RAND, x)),
+      y: wandHoehe(raum),
+    });
+  }
+  return { stuecke: raus, wand: wand, ausstattung: ausstattungFuer(roh.ausstattung).id };
 }
