@@ -14,6 +14,9 @@ import { SETS, SET_IDS, setById, progressOf, itemsOf, hintFor, totalProgress } f
 import { unreadCount } from '../game/mail.js';
 import { DAYBOOK_ROWS } from '../game/daybook.js';
 import {
+  wohnStufe, bisZurNaechstenWohnstufe, wohnBonus, maxStuecke,
+} from '../game/interior.js';
+import {
   GERICHTE, STAERKUNG, kannKochen, staerkungHeute,
 } from '../game/kitchen.js';
 import { bestSize, spanneFuer } from '../game/records.js';
@@ -960,7 +963,41 @@ export class Panels {
         'Stufe ' + stand.stufe + ' von ' + MAX_HOUSE_STAGE + ' – mehr wird es nicht. ' +
         'Es reicht auch.</p>';
     }
+    html += this._zimmer();
     return html;
+  }
+
+  /**
+   * Das Zimmer.
+   *
+   * Drei Zahlen und ein Wort: wie es heißt, wie viel drinsteht, wie gemütlich
+   * es ist. Keine Knöpfe – eingerichtet wird drinnen, nicht in einem Fenster.
+   * Dieselbe Haltung wie beim Haustier.
+   */
+  _zimmer() {
+    const g = this.game;
+    const raum = g.raum();
+    const punkte = g.wohnPunkte();
+    const stufe = wohnStufe(punkte);
+    const bis = bisZurNaechstenWohnstufe(punkte);
+    const bonus = wohnBonus(punkte);
+    const n = g.innenStuecke().length;
+
+    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Dein Zimmer</h3>' +
+      '<div class="rows"><div class="row">' + ico('icon_flowerbed', 'lg') +
+      '<div class="grow"><div class="title">' + escapeHtml(raum.name) + ' · ' +
+      escapeHtml(stufe.name) + '</div>' +
+      '<div class="meta">' +
+      '<span>' + n + ' von ' + maxStuecke(raum) + ' Stücken</span>' +
+      (bis != null
+        ? '<span>noch ' + bis + ' bis „' + escapeHtml(wohnStufe(punkte + bis).name) + '"</span>'
+        : '<span>schöner geht es nicht</span>') +
+      (bonus > 0 ? '<span>färbt ' + bonus + ' Punkte weiter</span>' : '') +
+      '</div></div></div></div>' +
+      '<p class="empty-note" style="padding:8px 0 0">' +
+      'Am Haus <b>E</b> drücken, dann bist du drinnen. Hinstellen wie draußen – ' +
+      'aus der Tasche auswählen. Am Bett wird geschlafen, an der Tür geht es ' +
+      'wieder hinaus.</p>';
   }
 
   /* ---------------- Vorratstruhe ---------------- */

@@ -190,6 +190,41 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   eigener Farbkreis (120 → 260 → 420), der wie der des Lagerfeuers nie wieder
   kleiner wird. Kollision und Reichweite wachsen mit – sonst liefe man durch
   die eigene Wand oder käme nicht mehr an die eigene Tür.
+* **Und du kannst hinein.** Vier Ausbaustufen von außen und nichts dahinter –
+  das war die größte Lücke im Spiel: Man baute sich ein Haus mit Veranda und
+  konnte nicht hineingehen. **`E` am Haus, und du stehst drinnen.**
+
+  Drinnen ist es anders als draußen, und zwar mit Absicht:
+
+  * **Der ganze Raum ist immer zu sehen.** Keine Kamera, die hinterherfährt –
+    man sieht, was man eingerichtet hat, in einem Bild. Das ist der halbe
+    Grund, warum Einrichten Spaß macht. Der Raum wird dafür so groß gezogen,
+    wie er neben Kopf- und Werkzeugleiste passt.
+  * **Niemand will hier etwas.** Kein Geist wünscht sich etwas, keine Bitte
+    zeigt hinein, keine Gemütlichkeitszahl wird für jemand anderen gezählt.
+    Was hier steht, steht, weil es dir gefällt. Draußen gehört alles halb der
+    Insel; das hier ist der Gegenpol.
+  * **Es wirkt trotzdem.** Ein Zuhause, in dem es schön ist, färbt die Insel
+    um sich herum weiter ein – bis zu 120 Punkte zusätzlich auf den Farbkreis
+    des Hauses. Bewusst klein: Das Haus selbst bringt 120 bis 420. Ein
+    Zimmer, das den halben Fleck einfärbte, machte aus dem Einrichten eine
+    Pflicht.
+
+  **Der Raum wächst mit dem Haus** – Zeltecke (420×300) → Stube → Zimmer →
+  Zimmer mit Veranda (960×620), und mit ihm die Zahl der Stücke, die
+  hineinpassen. Ab der Hütte sind es Dielen und eine Bretterwand mit Fenster,
+  und das Licht daraus fällt als heller Fleck auf den Boden; die Zeltecke ist
+  Stoff und gestampfte Erde.
+
+  Hingestellt wird wie draußen: aus der Tasche auswählen, Platz suchen, `E`.
+  Aufheben mit der Hand. **Am Bett wird geschlafen, an der Tür geht es
+  hinaus** – und draußen steht Seli wieder genau da, wo sie hineingegangen
+  ist. Zwei Stellen bleiben frei: der Streifen vor der Tür und das Bett. Wer
+  seinen Ausgang zustellen könnte, hätte die einzige Sackgasse im ganzen
+  Spiel gefunden, und die gibt es hier nicht.
+
+  Beet und Wegstück lassen sich drinnen nicht setzen – ein Beet im Zimmer
+  hätte keine Sonne, und ein Wegstück endete an der Wand.
 * **Der letzte Abend.** Bei hundert Prozent versammeln sich alle sieben
   Geister am Lagerfeuer und warten dort – nicht einen Tag lang, sondern so
   lange, bis du bei jedem warst. Jeder sagt einen Satz; wer alle gehört hat,
@@ -874,8 +909,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 470 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
-npm run test:browser   # 275 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 497 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
+npm run test:browser   # 286 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

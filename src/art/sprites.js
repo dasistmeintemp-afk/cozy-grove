@@ -36,6 +36,8 @@ import {
 import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
+import { paintRoom, paintBed } from './painted-interior.js';
+import { RAEUME, TUER_BREITE } from '../game/interior.js';
 import { BUGS, MEMORY_KINDS } from '../game/items.js';
 import { CROPS, CROP_IDS } from '../game/crops.js';
 import { TOOL_ART } from '../game/player.js';
@@ -272,6 +274,24 @@ export function initArt() {
   addArt('campfire', paintCampfire({ seed: 211 }));
   for (let f = 0; f < 4; f++) addArt('flame_' + f, paintFlame(f));
   addArt('tent', paintTent({ seed: 331 }));
+  // Die vier Zimmer, eines je Ausbaustufe. Jedes ist EIN Bild: Der Raum
+  // scrollt nicht, also darf er auch in einem Stück gemalt sein.
+  //
+  // Die blasse Zweitfassung wird weggeworfen. Jede andere Grafik braucht sie
+  // – draußen ist die Insel am Anfang eine Zeichnung, die erst nach und nach
+  // Farbe bekommt. Drinnen gibt es das nicht: Ein Zimmer ist immer koloriert.
+  // Bei vier Bildern bis 1000×810 hängt daran spürbar Speicher, den nie
+  // jemand anfasst.
+  for (let i = 0; i < RAEUME.length; i++) {
+    const r = RAEUME[i];
+    const art = paintRoom({
+      w: r.w, h: r.h, wand: r.wand, stufe: r.stufe,
+      tuerX: r.w / 2 - TUER_BREITE / 2, tuerW: TUER_BREITE,
+    });
+    art.line = makeCanvas(1, 1);
+    addArt('room_' + r.stufe, art);
+  }
+  addArt('bed', paintBed({ seed: 1971 }));
   addArt('stall', paintStall({ seed: 351 }));
   addArt('workbench', paintWorkbench({ seed: 371 }));
   addArt('boat', paintBoat({ seed: 391 }));

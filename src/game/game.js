@@ -10,7 +10,7 @@ import { Camera } from '../render/camera.js';
 import { Particles } from '../render/particles.js';
 import { Wildlife } from '../render/wildlife.js';
 import { Weather, weatherFor, WEATHER_LABEL as WETTER_WORT } from '../render/weather.js';
-import { Player, TOOLS } from './player.js';
+import { Player, TOOLS, WALK_SPEED } from './player.js';
 import { Inventory } from './inventory.js';
 import { QuestBook, QTYPE } from './quests.js';
 import {
@@ -22,6 +22,11 @@ import {
   festOn, festSatz, SCHMUCK_RADIUS, SCHMUCK_ANZAHL, SCHMUCK_ABSTAND, emptyFeste,
 } from './festivals.js';
 import { emptyDaybook, daybookHasContent } from './daybook.js';
+import {
+  raumFuer, tuerFuer, anDerTuer, imRaum, platzFrei, stueckAn, maxStuecke,
+  gemuetlichkeit, wohnBonus, wohnStufe, emptyInterior, interiorAus, RAND,
+  bettFuer, amBett,
+} from './interior.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
@@ -116,6 +121,14 @@ export function parseSave(text) {
   }
   return { ok: true, data: data, reason: '' };
 }
+/**
+ * Wie viel Platz ein Möbelstück drinnen blockiert.
+ *
+ * Kleiner als draußen (26): In einem Zimmer soll ein Stuhl an einem Tisch
+ * stehen können, ohne dass Seli daran hängenbleibt.
+ */
+const INNEN_BLOCK = 22;
+
 const AUTOSAVE_SECONDS = 20;
 
 export const DEFAULT_SETTINGS = {
@@ -265,6 +278,7 @@ export class Game {
       pet: emptyPet(),
       records: emptyRecords(),
       wishes: emptyWishes(),
+      interior: emptyInterior(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -304,6 +318,7 @@ export class Game {
       plausch: Object.create(null),
       staerkung: emptyKitchen(),
       feste: emptyFeste(),
+      interior: emptyInterior(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -323,6 +338,12 @@ export class Game {
     if (!this.state.records) this.state.records = emptyRecords();
     if (!this.state.wishes) this.state.wishes = emptyWishes();
     if (!this.state.wishes.letzte) this.state.wishes.letzte = [];
+    // Das Zimmer wird beim Laden gerade gezogen: Ein Spielstand von vor dem
+    // Hausinneren hat keines, und einer, dessen Haus inzwischen gewachsen
+    // ist, hat Möbel an Stellen, die es im kleinen Raum noch nicht gab.
+    this.state.interior = interiorAus(
+      this.state.interior, raumFuer(this.state.house || 1),
+      function (id) { const it = getItem(id); return !!(it && it.prop); });
     // Was Seli beim Ausruhen zuletzt gedacht hat. Steht im Spielstand, damit
     // sie sich nach dem Neuladen nicht mit denselben acht Sätzen begrüßt.
     if (!Array.isArray(this.state.gedanken)) this.state.gedanken = [];
@@ -568,6 +589,11 @@ export class Game {
     }
 
     const move = this.input.moveVector();
+    // Drinnen läuft eine viel kürzere Schleife: kein Wetter, keine Geister,
+    // kein Angeln, kein Tier. Was es drinnen nicht gibt, muss auch nicht
+    // gerechnet werden – und was draußen weiterläuft (die Uhr), steht in
+    // `_innenUpdate`.
+    if (this.innen) { this._innenUpdate(dt, move); return; }
     // Die Stärkung des Tages wirkt hier – an einer Stelle, jedes Bild. Beim
     // Laden, nach dem Schlafen und nach dem Essen stimmt der Wert damit von
     // selbst; ein zweiter Ort, an dem er gesetzt wird, liefe irgendwann
@@ -664,7 +690,8 @@ export class Game {
     } else {
       this._pausedDrawn = false;
     }
-    this.renderer.draw(this, this.time);
+    if (this.innen) this.renderer.drawInterior(this, this.time);
+    else this.renderer.draw(this, this.time);
     return true;
   }
 
@@ -1484,7 +1511,10 @@ export class Game {
       case 'craft': this.openPanel('craft'); break;
       case 'kitchen': this.openPanel('kitchen'); break;
       case 'shop': this.openPanel('shop'); break;
-      case 'tent': this.sleep(false); break;
+      // Am Haus geht man hinein. Geschlafen wird drinnen, am Bett – so wie
+      // in jedem Haus. Vorher war das Haus ein Knopf, der die Nacht auslöste,
+      // und die vier Ausbaustufen hatten kein Innen.
+      case 'tent': this.betritt(); break;
       case 'bridge': this._tryBridge(entity); break;
       case 'boat': this._takeBoat(entity); break;
       case 'mail': this.openPanel('mail'); break;
@@ -2559,7 +2589,11 @@ export class Game {
     // Nach dem Umzug bekommt das neue Zuhause eine EIGENE Quelle statt der
     // alten hinterhergezogen: Farbe verschwindet auf dieser Insel nie wieder,
     // und der Platz im Lager soll nicht ausbleichen, weil man weggezogen ist.
-    const radius = houseColor(stufe);
+    // Was drinnen steht, zählt mit: Ein Zuhause, in dem es schön ist, färbt
+    // weiter um sich herum ein. Das ist die einzige Wirkung des Zimmers nach
+    // außen – und sie geht über DIESELBE Quelle, nicht über eine zweite
+    // daneben, damit die Anzeige nicht zwei Kreise übereinander malt.
+    const radius = houseColor(stufe) + wohnBonus(this.wohnPunkte());
     if (radius > 0) {
       const key = this.homeAt() === 'isle' ? 'house_isle' : 'house';
       const src = this.colorField.find(key);
@@ -3412,6 +3446,309 @@ export class Game {
     return { gesamt: gesamt, reif: reif };
   }
 
+  /* ---------------- Das Hausinnere ---------------- */
+
+  /** Der Raum, den die heutige Ausbaustufe hergibt. */
+  raum() {
+    return raumFuer(this.state.house || 1);
+  }
+
+  /** Ob Seli gerade drinnen ist. */
+  drinnen() {
+    return !!this.innen;
+  }
+
+  /** Was im Zimmer steht. */
+  innenStuecke() {
+    return (this.state.interior && this.state.interior.stuecke) || [];
+  }
+
+  /** Wo das Bett steht – in Raumkoordinaten. */
+  bettPunkt() {
+    return bettFuer(this.raum());
+  }
+
+  /**
+   * Hineingehen.
+   *
+   * Seli steht drinnen vor der Tür – dort, wo sie hereingekommen ist. Ihre
+   * Position DRAUSSEN bleibt unangetastet: Das Zimmer führt eigene
+   * Koordinaten (`this.innen`), und draußen steht sie danach wieder genau da,
+   * wo sie hineingegangen ist.
+   *
+   * Ein zweiter Satz Koordinaten klingt nach Umstand, spart aber genau den
+   * Ärger, den ein umgeschriebenes `player.x` machen würde: Alles, was die
+   * Weltposition liest – Aufträge, Post, das Tier –, würde sonst plötzlich
+   * eine Figur im Zimmerkoordinatensystem vorfinden.
+   */
+  betritt() {
+    if (this.innen) return false;
+    this.stehAuf(true);
+    this.cancelPlacing();
+    this.fishing.cancel();
+    const raum = this.raum();
+    const t = tuerFuer(raum);
+    this.innen = { x: t.x + t.w / 2, y: raum.h - RAND - 6 };
+    this.player.moving = false;
+    this.player.frame = 0;
+    this.player.dir = 'up';
+    this.audio.play('ui');
+    this.ui.clearBubbles();
+    // Und die Blasenebene ganz ausblenden. `clearBubbles` räumt die Liste,
+    // aber eine Blase, die im selben Moment ausläuft, hängt noch 420 ms als
+    // ausblendendes Element im Baum – und stünde dann über dem Zimmer, an
+    // einer Stelle, die von einer Kamera stammt, die es drinnen nicht gibt.
+    this._blasenEbene(false);
+    this.invalidate();
+    return true;
+  }
+
+  /** Die Sprechblasenebene an- oder ausschalten. */
+  _blasenEbene(an) {
+    const el = document.getElementById('bubbles');
+    if (el) el.style.display = an ? '' : 'none';
+  }
+
+  /** Wieder hinaus – zurück auf den Platz vor dem Haus. */
+  verlaesst() {
+    if (!this.innen) return false;
+    this.cancelPlacing();
+    this.innen = null;
+    this._blasenEbene(true);
+    this.player.moving = false;
+    this.player.dir = 'down';
+    this.audio.play('ui');
+    this.camera.snapTo(this.player.x, this.player.y - 6);
+    this.syncHouse();
+    this.invalidate();
+    this.save();
+    return true;
+  }
+
+  /** Ist dieser Punkt im Zimmer begehbar? */
+  _innenBegehbar(x, y) {
+    const raum = this.raum();
+    if (!imRaum(x, y, raum)) return false;
+    // Durchs Bett geht es nicht – es steht da wie jedes Möbelstück.
+    const b = bettFuer(raum);
+    const bdx = b.x - x;
+    const bdy = b.y - y;
+    if (bdx * bdx + bdy * bdy < 54 * 54) return false;
+    const stuecke = this.innenStuecke();
+    for (let i = 0; i < stuecke.length; i++) {
+      const s = stuecke[i];
+      const item = getItem(s.id);
+      // Flaches liegt auf dem Boden – darüber läuft man hinweg. Sonst wäre
+      // ein Teppich eine Mauer.
+      if (item && item.flat) continue;
+      const dx = s.x - x;
+      const dy = s.y - y;
+      if (dx * dx + dy * dy < INNEN_BLOCK * INNEN_BLOCK) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Ein Schritt im Zimmer.
+   *
+   * Dieselbe Rechnung wie in `Player.update`, nur gegen die Zimmerwände statt
+   * gegen die Insel – und auf `this.innen` statt auf `player.x/y`. Die
+   * Animationsfelder der Figur werden mitgeführt, damit sie drinnen genauso
+   * läuft wie draußen.
+   */
+  _innenBewegen(dt, move) {
+    const p = this.player;
+    const mx = p.busy ? 0 : move.x;
+    const my = p.busy ? 0 : move.y;
+    p.moving = (mx !== 0 || my !== 0);
+    if (!p.moving) {
+      p.animT = 0;
+      p.frame = 0;
+      p.stepTimer = 0;
+      return;
+    }
+    if (Math.abs(mx) > Math.abs(my)) p.dir = mx < 0 ? 'left' : 'right';
+    else p.dir = my < 0 ? 'up' : 'down';
+    const speed = WALK_SPEED * (p.tempo || 1);
+    const nx = this.innen.x + mx * speed * dt;
+    if (this._innenBegehbar(nx, this.innen.y)) this.innen.x = nx;
+    const ny = this.innen.y + my * speed * dt;
+    if (this._innenBegehbar(this.innen.x, ny)) this.innen.y = ny;
+    p.animT += dt * (2.2 + Math.abs(mx) + Math.abs(my));
+    const f = Math.floor(p.animT * 2) % 4;
+    p.frame = f === 0 ? 0 : f === 1 ? 1 : f === 2 ? 0 : 2;
+    p.stepTimer -= dt;
+  }
+
+  /** Der Punkt, den Seli drinnen gerade vor sich hat. */
+  _innenVorDerNase(abstand) {
+    const d = abstand == null ? 52 : abstand;
+    const dir = this.player.dir;
+    const dx = dir === 'left' ? -d : dir === 'right' ? d : 0;
+    const dy = dir === 'up' ? -d : dir === 'down' ? d : 0;
+    return { x: this.innen.x + dx, y: this.innen.y + dy };
+  }
+
+  /** Das Stück, das drinnen gerade angesprochen wäre – oder null. */
+  innenZiel() {
+    if (!this.innen || this.placing) return null;
+    const p = this._innenVorDerNase();
+    return stueckAn(this.innenStuecke(), p.x, p.y, 54);
+  }
+
+  _innenUpdate(dt, move) {
+    this.player.tempo = tempoFaktor(this.state.staerkung, this.day.day);
+    this._innenBewegen(dt, move);
+    if (this.player.consumeStep()) this.audio.play('step');
+    this._innenPlacingUpdate();
+    this._innenPrompt();
+
+    if (this.input.pressed('interact')) this._innenInteract();
+    if (this.input.pressed('cancelPlace') && this.placing) this.cancelPlacing();
+
+    const mustSleep = this.day.update(dt);
+    if (mustSleep) this.sleep(true);
+
+    this.ui.refreshHud();
+    this.ui.updateBubbles(dt);
+    this.autosaveTimer -= dt;
+    if (this.autosaveTimer <= 0) {
+      this.autosaveTimer = AUTOSAVE_SECONDS;
+      this.save();
+    }
+  }
+
+  _innenPrompt() {
+    if (this.placing) {
+      this.ui.setPrompt(this.placing.valid
+        ? 'E hinstellen · X abbrechen'
+        : (this.placing.reason || 'Hier passt es nicht') + ' · X abbrechen');
+      return;
+    }
+    if (amBett(this.innen.x, this.innen.y, this.raum())) {
+      this.ui.setPrompt('Schlafen');
+      return;
+    }
+    if (anDerTuer(this.innen.x, this.innen.y, this.raum())) {
+      this.ui.setPrompt('Hinausgehen');
+      return;
+    }
+    const s = this.innenZiel();
+    if (s) {
+      this.ui.setPrompt(this.player.tool.id === 'hand'
+        ? itemName(s.id) + ' einpacken'
+        : 'Mit der Hand aufheben');
+      return;
+    }
+    this.ui.setPrompt('');
+  }
+
+  _innenInteract() {
+    if (this.placing) { this._innenPlatzieren(); return; }
+    if (amBett(this.innen.x, this.innen.y, this.raum())) { this.sleep(false); return; }
+    if (anDerTuer(this.innen.x, this.innen.y, this.raum())) { this.verlaesst(); return; }
+    const s = this.innenZiel();
+    if (s) this._innenEinpacken(s);
+  }
+
+  /** Den Vorschaupunkt setzen – dieselbe Idee wie draußen, nur im Zimmer. */
+  _innenPlacingUpdate() {
+    if (!this.placing) return;
+    const raum = this.raum();
+    const stuecke = this.innenStuecke();
+    const p = this._innenVorDerNase(64);
+    const px = Math.round(p.x);
+    const py = Math.round(p.y);
+    if (platzFrei(stuecke, px, py, raum)) {
+      this.placing.x = px;
+      this.placing.y = py;
+      this.placing.valid = true;
+      this.placing.reason = null;
+      return;
+    }
+    // Ringe um den Wunschpunkt, von innen nach außen – wie draußen auch.
+    const ringe = [30, 56, 88];
+    for (let r = 0; r < ringe.length; r++) {
+      const schritte = 8 + r * 4;
+      for (let i = 0; i < schritte; i++) {
+        const a = (i / schritte) * Math.PI * 2 + r * 0.4;
+        const x = Math.round(px + Math.cos(a) * ringe[r]);
+        const y = Math.round(py + Math.sin(a) * ringe[r]);
+        if (platzFrei(stuecke, x, y, raum)) {
+          this.placing.x = x;
+          this.placing.y = y;
+          this.placing.valid = true;
+          this.placing.reason = null;
+          return;
+        }
+      }
+    }
+    this.placing.x = px;
+    this.placing.y = py;
+    this.placing.valid = false;
+    this.placing.reason = anDerTuer(px, py, raum)
+      ? 'Nicht vor die Tür'
+      : imRaum(px, py, raum) ? 'Da steht schon etwas' : 'Das ist die Wand';
+  }
+
+  _innenPlatzieren() {
+    const p = this.placing;
+    if (!p) return;
+    if (!p.valid) {
+      this.ui.toast(p.reason || 'Hier passt es nicht', 'icon_lock', 'bad');
+      this.audio.play('fail');
+      return;
+    }
+    if (this.inventory.count(p.itemId) <= 0) { this.cancelPlacing(); return; }
+    const stuecke = this.innenStuecke();
+    if (stuecke.length >= maxStuecke(this.raum())) {
+      this.ui.toast('Das Zimmer ist voll', 'icon_lock', 'bad');
+      this.audio.play('fail');
+      return;
+    }
+    this.inventory.remove(p.itemId, 1);
+    stuecke.push({ id: p.itemId, x: p.x, y: p.y });
+    this.audio.play('place');
+    this._note('decor');
+    this.cancelPlacing();
+    this._innenWirkung();
+    this.save();
+  }
+
+  _innenEinpacken(s) {
+    if (this.player.tool.id !== 'hand') {
+      this.ui.toast('Mit der Hand aufheben', 'icon_hand');
+      return;
+    }
+    if (!this.inventory.add(s.id, 1)) {
+      this.ui.toast('Tasche ist voll!', 'icon_bag', 'bad');
+      return;
+    }
+    const stuecke = this.innenStuecke();
+    const i = stuecke.indexOf(s);
+    if (i >= 0) stuecke.splice(i, 1);
+    this.audio.play('place');
+    this.ui.toast(itemName(s.id) + ' eingepackt', getItem(s.id).icon);
+    this._innenWirkung();
+    this.save();
+  }
+
+  /** Wie gemütlich es drinnen gerade ist. */
+  wohnPunkte() {
+    return gemuetlichkeit(this.innenStuecke(), getItem);
+  }
+
+  /**
+   * Was das Zimmer nach außen bewirkt.
+   *
+   * Ein Zuhause, in dem es schön ist, färbt die Insel um sich herum weiter
+   * ein. Das ist die einzige Wirkung – und sie geht über dieselbe Farbquelle
+   * wie das Haus selbst, nicht über eine zweite daneben.
+   */
+  _innenWirkung() {
+    this.syncHouse();
+  }
+
   /* ---------------- Tagebuch ---------------- */
 
   _daybookStart() {
@@ -3822,6 +4159,13 @@ export class Game {
     const item = getItem(itemId);
     if (!item || !item.prop) return;
     if (this.inventory.count(itemId) <= 0) return;
+    // Drinnen wird nicht gesät und nicht gepflastert: Ein Beet im Zimmer
+    // hätte keine Sonne, und ein Wegstück endete an der Wand.
+    if (this.innen && (item.plant || item.tile)) {
+      this.ui.toast(item.plant ? 'Das gehört nach draußen' : 'Wege gibt es nur draußen',
+        item.icon);
+      return;
+    }
     // Zum Aufstellen muss man aufstehen. Sonst säße sie fest: Beim Sitzen
     // gehört die E-Taste dem Ausruhen, und der Platz ließe sich nie
     // bestätigen – man käme mit dem Stück in der Hand nicht mehr heraus.
@@ -4488,7 +4832,7 @@ export class Game {
     if (def.station === 'craft') { this.ui.setPrompt('Werkbank'); return; }
     if (def.station === 'kitchen') { this.ui.setPrompt('Kochstelle'); return; }
     if (def.station === 'shop') { this.ui.setPrompt('Laden'); return; }
-    if (def.station === 'tent') { this.ui.setPrompt('Schlafen'); return; }
+    if (def.station === 'tent') { this.ui.setPrompt('Hineingehen'); return; }
     if (def.station === 'bridge') { this.ui.setPrompt('Brücke bauen'); return; }
 
     const label = {

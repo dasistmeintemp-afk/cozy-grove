@@ -134,6 +134,116 @@ export class Renderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
+  /**
+   * Das Hausinnere zeichnen.
+   *
+   * Ein eigener, viel kürzerer Weg als `draw`: Drinnen gibt es keinen Boden
+   * aus Kacheln, keine Farbmaske, kein Wetter, keine Tageszeit und keine
+   * Kamera, die hinterherfährt. **Der ganze Raum ist immer zu sehen** – das
+   * ist die Idee hinter dem Zimmer, und sie spart hier die halbe Zeichenkette.
+   *
+   * Der Raum ist EIN Bild (siehe `paintRoom`). Darüber liegen nur die Stücke
+   * und Seli, nach `y` sortiert – dieselbe Tiefensortierung wie draußen,
+   * damit ein Stuhl vor ihr steht und der hinter ihr dahinter bleibt.
+   */
+  drawInterior(game, time) {
+    const ctx = this.ctx;
+    const raum = game.raum();
+    this._screen(ctx);
+    ctx.fillStyle = INK.paper;
+    ctx.fillRect(0, 0, this.w, this.h);
+
+    // Der Raum füllt das Bild, soweit er das kann.
+    //
+    // Nur zentriert sah die Zeltecke auf einem großen Bildschirm verloren aus
+    // – ein Fingernagel Zimmer in einem Meer aus Papier. Also wird
+    // vergrößert, bis er mit etwas Luft ringsum passt. Nach oben begrenzt,
+    // denn der Raum ist ein gemaltes Bild: Über anderthalbfach wird aus dem
+    // Aquarell Matsch.
+    //
+    // Oben und unten bleibt Platz für Kopf- und Werkzeugleiste. Ohne das lag
+    // die TÜR genau hinter der Werkzeugleiste – im Bild sah alles gut aus,
+    // und hinaus kam man nur, wenn man wusste, dass es dort weitergeht. Es
+    // ist der einzige Ausgang; er darf nicht unter der Bedienung liegen.
+    const obenFrei = 76;
+    const untenFrei = 128;
+    const seiteFrei = 56;
+    const ganzH = raum.h + raum.wand;
+    const platzH = Math.max(160, this.viewH - obenFrei - untenFrei);
+    const innenZoom = clamp(Math.min(
+      (this.viewW - seiteFrei * 2) / raum.w,
+      platzH / ganzH
+    ), 0.5, 1.5);
+    const z = this.zoom * innenZoom;
+    const ox = Math.round(Math.max(0, (this.viewW / innenZoom - raum.w) / 2));
+    const oy = Math.round(Math.max(
+      obenFrei / innenZoom,
+      (obenFrei + platzH / 2 - (ganzH * innenZoom) / 2) / innenZoom
+    ));
+    game.innenOffset = { x: ox, y: oy + raum.wand, zoom: innenZoom };
+
+    ctx.save();
+    ctx.scale(z, z);
+    drawSprite(ctx, 'room_' + raum.stufe, ox, oy, false);
+
+    // Stücke und Seli in EINER Liste, nach Tiefe sortiert. Das Bett steht
+    // fest eingebaut mit drin: Es soll sich genauso einordnen wie ein Stuhl,
+    // sonst liefe Seli davor, wenn sie dahinter steht.
+    const liste = [];
+    const bett = game.bettPunkt();
+    liste.push({ y: bett.y, flach: false, sprite: 'bed', x: bett.x });
+    const stuecke = game.innenStuecke();
+    for (let i = 0; i < stuecke.length; i++) {
+      const s = stuecke[i];
+      const item = getItem(s.id);
+      liste.push({
+        y: s.y, flach: !!(item && item.flat),
+        sprite: (item && item.prop) || null, x: s.x,
+      });
+    }
+    liste.sort(function (a, b) { return a.y - b.y; });
+
+    const px = game.innen.x;
+    const py = game.innen.y;
+    // Raumkoordinaten zählen vom linken oberen Punkt des BODENS, nicht des
+    // Bildes: Die Wand steht darüber und ist nicht begehbar.
+    const bx = ox;
+    const by = oy + raum.wand;
+
+    // Flaches zuerst – Teppiche liegen unter allem, auch unter Seli.
+    for (let i = 0; i < liste.length; i++) {
+      const s = liste[i];
+      if (s.flach && s.sprite) drawSprite(ctx, s.sprite, bx + s.x, by + s.y, false);
+    }
+    let selizeichnet = false;
+    for (let i = 0; i < liste.length; i++) {
+      const s = liste[i];
+      if (s.flach) continue;
+      if (!selizeichnet && s.y > py) {
+        this._drawInnenSeli(ctx, game, bx + px, by + py);
+        selizeichnet = true;
+      }
+      if (s.sprite) drawSprite(ctx, s.sprite, bx + s.x, by + s.y, false);
+    }
+    if (!selizeichnet) this._drawInnenSeli(ctx, game, bx + px, by + py);
+
+    // Der Umriss des Stücks, das gerade gesetzt wird.
+    const p = game.placing;
+    if (p && p.sprite) {
+      ctx.globalAlpha = p.valid ? 0.72 : 0.34;
+      drawSprite(ctx, p.sprite, bx + p.x, by + p.y, false);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    this._screen(ctx);
+    this.stats.entities = liste.length;
+  }
+
+  _drawInnenSeli(ctx, game, x, y) {
+    drawSprite(ctx, game.player.spriteName(), x, y, false,
+      game.player.flipped() ? { flip: true } : null);
+  }
+
   draw(game, time) {
     const ctx = this.ctx;
     const cam = game.camera;

@@ -3124,6 +3124,158 @@ async function run() {
       lagerFenster.stufen >= 4 && lagerFenster.knoepfe === 1,
       JSON.stringify(lagerFenster));
 
+    /* ---- Das Hausinnere ---- */
+
+    const innen = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const { anDerTuer, bettFuer, tuerFuer, wohnBonus } =
+        await import('/src/game/interior.js');
+      const { houseColor } = await import('/src/game/house.js');
+
+      const merkHaus = g.state.house;
+      const merkInterior = g.state.interior;
+      const merkSlots = g.inventory.slots;
+      g.state.house = 3;
+      g.state.interior = { stuecke: [] };
+      g.inventory.slots = [];
+      g.syncHouse();
+
+      // Am Haus steht „Hineingehen" – und nicht mehr „Schlafen".
+      const haus = g.world.tent;
+      g.player.x = haus.x;
+      g.player.y = haus.y + 120;
+      g.player.dir = 'up';
+      g.player.selectTool(0);
+      g.target = g.player.findTarget(g.world);
+      r.zielIstHaus = !!(g.target && g.target.entity === haus);
+      g._updatePrompt();
+      r.hinweisDraussen = g.ui._lastPrompt;
+
+      // Hineingehen. Die Weltposition darf sich dabei NICHT ändern – das
+      // Zimmer führt eigene Koordinaten.
+      const weltX = g.player.x;
+      const weltY = g.player.y;
+      g.onInteract();
+      r.drinnen = g.drinnen();
+      r.weltPositionBleibt = g.player.x === weltX && g.player.y === weltY;
+      const raum = g.raum();
+      r.raum = raum.name;
+      r.startAnDerTuer = anDerTuer(g.innen.x, g.innen.y, raum);
+
+      // Gegen die Wand geht es nicht.
+      g.innen.x = 40; g.innen.y = raum.h / 2;
+      g._innenBewegen(0.5, { x: -1, y: 0 });
+      r.wandHaeltStand = g.innen.x >= 0;
+      r.nichtDurchDieWand = g._innenBegehbar(-10, raum.h / 2) === false;
+
+      // Etwas hinstellen.
+      g.innen.x = Math.round(raum.w * 0.5);
+      g.innen.y = Math.round(raum.h * 0.6);
+      g.player.dir = 'up';
+      g.inventory.add('bench', 1);
+      g.startPlacing('bench');
+      g._innenPlacingUpdate();
+      r.platzGefunden = !!(g.placing && g.placing.valid);
+      g._innenInteract();
+      r.stehtDrin = g.innenStuecke().length;
+      r.ausDerTasche = g.inventory.count('bench');
+      r.punkte = g.wohnPunkte();
+
+      // Und es steht im Weg, wie ein Möbelstück im Weg steht.
+      const s = g.innenStuecke()[0];
+      r.moebelBlockt = s ? g._innenBegehbar(s.x, s.y) === false : null;
+
+      // Wieder einpacken.
+      g.innen.x = s.x; g.innen.y = s.y + 50;
+      g.player.dir = 'up';
+      r.zielGefunden = g.innenZiel() === s;
+      g._innenInteract();
+      r.danachDrin = g.innenStuecke().length;
+      r.zurueckInDerTasche = g.inventory.count('bench');
+
+      // Das Zimmer färbt weiter: Der Farbkreis des Hauses wächst mit dem,
+      // was drinsteht. Gemessen an der echten Quelle, nicht an der Formel.
+      const ohne = g.colorField.find('house').target;
+      g.innenStuecke().push({ id: 'moonlamp', x: 200, y: 200 });
+      g.syncHouse();
+      const mit = g.colorField.find('house').target;
+      r.farbeWaechst = mit > ohne;
+      r.farbeStimmt = mit === houseColor(3) + wohnBonus(g.wohnPunkte());
+      // Zurückdrehen. Ein Farbkreis wird im Spiel absichtlich nie kleiner –
+      // hier ist das ein Messfehler für alles, was danach kommt.
+      g.colorField.find('house').target = ohne;
+
+      // Vor die Tür lässt sich nichts stellen.
+      const t = tuerFuer(raum);
+      r.vorDerTuerNichts = g._innenBegehbar(t.x + t.w / 2, raum.h - 30) === true &&
+        !!g.innenStuecke();
+      g.inventory.add('bench', 1);
+      g.startPlacing('bench');
+      g.innen.x = t.x + t.w / 2;
+      g.innen.y = raum.h - 90;
+      g.player.dir = 'down';
+      g._innenPlacingUpdate();
+      // Der Vorschaupunkt weicht aus – aber niemals auf die Tür.
+      r.ausweichNichtAufDieTuer = !anDerTuer(g.placing.x, g.placing.y, raum);
+      g.cancelPlacing();
+
+      // Am Bett steht „Schlafen".
+      const b = bettFuer(raum);
+      g.innen.x = b.x; g.innen.y = b.y + 40;
+      g._innenPrompt();
+      r.hinweisAmBett = g.ui._lastPrompt;
+
+      // An der Tür geht es hinaus – und draußen steht sie wieder da, wo sie
+      // hineingegangen ist.
+      g.innen.x = t.x + t.w / 2;
+      g.innen.y = raum.h - 30;
+      g._innenPrompt();
+      r.hinweisAnDerTuer = g.ui._lastPrompt;
+      g._innenInteract();
+      r.wiederDraussen = !g.drinnen();
+      r.amselbenPlatz = g.player.x === weltX && g.player.y === weltY;
+
+      // Und das Zimmer übersteht Speichern und Laden.
+      const json = JSON.parse(JSON.stringify(g.toJSON()));
+      r.imSpielstand = (json.state.interior.stuecke || []).length;
+
+      g.state.house = merkHaus;
+      g.state.interior = merkInterior;
+      g.inventory.slots = merkSlots;
+      g.syncHouse();
+      return r;
+    });
+    check('Am Haus lädt der Hinweis zum Hineingehen ein',
+      innen.zielIstHaus === true && innen.hinweisDraussen === 'Hineingehen',
+      JSON.stringify({ ziel: innen.zielIstHaus, hinweis: innen.hinweisDraussen }));
+    check('Drinnen steht Seli vor der Tür – und draußen bleibt sie, wo sie war',
+      innen.drinnen === true && innen.startAnDerTuer === true &&
+      innen.weltPositionBleibt === true, JSON.stringify(innen));
+    check('Durch die Zimmerwand geht es nicht',
+      innen.wandHaeltStand === true && innen.nichtDurchDieWand === true,
+      JSON.stringify(innen));
+    check('Drinnen lässt sich etwas hinstellen',
+      innen.platzGefunden === true && innen.stehtDrin === 1 &&
+      innen.ausDerTasche === 0 && innen.punkte > 0, JSON.stringify(innen));
+    check('Und es steht dann auch im Weg',
+      innen.moebelBlockt === true, JSON.stringify(innen));
+    check('Einpacken legt es zurück in die Tasche',
+      innen.zielGefunden === true && innen.danachDrin === 0 &&
+      innen.zurueckInDerTasche === 1, JSON.stringify(innen));
+    check('Was drinnen steht, färbt die Insel ums Haus weiter ein',
+      innen.farbeWaechst === true && innen.farbeStimmt === true, JSON.stringify(innen));
+    check('Der Ausgang lässt sich nicht zustellen',
+      innen.ausweichNichtAufDieTuer === true, JSON.stringify(innen));
+    check('Am Bett wird geschlafen, an der Tür geht es hinaus',
+      innen.hinweisAmBett === 'Schlafen' && innen.hinweisAnDerTuer === 'Hinausgehen',
+      JSON.stringify(innen));
+    check('Hinausgehen setzt sie wieder auf ihren Platz vor dem Haus',
+      innen.wiederDraussen === true && innen.amselbenPlatz === true,
+      JSON.stringify(innen));
+    check('Das Zimmer steht im Spielstand',
+      innen.imSpielstand === 1, JSON.stringify(innen));
+
     /* ---- Das Haustier ---- */
     const tier = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
@@ -4164,7 +4316,11 @@ async function run() {
       // Truhe, gewinnt es die Zielwahl, und der Hinweis lautet „Sammeln" –
       // die Prüfung maß dann die Insel statt die Truhe. Was hier im Weg
       // steht, wird für die Messung kurz beiseitegeräumt.
-      const beiseite = g.world.queryNear(e.x, e.y, 120).filter(function (o) {
+      // Gefragt wird um die FIGUR herum, nicht um die Truhe: `findTarget`
+      // sucht von Seli aus, und ein Fundstück 150 Punkte neben der Truhe kann
+      // 90 Punkte neben ihr liegen. Mit dem alten Radius um die Truhe rutschte
+      // genau so eines durch, und der Hinweis lautete „Aufheben".
+      const beiseite = g.world.queryNear(g.player.x, g.player.y, 400).filter(function (o) {
         return o !== e && !o.gone;
       });
       for (const o of beiseite) o.gone = true;
