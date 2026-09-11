@@ -39,6 +39,7 @@ export const DAYBOOK_ROWS = [
   { key: 'planted', icon: 'icon_seed_berry', ein: 'Beet gesät', mehr: 'Beete gesät' },
   { key: 'harvest', icon: 'icon_berry', ein: 'Beet geerntet', mehr: 'Beete geerntet' },
   { key: 'watered', icon: 'icon_can', ein: 'Beet gegossen', mehr: 'Beete gegossen' },
+  { key: 'gezogen', icon: 'icon_flower_dusk', ein: 'Dämmerblume gezogen', mehr: 'Dämmerblumen gezogen' },
   { key: 'gekocht', icon: 'icon_dish_forestsoup', ein: 'Gericht gekocht', mehr: 'Gerichte gekocht' },
   { key: 'gifts', icon: 'icon_heart', ein: 'Mitbringsel verschenkt', mehr: 'Mitbringsel verschenkt' },
   { key: 'sets', icon: 'icon_bookstack', ein: 'Reihe im Fundbuch voll', mehr: 'Reihen im Fundbuch voll' },

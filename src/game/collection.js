@@ -108,6 +108,7 @@ export const HINTS = {
   flower_violet: 'Im Wald und oben an den Klippen.',
   flower_white: 'Überall dort, wo Gras wächst.',
   moonflower: 'Blüht nur nachts.',
+  flower_dusk: 'Wo Blumenbeete beieinanderstehen. Wild wächst sie nicht.',
   rainmushroom: 'Kommt nur, wenn es regnet.',
 
   // Saat

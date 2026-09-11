@@ -13,7 +13,10 @@ import { Weather, weatherFor, WEATHER_LABEL as WETTER_WORT } from '../render/wea
 import { Player, TOOLS } from './player.js';
 import { Inventory } from './inventory.js';
 import { QuestBook, QTYPE } from './quests.js';
-import { CROPS, cropOfSeed, stageOf, daysToRipe, growthPerDay, harvestOf } from './crops.js';
+import {
+  CROPS, cropOfSeed, stageOf, daysToRipe, growthPerDay, harvestOf,
+  kreuzChance, kreuzungVon, KREUZ_RADIUS,
+} from './crops.js';
 import { todayOf, shoalIndex } from './calendar.js';
 import {
   festOn, festSatz, SCHMUCK_RADIUS, SCHMUCK_ANZAHL, SCHMUCK_ABSTAND, emptyFeste,
@@ -51,7 +54,7 @@ import {
 import {
   emptyPet, petArtFor, istZahm, istStreuner, launeAmMorgen, darfFuettern,
   suchtHeute, bestesFutter, futterWert, petStatus, istRuheplatz,
-  LAUNE_MAX, LAUNE_PRO_FUTTER, ZAHM_NOETIG,
+  LAUNE_MAX, LAUNE_PRO_FUTTER, ZAHM_NOETIG, saeubereName, nameVon,
 } from './pet.js';
 import { rollSize, noteSize, bestSize, sizeWord, emptyRecords } from './records.js';
 import { regrowDays } from './seasons.js';
@@ -414,6 +417,10 @@ export class Game {
           s: e.sprite, item: e.itemId || null, q: e.questId || null, flat: !!e.flat,
           sp: e.storySpirit || null, st: e.storyStage != null ? e.storyStage : null,
           c: e.cropId || null, gw: e.grown != null ? e.grown : null, wt: e.watered || 0,
+          // Wie oft dieses Beet beim Wachsen gegossen wurde. Zählt bei der
+          // Ernte für die Dämmerblume – ein alter Spielstand hat es nicht und
+          // fängt bei null an, was höchstens eine Chance kostet.
+          gp: e.gepflegt || 0,
         });
       } else if (e.gone || e.origin || (e.hp != null && defOf(e.kind) && defOf(e.kind).hits && e.hp < defOf(e.kind).hits)) {
         changed.push({ id: e.id, k: e.kind, g: e.gone ? 1 : 0, o: e.origin || null, r: e.respawnDay || 0, hp: e.hp });
@@ -479,6 +486,7 @@ export class Game {
         });
         e.id = a.id;
         if (a.wt) e.watered = a.wt;
+        if (a.gp) e.gepflegt = a.gp;
         e.sprite = a.s;
         this.world.add(e);
       }
@@ -2239,6 +2247,35 @@ export class Game {
   }
 
   /**
+   * Dem Tier einen Namen geben.
+   *
+   * Erst wenn es zahm ist: Einen Streuner, der morgen vielleicht nicht
+   * wiederkommt, tauft man nicht.
+   *
+   * `roh` ist normalerweise leer – dann fragt das Spiel. Übergeben wird es
+   * nur aus den Prüfungen; ein `window.prompt`, das sich nicht umgehen lässt,
+   * wäre eine Stelle, die niemand messen kann.
+   *
+   * @returns {boolean} ob ein Name gesetzt wurde (auch das Löschen zählt)
+   */
+  benennePet(roh) {
+    const p = this.state.pet;
+    if (!p || !istZahm(p)) return false;
+    let eingabe = roh;
+    if (eingabe == null) {
+      eingabe = window.prompt('Wie soll es heißen?', p.name || '');
+      if (eingabe == null) return false;   // abgebrochen, nichts ändern
+    }
+    const name = saeubereName(eingabe);
+    p.name = name;
+    this.ui.toast(name ? 'Es heißt jetzt ' + name : 'Wieder namenlos',
+      'icon_heart', 'good');
+    this.ui.refreshHud();
+    this.save();
+    return true;
+  }
+
+  /**
    * Bewegung und Beschäftigung des Tiers.
    *
    * Drei Zustände, mehr braucht es nicht: Es wartet am Napf, es läuft dir
@@ -2354,7 +2391,8 @@ export class Game {
     if (!best) return;
     e.fund = best;
     p.fundAm = this.day.day;
-    this.ui.toast('Es hat etwas gefunden', 'icon_sparkle', 'good');
+    // Mit Namen wird aus „Es" jemand. Genau dafür gibt es den Namen.
+    this.ui.toast(nameVon(p) + ' hat etwas gefunden', 'icon_sparkle', 'good');
     this.audio.play('ghost');
   }
 
@@ -3250,6 +3288,17 @@ export class Game {
     // einer Woche ein Saatgutlager.
     const hilfe = this.beetHilfe(e.x, e.y);
     if (hilfe.ernte > 0 && got.length && got[0].id !== crop.seed) got[0].n += hilfe.ernte;
+
+    // Blumenbeete, die beieinanderstehen: Dazwischen kann eine Dämmerblume
+    // aufgehen. Sie kommt ZUSÄTZLICH – die normale Ernte wird nie kleiner,
+    // sonst wäre ein schlecht gelegter Garten eine Strafe.
+    const kreuzung = kreuzungVon(crop);
+    const chance = kreuzung
+      ? kreuzChance(this._beetNachbarn(e, kreuzung), (e.gepflegt || 0) > 0)
+      : 0;
+    const gezogen = chance > 0 && Math.random() < chance;
+    if (gezogen) got.push({ id: kreuzung, n: 1 });
+
     const wirklich = [];
     for (let i = 0; i < got.length; i++) {
       const n = this.inventory.add(got[i].id, got[i].n);
@@ -3265,6 +3314,14 @@ export class Game {
     this.audio.play('pickup');
     this.ui.toastItems(wirklich);
     this._note('harvest');
+    // Nur melden, wenn sie auch wirklich in der Tasche gelandet ist: Bei
+    // einer vollen Tasche wäre der Jubel eine Lüge.
+    if (gezogen && wirklich.some(function (w) { return w.id === kreuzung; })) {
+      this.particles.burst('color', e.x, e.y - 40, 18);
+      this.audio.play('levelup');
+      this.ui.toast('Eine Dämmerblume ist aufgegangen', 'icon_flower_dusk', 'good');
+      this._note('gezogen');
+    }
     // Sammelaufträge lesen die Tasche direkt, es reicht, die Anzeige
     // nachzuziehen. Ein `notify` wäre hier eine Meldung ohne Empfänger.
     this.ui.refreshQuests();
@@ -3281,6 +3338,34 @@ export class Game {
     return beetHilfe(this.world.queryNear(x, y, WIRK_RADIUS), x, y);
   }
 
+  /**
+   * Wie viele andere Beete derselben Zuchtart um dieses herum stehen.
+   *
+   * Der Abstand wird NACHGERECHNET: `queryNear` arbeitet auf einem Raster von
+   * 160 Punkten und gibt auch Nachbarn zurück, die weiter weg sind als der
+   * gefragte Radius. Genau diese Falle hat beim Festschmuck schon einmal dafür
+   * gesorgt, dass gar nichts aufgestellt wurde.
+   *
+   * Reif muss der Nachbar nicht sein. Ein Garten, in dem man die Ernte
+   * aufeinander abstimmen muss, wäre Verwaltung – hier zählt, dass etwas
+   * daneben steht.
+   */
+  _beetNachbarn(e, kreuzung) {
+    const near = this.world.queryNear(e.x, e.y, KREUZ_RADIUS);
+    const r2 = KREUZ_RADIUS * KREUZ_RADIUS;
+    let n = 0;
+    for (let i = 0; i < near.length; i++) {
+      const k = near[i];
+      if (k === e || k.gone || k.kind !== 'crop') continue;
+      if (kreuzungVon(CROPS[k.cropId]) !== kreuzung) continue;
+      const dx = k.x - e.x;
+      const dy = k.y - e.y;
+      if (dx * dx + dy * dy > r2) continue;
+      n++;
+    }
+    return n;
+  }
+
   /** Alle Beete einen Tag weiterwachsen lassen. */
   growCrops(regen) {
     const grund = growthPerDay(regen) + this.perks().grow;
@@ -3294,7 +3379,15 @@ export class Game {
       // Ein Bienenkorb in der Nähe zählt genauso: derselbe Summand, kein
       // zweiter Rechenweg daneben.
       const nachbarn = this.beetHilfe(e.x, e.y);
-      const zuwachs = grund + nachbarn.wachstum + (e.watered === this.day.day ? 1 : 0);
+      const gegossen = e.watered === this.day.day;
+      const zuwachs = grund + nachbarn.wachstum + (gegossen ? 1 : 0);
+      // Für die Dämmerblume zählt nicht, ob HEUTE gegossen wurde, sondern ob
+      // das Beet WÄHREND DES WACHSENS gegossen wurde. Der Unterschied ist
+      // kein Detail: `waterCrop` lehnt ein reifes Beet ab, und diese Zeile
+      // hier setzt `watered` jeden Morgen zurück – beim Ernten ist „heute
+      // gegossen" also IMMER falsch. Eine Regel, die daran hinge, wäre ein
+      // toter Zweig gewesen.
+      if (gegossen) e.gepflegt = (e.gepflegt || 0) + 1;
       e.watered = 0;
       const vorher = stageOf(e.grown || 0, crop.days);
       e.grown = Math.min(crop.days, (e.grown || 0) + zuwachs);

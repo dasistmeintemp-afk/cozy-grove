@@ -463,6 +463,14 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Das Spiel nimmt einem nichts weg, es gibt nur weniger. Packst du den Napf
   wieder ein, *bevor* der Streuner bleibt, hast du ihn verscheucht; danach
   hängt er an dir, nicht an der Schüssel.
+
+  **Und du gibst ihm einen Namen.** Das Feld dafür stand von Anfang an im
+  Spielstand und wurde von nichts gesetzt und von nichts gelesen – ein leeres
+  Feld, das jeden Abend mitgespeichert wurde. Jetzt steht im Grundstücksfenster
+  ein Knopf dafür, sobald das Tier bleibt (einen Streuner, der morgen
+  vielleicht nicht wiederkommt, tauft man nicht). Danach heißt es nicht mehr
+  „Es hat etwas gefunden", sondern „Moos hat etwas gefunden" – und genau das
+  ist der ganze Unterschied.
 * **Mitbringsel.** Jeder Geist mag ein paar bestimmte Dinge. Hast du eines
   davon dabei, schwebt ein Herz über ihm; ein Druck auf E, und er bekommt es.
   Das gibt Glut und ein Stück Farbe – einmal je Geist und Tag. Was gerade für
@@ -502,6 +510,22 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   schneller, einmal am Tag, ohne Strafe fürs Auslassen: Wie der ganze Garten
   ist sie ein Angebot, keine Pflicht. Solange sie nicht gebaut ist, steht sie
   auch nicht in der Werkzeugleiste.
+* **Blumen, die beieinanderstehen.** Der Garten konnte lange nur eines: säen,
+  warten, ernten. **Wo** die Beete lagen, war gleichgültig – vier verstreute
+  Blumenbeete brachten dasselbe wie vier nebeneinander.
+
+  Jetzt lohnt sich das Beieinander. Wer Blumenbeete nebeneinander legt, kann
+  beim Ernten eine **Dämmerblume** bekommen: die eine Blume im Spiel, die
+  nirgends wild wächst. Man findet sie nicht, man zieht sie. Jedes Nachbarbeet
+  erhöht die Chance (etwa 9 % je Beet, bei vieren ist Schluss), und **Gießen
+  legt noch etwas drauf** – gezählt wird dabei, ob das Beet *während des
+  Wachsens* gegossen wurde, nicht am Erntetag. Das ist kein Detail: Ein reifes
+  Beet lässt sich gar nicht mehr gießen, eine Regel am Erntetag wäre also ein
+  toter Zweig gewesen.
+
+  Wie alles im Garten eine **Chance, keine Bedingung**: Die normale Ernte
+  kommt so oder so, und ein schlecht gelegter Garten ist keine Strafe. Die
+  Kanne hatte damit übrigens ihre zweite Aufgabe – die interessantere.
 * **Lagerfeuer.** Verbrannte Fundstücke geben Glut (Handwerkswährung) und lassen
   das Feuer wachsen – und mit ihm den farbigen Kreis und die Rezeptliste.
 * **Vier Bereiche.** Lager & Strand (Start) → Wald (umgestürzter Baumstamm,
@@ -850,8 +874,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 459 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
-npm run test:browser   # 266 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 470 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
+npm run test:browser   # 275 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

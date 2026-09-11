@@ -266,6 +266,7 @@ export function initArt() {
   addArt('flower_yellow', paintFlower({ seed: 137, petal: INK.petalYellow }));
   addArt('flower_violet', paintFlower({ seed: 141, petal: INK.petalViolet }));
   addArt('flower_white', paintFlower({ seed: 147, petal: INK.petalWhite }));
+  addArt('flower_dusk', paintFlower({ seed: 153, petal: INK.petalDusk }));
 
   /* --- Lager --- */
   addArt('campfire', paintCampfire({ seed: 211 }));
@@ -394,6 +395,7 @@ function buildIcons() {
   const reuse = [
     ['flower_pink', 'flower_pink'], ['flower_yellow', 'flower_yellow'],
     ['flower_violet', 'flower_violet'], ['flower_white', 'flower_white'],
+    ['flower_dusk', 'flower_dusk'],
     ['lantern', 'lantern'], ['bench', 'bench'], ['fence', 'fence'],
     ['flowerbed', 'flowerbed'], ['birdhouse', 'birdhouse'], ['windchime', 'windchime'],
     ['rug', 'rug'], ['signpost', 'signpost'], ['path_tile', 'path_tile'],

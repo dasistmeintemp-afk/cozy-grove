@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   CROPS, CROP_IDS, SEED_IDS, cropOfSeed, stageOf, daysToRipe, growthPerDay, harvestOf,
+  kreuzChance, kreuzungVon, KREUZ_MAX, KREUZ_GENUG,
 } from '../../src/game/crops.js';
 import { getItem, CAT } from '../../src/game/items.js';
 import { makeRng } from '../../src/core/rng.js';
@@ -108,4 +109,83 @@ test('Die Mondsaat ist die teure und die langsamste', () => {
     assert.ok(getItem(mond.seed).value > getItem(CROPS[id].seed).value,
       'Mondsaat ist nicht die teuerste');
   }
+});
+
+/* ---------------- Blumen, die beieinanderstehen ---------------- */
+
+test('Ein einzelnes Beet zieht gar nichts – auch gegossen nicht', () => {
+  // Die Regel heißt „beieinander". Ohne Nachbarn ist sie nicht erfüllt, und
+  // Gießen darf sie nicht ersetzen: Sonst wäre die Dämmerblume eine Frage
+  // der Geduld und nicht der Anordnung.
+  assert.equal(kreuzChance(0, false), 0);
+  assert.equal(kreuzChance(0, true), 0);
+  assert.equal(kreuzChance(-3, true), 0, 'Unsinn darf keine Chance werden');
+});
+
+test('Je mehr Beete beieinander, desto eher – bis zu einer Grenze', () => {
+  let vorher = 0;
+  for (let n = 1; n <= KREUZ_GENUG; n++) {
+    const jetzt = kreuzChance(n, false);
+    assert.ok(jetzt > vorher, n + ' Nachbarn bringen nicht mehr als ' + (n - 1));
+    vorher = jetzt;
+  }
+  // Und darüber hinaus nicht weiter. Sonst wäre die beste Antwort ein Feld
+  // aus vierzig Beeten, und aus dem Garten würde eine Fabrik.
+  assert.equal(kreuzChance(40, true), KREUZ_MAX);
+  assert.equal(kreuzChance(400, true), KREUZ_MAX);
+});
+
+test('Gießen hilft, ersetzt aber kein zweites Beet', () => {
+  assert.ok(kreuzChance(1, true) > kreuzChance(1, false), 'Gießen tut nichts');
+  assert.ok(kreuzChance(1, true) < kreuzChance(3, false),
+    'eine gegossene Einzelnachbarschaft schlägt drei Beete – dann legt niemand mehr an');
+});
+
+test('Die Chance bleibt eine Chance', () => {
+  // Kein Wert über einem Drittel bis zur Hälfte: Die Dämmerblume soll ein
+  // guter Morgen sein und keine Ernte.
+  for (let n = 0; n <= 20; n++) {
+    for (const g of [false, true]) {
+      const c = kreuzChance(n, g);
+      assert.ok(c >= 0 && c <= 0.5, n + '/' + g + ': ' + c);
+    }
+  }
+  assert.ok(KREUZ_MAX < 0.5, 'öfter als jede zweite Ernte ist keine Seltenheit mehr');
+});
+
+test('Nur die Blumensaat kann etwas ziehen', () => {
+  // Sonst käme die Dämmerblume auch aus einem Beerenbeet, und der Name
+  // stimmte nicht mehr.
+  const mit = CROP_IDS.filter((id) => !!kreuzungVon(CROPS[id]));
+  assert.deepEqual(mit, ['flower'], 'gezogen wird aus: ' + mit.join(', '));
+  assert.equal(kreuzungVon(null), null);
+  assert.equal(kreuzungVon({}), null);
+});
+
+test('Die Dämmerblume gibt es wirklich, und sie steht in keiner Ernteliste', () => {
+  const id = kreuzungVon(CROPS.flower);
+  const item = getItem(id);
+  assert.ok(item, id + ' gibt es nicht');
+  assert.equal(item.cat, CAT.FORAGE);
+  // Der Punkt der ganzen Sache: Sie ist der einzige Fund, den man nicht
+  // findet. Stünde sie in `yields`, käme sie aus jedem Beet von selbst.
+  for (const cid of CROP_IDS) {
+    assert.ok(CROPS[cid].yields.indexOf(id) < 0,
+      id + ' steht in der Ernteliste von ' + cid + ' – dann ist sie nichts Besonderes');
+  }
+  // Und sie hängt an keiner Bedingung: Wer nachts nicht spielt, soll sie
+  // trotzdem ziehen können.
+  assert.ok(!item.onlyAt, 'sie wartet auf ein Wetter oder eine Uhrzeit');
+});
+
+test('Sie ist mehr wert als die Blumen, aus denen sie kommt', () => {
+  const id = kreuzungVon(CROPS.flower);
+  const wert = getItem(id).value;
+  for (const y of CROPS.flower.yields) {
+    assert.ok(wert > getItem(y).value * 2,
+      'die Dämmerblume ist kaum mehr wert als eine ' + getItem(y).name);
+  }
+  // Aber nicht mehr als die Mondblume: Die kostet eine Nacht, diese eine
+  // Anordnung – und eine Nacht ist der grössere Einsatz.
+  assert.ok(wert < getItem('moonflower').value, 'sie schlägt die Mondblume');
 });

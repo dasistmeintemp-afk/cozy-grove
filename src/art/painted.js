@@ -77,6 +77,10 @@ export const INK = {
   petalYellow: '#f7d97e',
   petalViolet: '#b9a3dd',
   petalWhite: '#fdfaf2',
+  // Die Dämmerblume: das Blau, das der Himmel kurz nach Sonnenuntergang hat.
+  // Dunkel genug, dass sie zwischen Rosa, Gelb, Violett und Weiß sofort
+  // auffällt – sie ist die eine, die man nicht findet, sondern zieht.
+  petalDusk: '#6f86c4',
   mushroomCap: '#e2705c',
   mushroomStem: '#f6ecd8',
 

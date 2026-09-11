@@ -50,6 +50,9 @@ export const CROPS = {
     // Welche Blume kommt, entscheidet sich erst bei der Ernte – eine kleine
     // Überraschung, und die Sternblume ist die seltene darunter.
     yields: ['flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'],
+    // Stehen mehrere Blumenbeete beieinander, kann eine Dämmerblume dazwischen
+    // aufgehen – siehe `kreuzChance`. Nur diese eine Saat kann das.
+    kreuzung: 'flower_dusk',
     amount: [2, 3],
     days: 3,
     leaf: '#86ad4b',
@@ -123,3 +126,64 @@ export function harvestOf(crop, rng) {
 }
 
 export const SEED_IDS = CROP_IDS.map(function (id) { return CROPS[id].seed; });
+
+/* ------------------------------------------------------------------ Zucht */
+
+/**
+ * Blumen, die beieinanderstehen.
+ *
+ * Der Garten konnte bisher nur EINES: säen, warten, ernten. Wo die Beete
+ * lagen, war gleichgültig – vier einzelne Blumenbeete über die Insel verteilt
+ * brachten genau dasselbe wie vier nebeneinander. Damit war das Anlegen eines
+ * Gartens eine Frage des Geschmacks und sonst nichts.
+ *
+ * Jetzt lohnt sich das **Beieinander**: Wer Blumenbeete nebeneinander legt,
+ * kann bei der Ernte eine **Dämmerblume** bekommen – die eine Blume im Spiel,
+ * die nirgends wild wächst. Man findet sie nicht; man zieht sie.
+ *
+ * Drei Dinge sind daran Absicht:
+ *
+ * 1. **Es ist eine Chance, keine Bedingung.** Wer daneben liegt, verliert
+ *    nichts – die normale Ernte kommt so oder so. Ein Garten, der nur mit
+ *    dem richtigen Muster etwas hergibt, wäre ein Rätsel, und Rätsel gehören
+ *    hier nicht in den Garten.
+ * 2. **Gießen hilft.** Die Kanne hatte bisher genau einen Zweck (ein Tag
+ *    schneller). Jetzt hat sie einen zweiten, und der ist der interessantere.
+ * 3. **Es hört auf zu steigen.** Ab vier Nachbarn bringt das fünfte nichts
+ *    mehr. Sonst wäre die beste Antwort ein Feld aus vierzig Beeten, und aus
+ *    dem Garten würde eine Fabrik.
+ */
+
+/** Wie nah ein Nachbarbeet liegen muss – gut zwei Kacheln. */
+export const KREUZ_RADIUS = 150;
+
+/** Wie viel jedes Nachbarbeet zur Chance beiträgt. */
+export const KREUZ_JE_NACHBAR = 0.09;
+
+/** Was Gießen dazulegt – aber nur, wenn überhaupt ein Nachbar da ist. */
+export const KREUZ_GEGOSSEN = 0.08;
+
+/** Obergrenze. Ab hier bringt das nächste Beet nichts mehr. */
+export const KREUZ_MAX = 0.38;
+
+/** Ab wie vielen Nachbarn die Obergrenze erreicht ist – nur zur Anzeige. */
+export const KREUZ_GENUG = 4;
+
+/**
+ * Wie wahrscheinlich die Dämmerblume ist.
+ *
+ * @param {number} nachbarn  andere Blumenbeete in Reichweite
+ * @param {boolean} gegossen ob dieses Beet heute gegossen wurde
+ * @returns {number} 0 bis KREUZ_MAX
+ */
+export function kreuzChance(nachbarn, gegossen) {
+  const n = nachbarn > 0 ? nachbarn : 0;
+  if (n === 0) return 0;   // allein geht gar nichts – auch gegossen nicht
+  const roh = n * KREUZ_JE_NACHBAR + (gegossen ? KREUZ_GEGOSSEN : 0);
+  return Math.min(KREUZ_MAX, roh);
+}
+
+/** Was dieses Beet durch Nachbarschaft hervorbringen kann – oder null. */
+export function kreuzungVon(crop) {
+  return (crop && crop.kreuzung) || null;
+}

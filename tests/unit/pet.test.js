@@ -14,7 +14,7 @@ import {
   FUTTER, RUHE_DEKO, PET_MILESTONE, ZAHM_NOETIG, LAUNE_MAX, LAUNE_SUCHT_AB,
   LAUNE_PRO_TAG, emptyPet, petArtFor, futterWert, bestesFutter, istZahm,
   istStreuner, launeAmMorgen, darfFuettern, suchtHeute, petStatus, launeWort,
-  istRuheplatz,
+  istRuheplatz, NAME_MAX, saeubereName, nameVon, istBenannt,
 } from '../../src/game/pet.js';
 import { getItem, CAT } from '../../src/game/items.js';
 import { MILESTONES } from '../../src/game/milestones.js';
@@ -169,4 +169,48 @@ test('Die Laune hat für jeden Bereich ein Wort', () => {
     worte.add(w);
   }
   assert.ok(worte.size >= 3, 'die Wörter unterscheiden zu wenig');
+});
+
+/* ---------------- Der Name ---------------- */
+
+test('Ohne Namen spricht das Spiel trotzdem von ihm', () => {
+  // `name` stand seit jeher im Spielstand und wurde von nichts gesetzt und
+  // von nichts gelesen. Wer noch keinen vergeben hat, soll deshalb keinen
+  // leeren Titel sehen.
+  assert.equal(nameVon({ art: 'cat' }), 'Deine Katze');
+  assert.equal(nameVon({ art: 'dog' }), 'Dein Hund');
+  assert.equal(nameVon(null), 'Deine Katze');
+  assert.equal(nameVon({ art: 'dog', name: '   ' }), 'Dein Hund', 'Leerzeichen sind kein Name');
+  assert.equal(istBenannt({ art: 'cat' }), false);
+  assert.equal(istBenannt({ art: 'cat', name: 'Moos' }), true);
+  assert.equal(istBenannt(null), false);
+});
+
+test('Ein vergebener Name wird benutzt', () => {
+  assert.equal(nameVon({ art: 'cat', name: 'Moos' }), 'Moos');
+  const stand = petStatus({ art: 'dog', zahm: ZAHM_NOETIG, name: 'Borke' }, 1);
+  assert.equal(stand.name, 'Borke');
+  assert.equal(stand.benannt, true);
+});
+
+test('Eine Eingabe wird zu etwas, das in eine Zeile passt', () => {
+  assert.equal(saeubereName('  Moos  '), 'Moos');
+  assert.equal(saeubereName('Frau   von   Moos'), 'Frau von Moos', 'Leerraum zusammenziehen');
+  // Ein Zeilenumbruch im Namen zerlegte Fenster und Meldung. Er wird zu
+  // einem Leerzeichen und nicht gelöscht – sonst würde aus zwei Wörtern
+  // eines („MoosZweite"). Kurz gehalten, damit hier die Zeile geprüft wird
+  // und nicht die Längengrenze.
+  assert.equal(saeubereName('Moos\nZwei'), 'Moos Zwei');
+  assert.equal(saeubereName('a\tb'), 'a b');
+  assert.ok(saeubereName('x'.repeat(200)).length <= NAME_MAX, 'zu lang fürs Fenster');
+  assert.equal(saeubereName(''), '', 'leer heißt: wieder namenlos');
+  assert.equal(saeubereName(null), '');
+  assert.equal(saeubereName(42), '', 'auch Unfug darf nicht durchkommen');
+});
+
+test('Umlaute und Emoji überleben', () => {
+  // Gekappt wird nach Länge, nicht nach Bytes – ein „ö" darf nicht auf
+  // halbem Weg abreißen.
+  assert.equal(saeubereName('Bärbel'), 'Bärbel');
+  assert.equal(saeubereName('Flöckchen'), 'Flöckchen');
 });

@@ -135,6 +135,8 @@ export function petStatus(pet, tag) {
     hungrig: darfFuettern(p, tag),
     suchtNoch: suchtHeute(p, tag),
     seit: p.seit || 0,
+    name: nameVon(p),
+    benannt: istBenannt(p),
   };
 }
 
@@ -166,4 +168,51 @@ export function launeWort(laune) {
   if (laune >= LAUNE_SUCHT_AB) return 'gut gelaunt';
   if (laune >= 15) return 'hat Hunger';
   return 'sehr hungrig';
+}
+
+/* ------------------------------------------------------------------- Name */
+
+/**
+ * Wie das Tier heißt.
+ *
+ * `name` stand seit jeher im Spielstand – gesetzt hat es nichts, gelesen hat
+ * es nichts. Ein leeres Feld, das jeden Abend mitgespeichert wurde.
+ *
+ * Ein Tier, das man nicht benennen kann, bleibt „die Katze". Benannt wird es
+ * jemand, und das ist der ganze Unterschied: Die Meldung heißt dann nicht
+ * mehr „Es hat etwas gefunden", sondern „Moos hat etwas gefunden".
+ *
+ * Benannt wird erst, wenn es bleibt. Einen Streuner, der morgen vielleicht
+ * nicht wiederkommt, tauft man nicht.
+ */
+export const NAME_MAX = 16;
+
+/**
+ * Aus einer Eingabe einen Namen machen.
+ *
+ * Steuerzeichen raus, Leerraum zusammenziehen, dann kappen. Der Name landet
+ * im Fenster und in Meldungen; ein Zeilenumbruch darin zerlegte beides.
+ * Leer ist erlaubt und heißt: wieder namenlos.
+ */
+export function saeubereName(roh) {
+  if (typeof roh !== 'string') return '';
+  // Steuerzeichen werden zu einem Leerzeichen, nicht gelöscht: Aus
+  // „Moos⏎Zweite" würde sonst „MoosZweite", und zwei Wörter wären eines.
+  const ohneSteuer = roh.split('').map(function (z) {
+    const c = z.charCodeAt(0);
+    return c < 32 || c === 127 ? ' ' : z;
+  }).join('');
+  return ohneSteuer.replace(/\s+/g, ' ').trim().slice(0, NAME_MAX);
+}
+
+/** Der Name – oder wie das Spiel sonst von ihm spricht. */
+export function nameVon(pet) {
+  const eigen = pet && typeof pet.name === 'string' ? pet.name.trim() : '';
+  if (eigen) return eigen;
+  return pet && pet.art === 'dog' ? 'Dein Hund' : 'Deine Katze';
+}
+
+/** Ob es einen eigenen Namen hat. */
+export function istBenannt(pet) {
+  return !!(pet && typeof pet.name === 'string' && pet.name.trim());
 }

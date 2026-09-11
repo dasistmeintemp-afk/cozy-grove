@@ -60,6 +60,9 @@ function erreichbar() {
   for (const id of CROP_IDS) {
     for (const y of CROPS[id].yields) mark(y, 'ernte:' + id);
     mark(CROPS[id].seed, 'saat');
+    // Was nur durch Nachbarschaft entsteht: Die Dämmerblume steht in keiner
+    // `yields`-Liste, weil sie kein normaler Ertrag ist.
+    if (CROPS[id].kreuzung) mark(CROPS[id].kreuzung, 'zucht:' + id);
   }
   for (const it of ITEM_LIST) {
     if (it.cat === CAT.FISH) mark(it.id, 'angeln');

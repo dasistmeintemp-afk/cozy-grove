@@ -43,7 +43,10 @@ export const SPIRITS = {
     colorArea: 127000,
     // 'cook': Bei ihr auf der Wiese wächst fast alles, was in den Topf kommt.
     questTypes: ['gather_forage', 'find', 'decorate', 'catch_bug', 'visit', 'cook', 'set', 'grow', 'deliver'],
-    likes: ['flower_pink', 'flower_yellow', 'flower_white', 'herb', 'berry'],
+    // Die Dämmerblume gehört zu ihr: Sie ist die Blumenfrau der Insel, und
+    // die eine Blume, die man nicht findet, sondern zieht, gehört in ihre
+    // Hände. Ohne das wäre der seltenste Fund des Gartens nur Geld.
+    likes: ['flower_pink', 'flower_yellow', 'flower_white', 'herb', 'berry', 'flower_dusk'],
     favourite: 'flower_white',
     lines: {
       greet: ['Es duftet.', 'Hallo!', 'Schau mal.'],

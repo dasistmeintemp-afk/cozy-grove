@@ -109,6 +109,10 @@ const LIST = [
 
   // Nur unter bestimmten Bedingungen zu finden – das ist der Grund, an einem
   // anderen Tag oder zu anderer Stunde wiederzukommen.
+  // Wächst nirgends wild. Sie kommt nur dort, wo Blumenbeete beieinander
+  // stehen – siehe `kreuzChance` in crops.js. Das einzige Stück im Spiel, das
+  // man nicht findet, sondern zieht.
+  it('flower_dusk', 'Dämmerblume', CAT.FORAGE, 26, 6),
   it('moonflower', 'Mondblume', CAT.FORAGE, 34, 6, { onlyAt: 'night', spawn: 7 }),
   it('rainmushroom', 'Regenpilz', CAT.FORAGE, 30, 6, { onlyAt: 'rain', spawn: 8 }),
   it('fogcrystal', 'Nebelkristall', CAT.RELIC, 48, 9, { onlyAt: 'fog', spawn: 5 }),

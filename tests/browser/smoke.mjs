@@ -784,6 +784,89 @@ async function run() {
     check('Und sie steht im Aufgabenfenster',
       wirkt.imFenster === true, JSON.stringify(wirkt));
 
+    /* ---- Blumen, die beieinanderstehen ---- */
+
+    const zucht = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { KREUZ_RADIUS } = await import('/src/game/crops.js');
+      const r = {};
+      let nr = 901001;
+      const machBeet = (x, y, art) => g.world.add({
+        id: nr++, kind: 'crop', cropId: art, grown: 9, plantedDay: g.day.day,
+        x: x, y: y, sprite: 'crop_' + art + '_2',
+      });
+
+      // Ein Blumenbeet allein: keine Nachbarn.
+      const platz = { x: g.player.x + 400, y: g.player.y + 400 };
+      const allein = machBeet(platz.x, platz.y, 'flower');
+      r.alleinNachbarn = g._beetNachbarn(allein, 'flower_dusk');
+
+      // Drei weitere daneben – und eines knapp AUSSERHALB der Reichweite.
+      // `queryNear` arbeitet auf einem 160-Punkte-Raster und gibt auch
+      // Nachbarn zurück, die weiter weg sind als gefragt: Ohne die
+      // Abstandsprüfung im Spiel zählte das ferne Beet mit.
+      const nah = [
+        machBeet(platz.x + 70, platz.y, 'flower'),
+        machBeet(platz.x - 70, platz.y, 'flower'),
+        machBeet(platz.x, platz.y + 70, 'flower'),
+      ];
+      const fern = machBeet(platz.x + KREUZ_RADIUS + 12, platz.y, 'flower');
+      r.mitNachbarn = g._beetNachbarn(allein, 'flower_dusk');
+      r.fernZaehltNicht = r.mitNachbarn === nah.length;
+
+      // Ein Beerenbeet daneben zählt nicht mit – gezogen wird aus Blumen.
+      const beere = machBeet(platz.x, platz.y - 70, 'berry');
+      r.beereZaehltNicht = g._beetNachbarn(allein, 'flower_dusk') === nah.length;
+
+      // Gegossen wird über die Wachstumszeit gezählt, nicht am Erntetag:
+      // `waterCrop` lehnt ein reifes Beet ab, und der Tageswechsel setzt
+      // `watered` zurück.
+      const jung = machBeet(platz.x + 300, platz.y + 300, 'flower');
+      jung.grown = 0;
+      g.player.levels.can = 1;
+      g.waterCrop(jung);
+      r.gegossenHeute = jung.watered === g.day.day;
+      g.growCrops('clear');
+      r.gepflegtGemerkt = (jung.gepflegt || 0) > 0;
+      r.watteredZurueck = !jung.watered;
+
+      // Und die Ernte bringt sie wirklich hervor. Mit gestelltem Zufall,
+      // sonst hinge die Prüfung an einem Würfel.
+      const merkSlots = g.inventory.slots;
+      const merkRnd = Math.random;
+      g.inventory.slots = [];
+      Math.random = () => 0;                       // trifft immer
+      g.harvestCrop(allein);
+      r.mitZucht = g.inventory.count('flower_dusk');
+      const zweites = machBeet(platz.x, platz.y, 'flower');
+      Math.random = () => 0.999;                   // trifft nie
+      g.harvestCrop(zweites);
+      r.ohneZucht = g.inventory.count('flower_dusk') - r.mitZucht;
+      // Ein einzelnes Beet zieht auch mit bestem Wurf nichts.
+      const einsam = machBeet(g.player.x - 900, g.player.y - 900, 'flower');
+      Math.random = () => 0;
+      g.harvestCrop(einsam);
+      r.einsamZieht = g.inventory.count('flower_dusk') - r.mitZucht;
+      Math.random = merkRnd;
+      g.inventory.slots = merkSlots;
+
+      for (const e of nah.concat([fern, beere, jung, einsam])) g.world.remove(e);
+      return r;
+    });
+    check('Ein Blumenbeet allein hat keine Nachbarn',
+      zucht.alleinNachbarn === 0, JSON.stringify(zucht));
+    check('Beete daneben zählen, und das zu weit entfernte nicht',
+      zucht.mitNachbarn === 3 && zucht.fernZaehltNicht === true, JSON.stringify(zucht));
+    check('Ein Beerenbeet zählt für die Blumenzucht nicht mit',
+      zucht.beereZaehltNicht === true, JSON.stringify(zucht));
+    check('Gegossen wird über die Wachstumszeit gemerkt, nicht am Erntetag',
+      zucht.gegossenHeute === true && zucht.gepflegtGemerkt === true &&
+      zucht.watteredZurueck === true, JSON.stringify(zucht));
+    check('Beieinander stehende Beete bringen die Dämmerblume hervor',
+      zucht.mitZucht === 1 && zucht.ohneZucht === 0, JSON.stringify(zucht));
+    check('Ein einzelnes Beet bringt sie auch beim besten Wurf nicht',
+      zucht.einsamZieht === 0, JSON.stringify(zucht));
+
     // Der Kescher zählte seine Falter mit und zeigte die Zahl nirgends.
     const zaehler = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
@@ -3226,6 +3309,29 @@ async function run() {
       g.world.remove(ruheBank);
       g.world.pet.ruhe = null;
 
+      // Es bekommt einen Namen – und der taucht dann auch wirklich auf.
+      // `name` stand seit jeher im Spielstand, gesetzt hat es nichts.
+      const nameVorher = g.petStatus().name;
+      const benannt = g.benennePet('  Moos  ');
+      const nameNachher = g.petStatus().name;
+      g.openPanel('plot');
+      await new Promise((res) => setTimeout(res, 220));
+      const imFenster = document.getElementById('panel-body').textContent;
+      const nameImFenster = imFenster.indexOf('Moos') >= 0;
+      const knopfImFenster = !!Array.from(
+        document.querySelectorAll('#panel-body [data-act="petName"]')).length;
+      g.panels.close();
+      // Und in der Fundmeldung steht er auch.
+      g.world.pet.fund = null;
+      g.state.pet.fundAm = 0;
+      g.state.pet.laune = 100;
+      const toastBox = document.getElementById('toasts');
+      while (toastBox.firstChild) toastBox.removeChild(toastBox.firstChild);
+      g._petSucht();
+      const nameInMeldung = toastBox.textContent.indexOf('Moos') >= 0;
+      g.world.pet.fund = null;
+      g.state.pet.name = '';
+
       // Napf einpacken, solange es fremd ist, verscheucht es wieder
       g.state.pet.zahm = 0;
       napf.gone = true;
@@ -3241,6 +3347,7 @@ async function run() {
         weit: Math.round(weit), nah: Math.round(nah), bewegt, ohneNapfWeg,
         legtSichImLaufen, legtSichImStehen,
         beiSeli, nichtAufDerBank, abstandZuSeli, sitzplatz: !!sitzplatz,
+        nameVorher, benannt, nameNachher, nameImFenster, knopfImFenster, nameInMeldung,
       };
     });
     check('Ohne Napf ist kein Tier da',
@@ -3275,6 +3382,16 @@ async function run() {
       tier.weit > 500 && tier.nah < 120 && tier.bewegt > 100, JSON.stringify(tier));
     check('Napf weg, Streuner weg – solange es noch fremd ist',
       tier.ohneNapfWeg === false, JSON.stringify(tier));
+    check('Vor dem Taufen heißt es „Deine Katze" oder „Dein Hund"',
+      /^(Deine Katze|Dein Hund)$/.test(tier.nameVorher || ''),
+      JSON.stringify({ vorher: tier.nameVorher }));
+    check('Ein Name lässt sich vergeben und steht danach im Fenster',
+      tier.benannt === true && tier.nameNachher === 'Moos' &&
+      tier.nameImFenster === true && tier.knopfImFenster === true,
+      JSON.stringify({ benannt: tier.benannt, name: tier.nameNachher,
+        imFenster: tier.nameImFenster, knopf: tier.knopfImFenster }));
+    check('Und aus „Es hat etwas gefunden" wird „Moos hat etwas gefunden"',
+      tier.nameInMeldung === true, JSON.stringify({ meldung: tier.nameInMeldung }));
 
     /* ---- Das Lieblingsgeschenk ---- */
     const lieblings = await page.evaluate(() => {

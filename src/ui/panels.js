@@ -182,6 +182,10 @@ export class Panels {
         g.changeSetting(arg, t.getAttribute('data-val'));
         this.render();
         break;
+      case 'petName':
+        g.benennePet();
+        this.render();
+        break;
       case 'reset':
         g.confirmReset();
         break;
@@ -833,12 +837,17 @@ export class Panels {
 
     return html + '<div class="rows"><div class="row">' +
       ico('icon_heart', 'lg') +
-      '<div class="grow"><div class="title">' +
-      (stand.art === 'dog' ? 'Dein Hund' : 'Deine Katze') + '</div>' +
-      '<div class="meta"><span>' + escapeHtml(launeWort(stand.laune)) + '</span>' +
+      '<div class="grow"><div class="title">' + escapeHtml(stand.name) + '</div>' +
+      '<div class="meta">' +
+      // Erst wenn es benannt ist, muss dabeistehen, WAS es ist – vorher sagt
+      // der Titel es schon („Deine Katze").
+      (stand.benannt ? '<span>' + (stand.art === 'dog' ? 'Hund' : 'Katze') + '</span>' : '') +
+      '<span>' + escapeHtml(launeWort(stand.laune)) + '</span>' +
       '<span>' + (stand.hungrig ? 'noch nicht gefüttert' : 'heute gefüttert') + '</span>' +
       '<span>' + (stand.suchtNoch ? 'sucht noch etwas' : 'hat heute schon gesucht') +
-      '</span></div></div></div></div>' +
+      '</span></div></div>' +
+      '<button class="row-btn ghost" data-act="petName">' +
+      (stand.benannt ? 'Umbenennen' : 'Namen geben') + '</button></div></div>' +
       '<p class="empty-note" style="padding:8px 0 0">' +
       'Einmal am Tag findet es dir etwas – eine Grabstelle oder ein verstecktes ' +
       'Stück. Hungrig sucht es nicht. Und wenn du stehen bleibst, sucht es sich ' +
