@@ -21,7 +21,8 @@ export const SPIRITS = {
     role: 'Lagerfeuer',
     colorStart: 312,
     colorArea: 131000,
-    questTypes: ['burn', 'burn', 'gather_wood', 'visit', 'craft', 'set', 'deliver'],
+    // 'cook': Die Kochstelle steht neben seinem Feuer – er sieht jedes Mal zu.
+    questTypes: ['burn', 'burn', 'gather_wood', 'visit', 'craft', 'cook', 'set', 'deliver'],
     likes: ['wood', 'hardwood', 'resin'],
     favourite: 'resin',
     lines: {
@@ -40,7 +41,8 @@ export const SPIRITS = {
     role: 'Wiese',
     colorStart: 240,
     colorArea: 127000,
-    questTypes: ['gather_forage', 'find', 'decorate', 'catch_bug', 'visit', 'set', 'grow', 'deliver'],
+    // 'cook': Bei ihr auf der Wiese wächst fast alles, was in den Topf kommt.
+    questTypes: ['gather_forage', 'find', 'decorate', 'catch_bug', 'visit', 'cook', 'set', 'grow', 'deliver'],
     likes: ['flower_pink', 'flower_yellow', 'flower_white', 'herb', 'berry'],
     favourite: 'flower_white',
     lines: {
@@ -118,7 +120,8 @@ export const SPIRITS = {
     role: 'Klippen',
     colorStart: 240,
     colorArea: 151000,
-    questTypes: ['find', 'visit', 'decorate', 'craft', 'gather', 'set', 'grow', 'deliver'],
+    // 'cook': „Ich habe für alle gedeckt. Auch für die, die nicht kommen."
+    questTypes: ['find', 'visit', 'decorate', 'craft', 'gather', 'cook', 'set', 'grow', 'deliver'],
     // Bernstein dazu: Sie wohnt oben am Stein, ihr Lieblingsstück ist der
     // Meerkristall, und der Bernstein kommt aus den Geoden im Hochland.
     likes: ['fiber', 'flower_violet', 'gem', 'amber'],
@@ -141,7 +144,9 @@ export const SPIRITS = {
     // ihrer Insel, und ein winziger Farbfleck im Nichts sähe verloren aus.
     colorStart: 360,
     colorArea: 158000,
-    questTypes: ['find', 'catch_bug', 'gather_beach', 'fish', 'visit', 'set', 'deliver', 'grow'],
+    // 'cook': Sie ist allein auf ihrer Insel. Jemand, der ihr etwas Warmes
+    // hinüberbringt, ist das Freundlichste, was das Spiel zu bieten hat.
+    questTypes: ['find', 'catch_bug', 'gather_beach', 'fish', 'visit', 'cook', 'set', 'deliver', 'grow'],
     // Sternenstaub gehört zu ihr: Er liegt am Morgen nach einer Sternennacht
     // am Spülsaum, und Wanda ist die, die nachsieht, was über Nacht angetrieben
     // ist. Vorher mochte ihn NIEMAND – der seltenste Fund des Spiels war das

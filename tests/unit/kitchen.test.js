@@ -16,10 +16,11 @@ import assert from 'node:assert/strict';
 import {
   GERICHTE, GERICHT_IDS, STAERKUNG, STAERKUNG_IDS, istGericht, gerichtFuer,
   staerkungVon, fehltFuer, kannKochen, zutatenWert, staerkungHeute,
-  tempoFaktor, wuchtBonus, glueckBonus,
+  tempoFaktor, wuchtBonus, glueckBonus, KOCH_DANK, kochDank,
 } from '../../src/game/kitchen.js';
 import { getItem, ITEM_LIST, CAT, CAT_NAMES } from '../../src/game/items.js';
 import { SETS } from '../../src/game/collection.js';
+import { SPIRITS, SPIRIT_IDS } from '../../src/game/spirits.js';
 
 /** Eine Tasche, die nur zählt – mehr braucht `fehltFuer` nicht. */
 function beutel(inhalt) {
@@ -218,4 +219,61 @@ test('Die Reihenfolge im Fenster steigt vom Leichten zum Seltenen', () => {
   const werte = GERICHTE.map((g) => getItem(g.id).value);
   assert.equal(werte[0], Math.min(...werte), 'oben steht nicht das Einfachste');
   assert.equal(werte[werte.length - 1], Math.max(...werte), 'unten steht nicht das Seltenste');
+});
+
+/* ---------------- Was die Geister zum Gekochten sagen ---------------- */
+
+test('Jeder Geist sagt etwas Eigenes zu Gekochtem', () => {
+  // Bis hierher bekam ein Gericht denselben Dank wie ein Stein: Brunos
+  // „Brauchbar." für einen Beerenkuchen. Ein Gericht ist das einzige
+  // Mitbringsel, das nicht gefunden, sondern gemacht wurde.
+  for (const sid of SPIRIT_IDS) {
+    const saetze = kochDank(sid);
+    assert.ok(saetze.length >= 2,
+      SPIRITS[sid].name + ' hat nur ' + saetze.length + ' Satz zum Gekochten');
+    for (const s of saetze) {
+      assert.ok(s.length <= 70, sid + ': zu lang – ' + s);
+      assert.ok(/[.!?…]$/.test(s), sid + ': unfertig – ' + s);
+    }
+  }
+});
+
+test('Kein Dank steht zweimal da', () => {
+  const gesehen = Object.create(null);
+  for (const sid of SPIRIT_IDS) {
+    for (const s of kochDank(sid)) {
+      assert.ok(!gesehen[s], 'derselbe Satz bei ' + gesehen[s] + ' und ' + sid);
+      gesehen[s] = sid;
+    }
+  }
+});
+
+test('Niemand erteilt beim Danken einen Auftrag', () => {
+  // Dieselbe Regel wie beim Geplauder und am Fest.
+  const verdaechtig = /\b(bring|hol|sammle|besorg|solltest|könntest du|kannst du mir)\b/i;
+  for (const sid of SPIRIT_IDS) {
+    for (const s of kochDank(sid)) {
+      assert.ok(!verdaechtig.test(s), sid + ' klingt nach Auftrag: ' + s);
+    }
+  }
+});
+
+test('Und keiner von ihnen lobt einen Fisch im Topf', () => {
+  // Seli isst kein Tier. Ein Dank, der Fisch oder Speck erwähnt, wäre dem
+  // Gericht nicht anzusehen und der Küche nicht.
+  const tier = /\b(fisch|fleisch|speck|ei|eier|wurst|honig)\b/i;
+  for (const sid of SPIRIT_IDS) {
+    for (const s of kochDank(sid)) {
+      // „Kein Fisch drin" darf stehen – das ist die Feststellung, nicht das Lob.
+      if (/kein fisch/i.test(s)) continue;
+      assert.ok(!tier.test(s), sid + ': ' + s);
+    }
+  }
+});
+
+test('Es gibt keinen Dank für Geister, die es nicht gibt', () => {
+  for (const sid in KOCH_DANK) {
+    assert.ok(SPIRITS[sid], 'Dank für einen Geist, den es nicht gibt: ' + sid);
+  }
+  assert.deepEqual(kochDank('niemand'), []);
 });

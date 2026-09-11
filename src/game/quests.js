@@ -13,6 +13,7 @@ import { dailyRng, randInt, randPick } from '../core/rng.js';
 import { makeEntity } from '../world/entities.js';
 import { TILE_SIZE } from '../world/worldgen.js';
 import { RECIPES, campfireLevelFor } from './recipes.js';
+import { GERICHTE } from './kitchen.js';
 
 export const QTYPE = {
   GATHER: 'gather',
@@ -44,6 +45,18 @@ export const QTYPE = {
   DELIVER: 'deliver',
   /** Aus dem eigenen Beet – bindet den Garten an die Geister. */
   GROW: 'grow',
+  /**
+   * Ein Gericht kochen.
+   *
+   * Die Küche stand für sich: Man konnte kochen, das Gekochte verkaufen und
+   * verschenken – aber **niemand hat je danach gefragt**. Von allen Systemen
+   * des Spiels war sie das einzige, das an keiner Bitte hing.
+   *
+   * Das ist die längste Kette, die eine Bitte hier auslöst: erst wissen, was
+   * hineingehört, dann die Zutaten von drei verschiedenen Stellen holen, dann
+   * ans Feuer. Deshalb gilt sie auch länger als alle anderen.
+   */
+  COOK: 'cook',
 };
 
 export const POOLS = {
@@ -53,6 +66,39 @@ export const POOLS = {
   gather_ore: ['stone', 'copper_ore', 'clay'],
   gather: ['wood', 'stone', 'fiber', 'berry', 'shell', 'herb', 'mushroom', 'clay'],
 };
+
+/**
+ * Zutaten, auf die man nicht wochenlang warten muss.
+ *
+ * Drei Gegenstände im Spiel gibt es nur unter einer Bedingung: die Mondblume
+ * nachts, den Regenpilz bei Regen, den Nebelkristall bei Nebel. Für eine
+ * Bitte MIT FRIST ist der Unterschied zwischen diesen dreien groß:
+ *
+ *   **Die Nacht kommt jeden Tag.** Wer eine Mondblume braucht, weiß, wann er
+ *   loszugehen hat – das ist ein Grund, abends draußen zu bleiben, und genau
+ *   die Rolle, die diese Sorte Fund spielen soll.
+ *
+ *   **Regen und Nebel kommen vielleicht die ganze Woche nicht.** Eine Bitte
+ *   um einen Regenpilz-Eintopf wäre bei trockenem Wetter dieselbe tote
+ *   Aufgabe, die beim Fischfang schon einmal auffiel: Man läuft sechs Tage
+ *   lang los und kann nichts dafür.
+ *
+ * Deshalb sperrt diese Regel das Wetter aus und die Nachtzeit nicht.
+ */
+const AUFS_WETTER_WARTEN = { rain: 1, fog: 1 };
+
+export function verlaesslich(itemId) {
+  const it = getItem(itemId);
+  return !it || !it.onlyAt || !AUFS_WETTER_WARTEN[it.onlyAt];
+}
+
+/** Ob eine ganze Zutatenliste verlässlich zu beschaffen ist. */
+function alleVerlaesslich(liste) {
+  for (let i = 0; i < liste.length; i++) {
+    if (!verlaesslich(liste[i].id)) return false;
+  }
+  return true;
+}
 
 /**
  * Worum ein Geist zu bauen bitten darf.
@@ -80,8 +126,8 @@ export const POOLS = {
  *    lang zusehen, wie die Bitte abläuft. Genau dieselbe Überlegung wie beim
  *    Fischfang, wo nur gefragt wird, was zur Jahreszeit auch anbeißt.
  *
- * Dazu fällt weg, was an Wetter oder Nachtzeit hängt (Mondlaterne): Vier Tage
- * Frist und kein einziger Nebeltag wäre dieselbe tote Aufgabe.
+ * Dazu fällt weg, was auf ein Wetter wartet (die Mondlaterne braucht
+ * Nebelkristall): siehe `verlaesslich`.
  */
 export function craftableAsks(fire) {
   const stufe = fire >= 1 ? fire : 1;
@@ -91,12 +137,7 @@ export function craftableAsks(fire) {
     if (rec.kind !== 'item' || rec.once || rec.needs) continue;
     if (!rec.out || rec.out.id !== rec.id) continue;
     if ((rec.fire || 1) > stufe) continue;
-    let bedingt = false;
-    for (let k = 0; k < rec.cost.length; k++) {
-      const z = getItem(rec.cost[k].id);
-      if (z && z.onlyAt) { bedingt = true; break; }
-    }
-    if (bedingt) continue;
+    if (!alleVerlaesslich(rec.cost)) continue;
     raus.push(rec.id);
   }
   return raus;
@@ -104,6 +145,24 @@ export function craftableAsks(fire) {
 
 /** Alles, worum jemals gebeten werden kann – für Prüfungen und Übersichten. */
 export const CRAFTABLE_ASKS = craftableAsks(99);
+
+/**
+ * Worum ein Geist zu kochen bitten darf.
+ *
+ * Alle Gerichte, deren Zutaten nicht auf ein Wetter warten. Eine Feuerstufe
+ * gibt es hier nicht – die Kochstelle steht vom ersten Tag an im Lager, ohne
+ * Meilenstein davor, und das soll so bleiben: Wer am ersten Tag drei Beeren
+ * findet, soll damit etwas anfangen können.
+ */
+export function kochAsks() {
+  const raus = [];
+  for (let i = 0; i < GERICHTE.length; i++) {
+    if (alleVerlaesslich(GERICHTE[i].zutaten)) raus.push(GERICHTE[i].id);
+  }
+  return raus;
+}
+
+export const COOK_ASKS = kochAsks();
 
 /**
  * Die Feuerstufe, so wie das Spiel sie gerade sieht.
@@ -177,6 +236,10 @@ const LIFETIME = {
   catch: 4,
   decorate: 5,
   craft: 4,
+  // Die längste Kette im Spiel: wissen was hineingehört, die Zutaten von drei
+  // verschiedenen Stellen holen, ans Feuer gehen. Deshalb sechs Tage – mehr
+  // als jede andere Bitte außer dem Beet.
+  cook: 6,
   visit: 3,
   gather: 3,
   fish: 3,
@@ -435,6 +498,17 @@ export class QuestBook {
       return q;
     }
 
+    if (type === 'cook') {
+      // Ohne Feuerstufe: Die Kochstelle steht vom ersten Tag an da. Aber
+      // ohne Wetterzutaten – siehe `verlaesslich`.
+      const pool = COOK_ASKS;
+      if (!pool.length) return null;
+      const q = this._base(spiritId, QTYPE.COOK, 1, day);
+      q.itemId = randPick(rng, pool);
+      q.rewards = rewardFor(QTYPE.COOK, 1, scale, rng, getItem(q.itemId));
+      return q;
+    }
+
     if (type === 'craft') {
       // Nur, was am heutigen Feuer wirklich gebaut werden kann – sonst läuft
       // die Bitte vier Tage lang gegen „Das Feuer ist noch zu klein".
@@ -499,6 +573,7 @@ export class QuestBook {
     switch (q.type) {
       case QTYPE.GATHER:
       case QTYPE.CRAFT:
+      case QTYPE.COOK:
       case QTYPE.DELIVER:
       case QTYPE.GROW:
         return Math.min(q.need, ctx.inventory.count(q.itemId));
@@ -570,7 +645,7 @@ export class QuestBook {
     if (!this.isReady(q, ctx)) return null;
 
     if (q.type === QTYPE.GATHER || q.type === QTYPE.CRAFT ||
-        q.type === QTYPE.DELIVER || q.type === QTYPE.GROW) {
+        q.type === QTYPE.COOK || q.type === QTYPE.DELIVER || q.type === QTYPE.GROW) {
       ctx.inventory.remove(q.itemId, q.need);
     } else if (q.type === QTYPE.SET) {
       // Von jeder Sorte genau eines – nicht der ganze Stapel.
@@ -672,6 +747,13 @@ function rewardFor(type, count, scale, rng, item) {
     burn: 4,
     craft: 20,
     decorate: 14,
+    // Wie bei der Holbitte am Wert des Gerichts: Sonst brächte der
+    // Mondblütenkuchen (168) dasselbe wie das Beerenmus (34), und man kochte
+    // immer das Billigste. Der Faktor liegt unter dem der Holbitte, weil das
+    // Gericht schon die doppelte Summe seiner Zutaten wert IST – 1,5 wäre auf
+    // eine Verdopplung aufgesetzt und machte die Küche zur Münzpresse. Zwei
+    // Prüfungen rechnen beide Grenzen nach.
+    cook: item ? Math.max(20, item.value * 1.35) : 30,
   }[type] || 5;
 
   const coins = Math.round(perUnit * count * scale);
@@ -695,6 +777,7 @@ export function questIcon(q) {
     case QTYPE.VISIT: return 'icon_map';
     case QTYPE.BURN: return 'icon_campfire';
     case QTYPE.CRAFT: return 'icon_' + q.itemId;
+    case QTYPE.COOK: return 'icon_' + q.itemId;
     case QTYPE.DECORATE: return 'icon_flowerbed';
     default: return 'icon_' + q.itemId;
   }
@@ -711,6 +794,7 @@ export const QUEST_VERB = {
   visit: 'hingehen',
   burn: 'verbrennen',
   craft: 'bauen',
+  cook: 'kochen',
   decorate: 'aufstellen',
 };
 
@@ -729,6 +813,7 @@ export function questTitle(q) {
     case QTYPE.VISIT: return 'Nachsehen gehen';
     case QTYPE.BURN: return 'Im Feuer verbrennen';
     case QTYPE.CRAFT: return (item ? item.name : 'Gegenstand') + ' bauen';
+    case QTYPE.COOK: return (item ? item.name : 'Etwas') + ' kochen';
     case QTYPE.DECORATE: return 'Gemütlicher machen';
     default: return (item ? item.name : 'Material') + ' bringen';
   }

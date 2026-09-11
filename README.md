@@ -297,8 +297,8 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   aber schlafen darfst du jederzeit – und bekommst sofort neue Aufgaben, neue
   Grabstellen, neues Ladenangebot. Wer eine Stunde am Stück spielen will, kann
   das; wer zehn Minuten hat, auch.
-* **Elferlei Aufgaben.** Bringen, finden, angeln, einen *bestimmten* Fisch
-  fangen, einen Ort aufsuchen, verbrennen, bauen, aufstellen – und drei, bei
+* **Zwölferlei Aufgaben.** Bringen, finden, angeln, einen *bestimmten* Fisch
+  fangen, einen Ort aufsuchen, verbrennen, bauen, aufstellen – und vier, bei
   denen es nicht um die Stückzahl geht:
   * **Sammelbitte:** drei oder vier *verschiedene* Dinge einer Gruppe. „Sechs
     Beeren" erledigt man an einem Busch, „von jeder Waldsorte eine" schickt
@@ -310,11 +310,19 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
     Ausrufezeichen steht über dem Ziel, nicht über dem Auftraggeber.
   * **Anbau:** aus dem eigenen Beet. Bindet den Garten an die Geister, statt
     ihn danebenstehen zu lassen.
+  * **Kochbitte:** „Mach mir eine Waldsuppe." Die längste Kette, die eine
+    Bitte hier auslöst – erst wissen, was hineingehört, dann die Zutaten von
+    drei verschiedenen Stellen holen, dann ans Feuer. Deshalb gilt sie sechs
+    Tage statt drei. Gefragt wird nur nach Gerichten, deren Zutaten es
+    **verlässlich** gibt: Die Mondblume kommt jede Nacht, der Regenpilz
+    vielleicht die ganze Woche nicht.
 
   Nur knapp ein Drittel ist Hol-und-Bring; ein Test wacht darüber. Über
-  sechzig Tage gemessen kommen so 117 verschiedene Aufgabenkarten zusammen,
-  und noch an Tag 59 taucht eine auf, die es vorher nicht gab.
-* **Bitten rotieren.** Jede Bitte gilt drei bis fünf Tage – im Aufgabenfenster
+  sechzig Tage gemessen – Bereiche nacheinander geöffnet, Bitten laufen normal
+  ab – kommen so rund **85 verschiedene Aufgabenkarten** zusammen, und noch in
+  der letzten Woche taucht eine auf, die es vorher nicht gab. (Über drei
+  Inselsamen nachgemessen: 84, 86, 86; letzte neue Karte an Tag 56, 59, 59.)
+* **Bitten rotieren.** Jede Bitte gilt drei bis sechs Tage – im Aufgabenfenster
   steht, wie lange noch. Läuft eine ab, zieht der Geist sie am nächsten Morgen
   zurück und stellt eine andere; wer eine Aufgabe nicht mag, ist sie los.
   **Fertiges läuft nie ab**: Wer die drei Muscheln beisammen hat und erst
@@ -390,6 +398,14 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   kocht, spielt das Spiel von gestern, und ein Test hält genau das fest. Und
   **Seli isst kein Tier**: kein Fisch, kein Ei, kein Honig. Auch das steht als
   Prüfung da, nicht nur als Vorsatz.
+
+  Und jemand fragt danach. Vier Geister bitten um Gekochtes – Flämmchen, weil
+  die Kochstelle neben seinem Feuer steht; Mira, weil bei ihr fast alles
+  wächst, was in den Topf kommt; Nelly, die für alle deckt; und Wanda, die
+  allein auf ihrer Insel sitzt. Ein verschenktes Gericht bekommt außerdem
+  seinen **eigenen Dank**: Es ist das einzige Mitbringsel im Spiel, das nicht
+  gefunden, sondern *gemacht* wurde, und Brunos „Brauchbar." wurde dem nicht
+  gerecht.
 * **Genug Deko, dass die Wünsche eine Wahl bleiben.** Ein Wunsch lautet „ein
   Platz zum Sitzen am Wasser", nicht „eine Bank" – die **Sorte** ist die
   Entscheidung. Bei vier Möglichkeiten ist sie nach zwölf Wünschen keine mehr.
@@ -426,8 +442,15 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   und ein Stern zeigt, wo. Aus dem Absuchen der Karte wird ein
   Hinterhergehen. Und bleibst du wirklich stehen, sucht es sich ein
   **Möbelstück**: Bank, Teppich, Hängematte, Feuerschale. Gemütlichkeit war
-  bisher eine Zahl; jetzt sitzt etwas darauf. Setzt du dich selbst hin,
-  kommt es dazu.
+  bisher eine Zahl; jetzt sitzt etwas darauf.
+
+  Und **setzt du dich selbst hin, legt es sich neben dich.** Dieser Satz stand
+  hier schon, bevor er stimmte: Weil Bank, Baumstumpf und Steinbank alle als
+  Ruheplätze zählen, kletterte es meistens auf genau das Möbelstück, auf dem
+  Seli gerade saß – zwei Figuren, die sich überlappen. Jetzt geht es auf die
+  Seite, auf der es ohnehin steht, und legt sich daneben. Das ist die einzige
+  Stelle, an der Sitzen und Tier einander überhaupt bemerken, und mehr braucht
+  es nicht.
 
   Es kommt nicht aus einem Menü. Ab dem Meilenstein „Werkzeugtag" steht ein
   **Futternapf** im Katalog (260 Münzen). Stell ihn hin, und irgendwann sitzt
@@ -827,8 +850,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 431 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
-npm run test:browser   # 257 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 459 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
+npm run test:browser   # 266 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

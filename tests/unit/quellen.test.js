@@ -23,7 +23,7 @@ import { GERICHTE } from '../../src/game/kitchen.js';
 import { CROPS, CROP_IDS } from '../../src/game/crops.js';
 import { SPIRITS, SPIRIT_IDS, friendshipGift } from '../../src/game/spirits.js';
 import { MILESTONES } from '../../src/game/milestones.js';
-import { POOLS, SET_POOLS, DELIVER_POOL, CRAFTABLE_ASKS } from '../../src/game/quests.js';
+import { POOLS, SET_POOLS, DELIVER_POOL, CRAFTABLE_ASKS, COOK_ASKS } from '../../src/game/quests.js';
 import { HINTS } from '../../src/game/collection.js';
 import { makeRng } from '../../src/core/rng.js';
 
@@ -130,6 +130,7 @@ test('Kein Auftrag verlangt etwas, das es nicht gibt', () => {
   for (const k of Object.keys(SET_POOLS)) pools.push(['satz:' + k, SET_POOLS[k]]);
   pools.push(['botengang', DELIVER_POOL]);
   pools.push(['bauen', CRAFTABLE_ASKS]);
+  pools.push(['kochen', COOK_ASKS]);
 
   for (const [name, liste] of pools) {
     for (const id of liste) {

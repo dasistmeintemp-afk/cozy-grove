@@ -170,6 +170,34 @@ export function zutatenWert(gericht) {
   return summe;
 }
 
+/**
+ * Was ein Geist sagt, wenn er etwas Gekochtes bekommt.
+ *
+ * Bis hierher bekam ein Gericht denselben Dank wie ein Stein: Brunos
+ * „Brauchbar." für einen Beerenkuchen, den man aus vier Beeren und einem
+ * Kraut zusammengesucht und am Feuer gerührt hat. Ein Gericht ist aber das
+ * einzige Mitbringsel im Spiel, das nicht gefunden, sondern **gemacht**
+ * wurde – und das gehört gesagt.
+ *
+ * Zwei Sätze je Geist, dieselben sieben Stimmen wie überall: Flämmchen
+ * knapp, Bruno mürrisch, Wanda leise. Und dieselbe Regel wie beim Geplauder
+ * und am Fest: kein Satz zweimal, keiner erteilt einen Auftrag.
+ */
+export const KOCH_DANK = {
+  flamey: ['Warm. Von meinem Feuer?', 'Das hat am Topf gehangen. Riecht man.'],
+  mira: ['Das war heute früh noch eine Blüte.', 'Selbst gemacht. Das schmeckt man.'],
+  kiesel: ['Warmes Essen an Bord. Selten geworden.', 'Kein Fisch drin. Trotzdem gut.'],
+  bruno: ['Hmpf. Warm.', 'Aus meinem Wald, nehme ich an.'],
+  tobi: ['Selbst gemacht! Nach Rezept?', 'Das rieche ich bis in die Werkstatt.'],
+  nelly: ['Jetzt sitze ich wenigstens nicht allein am Tisch.', 'Die Hälfte hebe ich auf. Für morgen.'],
+  wanda: ['Das hast du den ganzen Weg herübergebracht.', 'Es ist noch warm. Wie machst du das?'],
+};
+
+/** Die Sätze eines Geistes zu Gekochtem – oder leer. */
+export function kochDank(spiritId) {
+  return KOCH_DANK[spiritId] || [];
+}
+
 /** Leerer Küchenstand – wie `emptyLoan` beim Kredit. */
 export function emptyKitchen() {
   return null;

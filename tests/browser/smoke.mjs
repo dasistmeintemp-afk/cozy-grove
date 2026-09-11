@@ -1360,10 +1360,23 @@ async function run() {
         g.player.y = herd.y + 70;
         g.player.dir = 'up';
         g.player.selectTool(0);
+        // Die Inselform ist je Lauf anders, und `findTarget` wählt nach
+        // Abstand und Punkten: Lag zufällig ein Kraut neben der Kochstelle,
+        // zeigte der Hinweis „Sammeln" und die Prüfung fiel – ohne dass mit
+        // der Kochstelle etwas gewesen wäre. Also alles andere in Reichweite
+        // beiseite und danach zurück.
+        const beiseite = [];
+        for (const k of g.world.queryNear(g.player.x, g.player.y, 260)) {
+          if (k.gone || k === herd) continue;
+          beiseite.push({ e: k, x: k.x, y: k.y });
+          k.x += 6000;
+          g.world.reindex(k);
+        }
         g.target = g.player.findTarget(g.world);
         r.anvisierbar = !!(g.target && g.target.entity === herd);
         g._updatePrompt();
         r.hinweis = g.ui._lastPrompt;
+        for (const b of beiseite) { b.e.x = b.x; b.e.y = b.y; g.world.reindex(b.e); }
       }
 
       // Kochen: Zutaten weg, Gericht da.
@@ -1414,6 +1427,83 @@ async function run() {
       JSON.stringify(kueche));
     check('Die Stärkung von gestern wirkt heute nicht mehr',
       kueche.gesternWirktNicht === true, JSON.stringify(kueche));
+
+    /* ---- Und jemand bittet darum ---- */
+
+    const kochbitte = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const { COOK_ASKS, QTYPE } = await import('/src/game/quests.js');
+      const { kochDank } = await import('/src/game/kitchen.js');
+      const { SPIRITS } = await import('/src/game/spirits.js');
+
+      const merkSlots = g.inventory.slots;
+      const merkQuests = g.quests.quests;
+      const merkMet = Object.assign({}, g.state.met || {});
+      g.inventory.slots = [];
+      g.quests.quests = [];
+
+      const e = g.world.entities.find((x) => x.kind === 'spirit' &&
+        g.world.isUnlocked(x.region));
+      g.state.met[e.spiritId] = 1;
+      const gericht = COOK_ASKS[0];
+      const q = {
+        id: 'smoke_cook', spirit: e.spiritId, type: QTYPE.COOK, itemId: gericht,
+        need: 1, have: 0, turnedIn: false, day: g.day.day,
+        expires: g.day.day + 6, rewards: { coins: 70, ember: 2, items: [] },
+        hiddenIds: null,
+      };
+      g.quests.quests.push(q);
+
+      // Solange das Gericht fehlt, ist nichts abzugeben.
+      const muenzenVorher = g.state.coins;
+      g.talkTo(e);
+      r.ohneGerichtNichts = g.state.coins === muenzenVorher && !q.turnedIn;
+
+      // Ein gekochtes Gericht darf NICHT als Mitbringsel weggehen, solange
+      // jemand darum gebeten hat – sonst verschenkt man unterwegs genau das,
+      // was man gerade kochen sollte.
+      g.inventory.add(gericht, 1);
+      r.nichtVerschenkbar = g.likedInBag(e.spiritId) !== gericht;
+
+      // Abgeben zahlt und nimmt das Gericht.
+      g.ui.clearBubbles();
+      g.talkTo(e);
+      r.abgegeben = q.turnedIn === true;
+      r.bezahlt = g.state.coins > muenzenVorher;
+      r.gerichtWeg = g.inventory.count(gericht) === 0;
+
+      // Und ein verschenktes Gericht bekommt seinen eigenen Dank – nicht
+      // denselben Satz wie ein Stein.
+      g.quests.quests = [];
+      g.inventory.slots = [];
+      g.inventory.add(gericht, 1);
+      if (g.state.gifted) delete g.state.gifted[e.spiritId];
+      g.ui.clearBubbles();
+      r.verschenkt = g.giveGiftTo(e);
+      const b = g.ui.bubbles[g.ui.bubbles.length - 1];
+      const text = b ? b.el.textContent : '';
+      const eigene = kochDank(e.spiritId);
+      r.eigenerDank = eigene.some((s) => text.indexOf(s) >= 0);
+      r.nichtDerAllgemeine = !(SPIRITS[e.spiritId].lines.thanks || [])
+        .some((s) => text.indexOf(s) >= 0);
+
+      g.ui.clearBubbles();
+      g.inventory.slots = merkSlots;
+      g.quests.quests = merkQuests;
+      g.state.met = merkMet;
+      return r;
+    });
+    check('Ohne das Gericht ist bei einer Kochbitte nichts abzugeben',
+      kochbitte.ohneGerichtNichts === true, JSON.stringify(kochbitte));
+    check('Ein erbetenes Gericht wandert nicht versehentlich als Mitbringsel weg',
+      kochbitte.nichtVerschenkbar === true, JSON.stringify(kochbitte));
+    check('Gekocht und abgegeben: die Bitte ist erledigt und bezahlt',
+      kochbitte.abgegeben === true && kochbitte.bezahlt === true &&
+      kochbitte.gerichtWeg === true, JSON.stringify(kochbitte));
+    check('Für Gekochtes gibt es einen eigenen Dank',
+      kochbitte.verschenkt === true && kochbitte.eigenerDank === true &&
+      kochbitte.nichtDerAllgemeine === true, JSON.stringify(kochbitte));
 
     // Drei Kleinigkeiten, die beim Durchsehen aufgefallen sind: ein Eintrag
     // im Rückblick, der nirgends ankam, und eine Einstellung, die nichts tat.
@@ -3083,6 +3173,56 @@ async function run() {
       g.player.moving = false;
       for (let i = 0; i < 200; i++) g._petRuht(0.05);     // 10 s im Stehen
       const legtSichImStehen = !!g.world.pet.ruhe;
+
+      // Und wenn Seli SITZT, legt es sich zu IHR.
+      //
+      // Vorher suchte es sich auch dann ein Möbelstück – und weil Bank,
+      // Baumstumpf und Steinbank alle Ruheplätze sind, kletterte es meistens
+      // auf genau das, worauf sie gerade saß.
+      let beiSeli = null;
+      let nichtAufDerBank = null;
+      let abstandZuSeli = -1;
+      // Ein Platz, bei dem links UND rechts begehbar ist: Sonst misst die
+      // Prüfung die Küste und nicht das Verhalten.
+      let sitzplatz = null;
+      for (let r = 0; r <= 600 && !sitzplatz; r += 40) {
+        for (let i = 0; i < 16 && !sitzplatz; i++) {
+          const a = (i / 16) * Math.PI * 2;
+          const px = heim.x + Math.cos(a) * r;
+          const py = heim.y + Math.sin(a) * r;
+          if (!g.world.canStand(px, py, 12, 8)) continue;
+          if (!g.world.canStand(px - 72, py + 6, 12, 8)) continue;
+          if (!g.world.canStand(px + 72, py + 6, 12, 8)) continue;
+          sitzplatz = { x: px, y: py };
+        }
+      }
+      if (sitzplatz) {
+        g.player.x = sitzplatz.x;
+        g.player.y = sitzplatz.y;
+        ruheBank.x = sitzplatz.x;
+        ruheBank.y = sitzplatz.y - 60;
+        g.world.reindex(ruheBank);
+        g.player.sitzt = {
+          entity: ruheBank, itemId: 'bench',
+          zurueck: { x: g.player.x, y: g.player.y, dir: 'down' },
+        };
+        g.world.pet.ruhe = null;
+        g.world.pet.stillZeit = 0;
+        for (let i = 0; i < 200; i++) g._petRuht(0.05);
+        beiSeli = !!(g.world.pet.ruhe && g.world.pet.ruhe.beiSeli);
+        nichtAufDerBank = g.world.pet.ruhe !== ruheBank;
+
+        // Und es kommt wirklich neben sie – nicht auf sie drauf und nicht
+        // irgendwohin.
+        g.world.pet.x = g.player.x + 400;
+        g.world.pet.y = g.player.y;
+        g.world.reindex(g.world.pet);
+        for (let i = 0; i < 900; i++) g._updatePet(1 / 30);
+        abstandZuSeli = Math.round(
+          Math.hypot(g.world.pet.x - g.player.x, g.world.pet.y - g.player.y));
+        g.player.sitzt = null;
+      }
+
       g.world.remove(ruheBank);
       g.world.pet.ruhe = null;
 
@@ -3100,6 +3240,7 @@ async function run() {
         nochmal, sucht, fundAm, zweitesMal, hungrigSucht, nachHunger,
         weit: Math.round(weit), nah: Math.round(nah), bewegt, ohneNapfWeg,
         legtSichImLaufen, legtSichImStehen,
+        beiSeli, nichtAufDerBank, abstandZuSeli, sitzplatz: !!sitzplatz,
       };
     });
     check('Ohne Napf ist kein Tier da',
@@ -3118,6 +3259,13 @@ async function run() {
     check('Im Laufen legt es sich nicht hin, im Stehen schon',
       tier.legtSichImLaufen === false && tier.legtSichImStehen === true,
       JSON.stringify(tier));
+    check('Sitzt Seli, legt es sich zu ihr statt auf ihre Bank',
+      tier.sitzplatz === true && tier.beiSeli === true && tier.nichtAufDerBank === true,
+      JSON.stringify({ platz: tier.sitzplatz, beiSeli: tier.beiSeli,
+        nichtAufDerBank: tier.nichtAufDerBank }));
+    check('Und zwar neben sie, nicht auf sie drauf',
+      tier.abstandZuSeli >= 25 && tier.abstandZuSeli <= 150,
+      JSON.stringify({ abstand: tier.abstandZuSeli }));
     check('Hungrig sucht es nichts',
       tier.hungrigSucht === false, JSON.stringify(tier));
     check('Hunger kostet Laune, aber nimmt einem das Tier nicht weg',

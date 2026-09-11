@@ -73,7 +73,7 @@ import {
 } from './talk.js';
 import {
   GERICHTE, gerichtFuer, istGericht, kannKochen, staerkungVon, staerkungHeute,
-  tempoFaktor, wuchtBonus, glueckBonus, emptyKitchen,
+  tempoFaktor, wuchtBonus, glueckBonus, emptyKitchen, kochDank,
 } from './kitchen.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
@@ -2391,6 +2391,24 @@ export class Game {
     e.stillZeit = (e.stillZeit || 0) + dt;
     if (e.stillZeit < 5 || e.ruhe) return;
 
+    // Sitzt Seli, legt es sich zu IHR.
+    //
+    // Vorher suchte es sich auch dann ein Möbelstück – und weil Bank,
+    // Baumstumpf und Steinbank alle Ruheplätze sind, kletterte es meistens
+    // auf genau das, worauf sie gerade saß. Zwei Figuren auf einer Bank, die
+    // sich überlappen.
+    //
+    // Das ist nebenbei die einzige Stelle, an der Sitzen und Tier einander
+    // überhaupt bemerken: Man setzt sich hin, es dauert einen Moment, und
+    // dann kommt es und legt sich daneben. Mehr braucht es nicht.
+    if (this.player.sitzt) {
+      const platz = this._platzNebenSeli(e);
+      if (platz) {
+        e.ruhe = platz;
+        return;
+      }
+    }
+
     const near = this.world.queryNear(this.player.x, this.player.y, 460);
     let best = null;
     let bestD = Infinity;
@@ -2406,6 +2424,29 @@ export class Game {
       }
     }
     if (best) e.ruhe = best;
+  }
+
+  /**
+   * Ein Ruheplatz seitlich neben der sitzenden Seli – oder null.
+   *
+   * Es kommt auf der Seite an, auf der es ohnehin schon steht: Ein Tier, das
+   * einmal um sie herumläuft, um sich links statt rechts hinzulegen, sieht
+   * nach Wegfindung aus und nicht nach Gesellschaft. Passt die Seite nicht,
+   * wird die andere genommen.
+   *
+   * Der Abstand ist großzügig, weil `_updatePet` auf das Ziel noch (14, 6)
+   * draufrechnet und erst bei 26 Punkten stehen bleibt. Enger gesetzt lag das
+   * Tier auf ihrem Rock.
+   */
+  _platzNebenSeli(e) {
+    const seiten = e.x < this.player.x ? [-1, 1] : [1, -1];
+    for (let i = 0; i < seiten.length; i++) {
+      const x = this.player.x + seiten[i] * 72;
+      const y = this.player.y + 6;
+      if (!isWalkable(this.world.tileAt(x, y))) continue;
+      return { x: x, y: y, gone: false, beiSeli: true };
+    }
+    return null;
   }
 
   /* ---------------- Der Katalog ---------------- */
@@ -3312,7 +3353,10 @@ export class Game {
     for (let i = 0; i < offen.length; i++) {
       const q = offen[i];
       if (q.turnedIn || q.itemId !== itemId) continue;
-      if (q.type === QTYPE.GATHER || q.type === QTYPE.CRAFT) return true;
+      // COOK gehört dazu, seit es Kochbitten gibt: Sonst verschenkt man die
+      // Waldsuppe, um die Wanda gestern gebeten hat, unterwegs an Bruno.
+      if (q.type === QTYPE.GATHER || q.type === QTYPE.CRAFT ||
+          q.type === QTYPE.COOK) return true;
     }
     return false;
   }
@@ -3414,7 +3458,11 @@ export class Game {
     this.particles.burst('heart', e.x, e.y - 110, lieb ? 16 : 7);
     this.particles.burst('color', e.x, e.y - 60, lieb ? 22 : 10);
     this.audio.play(lieb ? 'levelup' : 'ghost');
-    this.ui.bubble(e.x, e.y - 190, pickLine(spirit.lines.thanks),
+    // Gekochtes bekommt seinen eigenen Dank: Es ist das einzige Mitbringsel,
+    // das gemacht und nicht gefunden wurde.
+    const dank = istGericht(id) ? kochDank(e.spiritId) : null;
+    this.ui.bubble(e.x, e.y - 190,
+      pickLine(dank && dank.length ? dank : spirit.lines.thanks),
       [{ icon: 'icon_' + id }, { icon: 'icon_heart' }], 2.8);
     this.ui.toast((geburtstag ? 'Geburtstagsgeschenk! ' : lieb ? 'Genau das! ' : '') +
       '+' + ember + ' Glut · ' +

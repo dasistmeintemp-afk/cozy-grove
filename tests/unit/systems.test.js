@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { Inventory } from '../../src/game/inventory.js';
 import {
   QuestBook, QTYPE, questTitle, questIcon, QUEST_VERB, lifetimeOf, daysLeft,
-  craftableAsks, CRAFTABLE_ASKS,
+  craftableAsks, CRAFTABLE_ASKS, COOK_ASKS, verlaesslich,
 } from '../../src/game/quests.js';
 import { World } from '../../src/world/world.js';
 import { DayCycle, DAY_START, DAY_END } from '../../src/game/daycycle.js';
@@ -19,6 +19,7 @@ import { getItem, ITEM_LIST, CAT } from '../../src/game/items.js';
 import { parseSave, SAVE_VERSION } from '../../src/game/game.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
+import { GERICHTE, gerichtFuer } from '../../src/game/kitchen.js';
 import {
   StoryBook, STORIES, STAGES, QUESTS_PER_STAGE, keepsakeOf, storyIcon,
 } from '../../src/game/stories.js';
@@ -544,6 +545,104 @@ test('Am ersten Tag ist jede Baubitte auch wirklich baubar', () => {
     for (const q of qb.active()) q.expires = tag;   // Platz für den nächsten Tag
   }
   assert.ok(gesehen >= 5, 'nur ' + gesehen + ' Baubitten in 40 Tagen – prüft nichts');
+});
+
+/* ---------------- Kochbitten ---------------- */
+
+test('Um jedes Gericht kann gebeten werden – bis auf das vom Wetter', () => {
+  // Die Küche war das einzige System des Spiels, das an keiner Bitte hing:
+  // kochen, verkaufen, verschenken – aber niemand hat je danach gefragt.
+  assert.ok(COOK_ASKS.length >= 6, 'nur ' + COOK_ASKS.length + ' Gerichte erbittbar');
+  for (const id of COOK_ASKS) {
+    assert.ok(gerichtFuer(id), id + ': das ist gar kein Gericht');
+    assert.ok(getItem(id), id + ': den Gegenstand gibt es nicht');
+  }
+  // Die Gegenprobe: Was fehlt, fehlt aus genau einem Grund.
+  for (const g of GERICHTE) {
+    if (COOK_ASKS.indexOf(g.id) >= 0) continue;
+    const wetter = g.zutaten.some((z) => !verlaesslich(z.id));
+    assert.ok(wetter, g.name + ' fehlt in den Kochbitten, hängt aber an keinem Wetter');
+  }
+});
+
+test('Keine Kochbitte wartet auf Regen oder Nebel', () => {
+  // Sechs Tage Frist und kein einziger Regentag wären dieselbe tote Aufgabe,
+  // die beim Fischfang schon einmal auffiel.
+  for (const id of COOK_ASKS) {
+    for (const z of gerichtFuer(id).zutaten) {
+      const it = getItem(z.id);
+      assert.ok(verlaesslich(z.id),
+        id + ' braucht ' + z.id + ', und das gibt es nur bei ' + (it && it.onlyAt));
+    }
+  }
+});
+
+test('Die Nacht zählt als verlässlich, das Wetter nicht', () => {
+  // Der Unterschied, um den es geht: Die Nacht kommt jeden Tag, der Nebel
+  // vielleicht die ganze Woche nicht.
+  assert.equal(verlaesslich('moonflower'), true, 'die Nacht kommt jeden Tag');
+  assert.equal(verlaesslich('rainmushroom'), false);
+  assert.equal(verlaesslich('fogcrystal'), false);
+  assert.equal(verlaesslich('berry'), true);
+  assert.equal(verlaesslich('gibtsnicht'), true, 'Unbekanntes darf nicht alles sperren');
+  // Und der Mondblütenkuchen ist deshalb wirklich dabei – sonst prüfte der
+  // Satz oben nur eine Regel ohne Fall.
+  assert.ok(COOK_ASKS.indexOf('dish_mooncake') >= 0, 'die Nachtzutat wird doch gesperrt');
+});
+
+test('Eine Kochbitte nimmt das Gericht und zahlt dafür', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const q = {
+    id: 'koch1', spirit: 'mira', type: QTYPE.COOK, itemId: 'dish_forestsoup',
+    need: 1, have: 0, turnedIn: false, day: 1, expires: 7,
+    rewards: { coins: 87, ember: 2, items: [] }, hiddenIds: null,
+  };
+  qb.quests.push(q);
+
+  assert.equal(qb.progress(q, ctx), 0, 'ohne Suppe kein Fortschritt');
+  assert.equal(qb.isReady(q, ctx), false);
+  assert.equal(qb.turnIn(q, ctx), null, 'abgeben geht noch nicht');
+
+  ctx.inventory.add('dish_forestsoup', 1);
+  assert.equal(qb.progress(q, ctx), 1);
+  assert.equal(qb.isReady(q, ctx), true);
+  const lohn = qb.turnIn(q, ctx);
+  assert.ok(lohn && lohn.coins > 0, 'nichts bezahlt');
+  assert.equal(ctx.inventory.count('dish_forestsoup'), 0, 'die Suppe liegt noch in der Tasche');
+  assert.equal(qb.totalCompleted, 1);
+});
+
+test('Kochbitten kommen im laufenden Spiel wirklich vor', () => {
+  // Ein Auftragstyp, den niemand vergibt, ist toter Code. Gemessen an einem
+  // echten Aufgabenbuch über vierzig Tage.
+  const ctx = makeCtx();
+  for (let r = 1; r <= 3; r++) ctx.world.unlockRegion(r);
+  const qb = new QuestBook();
+  const wer = Object.create(null);
+  let n = 0;
+  for (let tag = 1; tag <= 40; tag++) {
+    qb.newDay(tag, ctx.world, ctx);
+    for (const q of qb.active()) {
+      if (q.type !== QTYPE.COOK) continue;
+      n++;
+      wer[q.spirit] = 1;
+      assert.ok(COOK_ASKS.indexOf(q.itemId) >= 0, 'Tag ' + tag + ': ' + q.itemId + ' steht nicht im Topf');
+      assert.equal(questIcon(q), 'icon_' + q.itemId);
+      assert.ok(/kochen$/.test(questTitle(q)), 'seltsamer Titel: ' + questTitle(q));
+    }
+    for (const q of qb.active()) q.expires = tag;
+  }
+  assert.ok(n >= 5, 'nur ' + n + ' Kochbitten in 40 Tagen');
+  assert.ok(Object.keys(wer).length >= 2,
+    'nur ein einziger Geist kocht je – dann ist es seine Eigenart und kein Auftragstyp');
+});
+
+test('Eine Kochbitte gilt länger als jede Holbitte', () => {
+  // Zutaten von drei Stellen holen und dann ans Feuer: Das ist die längste
+  // Kette, die eine Bitte in diesem Spiel auslöst.
+  assert.ok(lifetimeOf(QTYPE.COOK) > lifetimeOf(QTYPE.GATHER));
+  assert.ok(lifetimeOf(QTYPE.COOK) >= lifetimeOf(QTYPE.CRAFT));
 });
 
 /* ---------------- Tageslauf ---------------- */

@@ -29,6 +29,7 @@ import { PLOT_STAGES, ISLE_PLOT_STAGES } from '../../src/game/plot.js';
 import { KATALOG } from '../../src/game/catalog.js';
 import { Shop } from '../../src/game/shop.js';
 import { getItem } from '../../src/game/items.js';
+import { gerichtFuer, zutatenWert } from '../../src/game/kitchen.js';
 
 const SEED = 4711;
 
@@ -186,4 +187,88 @@ test('Die Glut hält mit dem Lagergrundstück Schritt', () => {
   // Und die zweite Stufe ist die, die man als Erstes sieht.
   const zweite = PLOT_STAGES[1].ember;
   assert.ok(zweite <= FRUEH.ember * 5, 'die zweite Stufe ist zu weit weg (' + zweite + ')');
+});
+
+/**
+ * Koch- und Holbitten aus denselben Läufen, mit ihrem Einsatz.
+ *
+ * `einsatz` ist, was man hineinsteckt: beim Holen der Wert der Stücke, beim
+ * Kochen der Wert der Zutaten. Damit werden zwei Auftragsarten vergleichbar,
+ * die auf den ersten Blick nichts miteinander zu tun haben.
+ *
+ * Bei höchster Freundschaft, denn dort ist der Lohn am größten.
+ */
+function kochUndHolen() {
+  const welt = new World(SEED).populate();
+  for (let r = 1; r <= 3; r++) welt.unlockRegion(r);
+  const ctx = { world: welt, inventory: new Inventory(60), today: { season: SEASONS.summer } };
+  const shop = new Shop();
+  shop.refresh(1, SEED);
+
+  const cook = [];
+  const gather = [];
+  for (let tag = 1; tag <= 60; tag++) {
+    const qb = new QuestBook();
+    for (const sid of Object.keys(qb.completedBySpirit)) qb.completedBySpirit[sid] = 30;
+    qb.newDay(tag, welt, ctx);
+    for (const q of qb.active()) {
+      const item = q.itemId ? getItem(q.itemId) : null;
+      if (!item || !item.value) continue;
+      if (q.type === QTYPE.COOK) {
+        cook.push({
+          name: item.name,
+          coins: q.rewards.coins,
+          verkauf: shop.sellPrice(q.itemId),
+          einsatz: zutatenWert(gerichtFuer(q.itemId)),
+        });
+      } else if (q.type === QTYPE.GATHER) {
+        gather.push({
+          name: item.name,
+          coins: q.rewards.coins,
+          verkauf: shop.sellPrice(q.itemId) * q.need,
+          einsatz: item.value * q.need,
+        });
+      }
+    }
+  }
+  return { cook: cook, gather: gather };
+}
+
+test('Kochen lohnt mehr als verkaufen – bei jedem Gericht', () => {
+  // Dieselbe Regel wie bei der Holbitte, angewandt auf die Küche: Wer die
+  // Waldsuppe abgibt, statt sie zu verkaufen, darf dabei nicht draufzahlen.
+  // Ein Spiel, das vom Helfen handelt, macht das Helfen nicht zur teuren
+  // Variante.
+  const { cook } = kochUndHolen();
+  const schlecht = cook.filter((c) => c.coins <= c.verkauf * 1.2)
+    .map((c) => c.name + ': ' + c.coins + ' abgeben vs ' + c.verkauf + ' verkaufen');
+  assert.ok(cook.length >= 10, 'zu wenige Kochbitten geprüft (' + cook.length + ')');
+  assert.deepEqual([...new Set(schlecht)], [], 'kochen lohnt kaum mehr als verkaufen');
+});
+
+test('Kochen lohnt mehr als die Zutaten roh abzugeben – aber es ersetzt nicht alles', () => {
+  // Die Wahl, vor der der Spieler wirklich steht: Ich habe drei Blüten. Gebe
+  // ich sie Mira, oder mache ich erst Salat daraus?
+  //
+  // Wäre die Antwort „egal", wäre die ganze Küche Zierde – dann kocht
+  // niemand. Wäre sie „immer kochen, alles andere ist Zeitverschwendung",
+  // hätte das Spiel ab Tag drei nur noch einen einzigen Weg.
+  //
+  // Gemessen wird deshalb der MÜNZE-JE-EINSATZ von echten Aufträgen, beide
+  // Sorten aus denselben Läufen – nicht gegen eine hier abgeschriebene
+  // Formel, sonst prüfte der Test nur, dass ich zweimal dasselbe getippt
+  // habe.
+  const { cook, gather } = kochUndHolen();
+  assert.ok(gather.length >= 20, 'zu wenige Holbitten zum Vergleichen');
+
+  const schnitt = (liste) => liste.reduce((n, c) => n + c.coins / c.einsatz, 0) / liste.length;
+  const kochen = schnitt(cook);
+  const holen = schnitt(gather);
+
+  assert.ok(kochen > holen,
+    'kochen bringt je Einsatz nicht mehr als roh abgeben (' +
+    kochen.toFixed(2) + ' gegen ' + holen.toFixed(2) + ') – dann kocht niemand');
+  assert.ok(kochen < holen * 3,
+    'kochen bringt das ' + (kochen / holen).toFixed(1) + '-fache einer Holbitte – ' +
+    'dann lohnt sich nichts anderes mehr');
 });
