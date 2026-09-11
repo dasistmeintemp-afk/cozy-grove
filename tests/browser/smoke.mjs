@@ -1245,6 +1245,101 @@ async function run() {
       bequem.geist && bequem.geist.zielIstGeist && bequem.geist.gerufen === 0,
       JSON.stringify(bequem.geist));
 
+    /* ---- Feste ---- */
+
+    const fest = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const { FESTE } = await import('/src/game/festivals.js');
+      const f = FESTE.lichter;
+
+      // Es ist heute fast sicher kein Fest – die Gegenprobe.
+      r.normalKeinFest = g.fest() === null || g.fest().id !== 'lichter';
+
+      // Das Lichterfest herbeiführen: `refreshToday` liest das echte Datum,
+      // also wird der fertige Tagesstand gesetzt und der Schmuck gestellt.
+      const merkToday = g.today;
+      const merkFeste = g.state.feste;
+      g.today = Object.assign({}, g.today, { fest: f, event: f });
+      g.state.feste = {};
+      const schmuckVorher = g.world.entities.filter((e) => e.fest && !e.gone).length;
+      r.gestellt = g._festSchmuck(g.day.day);
+      r.schmuckVorher = schmuckVorher;
+      r.schmuckDa = g.world.entities.filter((e) => e.fest && !e.gone).length;
+      r.schmuckArten = Array.from(new Set(
+        g.world.entities.filter((e) => e.fest && !e.gone).map((e) => e.itemId)));
+
+      // Der Schmuck steht ums Lager.
+      const feuer = g.world.campfire;
+      r.amLager = g.world.entities.filter((e) => e.fest && !e.gone)
+        .every((e) => Math.hypot(e.x - feuer.x, e.y - feuer.y) < 420);
+
+      // Einpacken geht nicht.
+      const stueck = g.world.entities.find((e) => e.fest && !e.gone);
+      const vorher = stueck ? g.inventory.count(stueck.itemId) : 0;
+      g.player.selectTool(0);
+      if (stueck) g.pickDecor(stueck);
+      r.nichtEinpackbar = !!stueck && !stueck.gone &&
+        g.inventory.count(stueck.itemId) === vorher;
+
+      // Der Geist sagt seinen Festsatz und gibt einmal eine Gabe.
+      const geist = g.world.entities.find((e) => e.kind === 'spirit' &&
+        g.world.isUnlocked(e.region));
+      if (geist) {
+        const { festSatz } = await import('/src/game/festivals.js');
+        g.state.met = g.state.met || {};
+        g.state.met[geist.spiritId] = 1;
+        // Tasche leeren: Sonst nimmt der Geist beim zweiten Ansprechen ein
+        // Mitbringsel an, und DAS gibt auch Glut – gemessen hielt die
+        // Prüfung das für einen zweiten Festgruß.
+        const merkSlots2 = g.inventory.slots;
+        g.inventory.slots = [];
+        const glutVorher = g.state.ember;
+        g.ui.clearBubbles();
+        g.talkTo(geist);
+        const b = g.ui.bubbles[g.ui.bubbles.length - 1];
+        // `textContent` einer Blase enthält auch die Zahlen der Symbole.
+        // Gefragt ist deshalb, ob der Festsatz DARIN vorkommt.
+        const soll = festSatz('lichter', geist.spiritId);
+        r.satzPasst = !!b && !!soll && b.el.textContent.indexOf(soll) >= 0;
+        r.glutDazu = g.state.ember - glutVorher;
+        r.markeGesetzt = !!(g.state.feste || {})[geist.spiritId];
+        // Beim zweiten Mal nicht noch einmal.
+        const glutJetzt = g.state.ember;
+        g.ui.clearBubbles();
+        g.talkTo(geist);
+        const b2 = g.ui.bubbles[g.ui.bubbles.length - 1];
+        r.nurEinmal = g.state.ember === glutJetzt &&
+          (!b2 || b2.el.textContent.indexOf(soll) < 0);
+        g.inventory.slots = merkSlots2;
+      }
+
+      // Am nächsten Tageswechsel ist der Schmuck weg.
+      g.today = Object.assign({}, g.today, { fest: null, event: null });
+      g._festSchmuck(g.day.day + 1);
+      r.danachWeg = g.world.entities.filter((e) => e.fest && !e.gone).length === 0;
+
+      g.today = merkToday;
+      g.state.feste = merkFeste;
+      g.ui.clearBubbles();
+      return r;
+    });
+    check('Am Fest schmückt sich die Insel',
+      fest.gestellt > 3 && fest.schmuckVorher === 0 && fest.amLager === true,
+      JSON.stringify({ gestellt: fest.gestellt, amLager: fest.amLager }));
+    check('Und zwar mit mehreren verschiedenen Stücken',
+      fest.schmuckArten && fest.schmuckArten.length >= 2,
+      JSON.stringify(fest.schmuckArten));
+    check('Festschmuck lässt sich nicht einpacken',
+      fest.nichtEinpackbar === true, JSON.stringify(fest.nichtEinpackbar));
+    check('Jeder Geist sagt seinen Festsatz und gibt einmal eine Gabe',
+      fest.satzPasst === true && fest.glutDazu > 0 && fest.markeGesetzt === true &&
+      fest.nurEinmal === true,
+      JSON.stringify({ satz: fest.satzPasst, glut: fest.glutDazu,
+        marke: fest.markeGesetzt, nurEinmal: fest.nurEinmal }));
+    check('Am nächsten Morgen ist der Schmuck wieder weg',
+      fest.danachWeg === true, JSON.stringify(fest.danachWeg));
+
     /* ---- Die Küche ---- */
 
     const kueche = await page.evaluate(async () => {

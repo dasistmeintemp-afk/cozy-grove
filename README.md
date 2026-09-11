@@ -355,6 +355,26 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   zum ersten Mal ein großes Ziel, und ein guter Markttag ist ein guter Tag.
   Kein Kredit im eigentlichen Sinn: keine Zinsen, keine Frist, keine Mahnung –
   wer nie einzahlt, verliert nichts. Dieselbe Regel wie im Garten.
+* **Feste.** Die Insel hatte zwei Sorten Kalender: die Jahreszeit, die ein
+  Vierteljahr gilt, und das Tagesereignis, das sich nach einer Zufallszahl
+  richtet. Was fehlte, war ein **Termin** – etwas, von dem man weiß, dass es
+  kommt. Vier Feste an festen Daten, eines je Jahreszeit:
+
+  | Fest | Datum | |
+  | --- | --- | --- |
+  | **Blütenfest** | 1. Mai | Die ganze Insel blüht |
+  | **Mittsommernacht** | 21. Juni | Der längste Tag |
+  | **Erntefest** | 12. Oktober | Lange Tische auf der Wiese |
+  | **Lichterfest** | 21. Dezember | Die längste Nacht, überall brennt Licht |
+
+  An dem Tag **schmückt sich das Lager** – acht Stücke ums Feuer herum, je
+  Fest andere, am nächsten Morgen wieder weg und nicht einpackbar. **Jeder
+  Geist sagt etwas dazu**, mit eigenen Worten für jedes Fest (28 Sätze), und
+  gibt **einmal eine Gabe**.
+
+  Ein Fest schlägt das Tagesereignis: Zwei Besonderheiten an einem Tag wären
+  keine mehr. Und wie beim Geburtstag gibt es **keine Strafe fürs Verpassen** –
+  was man dieses Jahr nicht holt, kommt nächstes Jahr wieder.
 * **Die Küche.** Das Spiel hatte 86 Gegenstände, und alles Gesammelte ging
   genau zwei Wege: verkaufen oder abgeben. Die **Kochstelle** im Lager ist der
   dritte. Neun Gerichte aus dem, was wächst – Beerenmus, Waldsuppe,
@@ -807,8 +827,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 415 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Wirtschaft …
-npm run test:browser   # 252 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 431 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
+npm run test:browser   # 257 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

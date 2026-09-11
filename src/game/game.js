@@ -15,6 +15,9 @@ import { Inventory } from './inventory.js';
 import { QuestBook, QTYPE } from './quests.js';
 import { CROPS, cropOfSeed, stageOf, daysToRipe, growthPerDay, harvestOf } from './crops.js';
 import { todayOf, shoalIndex } from './calendar.js';
+import {
+  festOn, festSatz, SCHMUCK_RADIUS, SCHMUCK_ANZAHL, SCHMUCK_ABSTAND, emptyFeste,
+} from './festivals.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
@@ -176,6 +179,7 @@ export class Game {
     this.weather.setDay(this.world.seed, this.day.day, this.season());
     this.weather.snap();
     this._placeStoryPieces(this.day.day);
+    this._festSchmuck(this.day.day);
 
     // Strichliste für den Rückblick: neu anlegen, wenn es keine gibt oder sie
     // noch von einem früheren Tag stammt (etwa aus einem alten Spielstand).
@@ -295,6 +299,7 @@ export class Game {
       gedanken: [],
       plausch: Object.create(null),
       staerkung: null,
+      feste: emptyFeste(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -326,6 +331,12 @@ export class Game {
     // `staerkungHeute` über den Tag, an dem gegessen wurde.
     if (!this.state.staerkung || typeof this.state.staerkung !== 'object') {
       this.state.staerkung = null;
+    }
+    // Wer heute schon seinen Festgruß gesagt hat. Ein alter Spielstand hat
+    // die Liste nicht, und das ist in Ordnung: Dann ist am nächsten Fest
+    // eben jeder noch dran.
+    if (!this.state.feste || typeof this.state.feste !== 'object') {
+      this.state.feste = emptyFeste();
     }
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
@@ -1073,6 +1084,66 @@ export class Game {
    * sind. So zieht sich eine Kette über viele Tage, statt an einem Abend
    * abgehakt zu sein.
    */
+  /**
+   * Den Festschmuck aufstellen – und den von gestern abräumen.
+   *
+   * Der Schmuck ist ECHTE Deko, nur ohne Besitzer: dieselben Objekte, die man
+   * auch selbst hinstellt, mit `fest` markiert. Deshalb sieht er aus wie
+   * alles andere auf der Insel, wirft dieselben Schatten und steht in
+   * derselben Tiefensortierung. Was er NICHT ist: einpackbar. Wer das
+   * Lichterfest abräumt und die Laternen behält, hätte vier Laternen für
+   * nichts – und am nächsten Morgen wäre der Zauber ein Warenlager.
+   *
+   * Abgeräumt wird an jedem Tageswechsel, nicht erst am nächsten Fest: Sonst
+   * stünde der Blütenschmuck bis Mittsommer.
+   */
+  _festSchmuck(day) {
+    // Erst weg mit allem von gestern.
+    const alt = this.world.entities.filter(function (e) { return e.fest && !e.gone; });
+    for (let i = 0; i < alt.length; i++) this.world.remove(alt[i]);
+
+    const f = this.fest();
+    if (!f || !f.schmuck || !f.schmuck.length) return 0;
+    const feuer = this.world.campfire;
+    if (!feuer) return 0;
+
+    // Immer dieselbe Anordnung an einem Fest, aber je Insel eine andere:
+    // Wer neu lädt, soll nicht plötzlich anderswo Laternen stehen haben.
+    const rng = dailyRng(this.world.seed, day, 'fest:' + f.id);
+    let n = 0;
+    for (let i = 0; i < SCHMUCK_ANZAHL * 24 && n < SCHMUCK_ANZAHL; i++) {
+      const a = rng() * Math.PI * 2;
+      const r = 110 + rng() * (SCHMUCK_RADIUS - 110);
+      const x = feuer.x + Math.cos(a) * r;
+      const y = feuer.y + Math.sin(a) * r;
+      if (!this.world.canStand(x, y, 20, 12)) continue;
+      // Nicht auf etwas draufstellen, das schon dasteht – am wenigsten auf
+      // die eigene Deko des Spielers.
+      //
+      // Der Abstand wird NACHGERECHNET: `queryNear` arbeitet auf einem
+      // 160-Punkte-Raster und gibt auch Nachbarn zurück, die weiter weg sind.
+      // Ohne diese Zeile galt alles im halben Lager als besetzt, und das Fest
+      // stellte gemessen NULL Stücke auf – auf jeder Insel.
+      const frei = !this.world.queryNear(x, y, SCHMUCK_ABSTAND).some(function (e) {
+        if (e.gone) return false;
+        const dx = e.x - x;
+        const dy = e.y - y;
+        return dx * dx + dy * dy < SCHMUCK_ABSTAND * SCHMUCK_ABSTAND;
+      });
+      if (!frei) continue;
+      const itemId = f.schmuck[n % f.schmuck.length];
+      const item = getItem(itemId);
+      const e = makeEntity('decor', x, y, {
+        itemId: itemId, fest: f.id, flat: !!(item && item.flat),
+      });
+      e.sprite = (item && item.prop) || itemId;
+      e.blockR = item && item.flat ? 0 : 26;
+      this.world.add(e);
+      n++;
+    }
+    return n;
+  }
+
   _placeStoryPieces(day) {
     const rng = dailyRng(this.world.seed, day, 'story');
     const placed = [];
@@ -1166,6 +1237,13 @@ export class Game {
   }
 
   pickDecor(e) {
+    // Festschmuck gehört dem Tag, nicht dem Spieler. Wer das Lichterfest
+    // abräumte, hätte vier Laternen umsonst – und am nächsten Morgen wäre
+    // aus dem Fest ein Warenlager geworden.
+    if (e.fest) {
+      this.ui.toast('Das gehört zum Fest', 'icon_sparkle');
+      return;
+    }
     if (this.player.tool.id !== 'hand') {
       this.ui.toast('Mit der Hand aufheben', 'icon_hand');
       return;
@@ -1508,6 +1586,11 @@ export class Game {
     // gesprochen hat, sagt jetzt seinen Satz – nicht „Noch nicht".
     if (this._finaleTalk(e, spirit)) return;
 
+    // Am Fest sagt jeder Geist etwas dazu und gibt einmal eine Gabe – wie
+    // der Geburtstagsgruß, und aus demselben Grund vor dem Tagesgeschäft:
+    // Ein Fest, von dem man erst nach der dritten Abgabe erfährt, ist keines.
+    if (this._festGruss(e)) return;
+
     // Ein Geburtstagskind sagt es einmal am Tag, bevor es zum Tagesgeschäft
     // übergeht. Einmal, nicht bei jedem Ansprechen: Beim vierten Mal wäre
     // aus dem Geburtstag eine Sperre vor der Abgabe geworden.
@@ -1554,6 +1637,49 @@ export class Game {
     // Uhrzeit, darüber wie gut man sich kennt oder wie es um ihn herum
     // aussieht. Siehe `talk.js`.
     this._plaudern(e, spirit);
+  }
+
+  /**
+   * Der Festgruß eines Geistes – einmal je Geist und Fest.
+   *
+   * Gemerkt wird JE FEST, nicht je Tag: Ein Fest dauert einen Tag, und die
+   * Kennung ist eindeutiger als eine Tageszahl, die sich in einem alten
+   * Spielstand auch mal wiederholt.
+   *
+   * @returns {boolean} ob der Gruß gerade gesagt wurde
+   */
+  _festGruss(e) {
+    const f = this.fest();
+    if (!f) return false;
+    if (!this.state.feste) this.state.feste = emptyFeste();
+    const marke = f.id + ':' + this.day.day;
+    const wer = this.state.feste[e.spiritId];
+    if (wer === marke) return false;
+    this.state.feste[e.spiritId] = marke;
+
+    const satz = festSatz(f.id, e.spiritId);
+    const gabe = f.gabe || {};
+    const icons = [{ icon: f.icon }];
+    // Die Gabe: einmal je Geist. Passt sie nicht in die Tasche, bleibt der
+    // Satz trotzdem – ein Fest, das an einer vollen Tasche scheitert, wäre
+    // eine Enttäuschung an genau dem falschen Tag.
+    const items = gabe.items || [];
+    for (let i = 0; i < items.length; i++) {
+      if (this.inventory.add(items[i].id, items[i].n)) {
+        icons.push({ icon: 'icon_' + items[i].id, n: items[i].n });
+      }
+    }
+    if (gabe.ember) {
+      this.state.ember += gabe.ember;
+      this._note('ember', gabe.ember);
+      icons.push({ icon: 'icon_ember', n: gabe.ember });
+    }
+
+    this.ui.bubble(e.x, e.y - 190, satz || f.hint, icons, 5.0, true);
+    this.audio.play('levelup');
+    this.particles.burst('color', e.x, e.y - 70, 14);
+    this.save();
+    return true;
   }
 
   /**
@@ -2798,8 +2924,17 @@ export class Game {
   refreshToday() {
     const vorher = this.today && this.today.event ? this.today.event.id : null;
     this.today = todayOf(new Date(), this.day.day);
+    // Ein Fest schlägt das Tagesereignis. Zwei Besonderheiten an einem Tag
+    // wären keine mehr, und der Markttag kommt ohnehin jede Woche wieder.
+    this.today.fest = festOn(new Date());
+    if (this.today.fest) this.today.event = this.today.fest;
     this._applyToday();
     return this.today.event && this.today.event.id !== vorher;
+  }
+
+  /** Welches Fest heute ist – oder null. */
+  fest() {
+    return (this.today && this.today.fest) || null;
   }
 
   /* ---------------- Wunschplätze ---------------- */
@@ -3875,6 +4010,7 @@ export class Game {
     this.wildlife.clear();
     this._jitterSpirits(day);
     this._placeStoryPieces(day);
+    this._festSchmuck(day);
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
     this.ui.refreshHud();
