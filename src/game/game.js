@@ -60,6 +60,10 @@ import {
 import {
   beetHilfe, BEET_HILFE, WIRK_RADIUS, klingt, istWetterhahn, wirkungVon,
 } from './decor.js';
+import {
+  istSitzplatz, HALTEN_SEK, ERSTER_GEDANKE, GEDANKE_ALLE, ABEND_AB,
+  DEKO_GEDANKE, waehleGedanke, merkeGedanke,
+} from './rest.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, randPick, dailyRng } from '../core/rng.js';
@@ -281,6 +285,7 @@ export class Game {
       homeAt: 'camp',
       pet: emptyPet(),
       records: emptyRecords(),
+      gedanken: [],
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -300,6 +305,9 @@ export class Game {
     if (!this.state.records) this.state.records = emptyRecords();
     if (!this.state.wishes) this.state.wishes = emptyWishes();
     if (!this.state.wishes.letzte) this.state.wishes.letzte = [];
+    // Was Seli beim Ausruhen zuletzt gedacht hat. Steht im Spielstand, damit
+    // sie sich nach dem Neuladen nicht mit denselben acht Sätzen begrüßt.
+    if (!Array.isArray(this.state.gedanken)) this.state.gedanken = [];
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -523,6 +531,9 @@ export class Game {
     const move = this.input.moveVector();
     this.player.busy = this.fishing.active;
     this.player.update(dt, move, this.world);
+    // Nach dem Schritt, vor dem Zielen: Steht sie in diesem Bild auf, soll
+    // sie auch in diesem Bild wieder etwas anvisieren können.
+    this._ruhen(dt, move);
 
     if (this.player.consumeStep()) this.audio.play('step');
 
@@ -668,6 +679,10 @@ export class Game {
    * einzelnen Druck: Sonst redete man einen Geist im Halbsekundentakt an.
    */
   _keepWorking() {
+    // Beim Sitzen gehört die gehaltene Taste dem Einpacken. Ohne diese Zeile
+    // fällt beim Einpacken der Bank der Baum daneben – er ist dann das Ziel
+    // mit dem passenden Werkzeug, und gehalten wird ja.
+    if (this.player.sitzt) return;
     if (this.placing || this.fishing.active || this.sleeping) return;
     if (this.player.swing > 0) return;
     const t = this.target;
@@ -681,6 +696,10 @@ export class Game {
       this.confirmPlacing();
       return;
     }
+    // Beim Sitzen gehört die Taste dem Ausruhen: Tippen steht auf, Halten
+    // packt das Möbel ein, und beides entscheidet sich erst beim Loslassen –
+    // siehe `_ruhen`. Alles andere wartet, bis sie wieder steht.
+    if (this.player.sitzt) return;
     if (this.fishing.active) {
       const r = this.fishing.press();
       if (r === 'hooked') this.audio.play('splash');
@@ -716,7 +735,11 @@ export class Game {
         this.harvestCrop(t.entity);
         return;
       }
-      if (def.category === 'decor') { this.pickDecor(t.entity); return; }
+      if (def.category === 'decor') {
+        if (istSitzplatz(t.entity.itemId)) { this.setzDich(t.entity); return; }
+        this.pickDecor(t.entity);
+        return;
+      }
       if (def.station) { this.useStation(def.station, t.entity); return; }
       if (def.tool) { this.useTool(t); return; }
     }
@@ -1131,6 +1154,167 @@ export class Game {
     this.syncCosiness();
     this.syncPet();
     this.ui.refreshQuests();
+  }
+
+  /* ---------------- Ausruhen ---------------- */
+
+  /**
+   * Hinsetzen.
+   *
+   * Bewusst ohne Bedingung: kein Werkzeug, keine Tageszeit, kein
+   * Fortschritt. Sitzen ist das Einzige im Spiel, das man einfach tun darf.
+   */
+  setzDich(e) {
+    if (!e || e.gone || !istSitzplatz(e.itemId)) return false;
+    if (!this.player.setzDich(e, e.itemId)) return false;
+    this.audio.play('place');
+    this._ruheAnzeige(true);
+    this._ruheZeit = 0;
+    this._ruheNaechster = ERSTER_GEDANKE;
+    // Erst loslassen, dann zählt Halten. Ohne das wäre der Tastendruck, mit
+    // dem man sich hinsetzt, sofort der Anfang eines Haltens – wer zum
+    // Ausruhen eine Sekunde zu lange drückt, hätte die Bank eingepackt.
+    this._haltenFrei = false;
+    this._halten = 0;
+    this.ui.setPrompt('');
+    return true;
+  }
+
+  /** Aufstehen. `still` unterdrückt den Klang – beim Schlafen und Übersetzen. */
+  stehAuf(still) {
+    if (!this.player.sitzt) return false;
+    this.player.stehAuf();
+    this.wildlife.ruhe = null;
+    this._ruheZeit = 0;
+    this._ruheAnzeige(false);
+    if (!still) this.audio.play('step');
+    return true;
+  }
+
+  /**
+   * Die Bedienung tritt zurück, solange man sitzt – und kommt wieder.
+   *
+   * Am `body`, nicht an einzelnen Elementen: Was dabei blasser wird, steht
+   * im Stylesheet und nicht hier. Sonst müsste jedes neue Bedienteil an
+   * zwei Stellen nachgetragen werden.
+   */
+  _ruheAnzeige(an) {
+    if (typeof document === 'undefined' || !document.body) return;
+    document.body.classList.toggle('ruhe', !!an);
+  }
+
+  /**
+   * Was beim Sitzen passiert – und das ist mit Absicht wenig.
+   *
+   * Drei Dinge, in dieser Reihenfolge: aufstehen, wenn man loslaufen will;
+   * das Möbel einpacken, wenn man die Taste hält; und sonst ab und zu einen
+   * Gedanken. Nichts davon zählt mit, nichts davon läuft ab.
+   */
+  _ruhen(dt, move) {
+    const sitz = this.player.sitzt;
+    if (!sitz) {
+      if (this.wildlife.ruhe) this.wildlife.ruhe = null;
+      return;
+    }
+
+    // Das Möbel kann weg sein – eingepackt, durch einen Umzug, durch die
+    // Nacht. Dann steht sie auf, statt in der Luft zu sitzen.
+    if (sitz.entity.gone) { this.stehAuf(true); return; }
+
+    if (move.x !== 0 || move.y !== 0) { this.stehAuf(); return; }
+
+    this.wildlife.ruhe = { x: this.player.x, y: this.player.y - 40 };
+
+    // Tippen steht auf, Halten packt ein. Der erste Druck zählt nicht mit –
+    // das ist noch der, mit dem man sich hingesetzt hat (siehe `setzDich`).
+    const taste = this.input.isDown('interact');
+    if (!this._haltenFrei) {
+      if (!taste) this._haltenFrei = true;
+    } else if (taste) {
+      this._halten = (this._halten || 0) + dt;
+      if (this._halten >= HALTEN_SEK) {
+        this._halten = 0;
+        // Einpacken bleibt Sache der Hand – wie überall sonst bei Deko. Mit
+        // der Axt in der Faust sagt es das, statt die Bank verschwinden zu
+        // lassen.
+        if (this.player.tool.id !== 'hand') {
+          this.ui.toast('Mit der Hand aufheben', 'icon_hand');
+          return;
+        }
+        const e = sitz.entity;
+        this.stehAuf(true);
+        this.pickDecor(e);
+        return;
+      }
+    } else if (this.input.released('interact')) {
+      this._halten = 0;
+      this.stehAuf();
+      return;
+    }
+
+    this._ruheZeit = (this._ruheZeit || 0) + dt;
+    if (this._ruheZeit < (this._ruheNaechster || ERSTER_GEDANKE)) return;
+    this._ruheNaechster = this._ruheZeit + GEDANKE_ALLE;
+    this._denkLaut();
+  }
+
+  /** Einen Gedanken zum Platz sagen – leise, über Selis Kopf. */
+  _denkLaut() {
+    const satz = waehleGedanke(this.ruheLage(), this.state.gedanken || [], Math.random);
+    if (!satz) return;
+    this.state.gedanken = merkeGedanke(this.state.gedanken || [], satz);
+    this.ui.bubble(this.player.x, this.player.y - 108, satz, null, 5.2, true);
+  }
+
+  /**
+   * Wo Seli sitzt, in Begriffen, die `rest.js` kennt.
+   *
+   * Alles hier kommt aus Quellen, die es ohnehin gibt: die Ortsprüfungen der
+   * Wünsche, das Wetter, die Jahreszeit, die Deko im Umkreis. Nichts davon
+   * ist für das Ausruhen erfunden worden – ein zweiter Ortsbegriff neben dem
+   * der Wünsche wäre die Sorte Doppelung, die irgendwann auseinanderläuft.
+   */
+  ruheLage() {
+    const p = this.player;
+    const sitz = p.sitzt;
+    const x = p.x;
+    const y = p.y;
+
+    const orte = [];
+    for (const id in WUNSCH_ORTE) {
+      const o = WUNSCH_ORTE[id];
+      if (o.nameFuer) continue;           // „bei ihm selbst" braucht einen Wunsch
+      if (o.test(this.world, x, y)) orte.push(id);
+    }
+
+    const deko = [];
+    let geist = null;
+    const nah = this.world.queryNear(x, y, WIRK_RADIUS);
+    for (let i = 0; i < nah.length; i++) {
+      const e = nah[i];
+      if (e.gone) continue;
+      const dx = e.x - x;
+      const dy = e.y - y;
+      if (dx * dx + dy * dy > WIRK_RADIUS * WIRK_RADIUS) continue;
+      if (e.kind === 'spirit') { geist = e.spiritId; continue; }
+      if (e.kind !== 'decor') continue;
+      if (DEKO_GEDANKE[e.itemId] && deko.indexOf(e.itemId) < 0) deko.push(e.itemId);
+    }
+
+    // Gefragt ist, was man SIEHT, nicht was der Tag vorsieht: `raining` und
+    // die beiden anderen prüfen mit, ob überhaupt schon etwas zu sehen ist.
+    const w = this.weather;
+    const nacht = this.day.isDark();
+    return {
+      moebel: sitz ? sitz.itemId : null,
+      geist: geist,
+      deko: deko,
+      wetter: w.raining ? 'regen' : w.foggy ? 'nebel' : w.snowing ? 'schnee' : null,
+      nacht: nacht,
+      abend: !nacht && this.day.hour >= ABEND_AB,
+      orte: orte,
+      jahreszeit: this.season(),
+    };
   }
 
   /* ---------------- Gemütlichkeit ---------------- */
@@ -1973,12 +2157,19 @@ export class Game {
     return null;
   }
 
-  /** Bleibst du stehen, sucht es sich ein Möbelstück zum Hinlegen. */
+  /**
+   * Bleibst du stehen, sucht es sich ein Möbelstück zum Hinlegen.
+   *
+   * Gefragt wird `moving`, nicht `vx`/`vy`. Die beiden werden nämlich seit
+   * jeher nur im Konstruktor gesetzt und bleiben null – die Bedingung war
+   * also immer falsch, und das Tier legte sich nach fünf Sekunden hin, ganz
+   * gleich wie weit man gerade rannte. Gemessen: bei durchgehendem Laufen
+   * lag es nach 5,0 Sekunden auf der ersten Bank in Reichweite.
+   */
   _petRuht(dt) {
     const e = this.world.pet;
     if (!e || !istZahm(this.state.pet) || e.fund) return;
-    const bewegt = Math.abs(this.player.vx || 0) + Math.abs(this.player.vy || 0) > 6;
-    if (bewegt) {
+    if (this.player.moving) {
       e.stillZeit = 0;
       e.ruhe = null;
       return;
@@ -2655,6 +2846,18 @@ export class Game {
     return pruefeWunsch(w, this.world);
   }
 
+  /**
+   * Unter welchem Namen sich das Spiel einen Wunsch merkt.
+   *
+   * Nur damit die Prüfungen im Browser dasselbe lesen wie das Gedächtnis.
+   * Sie hatten sich den Namen selbst zusammengesetzt – aus Sorte und Ort,
+   * ohne den Geist – und hielten deshalb Miras „Licht bei mir" und Brunos
+   * für denselben Wunsch. Ein Schlüssel, zwei Wahrheiten.
+   */
+  wunschKennung(w) {
+    return wunschKey(w);
+  }
+
   /** Die Jahreszeit als Kennung – oder null, solange der Tag nicht steht. */
   season() {
     return this.today && this.today.season ? this.today.season.id : null;
@@ -3175,6 +3378,10 @@ export class Game {
     const item = getItem(itemId);
     if (!item || !item.prop) return;
     if (this.inventory.count(itemId) <= 0) return;
+    // Zum Aufstellen muss man aufstehen. Sonst säße sie fest: Beim Sitzen
+    // gehört die E-Taste dem Ausruhen, und der Platz ließe sich nie
+    // bestätigen – man käme mit dem Stück in der Hand nicht mehr heraus.
+    this.stehAuf(true);
     const p = this.player.facingPoint(88);
     this.placing = {
       itemId: itemId,
@@ -3432,6 +3639,9 @@ export class Game {
   sleep(forced) {
     if (this.sleeping) return;
     this.sleeping = true;
+    // Vor dem Speichern, nicht danach: Sonst ginge der Tag mit einer Figur
+    // zu Ende, die auf einer Bank sitzt, und der nächste begänne dort.
+    this.stehAuf(true);
     this.fishing.cancel();
     this.cancelPlacing();
     this.panels.close();
@@ -3725,6 +3935,12 @@ export class Game {
   /* ---------------- Hinweistext ---------------- */
 
   _updatePrompt() {
+    if (this.player.sitzt) {
+      this.ui.setPrompt(this.player.tool.id === 'hand'
+        ? 'Aufstehen · halten zum Einpacken'
+        : 'Aufstehen');
+      return;
+    }
     if (this.placing) {
       if (!this.placing.valid) {
         this.ui.setPrompt((this.placing.reason || 'Kein Platz') + ' · X abbrechen');
@@ -3805,7 +4021,10 @@ export class Game {
         : 'Ernten');
       return;
     }
-    if (def.category === 'decor') { this.ui.setPrompt('Einpacken'); return; }
+    if (def.category === 'decor') {
+      this.ui.setPrompt(istSitzplatz(t.entity.itemId) ? 'Hinsetzen' : 'Einpacken');
+      return;
+    }
     if (def.station === 'boat') {
       this.ui.setPrompt(!this.world.isUnlocked(REGION.ISLE) ? 'Vertäut'
         : t.entity.toRegion === REGION.ISLE ? 'Übersetzen' : 'Zurückrudern');

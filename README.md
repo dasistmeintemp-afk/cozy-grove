@@ -84,6 +84,7 @@ Audio erst nach der ersten Nutzergeste, Touch-Steuerung mit Joystick.
 | `E` / Leertaste | Werkzeug benutzen, reden, abgeben |
 | `1`–`7`, `Tab` | Werkzeug wählen (7 = Gießkanne, sobald gebaut) |
 | Mausrad | Werkzeug wechseln, ohne die Finger zu bewegen |
+| `E` an Bank, Stuhl, Hängematte, Schaukel | hinsetzen · nochmal tippen: aufstehen · halten: einpacken |
 | `E` am Boot | zur Stillen Insel übersetzen und zurück |
 | `I` `Q` `C` `M` | Tasche · Aufgaben · Werkbank · Karte |
 | `B` | Fundbuch |
@@ -357,13 +358,27 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   zum ersten Mal ein großes Ziel, und ein guter Markttag ist ein guter Tag.
   Kein Kredit im eigentlichen Sinn: keine Zinsen, keine Frist, keine Mahnung –
   wer nie einzahlt, verliert nichts. Dieselbe Regel wie im Garten.
+* **Ausruhen.** Man konnte Bänke bauen, Stühle bestellen, eine Hängematte
+  aufhängen und eine Schaukel aufstellen – und sich in nichts davon
+  hineinsetzen. Jetzt schon: **`E` vor einem Sitzmöbel, und Seli setzt sich
+  hin.** Loslaufen stellt sie wieder auf, Halten packt das Stück ein.
+
+  Sitzen bringt mit Absicht **nichts Zählbares** – keine Münzen, keine Glut,
+  keinen Fortschritt. Es bringt drei andere Dinge: Falter, Motten und Vögel
+  drehen langsam auf sie zu, statt weiterzuziehen; die Bedienung tritt
+  zurück, damit man die Insel sieht und nicht die Zahlen; und nach ein paar
+  Sekunden **sagt sie etwas über den Platz**. Wer die Bank ans Wasser
+  stellt, bekommt andere Sätze als jemand, der sie in den Wald stellt – und
+  das ist die einzige Belohnung dafür, sich Gedanken über einen Platz zu
+  machen, die nicht in Zahlen ausgedrückt ist.
 * **Das Haustier.** Ein Tier, das nur hinterherläuft, ist nach drei Tagen
   Tapete. Deshalb hat es eine Aufgabe: **Einmal am Tag findet es dir etwas** –
   es bleibt an einer Grabstelle oder einem versteckten Aufgabenstück stehen,
   und ein Stern zeigt, wo. Aus dem Absuchen der Karte wird ein
-  Hinterhergehen. Und bleibst du stehen, sucht es sich ein **Möbelstück**:
-  Bank, Teppich, Hängematte, Feuerschale. Gemütlichkeit war bisher eine Zahl;
-  jetzt sitzt etwas darauf.
+  Hinterhergehen. Und bleibst du wirklich stehen, sucht es sich ein
+  **Möbelstück**: Bank, Teppich, Hängematte, Feuerschale. Gemütlichkeit war
+  bisher eine Zahl; jetzt sitzt etwas darauf. Setzt du dich selbst hin,
+  kommt es dazu.
 
   Es kommt nicht aus einem Menü. Ab dem Meilenstein „Werkzeugtag" steht ein
   **Futternapf** im Katalog (260 Münzen). Stell ihn hin, und irgendwann sitzt
@@ -657,9 +672,9 @@ Andenken, das es nur bei ihr gibt: eine Muschelkette.
 ## Seli
 
 Die Spielfigur: blonde Frau, schulterlanger Bob unter einer Hutkrempe, blaues
-Oberteil, Halstuch, Rock, Stiefel. Neun Bilder – drei Blickrichtungen zu je drei
-Schritten. Sie und die anderen Lebewesen bleiben immer farbig, auch wo die Insel
-noch blass ist.
+Oberteil, Halstuch, Rock, Stiefel. Zehn Bilder – drei Blickrichtungen zu je drei
+Schritten und eine Sitzhaltung. Sie und die anderen Lebewesen bleiben immer
+farbig, auch wo die Insel noch blass ist.
 
 ## Aufbau
 
@@ -763,8 +778,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 344 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Wirtschaft …
-npm run test:browser   # 230 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 371 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Wirtschaft …
+npm run test:browser   # 242 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

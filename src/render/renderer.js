@@ -17,6 +17,7 @@ import { defOf } from '../world/entities.js';
 import { getItem } from '../game/items.js';
 import { campfireLevelFor } from '../game/recipes.js';
 import { seasonTint } from '../game/seasons.js';
+import { sitzHoehe } from '../game/rest.js';
 import { INK } from '../art/painted.js';
 import { TILE_SIZE } from '../art/tiles.js';
 
@@ -427,6 +428,10 @@ export class Renderer {
     // Gezeichnet wird der Zwischenstand, nicht der letzte fertige Schritt –
     // sonst zappelte die Figur gegen die weich mitlaufende Kamera.
     const pos = p.renderPos(game.camera.alpha);
+    // Wer sitzt, steht nicht auf dem Boden: Der Fußpunkt wandert um die
+    // Sitzhöhe des Möbels nach oben. Nur fürs Bild – in der Welt bleibt Seli
+    // unten, sonst zielte und hörte sie einen halben Meter über sich.
+    if (p.sitzt) pos.y -= sitzHoehe(p.sitzt.itemId);
     drawSprite(ctx, p.spriteName(), pos.x, pos.y, false, { flip: p.flipped() });
 
     if (p.swing > 0 && p.tool.sprite && p.tool.id !== 'hand') {
@@ -618,7 +623,10 @@ export class Renderer {
   _drawMarkers(ctx, game, time) {
     this._drawFindWisps(ctx, game, time);
     const t = game.target;
-    if (t && t.entity) {
+    // Beim Sitzen kein Zielpfeil: Er zeigte auf die Bank, auf der man schon
+    // sitzt, und wippte dabei über Selis Kopf. Das Ausruhen ist die eine
+    // Stelle, an der das Spiel nichts zu zeigen hat.
+    if (t && t.entity && !game.player.sitzt) {
       const e = t.entity;
       const s = spr(e.sprite || (defOf(e.kind) && defOf(e.kind).sprite));
       const top = e.y - (s ? s.ay : 48) - 18;

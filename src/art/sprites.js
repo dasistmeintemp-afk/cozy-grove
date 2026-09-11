@@ -345,6 +345,11 @@ export function initArt() {
   for (let d = 0; d < dirs.length; d++) {
     for (let f = 0; f < 3; f++) addArt('player_' + dirs[d] + '_' + f, paintSeli(dirs[d], f));
   }
+  // Die vierte Haltung: sitzend. Nur ein Bild, kein Schrittzyklus – wer sitzt,
+  // bewegt sich nicht.
+  addArt('player_sit', paintSeli('sit', 0));
+  {
+  }
   for (const id in SPIRIT_LOOKS) {
     for (let f = 0; f < 2; f++) {
       addArt('spirit_' + id + '_' + f, paintSpirit(SPIRIT_LOOKS[id], f, { seed: 401 + id.charCodeAt(0) }));

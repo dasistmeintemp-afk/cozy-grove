@@ -34,8 +34,10 @@ export class Player {
   constructor(x, y) {
     this.x = x;
     this.y = y;
-    this.vx = 0;
-    this.vy = 0;
+    // Kein `vx`/`vy`: Es gab die beiden, sie standen seit jeher auf null, und
+    // das Haustier fragte sie, um zu wissen, ob man läuft. Wer eine
+    // Geschwindigkeit braucht, nehme `moving` – oder rechne sie aus `prevX`
+    // und `x` aus, die stimmen wenigstens.
     this.dir = 'down';
     this.animT = 0;
     this.frame = 0;
@@ -49,6 +51,16 @@ export class Player {
     this.swingDur = 0.34;
     this.busy = false;     // z. B. während des Angelns
     this.stepTimer = 0;
+    /**
+     * Worauf gerade gesessen wird – oder null.
+     *
+     * Steht hier etwas, gehört `x`/`y` dem Möbelstück: Die Figur wird beim
+     * Hinsetzen dorthin versetzt und beim Aufstehen zurückgestellt. Das
+     * Spiel schreibt das Feld, die Figur liest es nur; wer sitzt, geht nicht.
+     *
+     * Nicht gespeichert: Wer das Spiel schließt, steht beim nächsten Mal.
+     */
+    this.sitzt = null;     // { entity, itemId, zurueck: {x, y, dir} }
   }
 
   get tool() {
@@ -114,7 +126,7 @@ export class Player {
 
     let mx = 0;
     let my = 0;
-    if (!this.busy) {
+    if (!this.busy && !this.sitzt) {
       mx = move.x;
       my = move.y;
     }
@@ -153,11 +165,15 @@ export class Player {
   }
 
   spriteName() {
+    if (this.sitzt) return 'player_sit';
     const d = this.dir === 'left' || this.dir === 'right' ? 'side' : this.dir;
     return 'player_' + d + '_' + this.frame;
   }
 
   flipped() {
+    // Die Sitzhaltung ist von vorn gezeichnet und hat keine Seite. Gespiegelt
+    // sähe man es nicht, aber der Hut säße plötzlich andersherum.
+    if (this.sitzt) return false;
     return this.dir === 'left';
   }
 
@@ -174,6 +190,46 @@ export class Player {
 
   startSwing() {
     this.swing = 1;
+  }
+
+  /**
+   * Hinsetzen.
+   *
+   * Die Figur übernimmt den Platz des Möbels – zwei Punkte davor, denn die
+   * Tiefensortierung zeichnet, was weiter unten steht, später: So sitzt Seli
+   * VOR der Lehne und nicht dahinter. Ihren alten Platz merkt sie sich, denn
+   * das Möbel kann irgendwo stehen, wo man nicht stehen kann.
+   */
+  setzDich(e, itemId) {
+    if (this.sitzt || !e) return false;
+    this.sitzt = {
+      entity: e, itemId: itemId,
+      zurueck: { x: this.x, y: this.y, dir: this.dir },
+    };
+    this.dir = 'down';
+    this.moving = false;
+    this.frame = 0;
+    this.animT = 0;
+    this.x = e.x;
+    this.y = e.y + 2;
+    // Sonst rutschte die Figur im Bild vom alten Platz herüber: `renderPos`
+    // mischt zwischen vorher und jetzt, und „vorher" wäre zwei Meter weiter.
+    this.prevX = this.x;
+    this.prevY = this.y;
+    return true;
+  }
+
+  /** Aufstehen – zurück auf den Platz, von dem aus man sich gesetzt hat. */
+  stehAuf() {
+    if (!this.sitzt) return false;
+    const z = this.sitzt.zurueck;
+    this.sitzt = null;
+    this.x = z.x;
+    this.y = z.y;
+    this.dir = z.dir;
+    this.prevX = this.x;
+    this.prevY = this.y;
+    return true;
   }
 
   /**
@@ -233,10 +289,14 @@ export class Player {
   }
 
   toJSON() {
+    // Wer sitzt, wird stehend gespeichert – und zwar auf dem Platz, von dem
+    // aus sie sich gesetzt hat. Sonst stünde sie beim nächsten Start mitten
+    // in der Bank, und wäre die inzwischen weg, an einer beliebigen Stelle.
+    const z = this.sitzt ? this.sitzt.zurueck : this;
     return {
-      x: Math.round(this.x),
-      y: Math.round(this.y),
-      dir: this.dir,
+      x: Math.round(z.x),
+      y: Math.round(z.y),
+      dir: z.dir,
       tool: this.toolIndex,
       levels: this.levels,
     };

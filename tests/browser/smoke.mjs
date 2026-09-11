@@ -900,6 +900,147 @@ async function run() {
     check('Bei anderer Deko steht nichts davon',
       !/Wunsch|gewünscht/.test(hinweis.falscheSorte || ''), JSON.stringify(hinweis));
 
+    /* ---- Sich hinsetzen ---- */
+
+    const sitzen = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const feuer = g.world.campfire;
+
+      // Eine Bank dorthin stellen, wo Seli steht, und sie davor.
+      g.player.x = feuer.x + 200;
+      g.player.y = feuer.y + 200;
+      const bank = g.world.add({
+        id: 960001, kind: 'decor', itemId: 'bench',
+        x: g.player.x, y: g.player.y - 60, sprite: 'bench',
+      });
+      g.player.dir = 'up';
+      g.player.selectTool(0);
+      const vorherX = g.player.x;
+      const vorherY = g.player.y;
+
+      // Der Hinweis lädt zum Sitzen ein, nicht zum Einpacken.
+      g.target = g.player.findTarget(g.world);
+      r.zielIstBank = !!(g.target && g.target.entity === bank);
+      g._updatePrompt();
+      r.hinweisStehend = g.ui._lastPrompt;
+
+      // Hinsetzen
+      g.onInteract();
+      r.sitzt = !!g.player.sitzt;
+      r.sprite = g.player.spriteName();
+      r.aufDerBank = !!(g.player.sitzt && g.player.sitzt.entity === bank);
+      g._updatePrompt();
+      r.hinweisSitzend = g.ui._lastPrompt;
+
+      // Sitzend rührt sie sich nicht vom Fleck, auch wenn man drückt.
+      const sitzX = g.player.x;
+      g.player.update(0.5, { x: 1, y: 0 }, g.world);
+      r.bleibtSitzen = g.player.x === sitzX;
+
+      // Die Tiere bekommen einen Punkt, auf den sie zufliegen.
+      g._ruhen(0.016, { x: 0, y: 0 });
+      r.ruhePunkt = !!g.wildlife.ruhe;
+
+      // Nach ein paar Sekunden kommt ein Gedanke.
+      const blasenVorher = g.ui.bubbles.length;
+      for (let i = 0; i < 400; i++) g._ruhen(0.05, { x: 0, y: 0 });
+      r.gedanke = g.ui.bubbles.length > blasenVorher;
+      r.gedankenGemerkt = (g.state.gedanken || []).length;
+
+      // Loslaufen stellt sie wieder auf den alten Platz.
+      g._ruhen(0.016, { x: 0, y: 1 });
+      r.stehtWieder = !g.player.sitzt;
+      r.zurueck = Math.abs(g.player.x - vorherX) < 1 && Math.abs(g.player.y - vorherY) < 1;
+      r.ruheWeg = !g.wildlife.ruhe;
+      r.spriteStehend = g.player.spriteName();
+
+      // Halten packt die Bank ein, Tippen nicht.
+      g.target = g.player.findTarget(g.world);
+      g.onInteract();
+      const imBeutelVorher = g.inventory.count('bench');
+      g.input.down.interact = false;
+      g._ruhen(0.016, { x: 0, y: 0 });        // einmal loslassen
+      g.input.down.interact = true;
+      for (let i = 0; i < 5; i++) g._ruhen(0.05, { x: 0, y: 0 });   // 0,25 s
+      r.kurzGehaltenNochDa = !!g.player.sitzt && g.inventory.count('bench') === imBeutelVorher;
+      for (let i = 0; i < 12; i++) g._ruhen(0.05, { x: 0, y: 0 });  // insgesamt 0,85 s
+      r.eingepackt = g.inventory.count('bench') > imBeutelVorher;
+      r.stehtDanach = !g.player.sitzt;
+      r.bankWeg = !!bank.gone;
+      g.input.down.interact = false;
+
+      // Wer die Taste beim Hinsetzen zu lange hält, hat sich hingesetzt –
+      // und nicht die Bank eingepackt. Das ist der Fall, an dem die ganze
+      // Sache sonst kippt: Derselbe Tastendruck bedeutet erst „hinsetzen"
+      // und wäre einen Wimpernschlag später schon der Anfang vom Halten.
+      const bank3 = g.world.add({
+        id: 960003, kind: 'decor', itemId: 'bench',
+        x: g.player.x, y: g.player.y - 60, sprite: 'bench',
+      });
+      const vorDemDruck = g.inventory.count('bench');
+      g.input.down.interact = true;
+      g.target = g.player.findTarget(g.world);
+      g.onInteract();
+      for (let i = 0; i < 40; i++) g._ruhen(0.05, { x: 0, y: 0 });  // zwei Sekunden halten
+      r.haltenBeimHinsetzen = !!g.player.sitzt && !bank3.gone &&
+        g.inventory.count('bench') === vorDemDruck;
+      g.input.down.interact = false;
+      g._ruhen(0.016, { x: 0, y: 0 });
+      g.stehAuf(true);
+      g.world.remove(bank3);
+
+      // Schlafengehen lässt niemanden sitzen.
+      const bank2 = g.world.add({
+        id: 960002, kind: 'decor', itemId: 'bench',
+        x: g.player.x, y: g.player.y - 60, sprite: 'bench',
+      });
+      g.target = g.player.findTarget(g.world);
+      g.onInteract();
+      r.sitztVorDemSchlafen = !!g.player.sitzt;
+      g.sleep(false);
+      r.sitztImSchlaf = !!g.player.sitzt;
+      // `sleep` ist nicht nach dem Aufruf fertig: Nach gut einer Sekunde
+      // wechselt der Tag, und danach geht der Rückblick von selbst auf. Wer
+      // hier einfach weitermacht, dem steht er zwei Prüfungen später im
+      // Fenster – gemessen stand im „Werkbank"-Fenster „Gestern auf der
+      // Insel". Also abwarten und zumachen.
+      await new Promise((res) => setTimeout(res, 2200));
+      g.sleeping = false;
+      g.panels.close();
+      g.world.remove(bank2);
+      if (!bank.gone) g.world.remove(bank);
+      return r;
+    });
+    check('Vor einer Bank lädt der Hinweis zum Hinsetzen ein',
+      sitzen.zielIstBank === true && sitzen.hinweisStehend === 'Hinsetzen',
+      JSON.stringify(sitzen));
+    check('E setzt Seli auf die Bank, und sie wird sitzend gezeichnet',
+      sitzen.sitzt === true && sitzen.aufDerBank === true &&
+      sitzen.sprite === 'player_sit', JSON.stringify(sitzen));
+    check('Sitzend sagt der Hinweis, wie man wieder hochkommt',
+      /Aufstehen/.test(sitzen.hinweisSitzend || '') &&
+      /halten/.test(sitzen.hinweisSitzend || ''), JSON.stringify(sitzen));
+    check('Wer sitzt, läuft nicht weiter',
+      sitzen.bleibtSitzen === true, JSON.stringify(sitzen));
+    check('Die Tiere bekommen einen Punkt, zu dem sie kommen',
+      sitzen.ruhePunkt === true && sitzen.ruheWeg === true, JSON.stringify(sitzen));
+    check('Nach ein paar Sekunden sagt Seli etwas über den Platz',
+      sitzen.gedanke === true && sitzen.gedankenGemerkt > 0, JSON.stringify(sitzen));
+    check('Loslaufen stellt sie auf – und zwar dorthin, wo sie stand',
+      sitzen.stehtWieder === true && sitzen.zurueck === true &&
+      sitzen.spriteStehend !== 'player_sit', JSON.stringify(sitzen));
+    check('Kurz gedrückt bleibt die Bank stehen',
+      sitzen.kurzGehaltenNochDa === true, JSON.stringify(sitzen));
+    check('Lange gehalten wandert sie in die Tasche',
+      sitzen.eingepackt === true && sitzen.stehtDanach === true &&
+      sitzen.bankWeg === true, JSON.stringify(sitzen));
+    check('Wer beim Hinsetzen zu lange drückt, sitzt – und packt nicht ein',
+      sitzen.haltenBeimHinsetzen === true, JSON.stringify(sitzen));
+    check('Schlafen geht man im Stehen',
+      sitzen.sitztVorDemSchlafen === true && sitzen.sitztImSchlaf === false,
+      JSON.stringify(sitzen));
+
     // Ein Wunsch, an dem nach zwölf Tagen gar nichts steht, wird
     // zurückgezogen – sonst wären drei, die einem nicht liegen, für immer
     // die einzigen drei. Wer angefangen hat, behält seinen.
@@ -960,13 +1101,17 @@ async function run() {
       g.panels.close();
 
       // Gedächtnis: was zuletzt erfüllt wurde, darf nicht sofort wiederkommen.
+      // Gefragt wird nach dem Namen, unter dem das Spiel SELBST sich einen
+      // Wunsch merkt. Vorher setzte die Prüfung ihn sich aus Sorte und Ort
+      // zusammen – und hielt damit Miras „Licht bei mir" und Brunos für
+      // denselben Wunsch, obwohl es zwei verschiedene sind.
       g.state.wishes = { offen: [], erfuellt: 5, letzte: [] };
       g._wuenscheNachfuellen(g.day.day);
-      const ersteDrei = g.state.wishes.offen.map((w) => w.sorte + ':' + w.ort);
+      const ersteDrei = g.state.wishes.offen.map((w) => g.wunschKennung(w));
       g.state.wishes.letzte = ersteDrei.slice();
       g.state.wishes.offen = [];
       g._wuenscheNachfuellen(g.day.day);
-      const neueDrei = g.state.wishes.offen.map((w) => w.sorte + ':' + w.ort);
+      const neueDrei = g.state.wishes.offen.map((w) => g.wunschKennung(w));
       const ueberschneidung = neueDrei.filter((k) => ersteDrei.indexOf(k) >= 0).length;
 
       g.state.wishes = { offen: [], erfuellt: 0, letzte: [] };
@@ -2591,6 +2736,27 @@ async function run() {
         nah = Math.hypot(g.world.pet.x - g.player.x, g.world.pet.y - g.player.y);
       }
 
+      // Es legt sich hin, wenn man stehen bleibt – und nur dann. Die
+      // Bedingung fragte früher `player.vx`/`vy` ab, und die werden nie
+      // gesetzt: Das Tier suchte sich nach fünf Sekunden eine Bank, während
+      // man quer über die Insel rannte.
+      g.state.pet.laune = 100;
+      g.world.pet.fund = null;
+      g.world.pet.ruhe = null;
+      g.world.pet.stillZeit = 0;
+      const ruheBank = g.world.add({
+        id: 960101, kind: 'decor', itemId: 'bench',
+        x: g.player.x + 80, y: g.player.y, sprite: 'bench',
+      });
+      g.player.moving = true;
+      for (let i = 0; i < 400; i++) g._petRuht(0.05);     // 20 s im Laufen
+      const legtSichImLaufen = !!g.world.pet.ruhe;
+      g.player.moving = false;
+      for (let i = 0; i < 200; i++) g._petRuht(0.05);     // 10 s im Stehen
+      const legtSichImStehen = !!g.world.pet.ruhe;
+      g.world.remove(ruheBank);
+      g.world.pet.ruhe = null;
+
       // Napf einpacken, solange es fremd ist, verscheucht es wieder
       g.state.pet.zahm = 0;
       napf.gone = true;
@@ -2604,6 +2770,7 @@ async function run() {
         ohneNapf, streuner, ohneFutter, hungerVorher, schritte, zahm, fischWeg,
         nochmal, sucht, fundAm, zweitesMal, hungrigSucht, nachHunger,
         weit: Math.round(weit), nah: Math.round(nah), bewegt, ohneNapfWeg,
+        legtSichImLaufen, legtSichImStehen,
       };
     });
     check('Ohne Napf ist kein Tier da',
@@ -2619,6 +2786,9 @@ async function run() {
       tier.nochmal === false, JSON.stringify(tier));
     check('Einmal am Tag findet es etwas',
       tier.sucht === true && tier.zweitesMal === false, JSON.stringify(tier));
+    check('Im Laufen legt es sich nicht hin, im Stehen schon',
+      tier.legtSichImLaufen === false && tier.legtSichImStehen === true,
+      JSON.stringify(tier));
     check('Hungrig sucht es nichts',
       tier.hungrigSucht === false, JSON.stringify(tier));
     check('Hunger kostet Laune, aber nimmt einem das Tier nicht weg',

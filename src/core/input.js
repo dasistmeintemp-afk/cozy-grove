@@ -258,6 +258,19 @@ export class Input {
     return !!this.justPressed[action];
   }
 
+  /**
+   * Gerade losgelassen.
+   *
+   * Gegenstück zu `pressed`, und für eine Taste gedacht, die zwei Dinge
+   * bedeutet: Tippen das eine, Halten das andere. Der Unterschied zeigt sich
+   * erst beim Loslassen – auf `pressed` hin wäre jedes Halten zuerst ein
+   * Tippen. `releaseAll` löst das ausdrücklich NICHT aus: Ein Fensterwechsel
+   * ist kein Tastendruck.
+   */
+  released(action) {
+    return !!this.justReleased[action];
+  }
+
   releaseAll() {
     this.down = Object.create(null);
     this.stick.x = 0;

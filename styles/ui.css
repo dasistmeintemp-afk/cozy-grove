@@ -977,6 +977,27 @@ html, body {
   justify-content: center; z-index: 99; background: var(--paper); color: var(--ink);
 }
 
+/* ---------- Ausruhen ---------- */
+
+/*
+ * Wer sitzt, will die Insel sehen und nicht die Zahlen.
+ *
+ * Die Bedienung tritt zurück, statt zu verschwinden: halb durchsichtig,
+ * weich überblendet, und sie bleibt anklickbar. Ganz ausblenden hieße, dass
+ * man zum Aufstehen erst erraten müsste, wo die Knöpfe wieder auftauchen.
+ * Der Hinweistext unten gehört ausdrücklich NICHT dazu – er ist das
+ * Einzige, was gerade etwas erklärt.
+ */
+body.ruhe #hud-top,
+body.ruhe #quest-rail,
+body.ruhe #toolbelt {
+  opacity: 0.28;
+}
+
+#hud-top, #quest-rail, #toolbelt {
+  transition: opacity 0.8s ease;
+}
+
 /* ---------- Nachtblende / Übergänge ---------- */
 
 #fadeout {

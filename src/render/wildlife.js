@@ -15,6 +15,7 @@ import { randRange } from '../core/rng.js';
 import { isWalkable, isWater } from '../art/tiles.js';
 import { bugsOf } from '../game/items.js';
 import { tierGunst, TIER_RADIUS } from '../game/decor.js';
+import { ZAHM_RADIUS, ZAHM_ABSTAND } from '../game/rest.js';
 
 const MAX = 9;
 
@@ -35,6 +36,14 @@ export class Wildlife {
     this.swarm = false;
     /** Jahreszeit – manche Falter fliegen nur zu ihrer. Null heißt: alle. */
     this.season = null;
+    /**
+     * Wo jemand still sitzt – oder null.
+     *
+     * Steht hier ein Punkt, drehen Falter, Motten und Vögel in seiner Nähe
+     * langsam darauf zu, statt blind weiterzuziehen. Das ist der ganze Lohn
+     * fürs Sitzenbleiben: Wer stehen bleibt, dem kommt die Insel entgegen.
+     */
+    this.ruhe = null;
     /** Wird beim Fischsprung gerufen – das Spiel hängt dort den Klang an. */
     this.onJump = null;
   }
@@ -56,6 +65,7 @@ export class Wildlife {
       // Zuschlagen ohne Ziel soll etwas kosten, sonst wischt man blind.
       if (c.flee > 0) c.flee = Math.max(0, c.flee - dt);
       const hast = c.flee > 0 ? 2.3 : 1;
+      this._zurRuhe(c, dt);
 
       if (c.type === 'butterfly') {
         c.x += Math.cos(c.dir) * c.speed * hast * dt;
@@ -109,6 +119,38 @@ export class Wildlife {
   }
 
   /**
+   * Ein Tier zu jemandem lenken, der still sitzt.
+   *
+   * Zwei Kreise: Innerhalb von `ZAHM_RADIUS` dreht das Tier langsam auf den
+   * Punkt zu, innerhalb von `ZAHM_ABSTAND` wieder weg. Zusammen ergibt das
+   * kein Anfliegen, sondern ein Umkreisen – und genau so sieht es aus, wenn
+   * ein Falter jemanden für einen Busch hält.
+   *
+   * Fischsprünge lässt das kalt, und wer gerade vor dem Kescher geflohen ist,
+   * kommt auch nicht zurück: Ein Falter, der nach dem Fehlschlag brav
+   * angeflogen käme, würde das Zielen zur Formsache machen.
+   */
+  _zurRuhe(c, dt) {
+    const r = this.ruhe;
+    if (!r || c.type === 'jump' || c.flee > 0) return;
+    const dx = r.x - c.x;
+    const dy = r.y - c.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d > ZAHM_RADIUS || d < 1) return;
+
+    let want = Math.atan2(dy, dx);
+    if (d < ZAHM_ABSTAND) want += Math.PI;
+    let diff = want - c.dir;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    c.dir += diff * 1.3 * dt;
+
+    // In der Nähe eines Sitzenden bleibt es länger: Sonst löste sich das
+    // Tier, das gerade angekommen ist, nach zwei Sekunden auf.
+    if (c.life < 4) c.life = 4;
+  }
+
+  /**
    * Ein Platz im Bild, an dem ein Tier auftauchen darf.
    *
    * Hier hängt die Deko dran: Eine Vogeltränke zieht an, eine Vogelscheuche
@@ -123,8 +165,14 @@ export class Wildlife {
     const rng = this.rng;
     let ersatz = null;
     for (let tries = 0; tries < 12; tries++) {
-      const x = camera.ox + randRange(rng, 40, viewW - 40);
-      const y = camera.oy + randRange(rng, 40, viewH - 40);
+      // Sitzt jemand still, taucht die Hälfte davon in seinem Umkreis auf –
+      // sonst kämen die Tiere zwar heran, aber vom Bildrand, und man sähe
+      // nur, dass sie lange brauchen.
+      const nahRuhe = this.ruhe && tries % 2 === 0;
+      const x = nahRuhe ? this.ruhe.x + randRange(rng, -ZAHM_RADIUS, ZAHM_RADIUS)
+        : camera.ox + randRange(rng, 40, viewW - 40);
+      const y = nahRuhe ? this.ruhe.y + randRange(rng, -ZAHM_RADIUS, ZAHM_RADIUS)
+        : camera.oy + randRange(rng, 40, viewH - 40);
       if (!isWalkable(world.tileAt(x, y))) continue;
       const gunst = world.queryNear
         ? tierGunst(world.queryNear(x, y, TIER_RADIUS), x, y) : 1;

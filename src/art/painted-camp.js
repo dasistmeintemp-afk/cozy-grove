@@ -1516,8 +1516,19 @@ export function paintBird(frame, opts) {
 
 /**
  * Spielfigur.
- * @param {'down'|'up'|'side'} dir
+ *
+ * @param {'down'|'up'|'side'|'sit'} dir
  * @param {number} frame 0 = Stand, 1/2 = Schritt
+ *
+ * `sit` ist die vierte Haltung und die einzige, die nichts mit Laufen zu tun
+ * hat: Seli sitzt auf einer Bank, im Gras oder in der Hängematte. Sie war
+ * lange die auffälligste Lücke im Spiel – man baut sich eine Bank, stellt
+ * sie ans Wasser und kann sich nie hineinsetzen.
+ *
+ * Technisch ist sie derselbe Körper, nur ein Stück tiefer (das erledigt `bob`
+ * für alles, was daran hängt) und mit angewinkelten Beinen statt gestreckter.
+ * Eine zweite Malroutine daneben wäre eine zweite Seli, die beim nächsten
+ * Farbwechsel abweicht.
  */
 export function paintSeli(dir, frame, opts) {
   const o = opts || {};
@@ -1527,9 +1538,15 @@ export function paintSeli(dir, frame, opts) {
   const cx = w / 2;
   const baseY = h - 10;
   const headY = 56;
-  const bob = frame === 0 ? 0 : -3;
-  const stepA = frame === 1 ? 7 : 0;
-  const stepB = frame === 2 ? 7 : 0;
+  const sit = dir === 'sit';
+  // Im Sitzen sackt der ganze Oberkörper ab – über `bob`, an dem Kopf, Haar,
+  // Hut, Rock, Arme und Halstuch ohnehin schon hängen.
+  // Zwölf Pixel, nachgerechnet: Der Rockbund liegt dann bei baseY-40, der
+  // Saum bei baseY-26 – vierzehn Pixel Rock. Bei zwanzig fielen Bund und
+  // Saum aufeinander, und aus dem Rock wurde ein Strich.
+  const bob = (frame === 0 ? 0 : -3) + (sit ? 12 : 0);
+  const stepA = sit ? 0 : (frame === 1 ? 7 : 0);
+  const stepB = sit ? 0 : (frame === 2 ? 7 : 0);
   const side = dir === 'side';
   const back = dir === 'up';
 
@@ -1537,26 +1554,52 @@ export function paintSeli(dir, frame, opts) {
   const hairShade = o.hairShade || SELI.hairShade;
   const hairLight = o.hairLight || SELI.hairLight;
 
-  // Beine schlank, Stiefel dunkel – helle Strümpfe allein verschwinden im Papier
-  const legL = smoothClosed([
-    [cx - 12 - stepA * 0.4, baseY - 30 + bob], [cx - 13 - stepA * 0.6, baseY - 11],
-    [cx - 3 - stepA * 0.6, baseY - 11], [cx - 3, baseY - 30 + bob],
-  ], 4);
-  const legR = smoothClosed([
-    [cx + 3, baseY - 30 + bob], [cx + 3 + stepB * 0.6, baseY - 11],
-    [cx + 13 + stepB * 0.6, baseY - 11], [cx + 12 + stepB * 0.4, baseY - 30 + bob],
-  ], 4);
-  const bootL = smoothClosed(blob(cx - 8 - stepA * 0.6, baseY - 7, 8.5, 6.5, seed + 62, 0.09, 12), 4);
-  const bootR = smoothClosed(blob(cx + 8 + stepB * 0.6, baseY - 7, 8.5, 6.5, seed + 63, 0.09, 12), 4);
+  // Beine schlank, Stiefel dunkel – helle Strümpfe allein verschwinden im Papier.
+  // Im Sitzen liegen die Oberschenkel waagerecht nach vorn, die Unterschenkel
+  // fallen davor herunter: von vorn zwei runde Knie und darunter die Stiefel.
+  const legL = sit
+    ? smoothClosed([
+      [cx - 15, baseY - 26], [cx - 17, baseY - 12],
+      [cx - 6, baseY - 11], [cx - 5, baseY - 25],
+    ], 5)
+    : smoothClosed([
+      [cx - 12 - stepA * 0.4, baseY - 30 + bob], [cx - 13 - stepA * 0.6, baseY - 11],
+      [cx - 3 - stepA * 0.6, baseY - 11], [cx - 3, baseY - 30 + bob],
+    ], 4);
+  const legR = sit
+    ? smoothClosed([
+      [cx + 5, baseY - 25], [cx + 6, baseY - 11],
+      [cx + 17, baseY - 12], [cx + 15, baseY - 26],
+    ], 5)
+    : smoothClosed([
+      [cx + 3, baseY - 30 + bob], [cx + 3 + stepB * 0.6, baseY - 11],
+      [cx + 13 + stepB * 0.6, baseY - 11], [cx + 12 + stepB * 0.4, baseY - 30 + bob],
+    ], 4);
+  const bootL = sit
+    ? smoothClosed(blob(cx - 12, baseY - 8, 9, 6, seed + 62, 0.09, 12), 4)
+    : smoothClosed(blob(cx - 8 - stepA * 0.6, baseY - 7, 8.5, 6.5, seed + 62, 0.09, 12), 4);
+  const bootR = sit
+    ? smoothClosed(blob(cx + 12, baseY - 8, 9, 6, seed + 63, 0.09, 12), 4)
+    : smoothClosed(blob(cx + 8 + stepB * 0.6, baseY - 7, 8.5, 6.5, seed + 63, 0.09, 12), 4);
 
   // Rock: unten weiter als oben, das liest sich auch klein noch als Kleid
   const skirtTop = baseY - 52 + bob;
-  const skirt = smoothClosed([
-    [cx - 13, skirtTop], [cx + 13, skirtTop],
-    [cx + 22, baseY - 30 + bob], [cx + 14, baseY - 26 + bob],
-    [cx, baseY - 29 + bob],
-    [cx - 14, baseY - 26 + bob], [cx - 22, baseY - 30 + bob],
-  ], 6);
+  // Im Sitzen liegt der Rock auf dem Schoß: breiter und deutlich kürzer, sonst
+  // verdeckt er die angewinkelten Beine ganz und die Haltung liest sich als
+  // Hocke im Zelt.
+  const skirt = sit
+    ? smoothClosed([
+      [cx - 15, skirtTop], [cx + 15, skirtTop],
+      [cx + 26, baseY - 27], [cx + 14, baseY - 23],
+      [cx, baseY - 26],
+      [cx - 14, baseY - 23], [cx - 26, baseY - 27],
+    ], 6)
+    : smoothClosed([
+      [cx - 13, skirtTop], [cx + 13, skirtTop],
+      [cx + 22, baseY - 30 + bob], [cx + 14, baseY - 26 + bob],
+      [cx, baseY - 29 + bob],
+      [cx - 14, baseY - 26 + bob], [cx - 22, baseY - 30 + bob],
+    ], 6);
   const body = smoothClosed(blob(cx, baseY - 60 + bob, side ? 19 : 22, 18, seed + 1, 0.06, 16), 5);
   const armL = smoothClosed(blob(cx - (side ? 15 : 22), baseY - 56 + bob + stepB, 7, 13, seed + 2, 0.08, 12), 5);
   const armR = smoothClosed(blob(cx + (side ? 15 : 22), baseY - 56 + bob + stepA, 7, 13, seed + 3, 0.08, 12), 5);
