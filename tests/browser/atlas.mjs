@@ -1,7 +1,7 @@
 /**
  * Hilfswerkzeug: rendert alle gemalten Grafiken als Übersichtsbild.
  *   node tests/browser/atlas.mjs [ziel.png] [--line] [--only=text] [--zoom=2]
- * `--only` filtert nach Namensteil, `--zoom` vergrößert die Zellen.
+ * `--only` filtert nach Namensteilen (mehrere per Komma), `--zoom` vergrößert.
  */
 import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -41,7 +41,12 @@ const wrap = document.getElementById('wrap');
 const LINE = ${LINE ? 'true' : 'false'};
 const ONLY = ${JSON.stringify(ONLY)};
 const ZOOM = ${ZOOM};
-const names = spriteNames().sort().filter((n) => !ONLY || n.indexOf(ONLY) >= 0);
+// Mehrere Namensteile durch Komma getrennt: --only=arch,torch,feeder.
+// Vorher ging nur einer, und wer zwölf neue Stücke nebeneinander sehen
+// wollte, musste zwölfmal aufrufen.
+const teile = ONLY.split(',').map((t) => t.trim()).filter(Boolean);
+const names = spriteNames().sort()
+  .filter((n) => !teile.length || teile.some((t) => n.indexOf(t) >= 0));
 const MAX = 150 * ZOOM;
 for (const name of names) {
   const s = spr(name);

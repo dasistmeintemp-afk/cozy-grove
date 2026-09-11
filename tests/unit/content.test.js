@@ -37,6 +37,9 @@ const SPRITE_NAMES = (function () {
     'table', 'chair', 'hammock', 'swing', 'firebowl', 'stringlights',
     'paperlamp', 'planter', 'trellis', 'birdbath', 'beehive', 'scarecrow',
     'weathervane', 'mat', 'pond',
+    // Nachschub für die Wünsche – zwei je Sorte
+    'stump', 'stonebench', 'stonelamp', 'torch', 'flowerbox', 'bonsai',
+    'hedgehogbox', 'feeder', 'steppingstones', 'arch', 'clothesline', 'bookstack',
     // Die Ausbaustufen des Zuhauses. Stufe 1 ist das Zelt und steht oben;
     // die drei Häuser standen bisher in keiner Prüfung, ein Tippfehler im
     // Namen wäre also erst im Spiel aufgefallen.

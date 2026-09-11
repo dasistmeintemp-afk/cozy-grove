@@ -337,7 +337,7 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   eine Handvoll von dem, was der Geist selbst mag; wer ihn länger kennt,
   bekommt auch mal Saat, einen Edelstein oder etwas für die Wohnung. Dreimal
   dasselbe Holz, und man macht den vierten Brief nicht mehr auf.
-* **Der Katalog.** Beim Händler unter „Katalog": fünfzehn Stücke Deko zum
+* **Der Katalog.** Beim Händler unter „Katalog": zwanzig Stücke Deko zum
   Bestellen, von der Bastmatte für 90 bis zum Zierteich für 560 Münzen.
   Bezahlt wird sofort, **geliefert am nächsten Morgen als Paket im
   Briefkasten** – höchstens drei Bestellungen gleichzeitig.
@@ -354,6 +354,23 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   zum ersten Mal ein großes Ziel, und ein guter Markttag ist ein guter Tag.
   Kein Kredit im eigentlichen Sinn: keine Zinsen, keine Frist, keine Mahnung –
   wer nie einzahlt, verliert nichts. Dieselbe Regel wie im Garten.
+* **Genug Deko, dass die Wünsche eine Wahl bleiben.** Ein Wunsch lautet „ein
+  Platz zum Sitzen am Wasser", nicht „eine Bank" – die **Sorte** ist die
+  Entscheidung. Bei vier Möglichkeiten ist sie nach zwölf Wünschen keine mehr.
+  Deshalb **zwölf neue Stücke, zwei je Sorte**: Baumstumpfhocker und
+  Steinbank, Steinlaterne und Fackel, Blumenkasten und Bonsai, Igelhaus und
+  Futterhäuschen, Trittsteine und Torbogen, Wäscheleine und Bücherkiste.
+  Sieben davon baut man an der Werkbank, vier kommen aus dem Katalog.
+  **36 Stücke** tragen die Wünsche jetzt statt 27.
+* **Die Geister reden.** Wer nichts abzugeben hat, bekam bisher einen einzigen
+  Satz: „Genug für heute." Dreißig Tage lang denselben. Jetzt sagt jeder Geist
+  etwas zur **Lage** – zum Wetter, zur Jahreszeit, zur Uhrzeit, dazu wie gut
+  man sich kennt und wie es um ihn herum aussieht. **189 Sätze**, in sieben
+  deutlich verschiedenen Stimmen: Flämmchen sagt nie einen Nebensatz, Bruno
+  brummt, Kiesel redet wie ein Seemann, Nelly wie eine Gastgeberin.
+
+  Keiner davon erteilt einen Auftrag – ein Test wacht darüber. Geplauder ist
+  die Insel, die spricht, während man nichts zu erledigen hat.
 * **Ausruhen.** Man konnte Bänke bauen, Stühle bestellen, eine Hängematte
   aufhängen und eine Schaukel aufstellen – und sich in nichts davon
   hineinsetzen. Jetzt schon: **`E` vor einem Sitzmöbel, und Seli setzt sich
@@ -774,8 +791,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 371 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Wirtschaft …
-npm run test:browser   # 242 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 395 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Wirtschaft …
+npm run test:browser   # 247 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 
@@ -785,7 +802,7 @@ Dazu drei Werkzeuge zum Hinsehen:
 
 ```bash
 node tests/browser/atlas.mjs           # alle Grafiken als Übersichtsbild
-node tests/browser/atlas.mjs --only=player_ --zoom=2.5   # eine Auswahl, groß
+node tests/browser/atlas.mjs --only=player_,bench --zoom=2.5  # eine Auswahl, groß
 node tools/look.mjs                    # die Welt an vier Orten, in voller Farbe
 node tools/look.mjs --pale --hour=22   # unkoloriert, nachts
 node tools/look.mjs --weather=rain     # bei Regen (oder fog)

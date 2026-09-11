@@ -109,6 +109,26 @@ test('Jede Sorte besteht aus Deko, die es wirklich gibt', () => {
   }
 });
 
+test('Jede Sorte hat genug Auswahl, dass die Entscheidung eine bleibt', () => {
+  // Der Grund für diese Prüfung, nachgerechnet: Bei vier Möglichkeiten und
+  // zwölf Wünschen nach „einem Platz zum Sitzen" stellt man dreimal
+  // dieselbe Bank hin. Ein Wunsch ist aber eine ENTSCHEIDUNG, kein Auftrag –
+  // und eine Entscheidung braucht Möglichkeiten, die man noch nicht benutzt
+  // hat. Fünf je Sorte sind das Minimum, unter dem es kippt.
+  for (const id of SORT_IDS) {
+    assert.ok(SORTEN[id].items.length >= 5,
+      id + ' hat nur ' + SORTEN[id].items.length + ' Stücke');
+  }
+  // Und insgesamt so viel, dass man nicht ständig dasselbe aufstellt.
+  const gesamt = SORT_IDS.reduce((n, id) => n + SORTEN[id].items.length, 0);
+  assert.ok(gesamt >= 34, 'nur ' + gesamt + ' Stücke tragen alle Wünsche');
+});
+
+// Dass kein Stück in zwei Sorten steht, prüft weiter unten schon „Jede
+// aufstellbare Deko kommt in höchstens einer Sorte vor". Zweimal dieselbe
+// Regel wären zwei Stellen, an denen sie beim nächsten Mal geändert werden
+// müsste – und eine davon vergäße man.
+
 test('Der Meilenstein, ab dem gewünscht wird, existiert', () => {
   assert.ok(MILESTONES.some((m) => m.id === WUNSCH_MEILENSTEIN),
     WUNSCH_MEILENSTEIN + ' ist kein Meilenstein');

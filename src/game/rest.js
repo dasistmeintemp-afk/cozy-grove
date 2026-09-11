@@ -46,7 +46,12 @@
  * Punkte im Brett. Auf dem Bildschirm sah das aus wie „sitzt halt da" – erst
  * die Messung hat es gezeigt. Wer die Zahlen ändert, messe nach.
  */
-export const SITZ_HOEHE = { bench: 23, chair: 41, hammock: 37, swing: 77 };
+export const SITZ_HOEHE = {
+  bench: 23, chair: 41, hammock: 37, swing: 77,
+  // Nachgemessen wie die vier darüber: Der Hocker ist ein gekappter Stamm,
+  // seine Platte liegt bei 54; die Steinbank trägt ihre Platte bei 44.
+  stump: 31, stonebench: 21,
+};
 
 /** Die Sitzmöbel – dieselbe Gruppe, die die Wünsche „Platz zum Sitzen" nennt. */
 export const SITZ_IDS = Object.keys(SITZ_HOEHE);
@@ -74,14 +79,21 @@ export const ERSTER_GEDANKE = 4;
 export const GEDANKE_ALLE = 9;
 
 /**
- * Ab wann „abends" gilt.
+ * Ab wann „abends" gilt – und bis wann „morgens".
  *
- * Steht hier und nicht als Zahl im Spielkern, damit ein Test nachsehen kann,
- * ob es diese Stunde überhaupt noch gibt: Der Tag läuft von 6 bis 2 Uhr
- * nachts, und dunkel wird es um halb acht. Schöbe man den Abend über diese
- * Grenze, gäbe es die Abendsätze nie – und niemandem fiele es auf.
+ * Stehen hier und nicht als Zahlen im Spielkern, damit ein Test nachsehen
+ * kann, ob es diese Stunden überhaupt noch gibt: Der Tag läuft von 6 bis 2
+ * Uhr nachts. Schöbe man den Abend hinter den Einbruch der Dunkelheit, gäbe
+ * es die Abendsätze nie – und niemandem fiele es auf.
+ *
+ * Der Morgen ist kein Schönheitsfehler, sondern eine Reparatur: Das Spiel
+ * fragt sonst `isDark()`, und das ist vor 6:48 Uhr ebenfalls wahr – fürs
+ * LICHT völlig richtig, denn da dämmert es erst. Fürs REDEN nicht: Gemessen
+ * in einer laufenden Sitzung sagte Seli um 06:14 Uhr „Die Sterne stehen
+ * still". Die erste Dreiviertelstunde jedes Tages war Nacht.
  */
 export const ABEND_AB = 17;
+export const MORGEN_BIS = 9;
 
 /** So viele zuletzt gesagte Sätze werden gemieden, bevor einer wiederkommt. */
 export const GEDANKE_MERK = 8;
@@ -163,6 +175,14 @@ export const GEDANKEN = {
     'Die Seile knirschen leise. Das gehört dazu.',
     'Die Füße kommen nicht runter. Das ist das Schöne daran.',
   ],
+  stump: [
+    'Der Baum stand länger hier als ich. Jetzt sitze ich auf ihm.',
+    'Ich habe die Ringe gezählt und mich zweimal verzählt.',
+  ],
+  stonebench: [
+    'Der Stein wird nicht warm. Auch nach einer Weile nicht.',
+    'Die hält noch, wenn hier längst niemand mehr sitzt.',
+  ],
 
   /* --- Wer daneben steht --- */
   geist: [
@@ -229,6 +249,11 @@ export const GEDANKEN = {
   abend: [
     'Das Licht wird gerade tiefer und tut niemandem mehr weh.',
     'Noch ein bisschen bleiben. Der Weg zurück ist ja nicht weit.',
+  ],
+  morgen: [
+    'Es ist noch niemand wach. Die Insel gehört gerade mir.',
+    'Der Tau liegt noch auf allem. In einer Stunde ist er weg.',
+    'So früh riecht es anders. Kühler irgendwie.',
   ],
 
   /* --- Ort --- */
@@ -318,7 +343,10 @@ export function gruppenFuer(lage) {
   for (let i = 0; i < deko.length; i++) dazu(DEKO_GEDANKE[deko[i]], GEWICHT.deko);
 
   dazu(l.wetter, GEWICHT.wetter);
-  if (l.nacht) dazu('nacht', GEWICHT.zeit);
+  // Genau eine Tageszeit, in dieser Reihenfolge. Morgens ist es zwar auch
+  // dunkel, aber es ist eben Morgen und nicht Nacht.
+  if (l.morgen) dazu('morgen', GEWICHT.zeit);
+  else if (l.nacht) dazu('nacht', GEWICHT.zeit);
   else if (l.abend) dazu('abend', GEWICHT.zeit);
 
   const orte = l.orte || [];
@@ -365,9 +393,28 @@ export function waehleGedanke(lage, letzte, rnd) {
 
   const alle = GEDANKEN[gruppe.id];
   const offen = alle.filter(function (s) { return gemieden.indexOf(s) < 0; });
-  const topf = offen.length ? offen : alle;
+  const topf = offen.length ? offen : ohneLetzten(alle, gemieden);
   return topf[Math.floor(zufall() * topf.length) % topf.length];
 }
+
+/**
+ * Ist alles gesagt, kommt lieber eine Wiederholung als Schweigen – aber
+ * niemals derselbe Satz zweimal hintereinander.
+ *
+ * Ohne diese Zeile hing die Regel an der Größe des Vorrats: Bei einer Lage
+ * mit vielen Gruppen ist immer etwas Ungesagtes da, bei einer mageren nicht.
+ * Gemessen im laufenden Spiel: bei dreißig Zügen eine unmittelbare
+ * Wiederholung – und im Unit-Test keine, weil der eine reiche Lage benutzte.
+ * Das ist genau die Sorte Fehler, die eine Prüfung mit zu bequemen Daten
+ * durchwinkt.
+ */
+function ohneLetzten(alle, gemieden) {
+  const zuletzt = gemieden && gemieden.length ? gemieden[0] : null;
+  if (!zuletzt || alle.length < 2) return alle;
+  const rest = alle.filter(function (s) { return s !== zuletzt; });
+  return rest.length ? rest : alle;
+}
+
 
 /** Den Satz vormerken, damit er so bald nicht wiederkommt. */
 export function merkeGedanke(letzte, satz) {

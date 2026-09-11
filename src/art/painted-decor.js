@@ -831,3 +831,639 @@ export function paintPond(opts) {
   });
   return made(res, w, h, cx, cy);
 }
+
+/* ------------------------------------------------- Nachschub für die Wünsche
+ *
+ * Zwölf Stücke, zwei je Wunsch-Sorte.
+ *
+ * Der Grund steht in `wishes.js`: Ein Wunsch ist „ein Platz zum Sitzen am
+ * Wasser", nicht „eine Bank". Die Sorte ist die Entscheidung, und eine
+ * Entscheidung mit vier Möglichkeiten ist nach dreißig Wünschen keine mehr.
+ * Gemessen trugen 27 aufstellbare Stücke sechs Sorten – ab Wunsch 30 stellte
+ * man sehr oft dieselbe Bank hin.
+ *
+ * Jedes Stück hier ist so gebaut, dass man es aus zwanzig Metern erkennt:
+ * eine Silhouette, eine Hauptfarbe, ein Merkmal. Vier Varianten derselben
+ * Laterne wären zwar auch vier Stücke, aber keine vier Entscheidungen.
+ */
+
+/* --- sitz --- */
+
+/**
+ * Baumstumpf-Hocker: ein gekappter Stamm mit Jahresringen.
+ *
+ * Nicht `paintStump`: So heißt schon der Baumstumpf, der nach dem Fällen im
+ * Wald stehen bleibt (`painted.js`). Zwei gleiche Namen in einer
+ * Import-Zeile sind ein Syntaxfehler, und dieser hier ist ein Möbel.
+ */
+export function paintStumpStool(opts) {
+  const o = opts || {};
+  const w = 108;
+  const h = 104;
+  const seed = o.seed || 1401;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const stamm = poly([
+    [cx - 30, baseY - 52], [cx + 30, baseY - 52],
+    [cx + 26, baseY - 4], [cx - 26, baseY - 4],
+  ], 3);
+  const platte = smoothClosed(blob(cx, baseY - 54, 31, 11, seed + 1, 0.08, 16), 5);
+  const wurzel = smoothClosed(blob(cx, baseY - 6, 34, 8, seed + 2, 0.2, 14), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.4,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 34, 10, seed, 0.16); },
+    wash: function (g) {
+      wash(g, wurzel, ink.barkDark, { seed: seed + 10 });
+      wash(g, stamm, ink.bark, { seed: seed + 11, scale: 1.02 });
+      wash(g, offsetShape(stamm, 20, 0, 0.5), ink.barkDark, { seed: seed + 12, alpha: 0.5 });
+      wash(g, platte, ink.trunk, { seed: seed + 13, scale: 1.03 });
+    },
+    shape: function (g) { fill(g, wurzel); fill(g, stamm); fill(g, platte); },
+    ink: function (g) {
+      inkStroke(g, platte, { width: 2.0, vary: 0.3, seed: seed + 20, color: ink.line, alpha: 0.7 });
+      // Jahresringe: drei Ellipsen, absichtlich nicht mittig – so sieht man,
+      // dass der Baum schief gewachsen ist.
+      for (let i = 1; i <= 3; i++) {
+        const r = 1 - i * 0.24;
+        const ring = smoothClosed(blob(cx + i * 2, baseY - 55, 30 * r, 10 * r, seed + 30 + i, 0.1, 14), 5);
+        inkStroke(g, ring, { width: 1.2, vary: 0.3, seed: seed + 40 + i, color: ink.lineSoft, alpha: 0.5 });
+      }
+      // Rindenstriche
+      for (let i = 0; i < 5; i++) {
+        const x = cx - 22 + i * 11;
+        inkLine(g, x, baseY - 46, x - 1, baseY - 10,
+          { width: 1.3, bend: 0.06, seed: seed + 50 + i, color: ink.lineSoft, alpha: 0.45 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/** Steinbank: zwei Blöcke, eine Platte. Schwer und schlicht. */
+export function paintStonebench(opts) {
+  const o = opts || {};
+  const w = 196;
+  const h = 108;
+  const seed = o.seed || 1411;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const platte = slab(cx - 78, baseY - 44, cx + 78, baseY - 28, seed + 1, 2.2);
+  const blockL = slab(cx - 62, baseY - 30, cx - 34, baseY - 3, seed + 2, 2.0);
+  const blockR = slab(cx + 34, baseY - 30, cx + 62, baseY - 3, seed + 3, 2.0);
+  const moos = smoothClosed(blob(cx + 46, baseY - 44, 18, 7, seed + 4, 0.2, 12), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 78, 12, seed, 0.17); },
+    wash: function (g) {
+      wash(g, blockL, ink.rockShade, { seed: seed + 10 });
+      wash(g, blockR, ink.rockShade, { seed: seed + 11 });
+      wash(g, platte, ink.rock, { seed: seed + 12, scale: 1.02 });
+      wash(g, offsetShape(platte, 0, 7, 0.9), ink.rockDeep, { seed: seed + 13, alpha: 0.45 });
+      wash(g, moos, ink.moss, { seed: seed + 14, scale: 1.05 });
+    },
+    shape: function (g) { fill(g, blockL); fill(g, blockR); fill(g, platte); },
+    ink: function (g) {
+      inkStroke(g, platte, { width: 2.2, vary: 0.35, seed: seed + 20, color: ink.line, alpha: 0.72 });
+      inkStroke(g, moos, { width: 1.4, vary: 0.3, seed: seed + 21, color: ink.line, alpha: 0.5 });
+      // Ein Riss in der Platte – ohne ihn ist es ein Quader.
+      inkLine(g, cx - 18, baseY - 44, cx - 10, baseY - 29,
+        { width: 1.4, bend: 0.3, seed: seed + 22, color: ink.lineSoft, alpha: 0.6 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/* --- licht --- */
+
+/** Steinlaterne: ein japanisch anmutender Sockel mit Lichtluke. */
+export function paintStonelamp(opts) {
+  const o = opts || {};
+  const w = 124;
+  const h = 184;
+  const seed = o.seed || 1421;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const fuss = slab(cx - 30, baseY - 22, cx + 30, baseY - 4, seed + 1, 2.0);
+  const saeule = slab(cx - 13, baseY - 92, cx + 13, baseY - 20, seed + 2, 1.6);
+  const kammer = slab(cx - 28, baseY - 128, cx + 28, baseY - 90, seed + 3, 1.8);
+  const dach = poly([
+    [cx - 40, baseY - 130], [cx + 40, baseY - 130],
+    [cx + 20, baseY - 154], [cx - 20, baseY - 154],
+  ], 3);
+  const knauf = smoothClosed(blob(cx, baseY - 158, 9, 8, seed + 4, 0.12, 12), 5);
+  const luke = smoothClosed(blob(cx, baseY - 109, 14, 13, seed + 5, 0.08, 14), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 36, 11, seed, 0.17); },
+    wash: function (g) {
+      wash(g, fuss, ink.rockShade, { seed: seed + 10 });
+      wash(g, saeule, ink.rock, { seed: seed + 11 });
+      wash(g, offsetShape(saeule, 9, 0, 0.5), ink.rockShade, { seed: seed + 12, alpha: 0.55 });
+      wash(g, kammer, ink.rock, { seed: seed + 13, scale: 1.02 });
+      wash(g, dach, ink.rockDeep, { seed: seed + 14, scale: 1.02 });
+      wash(g, knauf, ink.rockShade, { seed: seed + 15 });
+      wash(g, luke, ink.emberLight, { seed: seed + 16, scale: 1.06 });
+      wash(g, offsetShape(luke, 0, 0, 1.5), ink.warm, { seed: seed + 17, alpha: 0.3 });
+    },
+    shape: function (g) { fill(g, fuss); fill(g, saeule); fill(g, kammer); fill(g, dach); fill(g, knauf); },
+    ink: function (g) {
+      inkStroke(g, dach, { width: 2.2, vary: 0.3, seed: seed + 20, color: ink.line, alpha: 0.78 });
+      inkStroke(g, kammer, { width: 1.8, vary: 0.3, seed: seed + 21, color: ink.line, alpha: 0.6 });
+      inkStroke(g, luke, { width: 1.8, vary: 0.3, seed: seed + 22, color: ink.line, alpha: 0.75 });
+      inkLine(g, cx - 38, baseY - 129, cx + 38, baseY - 129,
+        { width: 1.6, bend: 0.04, seed: seed + 23, color: ink.line, alpha: 0.55 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/** Fackel: ein Pfahl mit Flamme. Das einfachste Licht, das es gibt. */
+export function paintTorch(opts) {
+  const o = opts || {};
+  const w = 92;
+  const h = 196;
+  const seed = o.seed || 1431;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const pfahl = slab(cx - 8, baseY - 140, cx + 8, baseY - 3, seed + 1, 1.3);
+  const korb = smoothClosed([
+    [cx - 20, baseY - 148], [cx + 20, baseY - 148],
+    [cx + 13, baseY - 126], [cx - 13, baseY - 126],
+  ], 4);
+  const flamme = smoothClosed([
+    [cx, baseY - 186], [cx + 15, baseY - 160], [cx + 11, baseY - 144],
+    [cx, baseY - 138], [cx - 11, baseY - 144], [cx - 15, baseY - 160],
+  ], 6);
+  const kern = smoothClosed(blob(cx, baseY - 155, 8, 13, seed + 3, 0.14, 12), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.6,
+    outline: 1.7,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 20, 8, seed, 0.16); },
+    wash: function (g) {
+      wash(g, pfahl, ink.woodDark, { seed: seed + 10 });
+      wash(g, korb, ink.ironDark, { seed: seed + 11, scale: 1.03 });
+      wash(g, flamme, ink.ember, { seed: seed + 12, scale: 1.05 });
+      wash(g, kern, ink.emberLight, { seed: seed + 13, scale: 1.06 });
+    },
+    shape: function (g) { fill(g, pfahl); fill(g, korb); },
+    ink: function (g) {
+      inkStroke(g, korb, { width: 1.9, vary: 0.3, seed: seed + 20, color: ink.line, alpha: 0.8 });
+      inkStroke(g, flamme, { width: 1.5, vary: 0.4, seed: seed + 21, color: ink.emberDeep, alpha: 0.6 });
+      // Bindung unterhalb des Korbs
+      inkLine(g, cx - 9, baseY - 122, cx + 9, baseY - 120,
+        { width: 2.0, bend: 0.08, seed: seed + 22, alpha: 0.8 });
+      inkLine(g, cx - 9, baseY - 114, cx + 9, baseY - 112,
+        { width: 2.0, bend: -0.08, seed: seed + 23, alpha: 0.8 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/* --- gruen --- */
+
+/** Blumenkasten: ein flaches Holzgefäß, aus dem es überquillt. */
+export function paintFlowerbox(opts) {
+  const o = opts || {};
+  const w = 156;
+  const h = 116;
+  const seed = o.seed || 1441;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const rng = makeRng(seed >>> 0);
+
+  const kasten = poly([
+    [cx - 58, baseY - 44], [cx + 58, baseY - 44],
+    [cx + 50, baseY - 4], [cx - 50, baseY - 4],
+  ], 3);
+  const kante = slab(cx - 60, baseY - 50, cx + 60, baseY - 40, seed + 1, 1.4);
+  const busch = [];
+  const blueten = [];
+  for (let i = 0; i < 7; i++) {
+    const x = cx - 46 + i * 15 + (rng() - 0.5) * 6;
+    const y = baseY - 56 - rng() * 14;
+    busch.push(smoothClosed(blob(x, y, 15, 12, seed + 10 + i, 0.18, 12), 5));
+    if (i % 2 === 0) blueten.push([x + (rng() - 0.5) * 8, y - 6]);
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.6,
+    outline: 1.7,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 58, 11, seed, 0.16); },
+    wash: function (g) {
+      wash(g, kasten, ink.wood, { seed: seed + 30, scale: 1.02 });
+      wash(g, offsetShape(kasten, 0, 10, 0.8), ink.woodDark, { seed: seed + 31, alpha: 0.5 });
+      wash(g, kante, ink.woodDark, { seed: seed + 32 });
+      for (let i = 0; i < busch.length; i++) {
+        wash(g, busch[i], i % 2 ? ink.leaf : ink.leafDark, { seed: seed + 40 + i, scale: 1.05 });
+      }
+      for (let i = 0; i < blueten.length; i++) {
+        dot(g, null, blueten[i][0], blueten[i][1], 5.5,
+          i % 2 ? ink.petalPink : ink.petalYellow, seed + 60 + i);
+      }
+    },
+    shape: function (g) {
+      for (let i = 0; i < busch.length; i++) fill(g, busch[i]);
+      fill(g, kasten); fill(g, kante);
+    },
+    ink: function (g) {
+      inkStroke(g, kante, { width: 1.8, vary: 0.3, seed: seed + 70, color: ink.line, alpha: 0.7 });
+      // Zwei Bretterfugen, sonst ist der Kasten eine Fläche.
+      for (let i = 1; i <= 2; i++) {
+        const x = cx - 58 + (116 / 3) * i;
+        inkLine(g, x, baseY - 40, x - 2, baseY - 6,
+          { width: 1.3, bend: 0.05, seed: seed + 72 + i, color: ink.lineSoft, alpha: 0.5 });
+      }
+      for (let i = 0; i < blueten.length; i++) {
+        dot(null, g, blueten[i][0], blueten[i][1], 5.5, ink.line, seed + 80 + i);
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/** Bonsai: ein kleiner Baum in einer Schale. Geduld als Gegenstand. */
+export function paintBonsai(opts) {
+  const o = opts || {};
+  const w = 132;
+  const h = 148;
+  const seed = o.seed || 1451;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const schale = poly([
+    [cx - 38, baseY - 30], [cx + 38, baseY - 30],
+    [cx + 28, baseY - 4], [cx - 28, baseY - 4],
+  ], 3);
+  const erde = smoothClosed(blob(cx, baseY - 31, 34, 7, seed + 1, 0.14, 14), 5);
+  // Der Stamm neigt sich: ein gerader Bonsai ist ein Setzling.
+  const stamm = smoothClosed([
+    [cx - 7, baseY - 34], [cx + 5, baseY - 34],
+    [cx + 14, baseY - 62], [cx + 6, baseY - 84],
+    [cx - 2, baseY - 84], [cx + 3, baseY - 62],
+  ], 4);
+  const krone = [
+    smoothClosed(blob(cx + 2, baseY - 94, 30, 15, seed + 2, 0.16, 14), 5),
+    smoothClosed(blob(cx - 22, baseY - 78, 20, 11, seed + 3, 0.18, 12), 5),
+    smoothClosed(blob(cx + 26, baseY - 76, 18, 10, seed + 4, 0.18, 12), 5),
+  ];
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.6,
+    outline: 1.7,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 38, 10, seed, 0.16); },
+    wash: function (g) {
+      wash(g, schale, '#9c6b52', { seed: seed + 10, scale: 1.02 });
+      wash(g, offsetShape(schale, 0, 8, 0.8), '#7a5040', { seed: seed + 11, alpha: 0.5 });
+      wash(g, erde, ink.dirtDark, { seed: seed + 12 });
+      wash(g, stamm, ink.barkDark, { seed: seed + 13, scale: 1.04 });
+      for (let i = 0; i < krone.length; i++) {
+        wash(g, krone[i], i === 0 ? ink.pine : ink.pineDark, { seed: seed + 20 + i, scale: 1.05 });
+      }
+    },
+    shape: function (g) {
+      fill(g, schale); fill(g, stamm);
+      for (let i = 0; i < krone.length; i++) fill(g, krone[i]);
+    },
+    ink: function (g) {
+      inkStroke(g, schale, { width: 2.0, vary: 0.3, seed: seed + 30, color: ink.line, alpha: 0.75 });
+      inkStroke(g, stamm, { width: 1.7, vary: 0.35, seed: seed + 31, color: ink.line, alpha: 0.7 });
+      for (let i = 0; i < krone.length; i++) {
+        inkStroke(g, krone[i], { width: 1.5, vary: 0.35, seed: seed + 32 + i, color: ink.line, alpha: 0.55 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/* --- tiere --- */
+
+/** Igelhaus: ein Korb aus Reisig mit rundem Eingang. */
+export function paintHedgehogbox(opts) {
+  const o = opts || {};
+  const w = 140;
+  const h = 108;
+  const seed = o.seed || 1461;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const rng = makeRng(seed >>> 0);
+
+  const haube = smoothClosed([
+    [cx - 52, baseY - 6], [cx - 46, baseY - 44], [cx, baseY - 60],
+    [cx + 46, baseY - 44], [cx + 52, baseY - 6],
+  ], 6);
+  const tuer = smoothClosed([
+    [cx - 14, baseY - 6], [cx - 13, baseY - 26], [cx, baseY - 33],
+    [cx + 13, baseY - 26], [cx + 14, baseY - 6],
+  ], 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.6,
+    outline: 1.7,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 52, 11, seed, 0.16); },
+    wash: function (g) {
+      wash(g, haube, '#b99a6a', { seed: seed + 10, scale: 1.02 });
+      wash(g, offsetShape(haube, 26, 6, 0.6), '#94774c', { seed: seed + 11, alpha: 0.55 });
+      wash(g, tuer, '#514336', { seed: seed + 12, scale: 1.04 });
+    },
+    shape: function (g) { fill(g, haube); },
+    ink: function (g) {
+      inkStroke(g, tuer, { width: 2.0, vary: 0.3, seed: seed + 20, color: ink.line, alpha: 0.85 });
+      // Reisig: kurze, ungleiche Striche quer über die Haube.
+      for (let i = 0; i < 16; i++) {
+        const t = rng();
+        const y = baseY - 12 - t * 42;
+        const halb = 50 * Math.sqrt(Math.max(0, 1 - Math.pow((y - (baseY - 54)) / 48, 2)));
+        const x0 = cx - halb + rng() * 10;
+        inkLine(g, x0, y, x0 + 14 + rng() * 16, y - 3 + rng() * 6,
+          { width: 1.2, bend: 0.12, seed: seed + 30 + i, color: ink.lineSoft, alpha: 0.5 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/** Futterhaus: ein Häuschen auf einem Pfahl, mit Körnern darin. */
+export function paintFeeder(opts) {
+  const o = opts || {};
+  const w = 132;
+  const h = 200;
+  const seed = o.seed || 1471;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const rng = makeRng(seed >>> 0);
+
+  const pfahl = slab(cx - 7, baseY - 118, cx + 7, baseY - 3, seed + 1, 1.3);
+  const boden = slab(cx - 42, baseY - 128, cx + 42, baseY - 116, seed + 2, 1.3);
+  const dachL = poly([
+    [cx - 46, baseY - 132], [cx, baseY - 172], [cx - 4, baseY - 176], [cx - 52, baseY - 134],
+  ], 2);
+  const dachR = poly([
+    [cx + 46, baseY - 132], [cx, baseY - 172], [cx + 4, baseY - 176], [cx + 52, baseY - 134],
+  ], 2);
+  const stuetzL = slab(cx - 36, baseY - 150, cx - 30, baseY - 126, seed + 3, 1.1);
+  const stuetzR = slab(cx + 30, baseY - 150, cx + 36, baseY - 126, seed + 4, 1.1);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 22, 9, seed, 0.16); },
+    wash: function (g) {
+      wash(g, pfahl, ink.woodDark, { seed: seed + 10 });
+      wash(g, stuetzL, ink.woodDark, { seed: seed + 11 });
+      wash(g, stuetzR, ink.woodDark, { seed: seed + 12 });
+      wash(g, boden, ink.wood, { seed: seed + 13, scale: 1.02 });
+      wash(g, dachL, '#c4785a', { seed: seed + 14, scale: 1.02 });
+      wash(g, dachR, '#a8624a', { seed: seed + 15, scale: 1.02 });
+      // Körner auf dem Boden des Häuschens
+      for (let i = 0; i < 9; i++) {
+        dot(g, null, cx - 32 + i * 8 + (rng() - 0.5) * 4, baseY - 130 + (rng() - 0.5) * 3,
+          2.6, ink.autumnLight, seed + 30 + i);
+      }
+    },
+    shape: function (g) {
+      fill(g, pfahl); fill(g, stuetzL); fill(g, stuetzR);
+      fill(g, dachL); fill(g, dachR); fill(g, boden);
+    },
+    ink: function (g) {
+      inkStroke(g, boden, { width: 1.8, vary: 0.3, seed: seed + 40, color: ink.line, alpha: 0.7 });
+      inkLine(g, cx, baseY - 174, cx, baseY - 130,
+        { width: 1.5, bend: 0.03, seed: seed + 41, color: ink.lineSoft, alpha: 0.5 });
+      // Dachlatten
+      for (let i = 1; i <= 3; i++) {
+        const t = i / 4;
+        inkLine(g, cx - 48 + t * 8, baseY - 133 - t * 8, cx - t * 46, baseY - 133 - t * 38,
+          { width: 1.2, bend: 0.05, seed: seed + 50 + i, color: ink.lineSoft, alpha: 0.42 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/* --- weg --- */
+
+/** Trittsteine: fünf flache Platten, die einen Weg andeuten. */
+export function paintSteppingstones(opts) {
+  const o = opts || {};
+  const w = 128;
+  const h = 128;
+  const seed = o.seed || 1481;
+  const cx = w / 2;
+  const cy = h / 2;
+  const rng = makeRng(seed >>> 0);
+
+  const platten = [];
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + rng() * 0.4;
+    const r = i === 0 ? 0 : 34 + rng() * 10;
+    platten.push(smoothClosed(
+      blob(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.66,
+        16 + rng() * 7, 11 + rng() * 5, seed + 10 + i, 0.18, 12), 5));
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.5,
+    wash: function (g) {
+      for (let i = 0; i < platten.length; i++) {
+        wash(g, platten[i], i % 2 ? ink.rock : ink.rockShade, { seed: seed + 20 + i, scale: 1.03 });
+        wash(g, offsetShape(platten[i], 0, 4, 0.7), ink.rockDeep,
+          { seed: seed + 30 + i, alpha: 0.4 });
+      }
+    },
+    shape: function (g) { for (let i = 0; i < platten.length; i++) fill(g, platten[i]); },
+    ink: function (g) {
+      for (let i = 0; i < platten.length; i++) {
+        inkStroke(g, platten[i], { width: 1.5, vary: 0.35, seed: seed + 40 + i, color: ink.line, alpha: 0.6 });
+      }
+    },
+  });
+  return made(res, w, h, cx, cy);
+}
+
+/** Torbogen: zwei Pfosten, ein Querbalken, Ranken darüber. Ein Eingang. */
+export function paintArch(opts) {
+  const o = opts || {};
+  const w = 200;
+  const h = 224;
+  const seed = o.seed || 1491;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const rng = makeRng(seed >>> 0);
+
+  const pfostenL = slab(cx - 74, baseY - 176, cx - 56, baseY - 3, seed + 1, 1.5);
+  const pfostenR = slab(cx + 56, baseY - 176, cx + 74, baseY - 3, seed + 2, 1.5);
+  const balken = poly([
+    [cx - 82, baseY - 178], [cx + 82, baseY - 178],
+    [cx + 82, baseY - 196], [cx, baseY - 208], [cx - 82, baseY - 196],
+  ], 5);
+  const ranken = [];
+  for (let i = 0; i < 7; i++) {
+    const x = cx - 68 + i * 23 + (rng() - 0.5) * 8;
+    ranken.push(smoothClosed(blob(x, baseY - 190 - rng() * 12, 16, 11, seed + 10 + i, 0.2, 12), 5));
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.6,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 86, 12, seed, 0.15); },
+    wash: function (g) {
+      wash(g, pfostenL, ink.woodDark, { seed: seed + 30 });
+      wash(g, pfostenR, ink.woodDark, { seed: seed + 31 });
+      wash(g, balken, ink.wood, { seed: seed + 32, scale: 1.02 });
+      wash(g, offsetShape(balken, 0, 9, 0.85), ink.woodDark, { seed: seed + 33, alpha: 0.5 });
+      for (let i = 0; i < ranken.length; i++) {
+        wash(g, ranken[i], i % 2 ? ink.leaf : ink.leafDark, { seed: seed + 40 + i, scale: 1.05 });
+      }
+      for (let i = 0; i < 4; i++) {
+        dot(g, null, cx - 54 + i * 36, baseY - 198, 5, ink.petalWhite, seed + 60 + i);
+      }
+    },
+    shape: function (g) {
+      for (let i = 0; i < ranken.length; i++) fill(g, ranken[i]);
+      fill(g, pfostenL); fill(g, pfostenR); fill(g, balken);
+    },
+    ink: function (g) {
+      inkStroke(g, balken, { width: 2.2, vary: 0.3, seed: seed + 70, color: ink.line, alpha: 0.75 });
+      // Ranken, die an den Pfosten herunterlaufen
+      for (const seite of [-1, 1]) {
+        inkLine(g, cx + seite * 65, baseY - 176, cx + seite * 60, baseY - 120,
+          { width: 1.4, bend: seite * 0.25, seed: seed + 80 + seite, color: ink.leafDeep, alpha: 0.6 });
+      }
+      for (let i = 0; i < 4; i++) {
+        dot(null, g, cx - 54 + i * 36, baseY - 198, 5, ink.line, seed + 90 + i);
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/* --- tisch --- */
+
+/** Wäscheleine: zwei Stangen, eine Schnur, drei Tücher im Wind. */
+export function paintClothesline(opts) {
+  const o = opts || {};
+  const w = 236;
+  const h = 172;
+  const seed = o.seed || 1501;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const stangeL = slab(cx - 98, baseY - 128, cx - 88, baseY - 3, seed + 1, 1.3);
+  const stangeR = slab(cx + 88, baseY - 128, cx + 98, baseY - 3, seed + 2, 1.3);
+  const farben = ['#e6a0ae', '#8fb0bd', '#f2d98a'];
+  const tuecher = [];
+  for (let i = 0; i < 3; i++) {
+    const x = cx - 56 + i * 56;
+    const durch = Math.sin(((x - (cx - 93)) / 186) * Math.PI) * 12;
+    const oben = baseY - 118 + durch;
+    tuecher.push(smoothClosed([
+      [x - 19, oben], [x + 19, oben],
+      [x + 22, oben + 48], [x + 4, oben + 54], [x - 16, oben + 50],
+    ], 5));
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.6,
+    outline: 1.7,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 96, 12, seed, 0.14); },
+    wash: function (g) {
+      wash(g, stangeL, ink.woodDark, { seed: seed + 10 });
+      wash(g, stangeR, ink.woodDark, { seed: seed + 11 });
+      for (let i = 0; i < tuecher.length; i++) {
+        wash(g, tuecher[i], farben[i], { seed: seed + 20 + i, scale: 1.03 });
+        wash(g, offsetShape(tuecher[i], 0, 14, 0.75), farben[i],
+          { seed: seed + 30 + i, alpha: 0.45 });
+      }
+    },
+    shape: function (g) {
+      fill(g, stangeL); fill(g, stangeR);
+      for (let i = 0; i < tuecher.length; i++) fill(g, tuecher[i]);
+    },
+    ink: function (g) {
+      // Die Leine hängt durch – in zwei Stücken, damit die Kurve stimmt.
+      inkLine(g, cx - 93, baseY - 124, cx, baseY - 108,
+        { width: 1.6, bend: 0.16, seed: seed + 40, alpha: 0.8 });
+      inkLine(g, cx, baseY - 108, cx + 93, baseY - 124,
+        { width: 1.6, bend: -0.16, seed: seed + 41, alpha: 0.8 });
+      for (let i = 0; i < tuecher.length; i++) {
+        inkStroke(g, tuecher[i], { width: 1.6, vary: 0.35, seed: seed + 50 + i, color: ink.line, alpha: 0.7 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/** Bücherstapel unter einer Haube – draußen lesen, wenn es nicht regnet. */
+export function paintBookstack(opts) {
+  const o = opts || {};
+  const w = 124;
+  const h = 116;
+  const seed = o.seed || 1511;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const kiste = poly([
+    [cx - 44, baseY - 34], [cx + 44, baseY - 34],
+    [cx + 38, baseY - 4], [cx - 38, baseY - 4],
+  ], 3);
+  const farben = ['#b0583f', '#4f7f8c', '#8a7aa8', '#c08a3e'];
+  const buecher = [];
+  for (let i = 0; i < 4; i++) {
+    const y = baseY - 40 - i * 13;
+    const halb = 36 - i * 3;
+    buecher.push(slab(cx - halb + (i % 2 ? 4 : -4), y - 12,
+      cx + halb + (i % 2 ? 4 : -4), y, seed + 10 + i, 1.1));
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.7,
+    shadow: function (g) { groundShadow(g, cx, baseY - 3, 44, 10, seed, 0.16); },
+    wash: function (g) {
+      wash(g, kiste, ink.wood, { seed: seed + 20, scale: 1.02 });
+      wash(g, offsetShape(kiste, 0, 8, 0.8), ink.woodDark, { seed: seed + 21, alpha: 0.5 });
+      for (let i = 0; i < buecher.length; i++) {
+        wash(g, buecher[i], farben[i], { seed: seed + 30 + i, scale: 1.03 });
+      }
+    },
+    shape: function (g) {
+      fill(g, kiste);
+      for (let i = 0; i < buecher.length; i++) fill(g, buecher[i]);
+    },
+    ink: function (g) {
+      for (let i = 0; i < buecher.length; i++) {
+        inkStroke(g, buecher[i], { width: 1.5, vary: 0.3, seed: seed + 40 + i, color: ink.line, alpha: 0.72 });
+        // Der Buchrücken: eine Linie längs, sonst sind es Bretter.
+        const y = baseY - 46 - i * 13;
+        const halb = 32 - i * 3;
+        inkLine(g, cx - halb + (i % 2 ? 4 : -4), y, cx + halb + (i % 2 ? 4 : -4), y,
+          { width: 1.1, bend: 0.03, seed: seed + 50 + i, color: ink.lineSoft, alpha: 0.5 });
+      }
+      inkStroke(g, kiste, { width: 1.8, vary: 0.3, seed: seed + 60, color: ink.line, alpha: 0.7 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}

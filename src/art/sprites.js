@@ -28,6 +28,9 @@ import {
   paintFirebowl, paintStringlights, paintPaperlamp,
   paintPlanter, paintTrellis, paintBirdbath, paintBeehive, paintScarecrow,
   paintWeathervane, paintMat, paintPond,
+  paintStumpStool, paintStonebench, paintStonelamp, paintTorch,
+  paintFlowerbox, paintBonsai, paintHedgehogbox, paintFeeder,
+  paintSteppingstones, paintArch, paintClothesline, paintBookstack,
 } from './painted-decor.js';
 import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
@@ -304,6 +307,19 @@ export function initArt() {
   addArt('weathervane', paintWeathervane({ seed: 1321 }));
   addArt('mat', paintMat({ seed: 1331 }));
   addArt('pond', paintPond({ seed: 1341 }));
+  // Nachschub für die Wünsche – zwei je Sorte, siehe painted-decor.js.
+  addArt('stump', paintStumpStool({ seed: 1401 }));
+  addArt('stonebench', paintStonebench({ seed: 1411 }));
+  addArt('stonelamp', paintStonelamp({ seed: 1421 }));
+  addArt('torch', paintTorch({ seed: 1431 }));
+  addArt('flowerbox', paintFlowerbox({ seed: 1441 }));
+  addArt('bonsai', paintBonsai({ seed: 1451 }));
+  addArt('hedgehogbox', paintHedgehogbox({ seed: 1461 }));
+  addArt('feeder', paintFeeder({ seed: 1471 }));
+  addArt('steppingstones', paintSteppingstones({ seed: 1481 }));
+  addArt('arch', paintArch({ seed: 1491 }));
+  addArt('clothesline', paintClothesline({ seed: 1501 }));
+  addArt('bookstack', paintBookstack({ seed: 1511 }));
 
   /* --- Haustier --- */
   for (let i = 0; i < PET_KINDS.length; i++) {
@@ -390,6 +406,11 @@ function buildIcons() {
     ['beehive', 'beehive'], ['scarecrow', 'scarecrow'],
     ['weathervane', 'weathervane'], ['mat', 'mat'], ['pond', 'pond'],
     ['bowl', 'bowl'],
+    ['stump', 'stump'], ['stonebench', 'stonebench'], ['stonelamp', 'stonelamp'],
+    ['torch', 'torch'], ['flowerbox', 'flowerbox'], ['bonsai', 'bonsai'],
+    ['hedgehogbox', 'hedgehogbox'], ['feeder', 'feeder'],
+    ['steppingstones', 'steppingstones'], ['arch', 'arch'],
+    ['clothesline', 'clothesline'], ['bookstack', 'bookstack'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = registry[reuse[i][1]];

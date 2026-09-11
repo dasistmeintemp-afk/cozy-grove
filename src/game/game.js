@@ -61,9 +61,12 @@ import {
   beetHilfe, BEET_HILFE, WIRK_RADIUS, klingt, istWetterhahn, wirkungVon,
 } from './decor.js';
 import {
-  istSitzplatz, HALTEN_SEK, ERSTER_GEDANKE, GEDANKE_ALLE, ABEND_AB,
+  istSitzplatz, HALTEN_SEK, ERSTER_GEDANKE, GEDANKE_ALLE, ABEND_AB, MORGEN_BIS,
   DEKO_GEDANKE, waehleGedanke, merkeGedanke,
 } from './rest.js';
+import {
+  waehlePlauderei, merkePlauderei, FREUND_AB, GEMUETLICH_AB, KAHL_BIS,
+} from './talk.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
 import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
 import { randInt, randPick, dailyRng } from '../core/rng.js';
@@ -286,6 +289,7 @@ export class Game {
       pet: emptyPet(),
       records: emptyRecords(),
       gedanken: [],
+      plausch: Object.create(null),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -308,6 +312,10 @@ export class Game {
     // Was Seli beim Ausruhen zuletzt gedacht hat. Steht im Spielstand, damit
     // sie sich nach dem Neuladen nicht mit denselben acht Sätzen begrüßt.
     if (!Array.isArray(this.state.gedanken)) this.state.gedanken = [];
+    // Dasselbe für die Geister, je Geist getrennt – siehe `_plaudern`.
+    if (!this.state.plausch || typeof this.state.plausch !== 'object') {
+      this.state.plausch = Object.create(null);
+    }
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
     // fehlenden Plätze sind zu, nicht undefined – sonst hinge jede Prüfung
@@ -1304,14 +1312,19 @@ export class Game {
     // Gefragt ist, was man SIEHT, nicht was der Tag vorsieht: `raining` und
     // die beiden anderen prüfen mit, ob überhaupt schon etwas zu sehen ist.
     const w = this.weather;
-    const nacht = this.day.isDark();
+    // Die Dämmerung am Tagesanfang ist dunkel, aber sie ist nicht Nacht.
+    // `isDark()` fasst beides zusammen, weil es fürs Licht dasselbe ist –
+    // fürs Reden eben nicht, siehe `MORGEN_BIS` in `rest.js`.
+    const morgen = this.day.hour < MORGEN_BIS;
+    const nacht = !morgen && this.day.isDark();
     return {
       moebel: sitz ? sitz.itemId : null,
       geist: geist,
       deko: deko,
       wetter: w.raining ? 'regen' : w.foggy ? 'nebel' : w.snowing ? 'schnee' : null,
+      morgen: morgen,
       nacht: nacht,
-      abend: !nacht && this.day.hour >= ABEND_AB,
+      abend: !nacht && !morgen && this.day.hour >= ABEND_AB,
       orte: orte,
       jahreszeit: this.season(),
     };
@@ -1515,8 +1528,62 @@ export class Game {
       this.audio.play('ghost');
       return;
     }
-    this.ui.bubble(e.x, e.y - 190, pickLine(spirit.lines.full), [{ icon: 'icon_heart' }], 2.4);
+    // Nichts zu tun – und genau hier wurde die Insel bisher still. Ein Satz
+    // je Geist („Genug für heute.") reichte für den ersten Tag und für keinen
+    // danach. Jetzt sagt er etwas über das Wetter, die Jahreszeit, die
+    // Uhrzeit, darüber wie gut man sich kennt oder wie es um ihn herum
+    // aussieht. Siehe `talk.js`.
+    this._plaudern(e, spirit);
+  }
+
+  /**
+   * Der Geist sagt etwas zur Lage.
+   *
+   * Das Gedächtnis liegt JE GEIST im Spielstand: Flämmchen soll sich nicht
+   * deshalb wiederholen, weil Nelly gerade dasselbe Wetter kommentiert hat.
+   */
+  _plaudern(e, spirit) {
+    if (!this.state.plausch) this.state.plausch = {};
+    const id = e.spiritId;
+    const letzte = this.state.plausch[id] || [];
+    const satz = waehlePlauderei(id, this.plauderLage(id), letzte, Math.random);
+    if (!satz) {
+      // Kann eigentlich nicht sein – aber ein stummer Geist wäre schlimmer
+      // als ein wiederholter Satz.
+      this.ui.bubble(e.x, e.y - 190, pickLine(spirit.lines.full), [{ icon: 'icon_heart' }], 2.4);
+      this.audio.play('ghost');
+      return;
+    }
+    this.state.plausch[id] = merkePlauderei(letzte, satz);
+    // Ohne Herz: Das Herz hieß bisher „alles erledigt". Beim Plaudern hieße
+    // es „da ist noch was", und man liefe zum vierten Mal hin.
+    this.ui.bubble(e.x, e.y - 190, satz, null, 3.4, true);
     this.audio.play('ghost');
+    this.save();
+  }
+
+  /**
+   * Worüber dieser Geist gerade reden kann.
+   *
+   * Alles aus Quellen, die es ohnehin gibt: Wetter und Jahreszeit wie beim
+   * Ausruhen, die Freundschaftsstufe aus den erledigten Bitten, die
+   * Gemütlichkeit aus dem Wert, den `syncCosiness` sowieso jeden Tag
+   * ausrechnet. Nichts davon ist fürs Plaudern erfunden worden.
+   */
+  plauderLage(spiritId) {
+    const w = this.weather;
+    const morgen = this.day.hour < MORGEN_BIS;
+    const stufe = (this.state.cosy && this.state.cosy[spiritId]) || 0;
+    const freund = this.friendshipLevelOf(spiritId);
+    return {
+      wetter: w.raining ? 'regen' : w.foggy ? 'nebel' : w.snowing ? 'schnee' : null,
+      jahreszeit: this.season(),
+      morgen: morgen,
+      nacht: !morgen && this.day.isDark(),
+      freund: freund >= FREUND_AB,
+      gemuetlich: stufe >= GEMUETLICH_AB,
+      kahl: stufe <= KAHL_BIS,
+    };
   }
 
   _turnIn(q, e, spirit) {

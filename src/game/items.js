@@ -145,6 +145,24 @@ const LIST = [
   it('mat', 'Bastmatte', CAT.DECOR, 36, 0, { prop: 'mat', charm: 3, flat: true }),
   it('pond', 'Zierteich', CAT.DECOR, 210, 0, { prop: 'pond', charm: 12, flat: true }),
 
+  // Nachschub für die Wünsche: zwei Stücke je Sorte. Der Grund steht in
+  // `painted-decor.js` – eine Sorte mit vier Möglichkeiten ist nach dreißig
+  // Wünschen keine Entscheidung mehr.
+  it('stump', 'Baumstumpfhocker', CAT.DECOR, 34, 0, { prop: 'stump', charm: 3 }),
+  it('stonebench', 'Steinbank', CAT.DECOR, 125, 0, { prop: 'stonebench', charm: 8 }),
+  it('stonelamp', 'Steinlaterne', CAT.DECOR, 158, 0,
+    { prop: 'stonelamp', light: 104, charm: 9 }),
+  it('torch', 'Fackel', CAT.DECOR, 52, 0, { prop: 'torch', light: 88, charm: 4 }),
+  it('flowerbox', 'Blumenkasten', CAT.DECOR, 72, 0, { prop: 'flowerbox', charm: 6 }),
+  it('bonsai', 'Bonsai', CAT.DECOR, 168, 0, { prop: 'bonsai', charm: 10 }),
+  it('hedgehogbox', 'Igelhaus', CAT.DECOR, 86, 0, { prop: 'hedgehogbox', charm: 6 }),
+  it('feeder', 'Futterhäuschen', CAT.DECOR, 104, 0, { prop: 'feeder', charm: 7 }),
+  it('steppingstones', 'Trittsteine', CAT.DECOR, 28, 0,
+    { prop: 'steppingstones', charm: 2, flat: true }),
+  it('arch', 'Torbogen', CAT.DECOR, 196, 0, { prop: 'arch', charm: 11 }),
+  it('clothesline', 'Wäscheleine', CAT.DECOR, 68, 0, { prop: 'clothesline', charm: 6 }),
+  it('bookstack', 'Bücherkiste', CAT.DECOR, 92, 0, { prop: 'bookstack', charm: 7 }),
+
   // Saat. `plant` sagt dem Aufstellen, dass hier ein Beet entsteht und keine
   // Deko; `prop` ist die reife Pflanze – so sieht man beim Setzen schon, was
   // daraus wird. Nicht verbrennbar: Saat ins Feuer zu werfen wäre die eine

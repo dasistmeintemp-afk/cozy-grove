@@ -20,7 +20,7 @@ import {
   SITZ_HOEHE, SITZ_IDS, istSitzplatz, sitzHoehe, HALTEN_SEK,
   ERSTER_GEDANKE, GEDANKE_ALLE, GEDANKE_MERK, ZAHM_RADIUS, ZAHM_ABSTAND,
   GEWICHT, DEKO_GEDANKE, GEDANKEN, gruppenFuer, waehleGedanke, merkeGedanke,
-  ABEND_AB,
+  ABEND_AB, MORGEN_BIS,
 } from '../../src/game/rest.js';
 import { DayCycle, DAY_START } from '../../src/game/daycycle.js';
 import { SORTEN } from '../../src/game/wishes.js';
@@ -194,6 +194,46 @@ test('Abends nur abends – und nachts zählt die Nacht', () => {
   const nachts = gruppenFuer({ nacht: true, abend: true }).map((g) => g.id);
   assert.ok(nachts.indexOf('nacht') >= 0, 'nachts fehlt die Nacht');
   assert.ok(nachts.indexOf('abend') < 0, 'nachts und abends gleichzeitig');
+});
+
+test('Es gibt immer genau eine Tageszeit', () => {
+  // Sonst käme zweimal hintereinander ein Satz über dieselbe Stunde, einmal
+  // als Nacht und einmal als Abend.
+  const zeiten = ['morgen', 'nacht', 'abend'];
+  for (const lage of [{ morgen: true, nacht: true, abend: true },
+    { nacht: true, abend: true }, { morgen: true }, { nacht: true },
+    { abend: true }, {}]) {
+    const ids = gruppenFuer(lage).map((g) => g.id).filter((id) => zeiten.indexOf(id) >= 0);
+    assert.ok(ids.length <= 1,
+      JSON.stringify(lage) + ' ergibt mehrere Tageszeiten: ' + ids.join(', '));
+  }
+  assert.deepEqual(gruppenFuer({ morgen: true, nacht: true }).map((g) => g.id)
+    .filter((id) => zeiten.indexOf(id) >= 0), ['morgen'],
+  'der Morgen muss die Nacht schlagen, nicht umgekehrt');
+});
+
+test('Die Stunde, zu der man aufwacht, ist Morgen und nicht Nacht', () => {
+  // Der Fehler, den eine laufende Sitzung gefunden hat und kein Test:
+  // `isDark()` ist vor 6:48 Uhr wahr – fürs Licht richtig, denn da dämmert
+  // es erst. Seli sagte deshalb um 06:14 Uhr „Die Sterne stehen still".
+  // Die erste Dreiviertelstunde JEDES Tages war Nacht.
+  const tag = new DayCycle();
+  assert.equal(tag.hour, DAY_START, 'der Tag beginnt woanders als gedacht');
+  assert.equal(tag.isDark(), true,
+    'ohne diese Voraussetzung prüft der Rest hier nichts');
+  assert.ok(DAY_START < MORGEN_BIS,
+    'beim Aufwachen (' + DAY_START + ' Uhr) gilt der Morgen nicht');
+
+  // Und die Gegenprobe: Irgendwann nach dem Morgen wird es wirklich Nacht.
+  tag.hour = MORGEN_BIS + 12;
+  assert.equal(tag.isDark(), true, 'nach dem Morgen bleibt es für immer hell');
+});
+
+test('Der Morgen hat eigene Sätze, und sie sind keine Nachtsätze', () => {
+  assert.ok(GEDANKEN.morgen && GEDANKEN.morgen.length >= 2, 'keine Morgensätze');
+  for (const satz of GEDANKEN.morgen) {
+    assert.ok(!/nacht|stern/i.test(satz), 'das ist ein Nachtsatz: ' + satz);
+  }
 });
 
 test('Das Besondere wiegt schwerer als das Allgemeine', () => {

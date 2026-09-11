@@ -1245,6 +1245,93 @@ async function run() {
       bequem.geist && bequem.geist.zielIstGeist && bequem.geist.gerufen === 0,
       JSON.stringify(bequem.geist));
 
+    /* ---- Die Geister plaudern ---- */
+
+    const plausch = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      // Einen Geist finden, den man wirklich anvisieren kann.
+      let geist = null;
+      for (const k of g.world.entities.filter((e) => e.kind === 'spirit' &&
+        g.world.isUnlocked(e.region))) {
+        g.player.x = k.x; g.player.y = k.y + 60; g.player.dir = 'up';
+        const t = g.player.findTarget(g.world);
+        if (t && t.entity === k) { geist = k; break; }
+      }
+      if (!geist) return { ok: false };
+      r.ok = true;
+      r.geist = geist.spiritId;
+
+      // Alles abräumen, was vor dem Plaudern drankäme: Bitten, Mitbringsel,
+      // Erstvorstellung. Dann ist „nichts zu tun" der Fall, um den es geht.
+      //
+      // Und alles davon wieder zurückstellen. Die Erstvorstellung ist der
+      // Grund: Eine Prüfung weiter unten braucht einen Geist, den man noch
+      // nicht kennt („Erstes Treffen stellt vor, statt gleich abzurechnen").
+      // Ließe man `met` gesetzt, fiele sie – aber nur dann, wenn der Zufall
+      // hier denselben Geist ausgesucht hat. Gemessen: einmal bestanden,
+      // beim nächsten Lauf gefallen.
+      const merkMet = Object.assign({}, g.state.met || {});
+      const merkPlausch = g.state.plausch;
+      const merkQuests = g.quests.quests;
+      const merkSlots = g.inventory.slots;
+      g.state.met = Object.assign({}, merkMet);
+      g.state.met[geist.spiritId] = 1;
+      g.state.plausch = {};
+      g.quests.quests = [];
+      g.inventory.slots = [];
+
+      const gesagt = [];
+      for (let i = 0; i < 30; i++) {
+        g.ui.clearBubbles();
+        g.talkTo(geist);
+        const b = g.ui.bubbles[g.ui.bubbles.length - 1];
+        gesagt.push(b ? b.el.textContent : '');
+      }
+      r.gesagt = gesagt;
+      r.verschieden = new Set(gesagt).size;
+      r.leer = gesagt.filter((s) => !s).length;
+      // Zweimal dasselbe direkt hintereinander wäre der alte Zustand.
+      r.direkteWiederholung = gesagt.filter((s, i) => i > 0 && s === gesagt[i - 1]).length;
+      r.gemerkt = (g.state.plausch[geist.spiritId] || []).length;
+
+      // Und es passt zur Lage: Bei Regen redet er über Regen.
+      const { PLAUDEREI } = await import('/src/game/talk.js');
+      g.weather.kind = 'rain';
+      g.weather.strength = 1;
+      g.weather.level = 1;
+      g.state.plausch = {};
+      let regenSaetze = 0;
+      for (let i = 0; i < 30; i++) {
+        g.ui.clearBubbles();
+        g.talkTo(geist);
+        const b = g.ui.bubbles[g.ui.bubbles.length - 1];
+        const txt = b ? b.el.textContent : '';
+        if ((PLAUDEREI[geist.spiritId].regen || []).indexOf(txt) >= 0) regenSaetze++;
+      }
+      r.regenSaetze = regenSaetze;
+      g.weather.kind = 'clear';
+      g.weather.strength = 0;
+      g.weather.level = 0;
+
+      g.ui.clearBubbles();
+      g.state.met = merkMet;
+      g.state.plausch = merkPlausch;
+      g.quests.quests = merkQuests;
+      g.inventory.slots = merkSlots;
+      return r;
+    });
+    check('Ein Geist ohne Aufgabe sagt trotzdem etwas',
+      plausch.ok && plausch.leer === 0, JSON.stringify(plausch && plausch.leer));
+    check('Und nicht dreißigmal dasselbe',
+      plausch.ok && plausch.verschieden >= 8 && plausch.direkteWiederholung === 0,
+      JSON.stringify({ verschieden: plausch.verschieden, direkt: plausch.direkteWiederholung }));
+    check('Das Gesagte merkt er sich',
+      plausch.ok && plausch.gemerkt > 1, JSON.stringify(plausch && plausch.gemerkt));
+    check('Bei Regen redet er über Regen',
+      plausch.ok && plausch.regenSaetze >= 5,
+      'Regensätze in 30 Zügen: ' + (plausch && plausch.regenSaetze));
+
     // Angeln muss auch neben Gestrüpp gehen
     const angelnAmUfer = await page.evaluate(() => {
       const g = window.CozyGrove.game;
@@ -1870,7 +1957,27 @@ async function run() {
         }
         if (ziel) break;
       }
-      if (!ziel) return { keinPlatz: true };
+      // Findet sich auf dieser Zufallsinsel gar keine freie Kachel, wird
+      // eine freigeräumt, statt die Prüfung aufzugeben. Gemessen wird hier
+      // die ZEICHNUNG des Steinwegs – ob die Insel gerade voll steht, hat
+      // damit nichts zu tun, und ein „keinPlatz" wäre ein Fehlschlag ohne
+      // Messung. Verschoben, nicht gelöscht, und danach zurückgestellt.
+      const beiseite = [];
+      if (!ziel) {
+        for (let ty = 6; ty < 90 && !ziel; ty++) {
+          for (let tx = 6; tx < 90; tx++) {
+            if (g.world.tileAtTile(tx, ty) !== 3) continue;
+            ziel = { x: tx, y: ty }; break;
+          }
+        }
+        if (!ziel) return { keinPlatz: true };
+        for (const e of g.world.queryNear(ziel.x * 64 + 32, ziel.y * 64 + 32, 160)) {
+          if (e.gone) continue;
+          beiseite.push({ e, x: e.x, y: e.y });
+          e.x += 5000;
+          g.world.reindex(e);
+        }
+      }
       g.player.x = ziel.x * 64 + 32;
       g.player.y = ziel.y * 64 + 32 + 250;
       g.camera.snapTo(g.player.x, g.player.y);
@@ -1900,9 +2007,11 @@ async function run() {
         if (d > 12) geaendert++;
       }
       const n = a.length / 4;
+      for (const b2 of beiseite) { b2.e.x = b2.x; b2.e.y = b2.y; g.world.reindex(b2.e); }
       return {
         anteilGeaendert: Math.round(geaendert / n * 100),
         mittlereAenderung: Math.round(summe / n),
+        freigeraeumt: beiseite.length,
       };
     });
     check('Gelegter Steinweg hebt sich vom Boden ab',

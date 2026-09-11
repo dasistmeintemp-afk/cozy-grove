@@ -77,32 +77,34 @@ export const WUNSCH_MEILENSTEIN = 'insel';
 export const SORTEN = {
   sitz: {
     id: 'sitz', name: 'ein Platz zum Sitzen',
-    items: ['bench', 'chair', 'hammock', 'swing'],
+    items: ['bench', 'chair', 'hammock', 'swing', 'stump', 'stonebench'],
     icon: 'icon_bench',
   },
   licht: {
     id: 'licht', name: 'Licht',
-    items: ['lantern', 'moonlamp', 'firebowl', 'stringlights', 'paperlamp'],
+    items: ['lantern', 'moonlamp', 'firebowl', 'stringlights', 'paperlamp',
+      'stonelamp', 'torch'],
     icon: 'icon_lantern',
   },
   gruen: {
     id: 'gruen', name: 'etwas Grünes',
-    items: ['flowerbed', 'planter', 'trellis'],
+    items: ['flowerbed', 'planter', 'trellis', 'flowerbox', 'bonsai'],
     icon: 'icon_flowerbed',
   },
   tiere: {
     id: 'tiere', name: 'etwas für die Tiere',
-    items: ['birdhouse', 'birdbath', 'pond', 'beehive', 'bowl'],
+    items: ['birdhouse', 'birdbath', 'pond', 'beehive', 'bowl',
+      'hedgehogbox', 'feeder'],
     icon: 'icon_birdhouse',
   },
   weg: {
     id: 'weg', name: 'ein Weg',
-    items: ['path_tile', 'signpost', 'fence'],
+    items: ['path_tile', 'signpost', 'fence', 'steppingstones', 'arch'],
     icon: 'icon_path_tile',
   },
   tisch: {
     id: 'tisch', name: 'ein gedeckter Tisch',
-    items: ['table', 'mat', 'rug', 'windchime'],
+    items: ['table', 'mat', 'rug', 'windchime', 'clothesline', 'bookstack'],
     icon: 'icon_table',
   },
 };

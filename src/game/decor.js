@@ -56,6 +56,11 @@ export const BEET_HILFE = {
   beehive: { wachstum: 1, ernte: 0 },
   // Ranken tragen mehr, wenn sie klettern dürfen.
   trellis: { wachstum: 0, ernte: 1 },
+  // Der Bonsai war das teuerste Stück der zweiten Katalogseite ohne jede
+  // Wirkung – genau der Fehler, den der Zierteich schon einmal hatte. Wer
+  // einen Baum in einer Schale so weit bringt, versteht etwas von Pflanzen;
+  // dass die Beete daneben mehr hergeben, ist die naheliegendste Wirkung.
+  bonsai: { wachstum: 0, ernte: 1 },
 };
 
 /** Die Stücke, die dem Garten helfen – für Hinweistexte. */
@@ -100,7 +105,7 @@ export function beetHilfe(nachbarn, x, y) {
  * hält sie fern. Steht beides nebeneinander, hebt es sich auf – und genau
  * das soll es, weil man dann sieht, dass beide etwas tun.
  */
-export const LOCKT = { birdbath: 1, pond: 1 };
+export const LOCKT = { birdbath: 1, pond: 1, feeder: 1, hedgehogbox: 1 };
 export const VERSCHEUCHT = { scarecrow: 1 };
 
 /** Reichweite für Tiere – weiter als beim Beet, sie fliegen ja. */
@@ -160,6 +165,11 @@ export const WIRKUNG = {
   windchime: 'Klingt, wenn du vorbeigehst.',
   birdhouse: 'Morgens liegt manchmal eine Feder darunter.',
   bowl: 'Stell ihn hin und warte, wer kommt.',
+  feeder: 'Vögel und Falter kommen näher.',
+  // Dieselbe Wirkung wie die Tränke, aber nicht derselbe Satz: Ein
+  // Igelhaus, das ausdrücklich Falter anzieht, wäre schlicht falsch.
+  hedgehogbox: 'Tiere bleiben lieber in der Nähe.',
+  bonsai: 'Beete in der Nähe geben ein Stück mehr her.',
 };
 
 export function wirkungVon(itemId) {
