@@ -272,6 +272,22 @@ export class UI {
     return b;
   }
 
+  /**
+   * Eine Blase an einem BILDpunkt statt an einem Weltpunkt.
+   *
+   * Für das Hausinnere: Dort gibt es keine Kamera und keine Weltkoordinaten,
+   * also auch nichts, was `worldToScreen` umrechnen könnte. `fest` sagt der
+   * Nachführung, dass sie diese Blase in Ruhe lassen soll.
+   */
+  bubbleAtScreen(x, y, text, duration) {
+    const b = this.bubble(0, 0, text, null, duration, true);
+    if (!b) return null;
+    b.fest = true;
+    b.el.style.left = Math.round(x) + 'px';
+    b.el.style.top = Math.round(y) + 'px';
+    return b;
+  }
+
   updateBubbles(dt) {
     for (let i = this.bubbles.length - 1; i >= 0; i--) {
       const b = this.bubbles[i];
@@ -283,6 +299,7 @@ export class UI {
         this.bubbles.splice(i, 1);
         continue;
       }
+      if (b.fest) continue;   // steht schon am Bildpunkt, siehe `bubbleAtScreen`
       this._positionBubble(b);
     }
   }

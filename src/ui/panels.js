@@ -14,7 +14,7 @@ import { SETS, SET_IDS, setById, progressOf, itemsOf, hintFor, totalProgress } f
 import { unreadCount } from '../game/mail.js';
 import { DAYBOOK_ROWS } from '../game/daybook.js';
 import {
-  wohnStufe, bisZurNaechstenWohnstufe, wohnBonus, maxStuecke,
+  wohnStufe, bisZurNaechstenWohnstufe, wohnBonus, maxStuecke, AUSSTATTUNG,
 } from '../game/interior.js';
 import {
   GERICHTE, STAERKUNG, kannKochen, staerkungHeute,
@@ -183,6 +183,10 @@ export class Panels {
         break;
       case 'setting':
         g.changeSetting(arg, t.getAttribute('data-val'));
+        this.render();
+        break;
+      case 'ausstattung':
+        g.waehleAusstattung(t.getAttribute('data-val'));
         this.render();
         break;
       case 'petName':
@@ -994,10 +998,26 @@ export class Panels {
         : '<span>schöner geht es nicht</span>') +
       (bonus > 0 ? '<span>färbt ' + bonus + ' Punkte weiter</span>' : '') +
       '</div></div></div></div>' +
+      // Wand und Boden: die eine Entscheidung im Zimmer, die nicht aus der
+      // Tasche kommt. Kostet nichts – drinnen soll nichts Pflicht sein.
+      '<div class="rows" style="margin-top:8px">' +
+      AUSSTATTUNG.map(function (a) {
+        const jetzt = a.id === g.ausstattung().id;
+        return '<div class="row' + (jetzt ? '' : ' dim') + '">' +
+          '<span class="ico lg" style="background:' + a.wand +
+          ';border:2px solid ' + a.leiste + ';box-shadow:inset 0 -9px 0 ' + a.boden + '"></span>' +
+          '<div class="grow"><div class="title">' + escapeHtml(a.name) + '</div></div>' +
+          (jetzt
+            ? '<span class="row-btn ghost">' + ico('icon_check') + '</span>'
+            : '<button class="row-btn" data-act="ausstattung" data-val="' + a.id +
+              '">Nehmen</button>') +
+          '</div>';
+      }).join('') +
+      '</div>' +
       '<p class="empty-note" style="padding:8px 0 0">' +
       'Am Haus <b>E</b> drücken, dann bist du drinnen. Hinstellen wie draußen – ' +
-      'aus der Tasche auswählen. Am Bett wird geschlafen, an der Tür geht es ' +
-      'wieder hinaus.</p>';
+      'aus der Tasche auswählen, auf Sitzmöbel setzt du dich. Am Bett wird ' +
+      'geschlafen, an der Tür geht es wieder hinaus.</p>';
   }
 
   /* ---------------- Vorratstruhe ---------------- */

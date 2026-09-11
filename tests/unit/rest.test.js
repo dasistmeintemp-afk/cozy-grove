@@ -312,3 +312,23 @@ test('In tausend Zügen wiederholt sich nichts unmittelbar', () => {
     letzte = merkeGedanke(letzte, satz);
   }
 });
+
+test('Drinnen gibt es eigene Gedanken – und sie sind nicht die von draußen', () => {
+  // `zuhause` handelt davon, das eigene Haus von AUSSEN zu sehen („Von hier
+  // sieht man das ganz gut"). Drinnen zu sitzen ist etwas anderes.
+  const drin = GEDANKEN.drinnen || [];
+  assert.ok(drin.length >= 4, 'nur ' + drin.length + ' Gedanken fürs Zimmer');
+  for (const s of drin) {
+    assert.ok(s.length <= 80, 'zu lang: ' + s);
+    assert.ok(/[.!?…]$/.test(s), 'unfertig: ' + s);
+    assert.ok((GEDANKEN.zuhause || []).indexOf(s) < 0, 'steht schon bei „zuhause": ' + s);
+  }
+});
+
+test('Im Zimmer kommt die Zimmergruppe wirklich vor', () => {
+  const gruppen = gruppenFuer({ moebel: 'bench', orte: ['drinnen'], jahreszeit: 'summer' });
+  const ids = gruppen.map((g) => g.id);
+  assert.ok(ids.indexOf('drinnen') >= 0, 'gezogen wird aus: ' + ids.join(', '));
+  // Und der Platz, auf dem sie sitzt, zählt weiter mit.
+  assert.ok(ids.indexOf('bench') >= 0);
+});

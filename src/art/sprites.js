@@ -37,7 +37,7 @@ import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
 import { paintRoom, paintBed } from './painted-interior.js';
-import { RAEUME, TUER_BREITE } from '../game/interior.js';
+import { RAEUME, TUER_BREITE, raumFuer, ausstattungFuer } from '../game/interior.js';
 import { BUGS, MEMORY_KINDS } from '../game/items.js';
 import { CROPS, CROP_IDS } from '../game/crops.js';
 import { TOOL_ART } from '../game/player.js';
@@ -274,23 +274,9 @@ export function initArt() {
   addArt('campfire', paintCampfire({ seed: 211 }));
   for (let f = 0; f < 4; f++) addArt('flame_' + f, paintFlame(f));
   addArt('tent', paintTent({ seed: 331 }));
-  // Die vier Zimmer, eines je Ausbaustufe. Jedes ist EIN Bild: Der Raum
-  // scrollt nicht, also darf er auch in einem Stück gemalt sein.
-  //
-  // Die blasse Zweitfassung wird weggeworfen. Jede andere Grafik braucht sie
-  // – draußen ist die Insel am Anfang eine Zeichnung, die erst nach und nach
-  // Farbe bekommt. Drinnen gibt es das nicht: Ein Zimmer ist immer koloriert.
-  // Bei vier Bildern bis 1000×810 hängt daran spürbar Speicher, den nie
-  // jemand anfasst.
-  for (let i = 0; i < RAEUME.length; i++) {
-    const r = RAEUME[i];
-    const art = paintRoom({
-      w: r.w, h: r.h, wand: r.wand, stufe: r.stufe,
-      tuerX: r.w / 2 - TUER_BREITE / 2, tuerW: TUER_BREITE,
-    });
-    art.line = makeCanvas(1, 1);
-    addArt('room_' + r.stufe, art);
-  }
+  // Die Zimmer werden NICHT hier gemalt, sondern erst, wenn eines gebraucht
+  // wird – siehe `ensureRoom`. Vier Ausbaustufen mal vier Ausstattungen sind
+  // sechzehn Bilder bis 1000×810; gebraucht wird eines.
   addArt('bed', paintBed({ seed: 1971 }));
   addArt('stall', paintStall({ seed: 351 }));
   addArt('workbench', paintWorkbench({ seed: 371 }));
@@ -478,4 +464,37 @@ function buildIcons() {
       color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
     }), 1);
   }
+}
+
+
+/**
+ * Ein Zimmer malen lassen, falls es das noch nicht gibt.
+ *
+ * Zimmer sind groß und es gibt sie in vielen Kombinationen: vier
+ * Ausbaustufen mal vier Ausstattungen. Alle beim Start zu malen hieße
+ * sechzehn Bilder bis 1000×810 – für fünfzehn davon, die niemand ansieht.
+ * Also wird gemalt, wenn zum ersten Mal jemand hineingeht oder die
+ * Ausstattung wechselt, und das Ergebnis bleibt im Register.
+ *
+ * Die blasse Zweitfassung wird dabei weggeworfen. Jede andere Grafik braucht
+ * sie – draußen ist die Insel am Anfang eine Zeichnung, die erst nach und
+ * nach Farbe bekommt. Drinnen gibt es das nicht: Ein Zimmer ist immer
+ * koloriert, und bei dieser Bildgröße hängt daran spürbar Speicher.
+ *
+ * @returns {string} der Name im Register
+ */
+export function ensureRoom(stufe, ausstattungId) {
+  const r = raumFuer(stufe);
+  const a = ausstattungFuer(ausstattungId);
+  const name = 'room_' + r.stufe + '_' + a.id;
+  if (registry[name]) return name;
+  const art = paintRoom({
+    w: r.w, h: r.h, wand: r.wand, stufe: r.stufe,
+    tuerX: r.w / 2 - TUER_BREITE / 2, tuerW: TUER_BREITE,
+    seed: 1900 + r.stufe * 7 + a.id.length * 13,
+    farben: a,
+  });
+  art.line = makeCanvas(1, 1);
+  addArt(name, art);
+  return name;
 }

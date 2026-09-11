@@ -22,15 +22,7 @@ import { INK as ink, fill, made, poly } from './painted.js';
  * Die erste Fassung lag nur zwei Stufen auseinander und sah genau so aus:
  * eine beige Fläche mit einem Strich in der Mitte.
  */
-const HOLZ = {
-  boden: '#c9a273',
-  bodenTief: '#a17b52',
-  wand: '#ece0c8',
-  wandTief: '#d3c0a0',
-  leiste: '#8f6d49',
-  stoff: '#e8dfc8',
-  stoffTief: '#c9bb9c',
-  erde: '#bfa27c',
+const GRUND = {
   fenster: '#d8e8ee',
   fensterLicht: '#f3f8f6',
   fensterTief: '#a9c4cf',
@@ -52,6 +44,9 @@ export function paintRoom(opts) {
   const tuerW = o.tuerW || 104;
   const tuerX = o.tuerX != null ? o.tuerX : rw / 2 - tuerW / 2;
   const seed = o.seed || 1900 + stufe * 7;
+  // Wand-, Boden- und Leistenfarbe kommen von außen: Damit wird aus einem
+  // Maler eine ganze Reihe von Zimmern (siehe `AUSSTATTUNG` in interior.js).
+  const HOLZ = Object.assign({}, GRUND, o.farben || {});
 
   const w = rw;
   const h = wand + rh;

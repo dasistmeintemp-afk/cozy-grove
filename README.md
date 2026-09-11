@@ -217,14 +217,36 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Stoff und gestampfte Erde.
 
   Hingestellt wird wie draußen: aus der Tasche auswählen, Platz suchen, `E`.
-  Aufheben mit der Hand. **Am Bett wird geschlafen, an der Tür geht es
-  hinaus** – und draußen steht Seli wieder genau da, wo sie hineingegangen
-  ist. Zwei Stellen bleiben frei: der Streifen vor der Tür und das Bett. Wer
-  seinen Ausgang zustellen könnte, hätte die einzige Sackgasse im ganzen
-  Spiel gefunden, und die gibt es hier nicht.
+  Aufheben mit der Hand, **auf Sitzmöbel setzt du dich** (tippen setzt hin,
+  halten packt ein – dieselbe Geste wie draußen). **Am Bett wird geschlafen,
+  an der Tür geht es hinaus** – und draußen steht Seli wieder genau da, wo
+  sie hineingegangen ist. Zwei Stellen bleiben frei: der Streifen vor der Tür
+  und das Bett. Wer seinen Ausgang zustellen könnte, hätte die einzige
+  Sackgasse im ganzen Spiel gefunden, und die gibt es hier nicht.
 
   Beet und Wegstück lassen sich drinnen nicht setzen – ein Beet im Zimmer
   hätte keine Sonne, und ein Wegstück endete an der Wand.
+* **Wand und Boden zum Wechseln.** Vier Ausstattungen – *Holz und Kalk*,
+  *Moos und Eiche*, *Abendblau*, *Sand und Muschel* –, umzustellen im
+  Grundstücksfenster. Sie **kosten nichts**: Drinnen soll nichts Pflicht
+  sein, auch nicht das Bezahlen.
+
+  Gemalt wird erst, wenn eine Ausstattung wirklich benutzt wird. Vier
+  Ausbaustufen mal vier Ausstattungen sind sechzehn Bilder bis 1000×810 – für
+  fünfzehn davon, die niemand ansieht.
+* **Abendlicht drinnen.** Wird es draußen dunkel, legt sich auch im Zimmer
+  ein kühler Ton über alles – und **jede Lampe, die du hingestellt hast,
+  schneidet ein warmes Loch hinein.** Erst dadurch tut eine Laterne im
+  Zimmer etwas.
+
+  Und zwar **Dämmerung, nicht Nacht**: Man sieht abends alles, auch ohne
+  eine einzige Lampe. Ein Zimmer, in dem man ohne Laterne festsitzt, machte
+  aus dem Aufstellen eine Pflicht.
+* **Gedanken im eigenen Zimmer.** Wer sich drinnen hinsetzt, bekommt nach ein
+  paar Sekunden einen Satz – aus einer eigenen Gruppe, nicht aus der, die vom
+  Haus von *außen* handelt. „Draußen ist noch einiges zu tun. Draußen."
+  Mitgezählt werden das Möbelstück, auf dem sie sitzt, die Stücke ringsum,
+  das Wetter (den Regen hört man auch drinnen) und die Jahreszeit.
 * **Der letzte Abend.** Bei hundert Prozent versammeln sich alle sieben
   Geister am Lagerfeuer und warten dort – nicht einen Tag lang, sondern so
   lange, bis du bei jedem warst. Jeder sagt einen Satz; wer alle gehört hat,
@@ -909,8 +931,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 497 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
-npm run test:browser   # 286 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 505 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
+npm run test:browser   # 293 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

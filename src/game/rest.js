@@ -287,6 +287,22 @@ export const GEDANKEN = {
     'Hier kommt niemand vorbei. Genau darum sitze ich hier.',
     'Man hört sich selbst atmen. Sonst nichts.',
   ],
+  /**
+   * Drinnen.
+   *
+   * Eigene Gruppe, nicht `zuhause`: Die Sätze dort handeln davon, das eigene
+   * Haus von AUSSEN zu sehen („Von hier sieht man das ganz gut"). Drinnen zu
+   * sitzen ist etwas anderes, und es ist der einzige Ort im Spiel, an dem
+   * niemand etwas von ihr will.
+   */
+  drinnen: [
+    'Draußen ist noch einiges zu tun. Draußen.',
+    'Hier drin muss gar nichts fertig werden.',
+    'Alles steht da, wo ich es hingestellt habe.',
+    'Ich höre die Insel von hier aus kaum. Angenehm.',
+    'Das ist mein Stuhl, mein Boden, meine Wand.',
+    'Ein Zimmer wird erst durch das Sitzen darin eines.',
+  ],
 
   /* --- Jahreszeit --- */
   spring: [

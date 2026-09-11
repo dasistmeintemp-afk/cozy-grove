@@ -46,6 +46,58 @@ export const RAEUME = [
   { stufe: 4, name: 'Zimmer mit Veranda', w: 960, h: 620, wand: 150 },
 ];
 
+/**
+ * Wand und Boden, zum Wechseln.
+ *
+ * Das Stück Animal Crossing, das in einem Zimmer am meisten ausmacht: nicht
+ * WAS drinsteht, sondern worin es steht. Vier Ausstattungen, und sie kosten
+ * nichts – drinnen soll nichts Pflicht sein, auch nicht das Bezahlen.
+ *
+ * `stoff` und `erde` sind die Zeltfassung derselben Ausstattung: Die Zeltecke
+ * hat keine Dielen und keine Bretterwand, aber sie soll denselben Ton
+ * treffen wie das Zimmer, in das sie einmal wird.
+ *
+ * Gemalt wird erst, wenn jemand eine Ausstattung wirklich benutzt (siehe
+ * `ensureRoom` in sprites.js). Vier Stufen mal vier Ausstattungen wären
+ * sechzehn große Bilder beim Start – gebraucht wird eines.
+ */
+export const AUSSTATTUNG = [
+  {
+    id: 'holz', name: 'Holz und Kalk',
+    wand: '#ece0c8', wandTief: '#d3c0a0', leiste: '#8f6d49',
+    boden: '#c9a273', bodenTief: '#a17b52',
+    stoff: '#e8dfc8', stoffTief: '#c9bb9c', erde: '#bfa27c',
+  },
+  {
+    id: 'moos', name: 'Moos und Eiche',
+    wand: '#dbe3ca', wandTief: '#b9c6a4', leiste: '#6f7f55',
+    boden: '#b79468', bodenTief: '#93714b',
+    stoff: '#dee6cf', stoffTief: '#bcc7a8', erde: '#b09572',
+  },
+  {
+    id: 'abend', name: 'Abendblau',
+    wand: '#cfd8e4', wandTief: '#aab8cb', leiste: '#5d6c82',
+    boden: '#a98f78', bodenTief: '#866d58',
+    stoff: '#d6dde6', stoffTief: '#b2bdcb', erde: '#a3917c',
+  },
+  {
+    id: 'sand', name: 'Sand und Muschel',
+    wand: '#f1e6d4', wandTief: '#dccfb6', leiste: '#a8906c',
+    boden: '#ddc8a4', bodenTief: '#bda57e',
+    stoff: '#f2ead9', stoffTief: '#d9cdb4', erde: '#d3bd9a',
+  },
+];
+
+export const AUSSTATTUNG_IDS = AUSSTATTUNG.map(function (a) { return a.id; });
+
+/** Die Ausstattung zu einer Kennung – oder die erste, wenn es sie nicht gibt. */
+export function ausstattungFuer(id) {
+  for (let i = 0; i < AUSSTATTUNG.length; i++) {
+    if (AUSSTATTUNG[i].id === id) return AUSSTATTUNG[i];
+  }
+  return AUSSTATTUNG[0];
+}
+
 /** Wie breit die Tür ist – dort geht es wieder hinaus. */
 export const TUER_BREITE = 104;
 
@@ -261,7 +313,7 @@ export function wohnBonus(punkte) {
 
 /** Leeres Zimmer – wie `emptyPet` und `emptyFeste`. */
 export function emptyInterior() {
-  return { stuecke: [] };
+  return { stuecke: [], ausstattung: AUSSTATTUNG[0].id };
 }
 
 /**
@@ -274,7 +326,7 @@ export function emptyInterior() {
  */
 export function interiorAus(roh, raum, kennt) {
   const leer = emptyInterior();
-  if (!roh || typeof roh !== 'object') return leer;
+  if (!roh || typeof roh !== 'object' || Array.isArray(roh)) return leer;
   const rein = Array.isArray(roh.stuecke) ? roh.stuecke : [];
   const raus = [];
   const grenze = maxStuecke(raum);
@@ -293,5 +345,5 @@ export function interiorAus(roh, raum, kennt) {
     if (anDerTuer(p.x, p.y, raum)) p.y = raum.h - TUER_TIEFE - STUECK_ABSTAND;
     raus.push({ id: s.id, x: p.x, y: Math.max(RAND, p.y) });
   }
-  return { stuecke: raus };
+  return { stuecke: raus, ausstattung: ausstattungFuer(roh.ausstattung).id };
 }

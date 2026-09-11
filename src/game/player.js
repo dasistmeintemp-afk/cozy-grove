@@ -208,7 +208,16 @@ export class Player {
    * VOR der Lehne und nicht dahinter. Ihren alten Platz merkt sie sich, denn
    * das Möbel kann irgendwo stehen, wo man nicht stehen kann.
    */
-  setzDich(e, itemId) {
+  /**
+   * Hinsetzen.
+   *
+   * `ohneVersetzen` lässt die Weltposition, wie sie ist. Das braucht das
+   * Hausinnere: Dort führt das Spiel eigene Zimmerkoordinaten, und Selis
+   * Weltposition darf sich nicht bewegen, solange sie drinnen ist – sonst
+   * stünde sie beim Hinausgehen woanders. Die Haltung, die Blickrichtung und
+   * das Bild sind dieselben; nur das Versetzen übernimmt drinnen der Aufrufer.
+   */
+  setzDich(e, itemId, ohneVersetzen) {
     if (this.sitzt || !e) return false;
     this.sitzt = {
       entity: e, itemId: itemId,
@@ -218,6 +227,7 @@ export class Player {
     this.moving = false;
     this.frame = 0;
     this.animT = 0;
+    if (ohneVersetzen) return true;
     this.x = e.x;
     this.y = e.y + 2;
     // Sonst rutschte die Figur im Bild vom alten Platz herüber: `renderPos`

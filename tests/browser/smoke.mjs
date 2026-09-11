@@ -3169,17 +3169,18 @@ async function run() {
       r.wandHaeltStand = g.innen.x >= 0;
       r.nichtDurchDieWand = g._innenBegehbar(-10, raum.h / 2) === false;
 
-      // Etwas hinstellen.
+      // Etwas hinstellen. Bewusst KEIN Sitzmöbel: Auf eine Bank setzt man
+      // sich, statt sie einzupacken – das prüft der Block weiter unten.
       g.innen.x = Math.round(raum.w * 0.5);
       g.innen.y = Math.round(raum.h * 0.6);
       g.player.dir = 'up';
-      g.inventory.add('bench', 1);
-      g.startPlacing('bench');
+      g.inventory.add('lantern', 1);
+      g.startPlacing('lantern');
       g._innenPlacingUpdate();
       r.platzGefunden = !!(g.placing && g.placing.valid);
       g._innenInteract();
       r.stehtDrin = g.innenStuecke().length;
-      r.ausDerTasche = g.inventory.count('bench');
+      r.ausDerTasche = g.inventory.count('lantern');
       r.punkte = g.wohnPunkte();
 
       // Und es steht im Weg, wie ein Möbelstück im Weg steht.
@@ -3192,7 +3193,7 @@ async function run() {
       r.zielGefunden = g.innenZiel() === s;
       g._innenInteract();
       r.danachDrin = g.innenStuecke().length;
-      r.zurueckInDerTasche = g.inventory.count('bench');
+      r.zurueckInDerTasche = g.inventory.count('lantern');
 
       // Das Zimmer färbt weiter: Der Farbkreis des Hauses wächst mit dem,
       // was drinsteht. Gemessen an der echten Quelle, nicht an der Formel.
@@ -3210,8 +3211,8 @@ async function run() {
       const t = tuerFuer(raum);
       r.vorDerTuerNichts = g._innenBegehbar(t.x + t.w / 2, raum.h - 30) === true &&
         !!g.innenStuecke();
-      g.inventory.add('bench', 1);
-      g.startPlacing('bench');
+      g.inventory.add('lantern', 1);
+      g.startPlacing('lantern');
       g.innen.x = t.x + t.w / 2;
       g.innen.y = raum.h - 90;
       g.player.dir = 'down';
@@ -3275,6 +3276,108 @@ async function run() {
       JSON.stringify(innen));
     check('Das Zimmer steht im Spielstand',
       innen.imSpielstand === 1, JSON.stringify(innen));
+
+    /* ---- Drinnen sitzen, Wand wechseln, Abendlicht ---- */
+
+    const innen2 = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const { AUSSTATTUNG } = await import('/src/game/interior.js');
+
+      const merkHaus = g.state.house;
+      const merkInterior = g.state.interior;
+      const merkSlots = g.inventory.slots;
+      const merkStunde = g.day.hour;
+      g.state.house = 3;
+      g.state.interior = { stuecke: [], ausstattung: 'holz' };
+      g.inventory.slots = [];
+      g.syncHouse();
+      g.betritt();
+      const raum = g.raum();
+
+      // Eine Bank hineinstellen und sich daraufsetzen.
+      g.state.interior.stuecke.push({ id: 'bench', x: Math.round(raum.w * 0.5), y: Math.round(raum.h * 0.5) });
+      const bank = g.innenStuecke()[0];
+      g.innen.x = bank.x;
+      g.innen.y = bank.y + 50;
+      g.player.dir = 'up';
+      g.player.selectTool(0);
+      g._innenPrompt();
+      r.hinweisVorDerBank = g.ui._lastPrompt;
+      g._innenInteract();
+      r.sitzt = !!g.player.sitzt;
+      r.sitzSprite = g.player.spriteName();
+      r.aufDerBank = !!(g.player.sitzt && g.player.sitzt.entity === bank);
+      g._innenPrompt();
+      r.hinweisSitzend = g.ui._lastPrompt;
+
+      // Die Weltposition darf sich auch beim Sitzen nicht bewegen.
+      const weltX = g.player.x;
+      const weltY = g.player.y;
+
+      // Ein Gedanke, und er kommt aus der Zimmergruppe oder vom Möbelstück.
+      const lage = g.innenRuheLage();
+      r.ortDrinnen = (lage.orte || []).indexOf('drinnen') >= 0;
+      r.moebelErkannt = lage.moebel === 'bench';
+      g.ui.clearBubbles();
+      g._denkLautInnen();
+      r.gedankeDa = g.ui.bubbles.length > 0;
+
+      // Loslaufen stellt sie auf – und zwar auf den Platz davor.
+      const sitzX = g.innen.x;
+      g._innenRuhen(0.016, { x: 0, y: 1 });
+      r.stehtWieder = !g.player.sitzt;
+      r.zurueckAufDenPlatz = g.innen.y !== sitzX && g.innen.y === bank.y + 50;
+      r.weltPositionBleibt = g.player.x === weltX && g.player.y === weltY;
+
+      // Wand und Boden wechseln: anderes Bild, gemerkt.
+      const vorher = g.raumSprite();
+      const andere = AUSSTATTUNG.find((a) => a.id !== g.ausstattung().id);
+      r.gewechselt = g.waehleAusstattung(andere.id);
+      r.andereWand = g.raumSprite() !== vorher;
+      r.gemerkt = g.state.interior.ausstattung === andere.id;
+      r.unfugAbgelehnt = g.waehleAusstattung('gibtsnicht') === false &&
+        g.state.interior.ausstattung === andere.id;
+
+      // Abendlicht: tagsüber hell, nachts gedämpft – und Lampen leuchten.
+      g.day.hour = 12;
+      r.tagHell = g.innenDunkel() === 0;
+      g.day.hour = 23;
+      r.nachtGedaempft = g.innenDunkel() > 0 && g.innenDunkel() < 0.7;
+      r.lichterOhne = g.innenLichter().length;
+      g.state.interior.stuecke.push({ id: 'moonlamp', x: 200, y: 200 });
+      r.lichterMit = g.innenLichter().length;
+      r.lichtReicht = (g.innenLichter()[0] || {}).r > 60;
+
+      g.stehAufInnen(true);
+      g.verlaesst();
+      g.day.hour = merkStunde;
+      g.state.house = merkHaus;
+      g.state.interior = merkInterior;
+      g.inventory.slots = merkSlots;
+      g.syncHouse();
+      return r;
+    });
+    check('Auf ein Sitzmöbel im Zimmer setzt man sich',
+      innen2.hinweisVorDerBank === 'Hinsetzen · halten zum Einpacken' &&
+      innen2.sitzt === true && innen2.aufDerBank === true &&
+      innen2.sitzSprite === 'player_sit', JSON.stringify(innen2));
+    check('Sitzend sagt der Hinweis drinnen dasselbe wie draußen',
+      innen2.hinweisSitzend === 'Aufstehen · halten zum Einpacken', JSON.stringify(innen2));
+    check('Drinnen denkt sie über das Zimmer nach',
+      innen2.ortDrinnen === true && innen2.moebelErkannt === true &&
+      innen2.gedankeDa === true, JSON.stringify(innen2));
+    check('Loslaufen stellt sie auf – und die Weltposition bleibt stehen',
+      innen2.stehtWieder === true && innen2.zurueckAufDenPlatz === true &&
+      innen2.weltPositionBleibt === true, JSON.stringify(innen2));
+    check('Wand und Boden lassen sich wechseln',
+      innen2.gewechselt === true && innen2.andereWand === true &&
+      innen2.gemerkt === true && innen2.unfugAbgelehnt === true, JSON.stringify(innen2));
+    check('Abends wird es drinnen gedämpft, aber nie finster',
+      innen2.tagHell === true && innen2.nachtGedaempft === true, JSON.stringify(innen2));
+    check('Und eine Lampe im Zimmer leuchtet wirklich',
+      innen2.lichterOhne === 0 && innen2.lichterMit === 1 &&
+      innen2.lichtReicht === true, JSON.stringify(innen2));
 
     /* ---- Das Haustier ---- */
     const tier = await page.evaluate(async () => {

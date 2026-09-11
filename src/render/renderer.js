@@ -184,7 +184,7 @@ export class Renderer {
 
     ctx.save();
     ctx.scale(z, z);
-    drawSprite(ctx, 'room_' + raum.stufe, ox, oy, false);
+    drawSprite(ctx, game.raumSprite(), ox, oy, false);
 
     // Stücke und Seli in EINER Liste, nach Tiefe sortiert. Das Bett steht
     // fest eingebaut mit drin: Es soll sich genauso einordnen wie ein Stuhl,
@@ -235,13 +235,60 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
     ctx.restore();
+    this._drawInnenLicht(ctx, game, bx, by, z);
     this._screen(ctx);
     this.stats.entities = liste.length;
   }
 
+  /**
+   * Abendlicht im Zimmer.
+   *
+   * Dieselbe Technik wie draußen, nur viel kürzer: ein dunkler Überzug, und
+   * jede Lampe stanzt ein weiches Loch hinein. Der Unterschied liegt in der
+   * Stärke – drinnen wird es Dämmerung und nicht Nacht, damit niemand ohne
+   * Laterne im Dunkeln sitzt (siehe `innenDunkel`).
+   */
+  _drawInnenLicht(ctx, game, bx, by, z) {
+    const t = game.innenDunkel();
+    if (t <= 0.01) return;
+    const lc = this.lightCtx;
+    this._screen(lc);
+    lc.globalCompositeOperation = 'source-over';
+    lc.clearRect(0, 0, this.w, this.h);
+    // Ein tiefes Blau, kein Grau: Abendlicht ist kalt, Lampenlicht warm, und
+    // erst der Unterschied macht die Laterne gemütlich.
+    lc.fillStyle = 'rgba(42,44,78,' + t.toFixed(3) + ')';
+    lc.fillRect(0, 0, this.w, this.h);
+
+    const lichter = game.innenLichter();
+    if (lichter.length) {
+      lc.setTransform(z, 0, 0, z, 0, 0);
+      lc.globalCompositeOperation = 'destination-out';
+      for (let i = 0; i < lichter.length; i++) {
+        const L = lichter[i];
+        const x = bx + L.x;
+        const y = by + L.y;
+        const grad = lc.createRadialGradient(x, y, 0, x, y, L.r);
+        grad.addColorStop(0, 'rgba(0,0,0,0.95)');
+        grad.addColorStop(0.55, 'rgba(0,0,0,0.52)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        lc.fillStyle = grad;
+        lc.fillRect(x - L.r, y - L.r, L.r * 2, L.r * 2);
+      }
+      this._screen(lc);
+      lc.globalCompositeOperation = 'source-over';
+    }
+    this._screen(ctx);
+    ctx.drawImage(this.lightCanvas, 0, 0);
+  }
+
   _drawInnenSeli(ctx, game, x, y) {
-    drawSprite(ctx, game.player.spriteName(), x, y, false,
-      game.player.flipped() ? { flip: true } : null);
+    const p = game.player;
+    // Wie draußen: Wer sitzt, steht nicht auf dem Boden – der Fußpunkt
+    // wandert um die Sitzhöhe des Möbels nach oben. Nur fürs Bild.
+    const dy = p.sitzt ? sitzHoehe(p.sitzt.itemId) : 0;
+    drawSprite(ctx, p.spriteName(), x, y - dy, false,
+      p.flipped() ? { flip: true } : null);
   }
 
   draw(game, time) {

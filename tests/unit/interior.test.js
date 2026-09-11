@@ -22,6 +22,7 @@ import {
   WOHN_BONUS_MAX, raumFuer, tuerFuer, anDerTuer, bettFuer, amBett, imRaum,
   klemmeInRaum, platzFrei, stueckAn, maxStuecke, gemuetlichkeit, wohnStufe,
   bisZurNaechstenWohnstufe, wohnBonus, emptyInterior, interiorAus, BETT_HOEHE,
+  AUSSTATTUNG, AUSSTATTUNG_IDS, ausstattungFuer,
 } from '../../src/game/interior.js';
 import { HOUSE_STAGES, MAX_HOUSE_STAGE, houseColor } from '../../src/game/house.js';
 import { getItem, ITEM_LIST, CAT } from '../../src/game/items.js';
@@ -317,4 +318,59 @@ test('Das Bett ragt in keinem Zimmer über die Wand hinaus', () => {
     // Und es bleibt trotzdem im begehbaren Raum stehen.
     assert.ok(imRaum(b.x, b.y, r), r.name + ': das Bett rutscht aus dem Boden');
   }
+});
+
+/* ---------------- Wand und Boden ---------------- */
+
+test('Vier Ausstattungen, alle vollständig und verschieden', () => {
+  assert.ok(AUSSTATTUNG.length >= 3, 'zu wenig zur Auswahl');
+  const namen = Object.create(null);
+  const ids = Object.create(null);
+  for (const a of AUSSTATTUNG) {
+    assert.ok(!ids[a.id], 'zwei Ausstattungen heißen ' + a.id);
+    assert.ok(!namen[a.name], 'zwei Ausstattungen heißen „' + a.name + '"');
+    ids[a.id] = 1;
+    namen[a.name] = 1;
+    // Jede Farbe muss da sein: Eine fehlende fiele im Bild als schwarze
+    // Fläche auf, und zwar erst beim Hineingehen.
+    for (const feld of ['wand', 'wandTief', 'leiste', 'boden', 'bodenTief',
+      'stoff', 'stoffTief', 'erde']) {
+      assert.ok(/^#[0-9a-f]{6}$/i.test(a[feld] || ''),
+        a.name + ': ' + feld + ' ist keine Farbe (' + a[feld] + ')');
+    }
+  }
+});
+
+test('Wand und Boden sind bei jeder Ausstattung zu unterscheiden', () => {
+  // Die erste Fassung des Zimmers lag nur zwei Stufen auseinander und sah
+  // aus wie ein Karton. Das darf keiner Ausstattung wieder passieren.
+  const hell = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    return ((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114;
+  };
+  for (const a of AUSSTATTUNG) {
+    assert.ok(Math.abs(hell(a.wand) - hell(a.boden)) > 18,
+      a.name + ': Wand und Boden sind gleich hell');
+    assert.ok(hell(a.leiste) < hell(a.wand),
+      a.name + ': die Leiste ist heller als die Wand');
+  }
+});
+
+test('Eine unbekannte Ausstattung fällt auf die erste zurück', () => {
+  assert.equal(ausstattungFuer('holz').id, 'holz');
+  assert.equal(ausstattungFuer('gibtsnicht').id, AUSSTATTUNG[0].id);
+  assert.equal(ausstattungFuer(null).id, AUSSTATTUNG[0].id);
+  assert.equal(ausstattungFuer(42).id, AUSSTATTUNG[0].id);
+});
+
+test('Ein frisches Zimmer hat eine gültige Ausstattung', () => {
+  const i = emptyInterior();
+  assert.ok(AUSSTATTUNG_IDS.indexOf(i.ausstattung) >= 0, i.ausstattung);
+});
+
+test('Eine kaputte Ausstattung im Spielstand wird gerade gezogen', () => {
+  assert.equal(interiorAus({ stuecke: [], ausstattung: 'blau?' }, RAUM, null).ausstattung,
+    AUSSTATTUNG[0].id);
+  assert.equal(interiorAus({ stuecke: [], ausstattung: 'moos' }, RAUM, null).ausstattung, 'moos');
+  assert.equal(interiorAus(null, RAUM, null).ausstattung, AUSSTATTUNG[0].id);
 });

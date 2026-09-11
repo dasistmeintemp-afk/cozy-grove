@@ -25,7 +25,7 @@ import { emptyDaybook, daybookHasContent } from './daybook.js';
 import {
   raumFuer, tuerFuer, anDerTuer, imRaum, platzFrei, stueckAn, maxStuecke,
   gemuetlichkeit, wohnBonus, wohnStufe, emptyInterior, interiorAus, RAND,
-  bettFuer, amBett,
+  bettFuer, amBett, ausstattungFuer, AUSSTATTUNG_IDS,
 } from './interior.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
@@ -90,6 +90,7 @@ import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { UI } from '../ui/ui.js';
 import { Panels } from '../ui/panels.js';
+import { ensureRoom } from '../art/sprites.js';
 import { applyUiScale } from '../ui/uiscale.js';
 import * as storage from '../core/storage.js';
 import * as savefile from '../core/savefile.js';
@@ -128,6 +129,24 @@ export function parseSave(text) {
  * stehen können, ohne dass Seli daran hängenbleibt.
  */
 const INNEN_BLOCK = 22;
+
+/**
+ * Wie weit Seli beim Sitzen im Zimmer um sich schaut.
+ *
+ * Kleiner als draußen (der Wirkradius der Deko): Ein Zimmer ist ein Zimmer,
+ * da muss man nicht über die halbe Fläche schauen, um die Laterne daneben
+ * zu bemerken.
+ */
+const INNEN_SICHT = 200;
+
+/**
+ * Wie dunkel das Zimmer nachts wird.
+ *
+ * Daemmerung, nicht Nacht. Bei 0,4 sieht man alles noch, und eine Laterne
+ * daneben macht trotzdem einen deutlichen Unterschied. Hoeher gesetzt waere
+ * das Lampenaufstellen eine Pflicht.
+ */
+const INNEN_NACHT = 0.4;
 
 const AUTOSAVE_SECONDS = 20;
 
@@ -3469,6 +3488,76 @@ export class Game {
   }
 
   /**
+   * Wie dunkel es drinnen gerade ist (0 = hell).
+   *
+   * Draußen wird es nachts richtig dunkel – das ist der Grund, Laternen
+   * aufzustellen. Drinnen darf es das NICHT: Ein Zimmer, in dem man abends
+   * nichts mehr sieht, macht aus dem Lampenaufstellen eine Pflicht, und
+   * drinnen ist nichts Pflicht. Es wird also nur Dämmerung, nie Nacht –
+   * genug, dass eine brennende Laterne etwas ändert, nie so viel, dass man
+   * ohne sie festsitzt.
+   */
+  innenDunkel() {
+    return this.day.isDark() ? INNEN_NACHT : 0;
+  }
+
+  /**
+   * Was drinnen leuchtet.
+   *
+   * Dieselbe `light`-Zahl wie draußen, damit eine Mondlaterne drinnen so
+   * weit leuchtet wie davor. Der Punkt liegt etwas über dem Fußpunkt: Eine
+   * Laterne leuchtet aus ihrem Glas, nicht aus dem Boden.
+   */
+  innenLichter() {
+    const raus = [];
+    const stuecke = this.innenStuecke();
+    for (let i = 0; i < stuecke.length; i++) {
+      const s = stuecke[i];
+      const item = getItem(s.id);
+      if (!item || !item.light) continue;
+      raus.push({ x: s.x, y: s.y - 34, r: item.light });
+    }
+    return raus;
+  }
+
+  /** Welche Ausstattung das Zimmer gerade hat. */
+  ausstattung() {
+    return ausstattungFuer(this.state.interior && this.state.interior.ausstattung);
+  }
+
+  /**
+   * Der Name des Zimmerbildes – gemalt, falls es das noch nicht gibt.
+   *
+   * Vier Ausbaustufen mal vier Ausstattungen sind sechzehn große Bilder.
+   * Beim Start alle zu malen hiesse fünfzehn davon umsonst; deshalb erst
+   * beim ersten Hineingehen und beim Wechsel.
+   */
+  raumSprite() {
+    return ensureRoom(this.state.house || 1, this.ausstattung().id);
+  }
+
+  /**
+   * Wand und Boden wechseln.
+   *
+   * Kostet nichts. Drinnen soll nichts Pflicht sein, auch nicht das
+   * Bezahlen – es ist der eine Ort im Spiel, der nur dir gehört.
+   */
+  waehleAusstattung(id) {
+    if (AUSSTATTUNG_IDS.indexOf(id) < 0) return false;
+    if (!this.state.interior) this.state.interior = emptyInterior();
+    if (this.state.interior.ausstattung === id) return false;
+    this.state.interior.ausstattung = id;
+    // Gleich malen lassen: Sonst käme der Ruck beim nächsten Bild, und man
+    // sähe den Wechsel nicht, sondern ein Stocken.
+    this.raumSprite();
+    this.audio.play('ui');
+    this.ui.toast(ausstattungFuer(id).name, 'icon_flowerbed', 'good');
+    this.invalidate();
+    this.save();
+    return true;
+  }
+
+  /**
    * Hineingehen.
    *
    * Seli steht drinnen vor der Tür – dort, wo sie hereingekommen ist. Ihre
@@ -3492,29 +3581,37 @@ export class Game {
     this.player.moving = false;
     this.player.frame = 0;
     this.player.dir = 'up';
+    // Das Zimmerbild wird erst hier gemalt, falls es das noch nicht gibt.
+    this.raumSprite();
     this.audio.play('ui');
     this.ui.clearBubbles();
-    // Und die Blasenebene ganz ausblenden. `clearBubbles` räumt die Liste,
+    // Und den Blasenbehälter hart leeren. `clearBubbles` räumt die Liste,
     // aber eine Blase, die im selben Moment ausläuft, hängt noch 420 ms als
     // ausblendendes Element im Baum – und stünde dann über dem Zimmer, an
     // einer Stelle, die von einer Kamera stammt, die es drinnen nicht gibt.
-    this._blasenEbene(false);
+    //
+    // Die Ebene AUSBLENDEN wäre der naheliegende Weg und war der falsche:
+    // Damit verschwanden auch Selis eigene Gedanken beim Sitzen im Zimmer,
+    // die genau dort erscheinen sollen.
+    this._blasenLeeren();
     this.invalidate();
     return true;
   }
 
-  /** Die Sprechblasenebene an- oder ausschalten. */
-  _blasenEbene(an) {
-    const el = document.getElementById('bubbles');
-    if (el) el.style.display = an ? '' : 'none';
+  /** Alles aus dem Blasenbehälter werfen, auch das gerade Ausblendende. */
+  _blasenLeeren() {
+    const el = typeof document !== 'undefined' && document.getElementById('bubbles');
+    if (!el) return;
+    while (el.firstChild) el.removeChild(el.firstChild);
   }
 
   /** Wieder hinaus – zurück auf den Platz vor dem Haus. */
   verlaesst() {
     if (!this.innen) return false;
+    this.stehAufInnen(true);
     this.cancelPlacing();
     this.innen = null;
-    this._blasenEbene(true);
+    this._blasenLeeren();
     this.player.moving = false;
     this.player.dir = 'down';
     this.audio.play('ui');
@@ -3596,8 +3693,152 @@ export class Game {
     return stueckAn(this.innenStuecke(), p.x, p.y, 54);
   }
 
+  /**
+   * Sich drinnen hinsetzen.
+   *
+   * Dieselbe Geste wie draußen – tippen setzt hin, halten packt ein –, aber
+   * mit den Zimmerkoordinaten. `player.setzDich` bekommt deshalb
+   * `ohneVersetzen`: Selis WELTposition darf sich nicht bewegen, solange sie
+   * drinnen ist, sonst stünde sie beim Hinausgehen woanders.
+   */
+  setzDichInnen(s) {
+    if (!s || !istSitzplatz(s.id)) return false;
+    const zurueck = { x: this.innen.x, y: this.innen.y };
+    if (!this.player.setzDich(s, s.id, true)) return false;
+    this._innenZurueck = zurueck;
+    this.innen.x = s.x;
+    this.innen.y = s.y + 2;
+    this.audio.play('place');
+    this._ruheAnzeige(true);
+    this._ruheZeit = 0;
+    this._ruheNaechster = ERSTER_GEDANKE;
+    // Wie draußen: Erst loslassen, dann zählt Halten. Sonst wäre der Druck,
+    // mit dem man sich hinsetzt, sofort der Anfang eines Haltens.
+    this._haltenFrei = false;
+    this._halten = 0;
+    this.ui.setPrompt('');
+    return true;
+  }
+
+  /** Drinnen wieder aufstehen – zurück auf den Platz davor. */
+  stehAufInnen(still) {
+    if (!this.player.sitzt || !this.innen) return false;
+    this.player.stehAuf();
+    if (this._innenZurueck) {
+      this.innen.x = this._innenZurueck.x;
+      this.innen.y = this._innenZurueck.y;
+      this._innenZurueck = null;
+    }
+    this._ruheZeit = 0;
+    this._ruheAnzeige(false);
+    if (!still) this.audio.play('step');
+    return true;
+  }
+
+  /**
+   * Was beim Sitzen im Zimmer passiert.
+   *
+   * Dieselbe Mechanik wie `_ruhen` draußen, nur ohne alles, was es drinnen
+   * nicht gibt: keine Tiere, die zufliegen, keine Weltobjekte, die
+   * verschwinden könnten.
+   */
+  _innenRuhen(dt, move) {
+    const sitz = this.player.sitzt;
+    if (!sitz) return false;
+
+    // Das Möbelstück kann weg sein – etwa weil ein alter Spielstand geladen
+    // wurde. Dann steht sie auf, statt in der Luft zu sitzen.
+    if (this.innenStuecke().indexOf(sitz.entity) < 0) { this.stehAufInnen(true); return true; }
+    if (move.x !== 0 || move.y !== 0) { this.stehAufInnen(); return true; }
+
+    const taste = this.input.isDown('interact');
+    if (!this._haltenFrei) {
+      if (!taste) this._haltenFrei = true;
+    } else if (taste) {
+      this._halten = (this._halten || 0) + dt;
+      if (this._halten >= HALTEN_SEK) {
+        this._halten = 0;
+        if (this.player.tool.id !== 'hand') {
+          this.ui.toast('Mit der Hand aufheben', 'icon_hand');
+          return true;
+        }
+        const s = sitz.entity;
+        this.stehAufInnen(true);
+        this._innenEinpacken(s);
+        return true;
+      }
+    } else if (this.input.released('interact')) {
+      this._halten = 0;
+      this.stehAufInnen();
+      return true;
+    }
+
+    this._ruheZeit = (this._ruheZeit || 0) + dt;
+    if (this._ruheZeit >= (this._ruheNaechster || ERSTER_GEDANKE)) {
+      this._ruheNaechster = this._ruheZeit + GEDANKE_ALLE;
+      this._denkLautInnen();
+    }
+    return true;
+  }
+
+  _denkLautInnen() {
+    const satz = waehleGedanke(this.innenRuheLage(), this.state.gedanken || [], Math.random);
+    if (!satz) return;
+    this.state.gedanken = merkeGedanke(this.state.gedanken || [], satz);
+    // Die Blase hängt an Weltkoordinaten; drinnen gibt es die nicht. Also
+    // wird sie an die Bildmitte gesetzt, ein Stück über Seli.
+    const o = this.innenOffset || { x: 0, y: 0, zoom: 1 };
+    this.ui.bubbleAtScreen(
+      (o.x + this.innen.x) * (o.zoom || 1),
+      (o.y + this.innen.y - 108) * (o.zoom || 1),
+      satz, 5.2);
+  }
+
+  /**
+   * Wo Seli drinnen sitzt, in Begriffen, die `rest.js` kennt.
+   *
+   * Dieselbe Form wie `ruheLage`, nur aus dem Zimmer: das Möbelstück, die
+   * Stücke ringsum, das Wetter (man hört den Regen auch drinnen), die
+   * Tageszeit, die Jahreszeit – und der Ort ist immer `drinnen`.
+   */
+  innenRuheLage() {
+    const sitz = this.player.sitzt;
+    const deko = [];
+    const stuecke = this.innenStuecke();
+    for (let i = 0; i < stuecke.length; i++) {
+      const s = stuecke[i];
+      const dx = s.x - this.innen.x;
+      const dy = s.y - this.innen.y;
+      if (dx * dx + dy * dy > INNEN_SICHT * INNEN_SICHT) continue;
+      if (DEKO_GEDANKE[s.id] && deko.indexOf(s.id) < 0) deko.push(s.id);
+    }
+    const w = this.weather;
+    const morgen = this.day.hour < MORGEN_BIS;
+    const nacht = !morgen && this.day.isDark();
+    return {
+      moebel: sitz ? sitz.itemId : null,
+      geist: null,
+      deko: deko,
+      wetter: w.raining ? 'regen' : w.foggy ? 'nebel' : w.snowing ? 'schnee' : null,
+      morgen: morgen,
+      nacht: nacht,
+      abend: !nacht && !morgen && this.day.hour >= ABEND_AB,
+      orte: ['drinnen'],
+      jahreszeit: this.season(),
+    };
+  }
+
   _innenUpdate(dt, move) {
     this.player.tempo = tempoFaktor(this.state.staerkung, this.day.day);
+    // Sitzt sie, übernimmt das Ausruhen die ganze Eingabe – wie draußen.
+    if (this._innenRuhen(dt, move)) {
+      this._innenPrompt();
+      this.ui.refreshHud();
+      this.ui.updateBubbles(dt);
+      const mussSchlafen = this.day.update(dt);
+      if (mussSchlafen) this.sleep(true);
+      return;
+    }
     this._innenBewegen(dt, move);
     if (this.player.consumeStep()) this.audio.play('step');
     this._innenPlacingUpdate();
@@ -3619,6 +3860,12 @@ export class Game {
   }
 
   _innenPrompt() {
+    if (this.player.sitzt) {
+      this.ui.setPrompt(this.player.tool.id === 'hand'
+        ? 'Aufstehen · halten zum Einpacken'
+        : 'Aufstehen');
+      return;
+    }
     if (this.placing) {
       this.ui.setPrompt(this.placing.valid
         ? 'E hinstellen · X abbrechen'
@@ -3635,6 +3882,12 @@ export class Game {
     }
     const s = this.innenZiel();
     if (s) {
+      if (istSitzplatz(s.id)) {
+        this.ui.setPrompt(this.player.tool.id === 'hand'
+          ? 'Hinsetzen · halten zum Einpacken'
+          : 'Hinsetzen');
+        return;
+      }
       this.ui.setPrompt(this.player.tool.id === 'hand'
         ? itemName(s.id) + ' einpacken'
         : 'Mit der Hand aufheben');
@@ -3648,7 +3901,11 @@ export class Game {
     if (amBett(this.innen.x, this.innen.y, this.raum())) { this.sleep(false); return; }
     if (anDerTuer(this.innen.x, this.innen.y, this.raum())) { this.verlaesst(); return; }
     const s = this.innenZiel();
-    if (s) this._innenEinpacken(s);
+    if (!s) return;
+    // Wie draußen: Auf ein Sitzmöbel setzt man sich, alles andere packt man
+    // ein. Eingepackt wird ein Sitzmöbel durch HALTEN – siehe `_innenRuhen`.
+    if (istSitzplatz(s.id)) { this.setzDichInnen(s); return; }
+    this._innenEinpacken(s);
   }
 
   /** Den Vorschaupunkt setzen – dieselbe Idee wie draußen, nur im Zimmer. */
