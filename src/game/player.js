@@ -281,7 +281,7 @@ export class Player {
       // man etwas anderes als die Hand trug – mit der Gießkanne also immer.
       const interactive = def.category === 'station' || def.category === 'spirit' ||
         def.category === 'fox' || def.category === 'hidden' || def.category === 'decor' ||
-        def.category === 'crop';
+        def.category === 'crop' || def.category === 'wanderer';
       const matches = def.tool && def.tool === toolId;
       if (!interactive && !def.tool) continue;
 
@@ -296,6 +296,10 @@ export class Player {
       else score -= 30;
       if (def.category === 'hidden') score += 90;
       if (def.category === 'spirit') score += 30;
+      // Derselbe Vorzug wie beim Geist: Wer neben jemandem steht, meint
+      // meistens den Jemand und nicht den Busch dahinter. Und er ist heute
+      // hier und morgen weg – ein Busch hat Zeit.
+      if (def.category === 'wanderer') score += 30;
       if (def.priority) score += def.priority;
 
       if (score > bestScore) {

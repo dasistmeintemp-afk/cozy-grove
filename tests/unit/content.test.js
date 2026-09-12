@@ -28,7 +28,7 @@ const SPRITE_NAMES = (function () {
     'rock_granite', 'rock_geode',
     'bush_berry', 'bush_plain', 'grass_tuft', 'reeds', 'mushroom', 'herb',
     'shell', 'driftwood', 'digspot', 'feather', 'stardust',
-    'picture', 'wreath', 'shelf', 'hangplant',
+    'picture', 'wreath', 'shelf', 'hangplant', 'travellamp',
     'moonflower', 'rainmushroom', 'fogcrystal',
     'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
     'campfire', 'tent', 'stall', 'workbench', 'kitchen', 'boat', 'mailbox', 'chest',
@@ -81,6 +81,8 @@ const SPRITE_NAMES = (function () {
     for (let f = 0; f < 2; f++) names.push('spirit_' + SPIRIT_IDS[i] + '_' + f);
   }
   names.push('fox_0', 'fox_1');
+  // Der Wanderer – zwei Fassungen wie alles, was atmet.
+  names.push('wanderer_0', 'wanderer_1');
   // Symbole für alle Gegenstände
   for (let i = 0; i < ITEM_LIST.length; i++) names.push(ITEM_LIST[i].icon);
   // Symbole der Oberfläche

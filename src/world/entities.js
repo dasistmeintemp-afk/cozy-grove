@@ -255,6 +255,9 @@ export const ENTITY_DEFS = {
   // Lebewesen
   spirit: { solid: false, reachR: 120, category: 'spirit' },
   fox: { sprite: 'fox_0', solid: false, reachR: 112, category: 'fox' },
+  // Der Wanderer – steht einen Tag am Strand. Nicht fest: Wer ihn nicht
+  // ansprechen will, soll an ihm vorbeigehen können, ohne ihn zu umrunden.
+  wanderer: { sprite: 'wanderer_0', solid: false, reachR: 120, category: 'wanderer' },
 
   // Aufgabengegenstände
   hidden: { solid: false, reachR: 80, tool: TOOL.HAND, hits: 1, category: 'hidden' },

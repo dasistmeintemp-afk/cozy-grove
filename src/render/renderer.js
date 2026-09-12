@@ -22,7 +22,7 @@ import { INK } from '../art/painted.js';
 import { TILE_SIZE } from '../art/tiles.js';
 
 /** Diese Wesen behalten immer ihre Farbe – sie sind ja nicht verblasst. */
-const ALWAYS_COLOR = { spirit: 1, fox: 1, hidden: 1 };
+const ALWAYS_COLOR = { spirit: 1, fox: 1, hidden: 1, wanderer: 1 };
 
 const REFERENCE_W = 1560;
 const REFERENCE_H = 880;
@@ -512,6 +512,13 @@ export class Renderer {
       case 'fox': {
         const frame = Math.floor(time * 1.6 + e.phase) % 2;
         drawSprite(ctx, 'fox_' + frame, x, y, false);
+        return;
+      }
+      case 'wanderer': {
+        // Langsamer als die Geister und ohne Schweben: Er ist kein Geist, er
+        // steht auf dem Boden und wartet.
+        const frame = Math.floor(time * 0.7 + e.phase) % 2;
+        drawSprite(ctx, 'wanderer_' + frame, x, y, false);
         return;
       }
       case 'pet': {

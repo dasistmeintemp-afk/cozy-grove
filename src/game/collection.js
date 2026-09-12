@@ -152,6 +152,7 @@ export const HINTS = {
   memory_shellchain: 'Wanda Watts Kette, draußen auf der Insel.',
 
   // Deko
+  travellamp: 'Vom Wanderer, beim zweiten Tausch. Aus keiner Werkbank.',
   lantern: 'Werkbank – oder beim Händler.',
   moonlamp: 'Werkbank, braucht ein großes Feuer.',
   bench: 'Werkbank.',

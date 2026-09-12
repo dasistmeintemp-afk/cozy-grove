@@ -138,6 +138,12 @@ export const GEWICHT = {
 export const DEKO_GEDANKE = {
   firebowl: 'feuer',
   lantern: 'licht', moonlamp: 'licht', paperlamp: 'licht', stringlights: 'licht',
+  // Die Reiselaterne bekommt als EINZIGE eine eigene Gruppe, obwohl die Regel
+  // darüber gegen Gruppen für ein einziges Stück spricht. Der Grund: Sie ist
+  // der einzige Gegenstand im Spiel, der von jemandem kommt, der nicht von
+  // hier ist. „Es ist Licht" wäre bei ihr das Falscheste, was man denken
+  // könnte.
+  travellamp: 'ferne',
   pond: 'stillwasser', birdbath: 'stillwasser',
   birdhouse: 'voegel', beehive: 'bienen',
   flowerbed: 'blumen', planter: 'blumen', trellis: 'blumen',
@@ -199,6 +205,10 @@ export const GEDANKEN = {
   licht: [
     'Das Licht reicht genau bis hierher. Weiter braucht es nicht.',
     'Um die Lampe herum ist alles ein bisschen freundlicher.',
+  ],
+  ferne: [
+    'Die war weiter herum als ich. Jetzt steht sie hier.',
+    'Irgendwo brennt gerade eine genau so. Nur woanders.',
   ],
   stillwasser: [
     'Auf dem Wasser steht das ganze Bild noch einmal, nur wackeliger.',

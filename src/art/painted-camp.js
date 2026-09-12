@@ -2187,3 +2187,229 @@ export function paintKitchen(opts) {
   });
   return made(res, w, h, cx, baseY);
 }
+
+/* --------------------------------------------------- Der Wanderer und seine
+ * Laterne. Beides steht bewusst neben der Inselpalette: Die Insel ist warm
+ * und hell, er ist gedeckt und kühl. Wer am Strand steht, soll auf zwanzig
+ * Pixel Entfernung sehen, dass der da nicht hierher gehört. */
+
+/**
+ * Die Reiselaterne.
+ *
+ * Kein zweiter Laternenpfahl: Sie ist eine Sturmlaterne, die man in der Hand
+ * trägt – gedrungen, mit Traggriff, und der Messingbügel oben macht die
+ * Silhouette unverwechselbar. Neben der Laterne (schlank, eisern, auf einem
+ * Pfahl) erkennt man sie auch als Symbol im Beutel sofort wieder.
+ */
+export function paintTravelLamp(opts) {
+  const o = opts || {};
+  const w = 92;
+  const h = 132;
+  const seed = o.seed || 2141;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const fuss = smoothClosed(blob(cx, baseY - 8, 26, 10, seed + 1, 0.13, 16), 5);
+  const bauch = smoothClosed([
+    [cx - 26, baseY - 14], [cx + 26, baseY - 14],
+    [cx + 22, baseY - 64], [cx - 22, baseY - 64],
+  ], 6);
+  const glas = smoothClosed([
+    [cx - 18, baseY - 20], [cx + 18, baseY - 20],
+    [cx + 15, baseY - 58], [cx - 15, baseY - 58],
+  ], 6);
+  const deckel = smoothClosed([
+    [cx - 27, baseY - 64], [cx + 27, baseY - 64],
+    [cx + 15, baseY - 82], [cx - 15, baseY - 82],
+  ], 5);
+  // Der Traggriff gehört in die Silhouette – sonst ist er ein Strich neben
+  // einem Kasten und nichts, was man anfassen könnte.
+  const griff = smoothClosed([
+    [cx - 17, baseY - 80], [cx - 20, baseY - 100], [cx, baseY - 108],
+    [cx + 20, baseY - 100], [cx + 17, baseY - 80],
+    [cx + 12, baseY - 82], [cx + 14, baseY - 97], [cx, baseY - 101],
+    [cx - 14, baseY - 97], [cx - 12, baseY - 82],
+  ], 6);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.4,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx + 2, baseY - 3, 28, 9, seed, 0.16); },
+    wash: function (g) {
+      wash(g, fuss, ink.woodDark, { seed: seed + 2 });
+      wash(g, bauch, ink.copper, { seed: seed + 3, scale: 1.04 });
+      wash(g, offsetShape(bauch, LIGHT.x * 16, LIGHT.y * 12, 0.55), ink.gold,
+        { seed: seed + 4, alpha: 0.45 });
+      wash(g, deckel, ink.copper, { seed: seed + 5 });
+      wash(g, griff, ink.gold, { seed: seed + 6 });
+      // Das Licht darin: heller Kern, warmer Rand. Sie brennt noch – das ist
+      // der Grund, warum jemand sie weitergibt statt sie wegzuwerfen.
+      wash(g, glas, ink.emberLight, { seed: seed + 7, scale: 1.1 });
+      wash(g, offsetShape(glas, 0, 8, 0.62), ink.ember, { seed: seed + 8, alpha: 0.85 });
+      dot(g, null, cx, baseY - 40, 7, ink.emberLight, seed + 9);
+    },
+    shape: function (g) { fill(g, fuss); fill(g, bauch); fill(g, deckel); fill(g, griff); },
+    ink: function (g) {
+      inkStroke(g, glas, { width: 2.2, vary: 0.3, seed: seed + 12, color: ink.line, alpha: 0.85 });
+      // Zwei Streben über dem Glas, die der Laterne ihr Alter geben.
+      inkLine(g, cx - 12, baseY - 20, cx - 10, baseY - 58, { width: 1.5, bend: 0, seed: seed + 13, alpha: 0.5 });
+      inkLine(g, cx + 12, baseY - 20, cx + 10, baseY - 58, { width: 1.5, bend: 0, seed: seed + 14, alpha: 0.5 });
+      inkStroke(g, griff, { width: 1.6, vary: 0.3, seed: seed + 15, color: ink.line, alpha: 0.6 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Der Wanderer selbst.
+ *
+ * Ein Mensch wie Seli – die Geister sind Tiere, er ist es nicht. Aber alles
+ * an ihm ist Reisegepäck: breiter Hut, Umhang bis zu den Stiefeln, ein Sack
+ * auf dem Rücken, ein Stab in der Hand. Vor allem der Stab: Er steht auch im
+ * Stehen schräg im Boden, und damit sieht man aus jeder Entfernung, dass
+ * dieser Jemand unterwegs ist.
+ *
+ * Der Umhang verdeckt die Beine ganz. Das ist kein Sparen am Bild, sondern
+ * die Absicht: Was man von ihm sieht, ist das, was man von einem Fremden
+ * sieht – wenig, und das Gesicht unter einer Hutkrempe.
+ */
+export function paintWanderer(frame, opts) {
+  const o = opts || {};
+  const w = 148;
+  const h = 196;
+  const seed = (o.seed || 2151) + frame * 7;
+  const cx = w / 2 - 6;   // etwas nach links: rechts steht der Stab
+  const baseY = h - 10;
+  const headY = 66;
+  const bob = frame === 1 ? -3 : 0;
+
+  const mantelFarbe = '#7c8f86';
+  const mantelSchatten = '#5a6d66';
+  const hutFarbe = '#b08a56';
+  const hutSchatten = '#8a6a3d';
+  const sackFarbe = '#cb9a5c';
+
+  const stiefelL = smoothClosed(blob(cx - 12, baseY - 8, 10, 7, seed + 1, 0.09, 12), 4);
+  const stiefelR = smoothClosed(blob(cx + 11, baseY - 8, 10, 7, seed + 2, 0.09, 12), 4);
+  // Der Umhang: oben schmal, unten weit, und der Saum schwingt beim Atmen.
+  const saum = baseY - 14;
+  const mantel = smoothClosed([
+    [cx - 20, baseY - 96 + bob], [cx + 20, baseY - 96 + bob],
+    [cx + 32, saum - 6], [cx + 18, saum], [cx, saum - 4],
+    [cx - 18, saum], [cx - 32, saum - 6],
+  ], 6);
+  const kapuze = smoothClosed(blob(cx, baseY - 96 + bob, 26, 14, seed + 3, 0.07, 16), 5);
+  const sack = smoothClosed(blob(cx - 30, baseY - 84 + bob, 18, 21, seed + 4, 0.08, 16), 5);
+  const arm = smoothClosed(blob(cx + 23, baseY - 78 + bob, 8, 15, seed + 5, 0.08, 12), 5);
+  const kopf = smoothClosed(blob(cx, headY + bob, 27, 26, seed + 6, 0.05, 20), 6);
+  // Der Bart war beim ersten Anlauf 32 Punkte breit und fast weiß – aus zwei
+  // Metern sah das Gesicht aus wie eine Maske. Jetzt ist es ein Kinnbart:
+  // schmal, unter dem Mund, und in einem Grau, das sich vom Papier abhebt.
+  const bart = smoothClosed([
+    [cx - 9, headY + 17 + bob], [cx + 9, headY + 17 + bob],
+    [cx + 7, headY + 27 + bob], [cx, headY + 32 + bob], [cx - 7, headY + 27 + bob],
+  ], 6);
+  const krempe = smoothClosed(blob(cx, headY - 20 + bob, 46, 12, seed + 7, 0.06, 18), 6);
+  const kegel = smoothClosed([
+    [cx - 20, headY - 22 + bob], [cx + 20, headY - 22 + bob],
+    [cx + 11, headY - 46 + bob], [cx - 11, headY - 46 + bob],
+  ], 5);
+  // Der Stab steht im Boden, nicht auf ihm: unten leicht hinter der Ferse.
+  //
+  // `slab` und nicht `quad`: Ein Viereck aus vier Punkten wird beim Glätten
+  // zur Linse, und bei 11 Punkten Breite auf 148 Länge gewinnt die Wölbung.
+  // Beim ersten Anlauf stand neben ihm ein blasses Brett. `slab` setzt
+  // Stützpunkte entlang der Kanten – die Kante bleibt gerade.
+  const stab = slab(cx + 36, baseY - 178 + bob, cx + 47, baseY - 4, seed + 40, 1.2);
+  // Die Hand am Stab. Ohne sie hält er ihn nicht, er steht nur daneben.
+  const hand = smoothClosed(blob(cx + 36, baseY - 92 + bob, 9, 8, seed + 41, 0.08, 12), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.9,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 32, 10, seed + 8, 0.17); },
+    wash: function (g) {
+      wash(g, sack, sackFarbe, { seed: seed + 10, scale: 1.04 });
+      wash(g, offsetShape(sack, 7, 6, 0.6), hutSchatten, { seed: seed + 11, alpha: 0.5 });
+      wash(g, stab, ink.barkDark, { seed: seed + 12 });
+      wash(g, stiefelL, ink.boot, { seed: seed + 13 });
+      wash(g, stiefelR, ink.boot, { seed: seed + 14 });
+
+      wash(g, mantel, mantelFarbe, { seed: seed + 15, scale: 1.03 });
+      wash(g, offsetShape(mantel, 10, 6, 0.62), mantelSchatten, { seed: seed + 16, alpha: 0.6 });
+      wash(g, offsetShape(mantel, -LIGHT.x * 16, -LIGHT.y * 10, 0.5), '#93a69c',
+        { seed: seed + 17, alpha: 0.35 });
+      wash(g, kapuze, mantelSchatten, { seed: seed + 18 });
+      wash(g, arm, mantelFarbe, { seed: seed + 19 });
+      wash(g, offsetShape(arm, 6, 4, 0.6), mantelSchatten, { seed: seed + 27, alpha: 0.5 });
+      wash(g, hand, ink.skin, { seed: seed + 28 });
+
+      wash(g, kopf, ink.skin, { seed: seed + 20, scale: 1.04 });
+      // Die Krempe wirft Schatten aufs Gesicht – ohne den liegt das Gesicht
+      // heller da als der Hut, und der Hut sieht aus wie aufgeklebt.
+      wash(g, offsetShape(kopf, 0, -9, 0.9), ink.skinShade, { seed: seed + 21, alpha: 0.45 });
+      wash(g, bart, '#c6bda8', { seed: seed + 22 });
+
+      wash(g, krempe, hutFarbe, { seed: seed + 23, scale: 1.04 });
+      wash(g, kegel, hutFarbe, { seed: seed + 24 });
+      wash(g, offsetShape(kegel, 6, 4, 0.66), hutSchatten, { seed: seed + 25, alpha: 0.6 });
+      wash(g, offsetShape(krempe, 0, 5, 0.8), hutSchatten, { seed: seed + 26, alpha: 0.4 });
+    },
+    shape: function (g) {
+      fill(g, stab);
+      fill(g, sack);
+      fill(g, stiefelL); fill(g, stiefelR);
+      fill(g, mantel);
+      fill(g, kapuze);
+      fill(g, arm);
+      fill(g, hand);
+      fill(g, kopf); fill(g, bart);
+      fill(g, kegel); fill(g, krempe);
+    },
+    ink: function (g) {
+      // Augen: zwei Punkte unter der Krempe, mit demselben Lichtpunkt oben
+      // links wie bei allen anderen hier.
+      g.fillStyle = ink.line;
+      fill(g, smoothClosed(blob(cx - 11, headY + 1 + bob, 4.8, 5.8, seed + 30, 0.08, 10), 4));
+      fill(g, smoothClosed(blob(cx + 11, headY + 1 + bob, 4.8, 5.8, seed + 31, 0.08, 10), 4));
+      g.fillStyle = '#fffdf6';
+      g.beginPath();
+      g.arc(cx - 12.5, headY - 1 + bob, 1.5, 0, 6.2832);
+      g.arc(cx + 9.5, headY - 1 + bob, 1.5, 0, 6.2832);
+      g.fill();
+
+      // Nase und Schnurrbart – ohne sie sitzen zwei Augen über einem Fleck.
+      // `fillStyle` wird hier NEU gesetzt: Direkt davor steht der Lichtpunkt
+      // im Auge, und der ist weiß. Ohne diese Zeile bekam er eine weiße Nase.
+      g.fillStyle = ink.line;
+      fill(g, smoothClosed(blob(cx, headY + 9 + bob, 4.4, 3.2, seed + 42, 0.08, 10), 4));
+      inkLine(g, cx - 2, headY + 13 + bob, cx - 12, headY + 17 + bob,
+        { width: 1.8, bend: 0.25, seed: seed + 43, alpha: 0.6 });
+      inkLine(g, cx + 2, headY + 13 + bob, cx + 12, headY + 17 + bob,
+        { width: 1.8, bend: -0.25, seed: seed + 44, alpha: 0.6 });
+      inkStroke(g, bart, { width: 1.8, vary: 0.3, seed: seed + 32, color: ink.line, alpha: 0.55 });
+      inkStroke(g, hand, { width: 1.6, vary: 0.3, seed: seed + 45, color: ink.line, alpha: 0.6 });
+      inkStroke(g, krempe, { width: 2.0, vary: 0.3, seed: seed + 33, color: ink.line, alpha: 0.42 });
+      inkStroke(g, sack, { width: 1.8, vary: 0.3, seed: seed + 34, color: ink.line, alpha: 0.6 });
+      // Falten im Umhang – drei reichen, fünf machen daraus einen Vorhang.
+      inkLine(g, cx - 10, baseY - 88 + bob, cx - 16, saum - 6,
+        { width: 1.5, bend: 0.12, seed: seed + 35, alpha: 0.45 });
+      inkLine(g, cx + 2, baseY - 90 + bob, cx + 4, saum - 4,
+        { width: 1.5, bend: -0.08, seed: seed + 36, alpha: 0.4 });
+      inkLine(g, cx + 14, baseY - 88 + bob, cx + 22, saum - 6,
+        { width: 1.5, bend: -0.12, seed: seed + 37, alpha: 0.45 });
+      // Der Riemen des Sacks quer über die Brust.
+      inkLine(g, cx - 24, baseY - 94 + bob, cx + 14, baseY - 66 + bob,
+        { width: 2.0, bend: 0.1, seed: seed + 38, color: ink.boot, alpha: 0.7 });
+      inkStroke(g, stab, { width: 1.7, vary: 0.25, seed: seed + 39, color: ink.line, alpha: 0.65 });
+      // Zwei Astansätze – ein Stab ohne sie ist ein Besenstiel.
+      inkLine(g, cx + 41, baseY - 60 + bob, cx + 50, baseY - 66 + bob,
+        { width: 1.6, bend: -0.2, seed: seed + 46, alpha: 0.55 });
+      inkLine(g, cx + 41, baseY - 132 + bob, cx + 33, baseY - 140 + bob,
+        { width: 1.5, bend: 0.2, seed: seed + 47, alpha: 0.5 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}

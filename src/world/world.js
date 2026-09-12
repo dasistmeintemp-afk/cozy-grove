@@ -439,6 +439,59 @@ export class World {
     return { x: (spot.x + 0.5) * TILE_SIZE, y: (spot.y + 0.5) * TILE_SIZE };
   }
 
+  /**
+   * Ein freier Fleck Sand im Lagerbereich.
+   *
+   * Für den Wanderer. Er soll am Strand stehen, nicht im Boot: Der erste
+   * Entwurf setzte ihn neben das Boot, und im Bildschirmfoto stand er
+   * darin. Schlimmer als das Bild war die Folge – über 250 Inseln gemessen
+   * zielte die Taste in 1,5 % der Fälle auf das BOOT statt auf ihn, und wer
+   * mit jemandem reden will und stattdessen übersetzt, hat den schlechtesten
+   * Fehler erwischt, den diese Insel anbieten kann.
+   *
+   * Deshalb hier: Sand, und mit ausdrücklichem Abstand zu allem, was eine
+   * Station ist. Die Regel steht nicht im Spiel, sondern hier, weil die
+   * Kachelkarte hier liegt.
+   *
+   * @param {function} rng      Tageswurf – gleiche Insel, gleicher Tag, gleicher Platz
+   * @param {object} nahBei     {x, y} – in dessen Nähe gesucht wird
+   * @param {number} maxWeg     wie weit weg der Fleck höchstens liegen darf
+   * @param {number} vonStation Mindestabstand zu Booten, Läden, Truhen, Feuer
+   * @param {number} frei       Mindestabstand zu allem anderen
+   */
+  strandPlatz(rng, nahBei, maxWeg, vonStation, frei) {
+    const sand = walkableTilesOf(this.tiles, REGION.CAMP, function (t) {
+      return t === T.SAND;
+    });
+    const passt = [];
+    for (let i = 0; i < sand.length; i++) {
+      const wx = (sand[i].x + 0.5) * TILE_SIZE;
+      const wy = (sand[i].y + 0.5) * TILE_SIZE;
+      const dx = wx - nahBei.x;
+      const dy = wy - nahBei.y;
+      if (dx * dx + dy * dy > maxWeg * maxWeg) continue;
+      if (!this.canStand(wx, wy, 16, 10)) continue;
+      // Der Abstand wird NACHGERECHNET: `queryNear` arbeitet auf einem
+      // 160-Punkte-Raster und meldet auch Nachbarn, die weiter weg sind.
+      const nah = this.queryNear(wx, wy, Math.max(vonStation, frei));
+      let gut = true;
+      for (let k = 0; k < nah.length && gut; k++) {
+        const e = nah[k];
+        if (e.gone) continue;
+        const d = defOf(e.kind);
+        if (!d) continue;
+        const r = (d.category === 'station' || d.category === 'spirit' ||
+          d.category === 'fox') ? vonStation : frei;
+        const ex = e.x - wx;
+        const ey = e.y - wy;
+        if (ex * ex + ey * ey < r * r) gut = false;
+      }
+      if (gut) passt.push({ x: wx, y: wy });
+    }
+    if (!passt.length) return null;
+    return passt[Math.floor(rng() * passt.length)];
+  }
+
   spiritEntity(id) {
     for (let i = 0; i < this.entities.length; i++) {
       if (this.entities[i].kind === 'spirit' && this.entities[i].spiritId === id) return this.entities[i];

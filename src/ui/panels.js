@@ -1744,6 +1744,12 @@ export class Panels {
       // Das Zuhause. Es heißt bis zuletzt `tent`, auch als ausgebautes Haus –
       // die Ausbaustufe wechselt nur die Grafik, nicht das Objekt.
       if (e.kind === 'tent') dot(e.x, e.y, '#b6543f', 5);
+      // Der Wanderer. Er steht irgendwo am Strand, und der Strand ist lang –
+      // ohne Punkt wäre die Morgenmeldung „Jemand steht am Strand" eine
+      // Suchaufgabe. Er ist an genau EINEM Tag da; einen Punkt dafür zu
+      // suchen, statt ihn zu bekommen, wäre die Art von Fleiß, die dieses
+      // Spiel niemandem abverlangt.
+      if (e.kind === 'wanderer') dot(e.x, e.y, '#7c8f86', 5);
       // Fundstücke nur dort zeigen, wo man auch hinkommt. Vorher standen sie
       // auch im Wald und auf den Klippen, lange bevor der Weg dorthin offen
       // war – man lief hin und stand vor der Sperre.

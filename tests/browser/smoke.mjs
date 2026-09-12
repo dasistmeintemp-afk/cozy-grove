@@ -3009,14 +3009,20 @@ async function run() {
       g.world.plotStage = 1;
       const klein = g.plotStatus();
 
-      // Ein Baum auf dem Grundstück und einer daneben, beide gefällt
+      // Ein Baum, der auf dem ausgebauten Grundstück steht.
+      //
+      // Gesucht wird im ECHTEN Rechteck der vierten Stufe, nicht in einem
+      // Kasten von 400 mal 300 um das Zelt. Der Kasten war geraten, und auf
+      // Inseln ohne Baum darin fiel diese Prüfung – nicht, weil etwas kaputt
+      // war, sondern weil dort zufällig kein Baum stand.
+      g.state.plot = 4;
+      g.world.plotStage = 4;
+      const feld = g.plotRect();
       const baeume = g.world.entities.filter((e) => e.kind && e.kind.indexOf('tree_') === 0 && !e.gone);
-      const drin = baeume.filter((e) => g.world.regionAtPixel(e.x, e.y) === 0 &&
-        Math.abs(e.x - g.world.tent.x) < 400 && Math.abs(e.y - g.world.tent.y) < 300)[0];
+      const drin = baeume.filter((e) => e.x >= feld.x && e.x <= feld.x + feld.w &&
+        e.y >= feld.y && e.y <= feld.y + feld.h)[0];
       let treffer = null;
       if (drin) {
-        g.state.plot = 4;                 // groß genug, dass er sicher drin liegt
-        g.world.plotStage = 4;
         const id = drin.id;
         drin.gone = true;
         drin.origin = drin.kind;
@@ -3025,6 +3031,9 @@ async function run() {
         g.world.newDay(g.day.day + 3, {});
         treffer = { weg: !g.world.byId[id] };
       }
+      treffer = treffer || { weg: null, keinBaum: true };
+      g.state.plot = 1;
+      g.world.plotStage = 1;
 
       // Auf eigenem Grund darf man näher ans Zelt bauen
       const zelt = g.world.tent;
@@ -3055,7 +3064,7 @@ async function run() {
       };
     });
     check('Auf dem Grundstück wächst nichts nach',
-      grund.treffer && grund.treffer.weg === true, JSON.stringify(grund.treffer));
+      grund.treffer.weg === true, JSON.stringify(grund.treffer));
     check('Auf eigenem Grund darf man näher ans Lager bauen',
       grund.drinErlaubt === true,
       JSON.stringify({ grund: grund.grundDafuer, drumherum: grund.drumherum }));
@@ -3591,6 +3600,420 @@ async function run() {
       innen3.gebunden === 2, JSON.stringify(innen3));
     check('Und der Zuschlag steckt wirklich in der Zahl',
       innen3.zuschlag === innen3.erwartet, JSON.stringify(innen3));
+
+    /* ---- Der Wanderer ---- */
+    const wand1 = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { naechsterBesuch, wandererAm, MITBRINGSEL } =
+        await import('/src/game/wanderer.js');
+      const r = {};
+      const seed = g.world.seed;
+
+      // Ein Tag, an dem er nicht kommt – da darf niemand am Boot stehen.
+      let leer = 0;
+      for (let t = 5; t < 40; t++) if (!wandererAm(seed, t)) { leer = t; break; }
+      g.day.day = leer;
+      g._wandererSetzen(leer);
+      r.anLeerenTagen = !!g.wandererDa();
+
+      const tag = naechsterBesuch(seed, 5);
+      g.day.day = tag;
+
+      // Der letzte Abend läuft an dieser Stelle schon – die vorigen
+      // Prüfungen haben die Insel vollständig eingefärbt. Das ist ein
+      // Glücksfall: So lässt sich die Sperre gleich hier mitprüfen, statt
+      // sie eigens herzustellen.
+      r.imFinaleOffen = !!g.finaleOffen();
+      r.imFinaleDa = !!g._wandererSetzen(tag);
+
+      const merkFinale = g.state.finale;
+      g.state.finale = null;
+
+      // Und einer, an dem er kommt.
+      const ent = g._wandererSetzen(tag);
+      r.steht = !!ent;
+      r.tag = tag;
+      r.hatBoot = !!g.world.dock;
+      g.__merkFinale = merkFinale;
+      if (!ent) return r;
+      const boot = g.world.dock;
+      const feuer = g.world.campfire;
+      r.zumFeuer = ent ? Math.round(Math.hypot(ent.x - feuer.x, ent.y - feuer.y)) : -1;
+      r.aufSand = ent ? g.world.tileAt(ent.x, ent.y) : -1;
+      r.sandIst = (await import('/src/art/tiles.js')).T.SAND;
+      r.stehtFest = ent ? g.world.canStand(ent.x, ent.y, 16, 10) : false;
+      // Zu jeder Station Abstand – vor allem zum Boot. Wer reden will und
+      // stattdessen übersetzt, hat den schlechtesten Fehler erwischt, den
+      // diese Insel zu bieten hat.
+      const { defOf } = await import('/src/world/entities.js');
+      let zurStation = 99999;
+      for (const e of g.world.entities) {
+        if (e.gone || e === ent) continue;
+        const d = defOf(e.kind);
+        if (!d || d.category !== 'station') continue;
+        zurStation = Math.min(zurStation, Math.round(Math.hypot(e.x - ent.x, e.y - ent.y)));
+      }
+      r.zurStation = zurStation;
+
+      // Zweimal setzen darf nicht zwei Wanderer ergeben. Danach ist `ent`
+      // nicht mehr der, der dasteht – der zweite Morgen räumt den ersten
+      // weg und stellt einen neuen hin. Für alles Weitere zählt der LEBENDE.
+      g._wandererSetzen(tag);
+      r.anzahl = g.world.entities.filter((e) => e.kind === 'wanderer' && !e.gone).length;
+      const lebt = g.wandererDa();
+      r.gleicherPlatz = Math.round(Math.hypot(lebt.x - ent.x, lebt.y - ent.y));
+
+      // Er steht auf keinem anderen Ding.
+      let dichtestes = 9999;
+      for (const e of g.world.entities) {
+        if (e.gone || e === lebt || e === boot || e.kind === 'crop') continue;
+        const d = Math.hypot(e.x - lebt.x, e.y - lebt.y);
+        if (d < dichtestes) dichtestes = Math.round(d);
+      }
+      r.naechstesObjekt = dichtestes;
+
+      // Und am nächsten Morgen ohne ihn ist er weg. DAS ist der Unterschied
+      // zwischen einem Besuch und einem Nachbarn.
+      let danach = tag + 1;
+      while (wandererAm(seed, danach)) danach++;
+      g.day.day = danach;
+      g._wandererSetzen(danach);
+      r.amMorgenDanach = !!g.wandererDa();
+      r.leichen = g.world.entities.filter((e) => e.kind === 'wanderer' && !e.gone).length;
+
+      // Zurück auf seinen Tag, alles Weitere baut darauf auf.
+      g.day.day = tag;
+      g._wandererSetzen(tag);
+
+      r.hatLaterne = !!MITBRINGSEL;
+      return r;
+    });
+    check('Am letzten Abend bleibt er weg – der gehört den sieben',
+      wand1.imFinaleOffen === true && wand1.imFinaleDa === false,
+      JSON.stringify(wand1));
+    check('An Tagen ohne Besuch steht niemand am Boot',
+      wand1.anLeerenTagen === false, JSON.stringify(wand1));
+    check('Am Besuchstag steht der Wanderer am Strand, in Sichtweite des Lagers',
+      wand1.steht === true && wand1.aufSand === wand1.sandIst &&
+      wand1.zumFeuer > 0 && wand1.zumFeuer <= 1100, JSON.stringify(wand1));
+    check('Und nicht neben dem Boot – sonst setzt man statt zu reden über',
+      wand1.zurStation >= 230, JSON.stringify(wand1));
+    check('Er steht auf begehbarem Boden und nicht in einem Findling',
+      wand1.stehtFest === true && wand1.naechstesObjekt >= 55, JSON.stringify(wand1));
+    check('Ein zweiter Morgen stellt keinen zweiten Wanderer hin',
+      wand1.anzahl === 1, JSON.stringify(wand1));
+    check('Und er steht an derselben Stelle wie vorher – gleicher Tag, gleicher Platz',
+      wand1.gleicherPlatz === 0, JSON.stringify(wand1));
+    check('Am nächsten Morgen ist er weg – spurlos',
+      wand1.amMorgenDanach === false && wand1.leichen === 0, JSON.stringify(wand1));
+
+    // ---- Ansprechen, tauschen, wiederkommen ----
+    const wand2 = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { LATERNE_AB, MITBRINGSEL, emptyWanderer } =
+        await import('/src/game/wanderer.js');
+      const r = {};
+      const ent = g.wandererDa();
+      const b = g.besuch();
+      r.sucht = b.sucht.id;
+      r.will = b.sucht.n;
+
+      // Erst OHNE Aufräumen: So steht der Strand wirklich da, mit Muscheln,
+      // Schilf und dem Boot. Aus acht Richtungen hinstellen und zielen – auf
+      // keiner davon darf das BOOT gewinnen, sonst setzt man über, statt zu
+      // reden.
+      let aufIhn = 0;
+      let aufsBoot = 0;
+      let versuche = 0;
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const px = ent.x + Math.cos(a) * 44;
+        const py = ent.y + Math.sin(a) * 44;
+        if (!g.world.canStand(px, py, 12, 8)) continue;
+        g.player.x = px;
+        g.player.y = py;
+        const dx = ent.x - px;
+        const dy = ent.y - py;
+        g.player.dir = Math.abs(dx) > Math.abs(dy) ? 'side' : (dy > 0 ? 'down' : 'up');
+        if (g.player.dir === 'side') g.player.flip = dx < 0;
+        const t = g.player.findTarget(g.world);
+        versuche++;
+        if (t && t.entity === ent) aufIhn++;
+        if (t && t.entity.kind === 'boat') aufsBoot++;
+      }
+      r.vonAchtSeiten = versuche;
+      r.trifftIhn = aufIhn;
+      r.trifftsBoot = aufsBoot;
+
+      // Neben ihn stellen. `findTarget` sucht von SELI aus, deshalb werden
+      // die Nachbarn um die SPIELERIN herum geparkt, nicht um ihn.
+      g.player.x = ent.x - 40;
+      g.player.y = ent.y + 10;
+      g.player.dir = 'side';
+      const geparkt = [];
+      for (const e of g.world.entities) {
+        if (e === ent || e.gone) continue;
+        if (Math.hypot(e.x - g.player.x, e.y - g.player.y) > 400) continue;
+        geparkt.push([e, e.x, e.y]);
+        e.x = -9000;
+        e.y = -9000;
+        g.world.reindex(e);
+      }
+      const ziel = g.player.findTarget(g.world);
+      r.gezielt = ziel && ziel.entity === ent;
+
+      // Der Hinweis, bevor man geredet hat.
+      g.state.wanderer = emptyWanderer();
+      g.inventory.remove(b.sucht.id, 9999);
+      g.target = ziel;
+      g._updatePrompt();
+      r.hinweisVorGruss = g.ui._lastPrompt;
+
+      // 1. Gruß – er nimmt noch nichts an.
+      const muenzen0 = g.state.coins;
+      g.redeMitWanderer(ent);
+      r.gegruesst = g.state.wanderer.gegruesst === g.day.day;
+      r.keinTauschBeimGruss = g.state.wanderer.getauscht === 0;
+
+      // 2. Nichts dabei
+      g._updatePrompt();
+      r.hinweisOhne = g.ui._lastPrompt;
+      g.redeMitWanderer(ent);
+      r.ohneWareKeinTausch = g.state.wanderer.getauscht === 0 &&
+        g.state.coins === muenzen0;
+
+      // 3. Mit Ware
+      g.inventory.add(b.sucht.id, b.sucht.n);
+      g._updatePrompt();
+      r.hinweisMit = g.ui._lastPrompt;
+      const vorher = {};
+      for (const it of b.gibt.items) vorher[it.id] = g.inventory.count(it.id);
+      g.redeMitWanderer(ent);
+      r.getauscht = g.state.wanderer.getauscht;
+      r.wareWeg = g.inventory.count(b.sucht.id) === 0;
+      r.muenzen = g.state.coins - muenzen0;
+      r.sollMuenzen = b.gibt.coins;
+      r.bekommen = b.gibt.items.every((it) =>
+        g.inventory.count(it.id) === vorher[it.id] + it.n);
+      r.laterneBeim1 = g.inventory.count(MITBRINGSEL);
+      r.imTagebuch = g.state.daybook.getauscht;
+
+      // 4. Ein zweites Mal am selben Tag geht nicht.
+      g.inventory.add(b.sucht.id, b.sucht.n);
+      const muenzen1 = g.state.coins;
+      g.redeMitWanderer(ent);
+      r.zweimalAmTag = g.state.wanderer.getauscht === 1 && g.state.coins === muenzen1;
+      r.wareBleibt = g.inventory.count(b.sucht.id);
+      g._updatePrompt();
+      r.hinweisDanach = g.ui._lastPrompt;
+
+      for (const [e, x, y] of geparkt) { e.x = x; e.y = y; g.world.reindex(e); }
+      r.laterneAb = LATERNE_AB;
+      return r;
+    });
+    check('Seli zielt auf den Wanderer, nicht auf den Strand daneben',
+      wand2.gezielt === true, JSON.stringify(wand2));
+    check('Am unaufgeräumten Strand trifft ihn fast jede Richtung – und nie das Boot',
+      wand2.trifftsBoot === 0 && wand2.trifftIhn >= wand2.vonAchtSeiten - 2,
+      JSON.stringify(wand2));
+    check('Zuerst grüßt er, und dabei wird nichts getauscht',
+      wand2.gegruesst === true && wand2.keinTauschBeimGruss === true,
+      JSON.stringify(wand2));
+    check('Ohne die gesuchte Ware bleibt es beim Reden',
+      wand2.ohneWareKeinTausch === true, JSON.stringify(wand2));
+    check('Mit der Ware wird getauscht: sie geht weg, Lohn und Münzen kommen',
+      wand2.getauscht === 1 && wand2.wareWeg === true && wand2.bekommen === true &&
+      wand2.muenzen === wand2.sollMuenzen, JSON.stringify(wand2));
+    check('Der erste Tausch bringt noch keine Reiselaterne',
+      wand2.laterneBeim1 === 0 && wand2.laterneAb === 2, JSON.stringify(wand2));
+    check('Zweimal am selben Tag tauscht er nicht',
+      wand2.zweimalAmTag === true && wand2.wareBleibt === wand2.will,
+      JSON.stringify(wand2));
+    check('Der Hinweis über dem Kopf sagt, was die Taste tut',
+      wand2.hinweisVorGruss === 'Reden' &&
+      /^Sucht \d+× /.test(wand2.hinweisOhne) &&
+      / tauschen$/.test(wand2.hinweisMit) &&
+      wand2.hinweisDanach === 'Schon getauscht', JSON.stringify(wand2));
+    check('Der Tausch steht im Tagesrückblick', wand2.imTagebuch === 1,
+      JSON.stringify(wand2));
+
+    // ---- Die Reiselaterne und die volle Tasche ----
+    const wand3 = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { naechsterBesuch, MITBRINGSEL } = await import('/src/game/wanderer.js');
+      const r = {};
+
+      // Der nächste Besuchstag: zweiter Tausch, jetzt kommt die Laterne.
+      const tag2 = naechsterBesuch(g.world.seed, g.day.day + 1);
+      r.abstand = tag2 - g.day.day;
+      g.day.day = tag2;
+      const ent = g._wandererSetzen(tag2);
+      const b = g.besuch();
+      g.player.x = ent.x - 40;
+      g.player.y = ent.y + 10;
+
+      g.inventory.remove(MITBRINGSEL, 9999);
+      g.inventory.add(b.sucht.id, b.sucht.n);
+      g.redeMitWanderer(ent);   // Gruß
+      g.redeMitWanderer(ent);   // Tausch
+      r.getauscht = g.state.wanderer.getauscht;
+      r.laterne = g.inventory.count(MITBRINGSEL);
+
+      // Und beim dritten Mal nicht noch einmal.
+      const tag3 = naechsterBesuch(g.world.seed, tag2 + 1);
+      g.day.day = tag3;
+      const ent3 = g._wandererSetzen(tag3);
+      const b3 = g.besuch();
+      g.player.x = ent3.x - 40;
+      g.player.y = ent3.y + 10;
+      g.inventory.add(b3.sucht.id, b3.sucht.n);
+      g.redeMitWanderer(ent3);
+      g.redeMitWanderer(ent3);
+      r.laterneNochmal = g.inventory.count(MITBRINGSEL);
+
+      // Volle Tasche: Der Tausch muss abgelehnt werden, und zwar GANZ –
+      // die Ware bleibt liegen, es verschwindet nichts.
+      const tag4 = naechsterBesuch(g.world.seed, tag3 + 1);
+      g.day.day = tag4;
+      const ent4 = g._wandererSetzen(tag4);
+      const b4 = g.besuch();
+      g.player.x = ent4.x - 40;
+      g.player.y = ent4.y + 10;
+      // Die volle Tasche wird hier ABSICHTLICH so gebaut, dass sie nicht vom
+      // Tageswurf abhängt: Von der gesuchten Ware liegen fünf Stück MEHR da
+      // als er will. Damit macht das Abgeben kein Fach frei – der Stapel
+      // schrumpft nur –, und für den Lohn ist kein Platz.
+      g.inventory.slots.length = 0;
+      g.inventory.add(b4.sucht.id, b4.sucht.n + 5);
+      const fueller = ['wood', 'stone', 'fiber', 'clay', 'shell', 'feather',
+        'driftwood', 'resin', 'herb', 'berry', 'mushroom'];
+      let gesetzt = 0;
+      for (let i = 0; i < fueller.length && gesetzt < 3; i++) {
+        if (fueller[i] === b4.sucht.id) continue;
+        g.inventory.add(fueller[i], 1);
+        gesetzt++;
+      }
+      g.inventory.capacity = g.inventory.slots.length;
+      const muenzenVor = g.state.coins;
+      const wareVor = g.inventory.count(b4.sucht.id);
+      const tauschVor = g.state.wanderer.getauscht;
+      r.passtNichtGemeldet = !g.inventory.passtNach([b4.sucht], b4.gibt.items);
+      g.redeMitWanderer(ent4);   // Gruß
+      g.redeMitWanderer(ent4);   // Versuch
+      r.vollAbgelehnt = g.state.wanderer.getauscht === tauschVor;
+      r.wareNochDa = g.inventory.count(b4.sucht.id) === wareVor;
+      r.keineMuenzen = g.state.coins === muenzenVor;
+
+      g.inventory.capacity = 30;
+      return r;
+    });
+    check('Der zweite Tausch bringt die Reiselaterne',
+      wand3.getauscht === 2 && wand3.laterne === 1, JSON.stringify(wand3));
+    check('Beim dritten kommt keine zweite',
+      wand3.laterneNochmal === 1, JSON.stringify(wand3));
+    check('Zwischen zwei Besuchen liegen Tage, keine Stunden',
+      wand3.abstand >= 2 && wand3.abstand <= 12, JSON.stringify(wand3));
+    check('Bei voller Tasche wird gar nicht erst getauscht',
+      wand3.passtNichtGemeldet === true && wand3.vollAbgelehnt === true,
+      JSON.stringify(wand3));
+    check('Und dabei geht nichts verloren',
+      wand3.wareNochDa === true && wand3.keineMuenzen === true, JSON.stringify(wand3));
+
+    // ---- Die Reiselaterne als Gegenstand ----
+    const wand4 = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { getItem } = await import('/src/game/items.js');
+      const r = {};
+      const lampe = getItem('travellamp');
+      r.leuchtet = lampe.light;
+      r.charme = lampe.charm;
+
+      // Auf der Karte muss er zu finden sein: Der Strand ist lang, und er
+      // ist genau einen Tag da.
+      //
+      // Geprüft wird über den UNTERSCHIED zweier Zeichnungen, nicht über die
+      // Farbe des Punktes. Der erste Versuch suchte Bildpunkte in seinem
+      // Grau-Grün und fand null: Was `getImageData` zurückgibt, ist
+      // farbverwaltet und stimmt mit dem hineingemalten Wert nicht überein
+      // (aus #ff9a3c wird beim Auslesen 217,102,46). Ein Vergleich zweier
+      // Zeichnungen ist davon unabhängig.
+      const { naechsterBesuch } = await import('/src/game/wanderer.js');
+      const { TILE_SIZE } = await import('/src/art/tiles.js');
+      g.day.day = naechsterBesuch(g.world.seed, g.day.day);
+      const ent = g._wandererSetzen(g.day.day);
+      g.openPanel('map');
+      const karte = () => {
+        g.panels._drawMap();
+        const c = document.getElementById('map-canvas');
+        return {
+          w: c.width,
+          d: c.getContext('2d').getImageData(0, 0, c.width, c.height).data,
+        };
+      };
+      const mitIhm = karte();
+      g.world.remove(ent);
+      const ohneIhn = karte();
+      g.panels.close();
+
+      let anders = 0;
+      let minX = 9999;
+      let maxX = -1;
+      let minY = 9999;
+      let maxY = -1;
+      for (let i = 0; i < mitIhm.d.length; i += 4) {
+        if (mitIhm.d[i] === ohneIhn.d[i] && mitIhm.d[i + 1] === ohneIhn.d[i + 1] &&
+            mitIhm.d[i + 2] === ohneIhn.d[i + 2]) continue;
+        anders++;
+        const px = (i / 4) % mitIhm.w;
+        const py = Math.floor((i / 4) / mitIhm.w);
+        minX = Math.min(minX, px); maxX = Math.max(maxX, px);
+        minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+      }
+      const massstab = mitIhm.w / g.world.w;
+      r.punkte = anders;
+      r.punktBreit = anders ? maxX - minX + 1 : 0;
+      r.punktHoch = anders ? maxY - minY + 1 : 0;
+      // Und er sitzt dort, wo der Wanderer steht – nicht irgendwo.
+      r.abweichung = anders
+        ? Math.round(Math.hypot((minX + maxX) / 2 - (ent.x / TILE_SIZE) * massstab,
+          (minY + maxY) / 2 - (ent.y / TILE_SIZE) * massstab))
+        : -1;
+
+      // Draußen aufstellen lässt sie sich wie jede andere Deko.
+      g.inventory.add('travellamp', 1);
+      g.startPlacing('travellamp');
+      g._updatePlacing();
+      let n = 0;
+      while (g.placing && !g.placing.valid && n++ < 60) {
+        g.player.x += 24;
+        g._updatePlacing();
+      }
+      r.konntePlatzieren = !!(g.placing && g.placing.valid);
+      g.confirmPlacing();
+      const steht = g.world.entities.find((e) => e.itemId === 'travellamp' && !e.gone);
+      r.stehtDraussen = !!steht;
+      r.grafik = steht ? steht.sprite : null;
+      // Sie zählt beim Licht mit – das ist ihre Mechanik. Die Quelle sitzt
+      // 58 Punkte über dem Fußpunkt, wie bei jeder anderen Lampe auch.
+      const lichter = g.lightSources(0);
+      r.imLichtkreis = lichter.some((l) =>
+        Math.abs(l.x - steht.x) < 2 && Math.abs(l.y - (steht.y - 58)) < 2 &&
+        l.r > 120);
+      if (steht) { g.pickDecor(steht); }
+      // Den letzten Abend zurückgeben, wie er war.
+      g.state.finale = g.__merkFinale;
+      return r;
+    });
+    check('Auf der Karte ist zu sehen, wo er steht',
+      wand4.punkte > 0 && wand4.punktBreit <= 7 && wand4.punktHoch <= 7 &&
+      wand4.abweichung <= 2, JSON.stringify(wand4));
+    check('Die Reiselaterne leuchtet – ein Andenken für 210 ist kein Nippes',
+      wand4.leuchtet >= 120 && wand4.charme >= 10, JSON.stringify(wand4));
+    check('Sie lässt sich aufstellen und hat eine gemalte Grafik',
+      wand4.konntePlatzieren === true && wand4.stehtDraussen === true &&
+      wand4.grafik === 'travellamp', JSON.stringify(wand4));
+    check('Und sie wirft abends wirklich Licht',
+      wand4.imLichtkreis === true, JSON.stringify(wand4));
 
     /* ---- Das Haustier ---- */
     const tier = await page.evaluate(async () => {

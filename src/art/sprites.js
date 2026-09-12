@@ -19,7 +19,8 @@ import {
   paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench, paintBoat, paintMailbox,
   paintKitchen,
   paintHouse,
-  paintLantern, paintBench, paintFence, paintFlowerbed, paintBirdhouse,
+  paintLantern, paintTravelLamp, paintWanderer,
+  paintBench, paintFence, paintFlowerbed, paintBirdhouse,
   paintWindchime, paintRug, paintSignpost, paintCrate, paintChest,
   paintMemory, paintTool, paintButterfly, paintBird,
   paintSeli, paintSpirit, paintFlameSpirit, paintFox,
@@ -296,6 +297,7 @@ export function initArt() {
 
   /* --- Deko --- */
   addArt('lantern', paintLantern({ seed: 391 }));
+  addArt('travellamp', paintTravelLamp({ seed: 2141 }));
   addArt('bench', paintBench({ seed: 411 }));
   addArt('fence', paintFence({ seed: 431 }));
   addArt('flowerbed', paintFlowerbed({ seed: 451 }));
@@ -393,6 +395,11 @@ export function initArt() {
   addArt('spirit_flamey_1', paintFlameSpirit(1));
   addArt('fox_0', paintFox(0));
   addArt('fox_1', paintFox(1));
+  // Der Wanderer. Zwei Bilder wie bei allem, was lebt – er atmet, mehr tut
+  // er nicht. Er läuft nicht herum: Wer einen Tag bleibt, sucht sich einen
+  // Platz und bleibt dort stehen.
+  addArt('wanderer_0', paintWanderer(0, { seed: 2151 }));
+  addArt('wanderer_1', paintWanderer(1, { seed: 2151 }));
 
   buildIcons();
   ready = true;
@@ -419,7 +426,7 @@ function buildIcons() {
     ['fogcrystal', 'fogcrystal'], ['moonlamp', 'lantern'],
     ['boat', 'boat'], ['mailbox', 'mailbox'],
     ['picture', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
-    ['hangplant', 'hangplant'],
+    ['hangplant', 'hangplant'], ['travellamp', 'travellamp'],
     ['table', 'table'], ['chair', 'chair'], ['hammock', 'hammock'],
     ['swing', 'swing'], ['firebowl', 'firebowl'],
     ['stringlights', 'stringlights'], ['paperlamp', 'paperlamp'],

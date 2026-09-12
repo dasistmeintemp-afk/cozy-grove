@@ -275,6 +275,56 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Haus von *außen* handelt. „Draußen ist noch einiges zu tun. Draußen."
   Mitgezählt werden das Möbelstück, auf dem sie sitzt, die Stücke ringsum,
   das Wetter (den Regen hört man auch drinnen) und die Jahreszeit.
+* **Der Wanderer.** Etwa einmal die Woche steht morgens jemand am Strand, den
+  es hier sonst nicht gibt: ein Mensch mit Hut, Umhang, Sack und Stab. Er
+  bleibt einen Tag. Am nächsten Morgen ist er weg.
+
+  **Vier Regeln unterscheiden ihn von einem Geist.** Er *bleibt nicht* – kein
+  Farbkreis, keine Freundschaftsstufe, keine Erinnerungskette. Er *stellt
+  keine Aufgabe* – er sucht etwas und hat etwas dabei, das ist ein Tausch und
+  keine Bitte; nichts davon landet im Aufgabenbuch, nichts läuft ab. Er *gibt,
+  was es sonst nicht gibt* – beim zweiten Tausch die **Reiselaterne**, das
+  einzige Stück im Spiel, das aus keiner Werkbank und keinem Katalog kommt.
+  Und *ihn zu verpassen kostet nichts* – er kommt wieder, wie der Geburtstag
+  und das Fest.
+
+  Gesucht wird immer etwas, das man im Vorbeigehen aufhebt: drei Muscheln,
+  vier Kräuter, zwei Scherben. Dafür gibt es Münzen und etwas Seltenes –
+  Meerkristall, Bernstein, Sternenstaub, Mondsaat. Einmal am Tag; sonst stünde
+  man mit dreißig Muscheln vor ihm und ginge mit drei Meerkristallen weg. Ist
+  die Tasche voll, wird **gar nicht erst** getauscht: Wer erst abgibt und dann
+  keinen Platz mehr hat, hätte drei Muscheln für nichts gegeben.
+
+  **Wann er kommt, ist eine gemessene Zahl und keine geratene.** Der erste
+  Entwurf war ein Tageswurf – jeden Morgen 17 % Chance. Im Schnitt kam
+  dasselbe heraus wie jetzt (alle sieben Tage), aber über 400 Inseln und ein
+  Jahr gemessen lagen zwischen zwei Besuchen **bis zu 66 Tage**, und auf
+  mancher Insel stand er das erste Mal erst an Tag 46 da. Jetzt wird nicht
+  gewürfelt, *ob* er heute kommt, sondern *an welchem Tag dieser Woche*:
+
+  |                    | Tageswurf 17 % | Fenster von 7 |
+  | ------------------ | -------------- | ------------- |
+  | Besuche im Jahr    | 33 – 69        | 51 – 52       |
+  | Tage dazwischen    | 1 – **66**     | 2 – **12**    |
+  | erster Besuch      | Tag 8, spät **46** | Tag 8, spät **11** |
+
+  Dass er nie zwei Tage hintereinander dasteht, fällt dabei aus der Bauart
+  heraus statt aus einem Nachtrag: Der Tag im Fenster wird aus 1…6 gewählt,
+  nie 0, und damit liegt zwischen zwei Fenstern immer mindestens ein Tag.
+
+  **Er steht am Strand und ausdrücklich nicht am Boot.** Das Boot wäre die
+  schönere Erklärung dafür, woher er kommt – aber im Bildschirmfoto stand er
+  darin, und schlimmer: Über 250 Inseln gemessen zielte die Taste in 1,5 % der
+  Stellungen auf das *Boot* statt auf ihn. Wer reden will und stattdessen
+  übersetzt, hat den schlechtesten Fehler erwischt, den diese Insel zu bieten
+  hat. Dagegen half kein Punktezuschlag und kein größerer Abstand; jetzt sucht
+  er sich eine Sandkachel mit ausdrücklichem Abstand zu allem, was eine
+  Station ist. Gemessen: **null**.
+
+  Am Morgen sagt eine Meldung, dass jemand da ist, und auf der Karte steht ein
+  Punkt. Was er sucht, sagt er selbst – ein Aushang mit seiner Einkaufsliste
+  machte aus dem Besuch eine Aufgabe. Am **letzten Abend** kommt er nicht: Der
+  gehört den sieben.
 * **Der letzte Abend.** Bei hundert Prozent versammeln sich alle sieben
   Geister am Lagerfeuer und warten dort – nicht einen Tag lang, sondern so
   lange, bis du bei jedem warst. Jeder sagt einen Satz; wer alle gehört hat,
@@ -959,8 +1009,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 520 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste …
-npm run test:browser   # 305 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 541 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer …
+npm run test:browser   # 331 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

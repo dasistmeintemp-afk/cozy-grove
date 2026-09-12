@@ -29,6 +29,11 @@ import {
   wandPlatzFrei, wandStueckAn, wandHoehe, maxWandStuecke, WAND_RAND, WAND_ABSTAND,
   klemmeInRaum, gruppen, gruppenPunkte,
 } from './interior.js';
+import {
+  wandererAm, besuchFuer, emptyWanderer, heuteGetauscht, heuteGegruesst,
+  tauschZahl, gibtLaterne,
+  MITBRINGSEL, SAETZE as WANDER_SAETZE, naechsterBesuch,
+} from './wanderer.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
@@ -161,6 +166,25 @@ const WAND_GRIFF = 96;
 /** Wie lange Seli stillstehen muss, bis sich das Tier im Zimmer dazulegt. */
 const INNEN_PET_WARTET = 2.5;
 
+/**
+ * Wo der Wanderer steht: am Strand, in Sichtweite des Lagers.
+ *
+ * Der erste Entwurf setzte ihn ans Boot – das erklärte, woher er kommt, und
+ * war trotzdem falsch. Im Bildschirmfoto stand er darin, und über 250
+ * Inseln gemessen zielte die Taste in 1,5 % der Stellungen auf das BOOT
+ * statt auf ihn. Wer reden will und stattdessen übersetzt, hat den
+ * schlechtesten Fehler erwischt, den diese Insel zu bieten hat.
+ *
+ * Dagegen half kein Punktezuschlag (gemessen: erst ein Zuschlag von 80
+ * brachte das Boot auf null, und der schlägt dann auch alles andere) und
+ * kein größerer Abstand (bei 140 blieb es bei 0,2 %). Also der Grund statt
+ * des Symptoms: Er steht auf Sand, mit ausdrücklichem Abstand zu allem, was
+ * eine Station ist.
+ */
+const WANDERER_WEG = 1100;          // höchstens so weit vom Lagerfeuer
+const WANDERER_VON_STATION = 230;   // Boot, Laden, Truhe, Feuer, Geist
+const WANDERER_ABSTAND = 62;        // alles andere
+
 const AUTOSAVE_SECONDS = 20;
 
 export const DEFAULT_SETTINGS = {
@@ -229,6 +253,7 @@ export class Game {
     this.weather.snap();
     this._placeStoryPieces(this.day.day);
     this._festSchmuck(this.day.day);
+    this._wandererSetzen(this.day.day);
 
     // Strichliste für den Rückblick: neu anlegen, wenn es keine gibt oder sie
     // noch von einem früheren Tag stammt (etwa aus einem alten Spielstand).
@@ -311,6 +336,7 @@ export class Game {
       records: emptyRecords(),
       wishes: emptyWishes(),
       interior: emptyInterior(),
+      wanderer: emptyWanderer(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -351,6 +377,7 @@ export class Game {
       staerkung: emptyKitchen(),
       feste: emptyFeste(),
       interior: emptyInterior(),
+      wanderer: emptyWanderer(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -394,6 +421,11 @@ export class Game {
     // eben jeder noch dran.
     if (!this.state.feste || typeof this.state.feste !== 'object') {
       this.state.feste = emptyFeste();
+    }
+    // Mit wem man wie oft getauscht hat. Ein alter Spielstand hat noch nie
+    // mit ihm getauscht – dann ist beim nächsten Mal eben der erste.
+    if (!this.state.wanderer || typeof this.state.wanderer !== 'object') {
+      this.state.wanderer = emptyWanderer();
     }
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
@@ -828,6 +860,7 @@ export class Game {
     if (t) {
       const def = t.def;
       if (def.category === 'spirit') { this.talkTo(t.entity); return; }
+      if (def.category === 'wanderer') { this.redeMitWanderer(t.entity); return; }
       if (def.category === 'pet') { this.feedPet(); return; }
       if (def.category === 'fox') { this.openPanel('shop'); return; }
       if (def.category === 'hidden') { this.pickHidden(t.entity); return; }
@@ -1210,6 +1243,160 @@ export class Game {
       n++;
     }
     return n;
+  }
+
+  /* ---------------- Der Wanderer ---------------- */
+
+  /**
+   * Stellt ihn hin, wenn heute sein Tag ist – und räumt ihn sonst weg.
+   *
+   * Am Strand, nicht irgendwo: Er kommt von woanders her, und die Küste ist
+   * die Stelle, an der das sichtbar ist. Ein Fremder mitten im Wald wäre
+   * jemand, von dem niemand sagen könnte, wie er dorthin gekommen sein soll.
+   * Wo genau, entscheidet `World.strandPlatz` – dort steht auch, warum er
+   * ausdrücklich NICHT neben dem Boot steht.
+   *
+   * Aufgeräumt wird an JEDEM Tageswechsel, auch an Tagen, an denen er nicht
+   * kommt: Sonst bliebe er stehen, sobald man einmal ohne Tageswechsel neu
+   * lädt – und aus dem Besuch würde ein Nachbar.
+   *
+   * @returns {object|null} seine Entität, wenn er heute da ist
+   */
+  _wandererSetzen(day) {
+    const alt = this.world.entities.filter(function (e) {
+      return e.kind === 'wanderer' && !e.gone;
+    });
+    for (let i = 0; i < alt.length; i++) this.world.remove(alt[i]);
+
+    if (!wandererAm(this.world.seed, day)) return null;
+    // Der letzte Abend gehört den sieben. Ein Fremder, der sich an dem Tag
+    // dazustellt und nach Muscheln fragt, nähme dem Abschluss seine Ruhe –
+    // aus demselben Grund, aus dem die Geister dann nicht mehr umherziehen.
+    if (this.finaleOffen()) return null;
+    const feuer = this.world.campfire;
+    if (!feuer) return null;
+
+    const rng = dailyRng(this.world.seed, day, 'wanderer-platz');
+    const punkt = this.world.strandPlatz(rng, feuer, WANDERER_WEG,
+      WANDERER_VON_STATION, WANDERER_ABSTAND);
+    if (!punkt) return null;
+
+    const e = makeEntity('wanderer', punkt.x, punkt.y, { phase: rng() * 6.28 });
+    e.sprite = 'wanderer_0';
+    this.world.add(e);
+    return e;
+  }
+
+  /**
+   * Mit ihm reden.
+   *
+   * Drei Ausgänge, und alle drei sind in Ordnung – das ist der Punkt an ihm:
+   *
+   *   1. **Zum Gruß** sagt er einmal, wer er ist und was er sucht. Das ist
+   *      kein Vorspann, den man wegklickt: Ohne ihn stünde man vor einem
+   *      Fremden mit einem Fragezeichen über dem Kopf.
+   *   2. **Hat man es dabei**, wird getauscht. Einmal am Tag – sonst stünde
+   *      man mit dreißig Muscheln vor ihm und ginge mit drei Meerkristallen
+   *      wieder weg.
+   *   3. **Hat man es nicht**, sagt er einen Satz und bleibt trotzdem
+   *      freundlich. Er stellt KEINE Aufgabe daraus: Der Wunsch landet nicht
+   *      im Aufgabenbuch, es läuft keine Frist, und morgen fragt niemand
+   *      nach. Ein Besucher mit Merkzettel wäre ein achter Geist.
+   *
+   * Gegrüßt wird je Tag, nicht je Besuch: Ein Spielstand, der über Nacht
+   * gespeichert wurde, hat denselben Tag und denselben Gruß.
+   */
+  redeMitWanderer(e) {
+    const b = this.besuch();
+    if (!b) return;
+    // Der vorige Satz muss weg, bevor der nächste kommt: Man drückt hier
+    // zweimal kurz hintereinander, und zwei Blasen übereinander lesen sich
+    // wie ein Absatz, den niemand geschrieben hat.
+    this.ui.dropBubble(this._wandererBlase);
+    this._wandererBlase = null;
+    if (!this.state.wanderer) this.state.wanderer = emptyWanderer();
+    const stand = this.state.wanderer;
+    const tag = this.day.day;
+    const gesucht = getItem(b.sucht.id);
+    const wunschIcons = [{ icon: 'icon_' + b.sucht.id, n: b.sucht.n }];
+
+    // 1. Der Gruß
+    if (!heuteGegruesst(stand, tag)) {
+      stand.gegruesst = tag;
+      this._wandererBlase =
+        this.ui.bubble(e.x, e.y - 210, b.gruss + ' ' + b.wunsch, wunschIcons, 5, true);
+      this.audio.play('ghost');
+      this.save();
+      return;
+    }
+
+    // 2. Schon getauscht
+    if (heuteGetauscht(stand, tag)) {
+      this._wandererBlase = this.ui.bubble(e.x, e.y - 210, b.satt, [], 3.2);
+      this.audio.play('ghost');
+      return;
+    }
+
+    // 3. Nichts dabei
+    if (!this.inventory.has(b.sucht.id, b.sucht.n)) {
+      const habe = this.inventory.count(b.sucht.id);
+      this._wandererBlase = this.ui.bubble(e.x, e.y - 210, b.nichts,
+        [{ icon: 'icon_' + b.sucht.id, n: b.sucht.n - habe }], 3.4);
+      this.audio.play('ghost');
+      return;
+    }
+
+    // 4. Der Tausch – aber erst, wenn er auch ausgeht.
+    const bekommt = (b.gibt.items || []).slice();
+    const laterne = gibtLaterne(stand);
+    if (laterne) bekommt.push({ id: MITBRINGSEL, n: 1 });
+    if (!this.inventory.passtNach([b.sucht], bekommt)) {
+      this._wandererBlase = this.ui.bubble(e.x, e.y - 210, b.voll, [], 3.4);
+      this.audio.play('fail');
+      return;
+    }
+
+    this.inventory.remove(b.sucht.id, b.sucht.n);
+    const icons = [];
+    for (let i = 0; i < bekommt.length; i++) {
+      this.inventory.add(bekommt[i].id, bekommt[i].n);
+      icons.push({ icon: 'icon_' + bekommt[i].id, n: bekommt[i].n });
+    }
+    this.state.coins += b.gibt.coins;
+    this._note('coins', b.gibt.coins);
+    this._note('getauscht');
+    icons.push({ icon: 'icon_coin', n: b.gibt.coins });
+
+    stand.tag = tag;
+    stand.getauscht = tauschZahl(stand) + 1;
+
+    this._wandererBlase =
+      this.ui.bubble(e.x, e.y - 210, laterne ? b.laterne : b.dank, icons, laterne ? 5 : 3.6, true);
+    this.particles.burst('sparkle', e.x, e.y - 90, laterne ? 18 : 10);
+    this.audio.play('questDone');
+    if (laterne) {
+      this.audio.play('levelup');
+      this.ui.toast('Reiselaterne · ' + (gesucht ? gesucht.name : '') + ' getauscht',
+        'icon_travellamp', 'good');
+    } else {
+      this.ui.toast('+' + b.gibt.coins + ' Münzen', 'icon_coin', 'good');
+    }
+    this.ui.refreshHud();
+    this.save();
+  }
+
+  /** Sein Besuch von heute – oder null. */
+  besuch() {
+    return besuchFuer(this.world.seed, this.day.day);
+  }
+
+  /** Steht er gerade auf der Insel? */
+  wandererDa() {
+    for (let i = 0; i < this.world.entities.length; i++) {
+      const e = this.world.entities[i];
+      if (e.kind === 'wanderer' && !e.gone) return e;
+    }
+    return null;
   }
 
   _placeStoryPieces(day) {
@@ -4930,6 +5117,7 @@ export class Game {
     this._jitterSpirits(day);
     this._placeStoryPieces(day);
     this._festSchmuck(day);
+    const gast = this._wandererSetzen(day);
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
     this.ui.refreshHud();
@@ -4974,6 +5162,17 @@ export class Game {
       setTimeout(function () {
         self3.ui.toast(ev.name + ' · ' + ev.hint, ev.icon, 'good');
       }, 3200);
+    }
+    // Dass jemand da ist, muss man erfahren – sonst ist der Wanderer eine
+    // Überraschung für die, die zufällig am Boot vorbeikommen, und für alle
+    // anderen gibt es ihn nicht. Gesagt wird NUR, dass jemand da ist und wo:
+    // was er sucht, erzählt er selbst. Ein Aushang mit seiner Einkaufsliste
+    // machte aus dem Besuch eine Aufgabe.
+    if (gast) {
+      const self4 = this;
+      setTimeout(function () {
+        self4.ui.toast('Jemand steht am Strand', 'icon_travellamp', 'good');
+      }, 4200);
     }
     // Der eigentliche Grund, morgens aufzustehen.
     if (frischReif > 0) {
@@ -5229,6 +5428,20 @@ export class Game {
         : (id && !this.giftedToday(t.entity.spiritId))
           ? (isFavourite(t.entity.spiritId, id) ? '★ ' : '') + itemName(id) + ' schenken'
           : 'Reden');
+      return;
+    }
+    if (def.category === 'wanderer') {
+      // Der Hinweis sagt, was die Taste tut – auch hier. Wer ihm etwas geben
+      // KANN, liest „Tauschen"; wer nichts dabei hat, liest das ebenso
+      // deutlich und muss nicht erst hingehen, um es zu erfahren.
+      const b = this.besuch();
+      const stand = this.state.wanderer;
+      const tag = this.day.day;
+      if (!b || !heuteGegruesst(stand, tag)) this.ui.setPrompt('Reden');
+      else if (heuteGetauscht(stand, tag)) this.ui.setPrompt('Schon getauscht');
+      else if (!this.inventory.has(b.sucht.id, b.sucht.n)) {
+        this.ui.setPrompt('Sucht ' + b.sucht.n + '× ' + itemName(b.sucht.id));
+      } else this.ui.setPrompt(itemName(b.sucht.id) + ' tauschen');
       return;
     }
     if (def.category === 'pet') {

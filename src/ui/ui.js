@@ -310,6 +310,22 @@ export class UI {
     b.el.style.top = Math.round(s.y) + 'px';
   }
 
+  /**
+   * Eine einzelne Blase sofort wegnehmen.
+   *
+   * Für Gespräche, bei denen zwei Sätze kurz hintereinander fallen: Beim
+   * Wanderer drückt man zweimal – erst grüßt er, dann wird getauscht –, und
+   * ohne das stand der zweite Satz als zweite Blase über dem ersten. Im
+   * Bildschirmfoto sah das aus wie ein Kasten mit drei Zeilen, von denen
+   * zwei nicht zusammengehörten.
+   */
+  dropBubble(b) {
+    if (!b) return;
+    const i = this.bubbles.indexOf(b);
+    if (i >= 0) this.bubbles.splice(i, 1);
+    if (b.el && b.el.parentNode) b.el.parentNode.removeChild(b.el);
+  }
+
   clearBubbles() {
     for (let i = 0; i < this.bubbles.length; i++) {
       if (this.bubbles[i].el.parentNode) this.bubbles[i].el.parentNode.removeChild(this.bubbles[i].el);

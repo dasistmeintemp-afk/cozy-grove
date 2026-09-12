@@ -42,6 +42,7 @@ export const DAYBOOK_ROWS = [
   { key: 'gezogen', icon: 'icon_flower_dusk', ein: 'Dämmerblume gezogen', mehr: 'Dämmerblumen gezogen' },
   { key: 'gekocht', icon: 'icon_dish_forestsoup', ein: 'Gericht gekocht', mehr: 'Gerichte gekocht' },
   { key: 'gifts', icon: 'icon_heart', ein: 'Mitbringsel verschenkt', mehr: 'Mitbringsel verschenkt' },
+  { key: 'getauscht', icon: 'icon_travellamp', ein: 'Mal mit dem Wanderer getauscht', mehr: 'Mal mit dem Wanderer getauscht' },
   { key: 'sets', icon: 'icon_bookstack', ein: 'Reihe im Fundbuch voll', mehr: 'Reihen im Fundbuch voll' },
   { key: 'milestones', icon: 'icon_star', ein: 'Meilenstein erreicht', mehr: 'Meilensteine erreicht' },
   { key: 'coins', icon: 'icon_coin', ein: 'Münze verdient', mehr: 'Münzen verdient' },

@@ -25,6 +25,7 @@ import { SPIRITS, SPIRIT_IDS, friendshipGift } from '../../src/game/spirits.js';
 import { MILESTONES } from '../../src/game/milestones.js';
 import { POOLS, SET_POOLS, DELIVER_POOL, CRAFTABLE_ASKS, COOK_ASKS } from '../../src/game/quests.js';
 import { HINTS } from '../../src/game/collection.js';
+import { GIBT as WANDER_GIBT, MITBRINGSEL as WANDER_MITBRINGSEL } from '../../src/game/wanderer.js';
 import { makeRng } from '../../src/core/rng.js';
 
 /**
@@ -77,6 +78,12 @@ function erreichbar() {
       if (g && g.items) for (const it of g.items) mark(it.id, 'freundschaft:' + id);
     }
   }
+  // Was der Wanderer mitbringt. Die Reiselaterne kommt NUR von ihm – sie ist
+  // der Grund, warum diese Zeile hier steht und nicht bei den Rezepten.
+  for (const g of WANDER_GIBT) {
+    for (const it of g.items) mark(it.id, 'wanderer');
+  }
+  mark(WANDER_MITBRINGSEL, 'wanderer');
   return q;
 }
 
