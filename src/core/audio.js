@@ -281,6 +281,12 @@ export class AudioEngine {
           this._tone({ type: 'sine', freq: noteHz(5 + i * 2), dur: 0.34, gain: 0.14, delay: i * 0.1 });
         }
         break;
+      // Sternschnuppe: ein einzelner heller Ton, der nach oben wegzieht und
+      // schnell leiser wird. Leise gehalten – er kommt in einer Nacht dutzend-
+      // fach, und was oft kommt, darf nicht laut sein.
+      case 'star':
+        this._tone({ type: 'sine', freq: noteHz(12), freqTo: noteHz(20), dur: 0.5, gain: 0.055 });
+        break;
       case 'colorBurst':
         this._tone({ type: 'sine', freq: noteHz(3), freqTo: noteHz(13), dur: 1.1, gain: 0.12 });
         this._tone({ type: 'sine', freq: noteHz(8), freqTo: noteHz(16), dur: 1.3, gain: 0.07, delay: 0.12 });
@@ -332,6 +338,14 @@ export class AudioEngine {
       case 'owl':
         this._tone({ type: 'sine', freq: noteHz(-2), dur: 0.32, gain: 0.06 });
         this._tone({ type: 'sine', freq: noteHz(-3), dur: 0.4, gain: 0.05, delay: 0.36 });
+        break;
+      // Windspiel: drei Röhrchen, leicht versetzt und lange ausklingend.
+      // Leiser als alles andere – es soll auffallen, wenn man daran
+      // vorbeigeht, und nicht, wenn man daneben steht.
+      case 'chime':
+        this._tone({ type: 'sine', freq: noteHz(19), dur: 1.4, gain: 0.035 });
+        this._tone({ type: 'sine', freq: noteHz(23), dur: 1.6, gain: 0.028, delay: 0.17 });
+        this._tone({ type: 'sine', freq: noteHz(26), dur: 1.9, gain: 0.022, delay: 0.41 });
         break;
       default:
         break;

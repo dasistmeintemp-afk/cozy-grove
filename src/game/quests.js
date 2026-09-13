@@ -8,9 +8,12 @@
 import { SPIRITS, SPIRIT_IDS, friendshipLevel } from './spirits.js';
 import { charmAround } from './cosiness.js';
 import { MEMORY_IDS, getItem, CAT, fishesOf, bugsOf } from './items.js';
+import { inSeason } from './seasons.js';
 import { dailyRng, randInt, randPick } from '../core/rng.js';
 import { makeEntity } from '../world/entities.js';
 import { TILE_SIZE } from '../world/worldgen.js';
+import { RECIPES, campfireLevelFor } from './recipes.js';
+import { GERICHTE } from './kitchen.js';
 
 export const QTYPE = {
   GATHER: 'gather',
@@ -24,9 +27,39 @@ export const QTYPE = {
   BURN: 'burn',
   CRAFT: 'craft',
   DECORATE: 'decorate',
+  /**
+   * Drei VERSCHIEDENE Dinge einer Sorte.
+   *
+   * Der wichtigste Zusatz gegen die Eintönigkeit: „Sechs Beeren bringen" wird
+   * an einem Busch erledigt, „von jeder Blume eine" schickt einen über die
+   * halbe Insel. Und die Karte ist kombinatorisch – aus neun Sammelgütern
+   * gibt es vierundachtzig Dreiergruppen statt neun Einzelbitten.
+   */
+  SET: 'set',
+  /**
+   * Botengang: bei einem Geist angenommen, bei einem anderen abgegeben.
+   *
+   * Die einzige Bitte, bei der es darauf ankommt, WO man hingeht. Sie
+   * verbindet die Insel – vorher stand jeder Geist für sich.
+   */
+  DELIVER: 'deliver',
+  /** Aus dem eigenen Beet – bindet den Garten an die Geister. */
+  GROW: 'grow',
+  /**
+   * Ein Gericht kochen.
+   *
+   * Die Küche stand für sich: Man konnte kochen, das Gekochte verkaufen und
+   * verschenken – aber **niemand hat je danach gefragt**. Von allen Systemen
+   * des Spiels war sie das einzige, das an keiner Bitte hing.
+   *
+   * Das ist die längste Kette, die eine Bitte hier auslöst: erst wissen, was
+   * hineingehört, dann die Zutaten von drei verschiedenen Stellen holen, dann
+   * ans Feuer. Deshalb gilt sie auch länger als alle anderen.
+   */
+  COOK: 'cook',
 };
 
-const POOLS = {
+export const POOLS = {
   gather_wood: ['wood', 'wood', 'hardwood', 'resin'],
   gather_forage: ['berry', 'mushroom', 'herb', 'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'],
   gather_beach: ['shell', 'driftwood', 'fiber'],
@@ -34,7 +67,142 @@ const POOLS = {
   gather: ['wood', 'stone', 'fiber', 'berry', 'shell', 'herb', 'mushroom', 'clay'],
 };
 
-const CRAFTABLE_ASKS = ['fence', 'path_tile', 'lantern', 'flowerbed', 'bench', 'birdhouse'];
+/**
+ * Zutaten, auf die man nicht wochenlang warten muss.
+ *
+ * Drei Gegenstände im Spiel gibt es nur unter einer Bedingung: die Mondblume
+ * nachts, den Regenpilz bei Regen, den Nebelkristall bei Nebel. Für eine
+ * Bitte MIT FRIST ist der Unterschied zwischen diesen dreien groß:
+ *
+ *   **Die Nacht kommt jeden Tag.** Wer eine Mondblume braucht, weiß, wann er
+ *   loszugehen hat – das ist ein Grund, abends draußen zu bleiben, und genau
+ *   die Rolle, die diese Sorte Fund spielen soll.
+ *
+ *   **Regen und Nebel kommen vielleicht die ganze Woche nicht.** Eine Bitte
+ *   um einen Regenpilz-Eintopf wäre bei trockenem Wetter dieselbe tote
+ *   Aufgabe, die beim Fischfang schon einmal auffiel: Man läuft sechs Tage
+ *   lang los und kann nichts dafür.
+ *
+ * Deshalb sperrt diese Regel das Wetter aus und die Nachtzeit nicht.
+ */
+const AUFS_WETTER_WARTEN = { rain: 1, fog: 1 };
+
+export function verlaesslich(itemId) {
+  const it = getItem(itemId);
+  return !it || !it.onlyAt || !AUFS_WETTER_WARTEN[it.onlyAt];
+}
+
+/** Ob eine ganze Zutatenliste verlässlich zu beschaffen ist. */
+function alleVerlaesslich(liste) {
+  for (let i = 0; i < liste.length; i++) {
+    if (!verlaesslich(liste[i].id)) return false;
+  }
+  return true;
+}
+
+/**
+ * Worum ein Geist zu bauen bitten darf.
+ *
+ * Das war eine von Hand geschriebene Liste aus sechs Namen – und sie ist
+ * nicht mitgewachsen. Als zwölf neue Baupläne dazukamen, bat weiterhin
+ * niemand um sie: Igelhaus, Torbogen und Steinbank standen an der Werkbank,
+ * aber in keiner Bitte. Deshalb wird die Liste jetzt **aus den Bauplänen
+ * gerechnet**. Ein neues Möbelstück braucht nichts weiter als sein Rezept.
+ *
+ * Vier Bedingungen, und jede hat einen Grund:
+ *
+ * 1. **Nur Gegenstände.** Werkzeuge und Taschen baut man für sich, nicht für
+ *    jemand anderen – man könnte sie gar nicht abgeben.
+ * 2. **Nichts Einmaliges und nichts hinter einem Meilenstein.** Der
+ *    Brückenbausatz wird gebaut und ist danach für immer weg; eine Bitte
+ *    darum wäre nach dem ersten Mal unerfüllbar.
+ * 3. **Nur Rezepte, deren Ergebnis so heißt wie sie selbst.** Der
+ *    „Steinlampe"-Bauplan liefert eine Mondlaterne. Eine Bitte um „Steinlampe"
+ *    zeigte auf ein Ding, das es im Fundbuch gar nicht gibt.
+ * 4. **Nur, was am HEUTIGEN Feuer auch gebaut werden kann.** Das ist die
+ *    eigentliche Reparatur: Die alte Liste enthielt Laterne und Vogelhaus,
+ *    beide ab Feuerstufe 2. Wer am ersten Tag gefragt wurde, bekam an der
+ *    Werkbank „Das Feuer ist noch zu klein" zu hören und konnte vier Tage
+ *    lang zusehen, wie die Bitte abläuft. Genau dieselbe Überlegung wie beim
+ *    Fischfang, wo nur gefragt wird, was zur Jahreszeit auch anbeißt.
+ *
+ * Dazu fällt weg, was auf ein Wetter wartet (die Mondlaterne braucht
+ * Nebelkristall): siehe `verlaesslich`.
+ */
+export function craftableAsks(fire) {
+  const stufe = fire >= 1 ? fire : 1;
+  const raus = [];
+  for (let i = 0; i < RECIPES.length; i++) {
+    const rec = RECIPES[i];
+    if (rec.kind !== 'item' || rec.once || rec.needs) continue;
+    if (!rec.out || rec.out.id !== rec.id) continue;
+    if ((rec.fire || 1) > stufe) continue;
+    if (!alleVerlaesslich(rec.cost)) continue;
+    raus.push(rec.id);
+  }
+  return raus;
+}
+
+/** Alles, worum jemals gebeten werden kann – für Prüfungen und Übersichten. */
+export const CRAFTABLE_ASKS = craftableAsks(99);
+
+/**
+ * Worum ein Geist zu kochen bitten darf.
+ *
+ * Alle Gerichte, deren Zutaten nicht auf ein Wetter warten. Eine Feuerstufe
+ * gibt es hier nicht – die Kochstelle steht vom ersten Tag an im Lager, ohne
+ * Meilenstein davor, und das soll so bleiben: Wer am ersten Tag drei Beeren
+ * findet, soll damit etwas anfangen können.
+ */
+export function kochAsks() {
+  const raus = [];
+  for (let i = 0; i < GERICHTE.length; i++) {
+    if (alleVerlaesslich(GERICHTE[i].zutaten)) raus.push(GERICHTE[i].id);
+  }
+  return raus;
+}
+
+export const COOK_ASKS = kochAsks();
+
+/**
+ * Die Feuerstufe, so wie das Spiel sie gerade sieht.
+ *
+ * `state` ist hier das Spiel selbst (so wird es überall hereingereicht).
+ * Fehlt es – in Prüfungen kommt das vor –, gilt die kleinste Stufe: lieber
+ * eine Bitte um einen Zaun als eine um etwas Unbaubares.
+ */
+function feuerStufe(state) {
+  const fuel = state && state.state ? state.state.campfireFuel : null;
+  if (typeof fuel !== 'number') return 1;
+  return campfireLevelFor(fuel).level;
+}
+
+/**
+ * Vorräte für Sammelbitten: drei VERSCHIEDENE aus einer Gruppe.
+ *
+ * Genau hier steckt die Abwechslung: Aus neun Sammelgütern gibt es
+ * vierundachtzig Dreiergruppen. Eine Bitte um sechs Beeren erledigt man an
+ * einem Busch – „von jeder eine" schickt einen über die halbe Insel.
+ */
+export const SET_POOLS = {
+  blumen: ['flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'],
+  wald: ['berry', 'mushroom', 'herb', 'resin', 'fiber'],
+  strand: ['shell', 'driftwood', 'fiber', 'bottle'],
+  stein: ['stone', 'copper_ore', 'clay', 'shard'],
+  bauholz: ['wood', 'hardwood', 'resin', 'fiber'],
+};
+const SET_NAMES = {
+  blumen: 'Ein Strauß',
+  wald: 'Aus dem Wald',
+  strand: 'Vom Strand',
+  stein: 'Aus dem Fels',
+  bauholz: 'Vom Holzplatz',
+};
+const SET_KEYS = Object.keys(SET_POOLS);
+
+/** Was ein Geist gern von einem anderen geschickt bekommt. */
+export const DELIVER_POOL = ['berry', 'herb', 'mushroom', 'shell', 'driftwood', 'resin',
+  'wood', 'stone', 'clay', 'feather', 'flower_pink', 'flower_yellow'];
 
 /**
  * Wie viele Aufträge ein Geist gleichzeitig offen hat.
@@ -45,7 +213,62 @@ const CRAFTABLE_ASKS = ['fence', 'path_tile', 'lantern', 'flowerbed', 'bench', '
  */
 const MAX_ACTIVE_PER_SPIRIT = 3;
 
+/**
+ * Wie lange eine Bitte gilt, in Tagen.
+ *
+ * Ohne Ablauf blieb jeder Auftrag ewig stehen. Nach einer Woche standen
+ * fünfzehn halb angefangene Bitten in der Liste, und weil die Plätze belegt
+ * waren, kam nichts Neues nach: Wer eine Aufgabe nicht mochte, hatte sie für
+ * immer. Mit Ablauf rücken die Bitten weiter – wer eine liegen lässt, bekommt
+ * dafür eine andere.
+ *
+ * Was länger dauert, gilt länger: eine Erinnerung liegt irgendwo auf der
+ * Insel, ein bestimmter Nachtfalter fliegt nur nachts, und Deko muss erst
+ * gebaut werden.
+ */
+const LIFETIME = {
+  set: 4,
+  deliver: 3,
+  // Säen, wachsen lassen, ernten: Die schnellste Saat braucht zwei Tage, und
+  // danach muss man noch hinlaufen.
+  grow: 6,
+  find: 4,
+  catch: 4,
+  decorate: 5,
+  craft: 4,
+  // Die längste Kette im Spiel: wissen was hineingehört, die Zutaten von drei
+  // verschiedenen Stellen holen, ans Feuer gehen. Deshalb sechs Tage – mehr
+  // als jede andere Bitte außer dem Beet.
+  cook: 6,
+  visit: 3,
+  gather: 3,
+  fish: 3,
+  burn: 3,
+};
+const LIFETIME_DEFAULT = 3;
+
+export function lifetimeOf(type) {
+  return LIFETIME[type] || LIFETIME_DEFAULT;
+}
+
+/** Verbleibende Tage einer Bitte – null, wenn sie nicht abläuft. */
+export function daysLeft(q, day) {
+  if (!q || q.expires == null) return null;
+  return Math.max(0, q.expires - day);
+}
+
 let questSeq = 1;
+
+/**
+ * Erkennungszeichen einer Bitte: Art plus Gegenstand.
+ *
+ * Bei Sammelbitten zählt die Gruppe, nicht die gezogene Liste. Sonst standen
+ * zweimal „Aus dem Wald sammeln" nebeneinander, nur mit leicht anderen
+ * Zutaten – für den Spieler dieselbe Karte doppelt.
+ */
+function key(q) {
+  return q.type + ':' + (q.setKey || q.itemId || '');
+}
 
 export class QuestBook {
   constructor() {
@@ -73,12 +296,47 @@ export class QuestBook {
   }
 
   /**
+   * Zurückgezogene Bitten: alles, was abgelaufen ist und noch nicht erfüllt.
+   *
+   * Fertiges läuft NICHT ab. Wer die drei Muscheln beisammen hat und erst am
+   * nächsten Morgen zum Geist kommt, hat sie nicht umsonst gesucht – das wäre
+   * die eine Sorte Strafe, die in dieses Spiel nicht gehört.
+   *
+   * @returns {Array} die entfernten Aufträge
+   */
+  expire(day, world, ctx) {
+    const jahreszeit = ctx && ctx.today && ctx.today.season ? ctx.today.season.id : null;
+    const raus = [];
+    for (let i = this.quests.length - 1; i >= 0; i--) {
+      const q = this.quests[i];
+      if (q.turnedIn) continue;
+      // Erst der Kalender, dann die Frist. Eine Bitte um einen Fisch, den es
+      // seit heute Nacht nicht mehr gibt, ist unlösbar geworden – sie hier
+      // stehen zu lassen hieße, den Spieler drei Tage lang an ein Wasser zu
+      // schicken, in dem nichts steht. Der Jahreszeitenwechsel trifft nur
+      // eine Handvoll Arten und nur an einem Tag im Vierteljahr, aber genau
+      // dieser Tag darf keine tote Aufgabe hinterlassen.
+      const fort = q.itemId && !inSeason(q.itemId, jahreszeit);
+      if (!fort && (q.expires == null || q.expires > day)) continue;
+      if (ctx && this.progress(q, ctx) >= q.need) continue;
+      this.dropHidden(q, world);
+      this.quests.splice(i, 1);
+      raus.push(q);
+    }
+    return raus;
+  }
+
+  /**
    * Neue Tagesaufträge verteilen.
-   * Offene Aufträge bleiben bestehen – niemand wird bestraft, wenn er
-   * einen Tag nicht dazu kommt.
+   *
+   * Zuerst rücken abgelaufene Bitten ab, dann werden die frei gewordenen
+   * Plätze neu besetzt. Damit dreht sich die Liste, statt zu wachsen.
+   *
+   * @returns {Array} die zurückgezogenen Aufträge, für die Meldung am Morgen
    */
   newDay(day, world, state) {
     const rng = dailyRng(world.seed, day, 'quests');
+    const zurueck = this.expire(day, world, state);
     for (let i = 0; i < SPIRIT_IDS.length; i++) {
       const sid = SPIRIT_IDS[i];
       const spirit = SPIRITS[sid];
@@ -89,12 +347,26 @@ export class QuestBook {
       // ganze Sitzung. Mit nur einer Aufgabe je Geist war nach drei Minuten
       // Schluss, und das Spiel fühlte sich an, als müsste man warten.
       if (day <= 1) slots = Math.min(slots, 2);
+      // Was dieser Geist gerade schon will, kommt nicht noch einmal. Sonst
+      // stand dreimal „Holz bringen" untereinander – und nach dem Ablauf einer
+      // Bitte kam mit einiger Wahrscheinlichkeit genau dieselbe zurück.
+      const belegt = Object.create(null);
+      for (let k = 0; k < open.length; k++) belegt[key(open[k])] = 1;
       while (slots-- > 0) {
-        const q = this.generate(sid, day, world, state, rng);
-        if (q) this.quests.push(q);
+        let q = null;
+        for (let versuch = 0; versuch < 6; versuch++) {
+          const kandidat = this.generate(sid, day, world, state, rng);
+          if (!kandidat) continue;
+          if (!belegt[key(kandidat)]) { q = kandidat; break; }
+          // Verworfen: „Suche"-Aufträge haben schon Fundstücke ausgelegt.
+          this.dropHidden(kandidat, world);
+        }
+        if (!q) continue;
+        belegt[key(q)] = 1;
+        this.quests.push(q);
       }
     }
-    return this;
+    return zurueck;
   }
 
   generate(spiritId, day, world, state, rng) {
@@ -103,8 +375,16 @@ export class QuestBook {
     // Der Tag treibt die Belohnung, die Freundschaft ebenso: wer einem Geist
     // oft geholfen hat, bekommt von ihm mehr. Vorher war die Freundschaftsstufe
     // eine Zahl ohne Wirkung.
+    // Der Tag treibt den Lohn, die Freundschaft ebenso – aber beide flacher
+    // als früher. Vorher stand hier `1 + min(1.6, Tag*0.06) + Stufe*0.09`,
+    // also bis zum Dreieinhalbfachen. Wer am Tag 40 dreimal so viel für
+    // dieselbe Bitte bekommt, für den ist das letzte Ziel billiger als das
+    // erste – und dann gibt es kein spätes Spiel mehr. Jetzt höchstens das
+    // Doppelte, und der Zuwachs ist über die ersten Wochen verteilt.
     const friends = friendshipLevel(this.completedBySpirit[spiritId] || 0);
-    const scale = 1 + Math.min(1.6, day * 0.06) + friends * 0.09;
+    const scale = 1 + Math.min(0.6, day * 0.015) + friends * 0.04;
+    const jahreszeit = state && state.today && state.today.season
+      ? state.today.season.id : null;
 
     if (type === 'find') {
       const count = randInt(rng, 2, 3);
@@ -129,6 +409,46 @@ export class QuestBook {
       return q;
     }
 
+    // Drei verschiedene Dinge einer Gruppe
+    if (type === 'set') {
+      const gruppe = randPick(rng, SET_KEYS);
+      const pool = SET_POOLS[gruppe].slice();
+      const wieviele = Math.min(pool.length, rng() < 0.35 ? 4 : 3);
+      const items = [];
+      for (let i = 0; i < wieviele && pool.length; i++) {
+        items.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+      }
+      const q = this._base(spiritId, QTYPE.SET, items.length, day);
+      q.items = items;
+      q.setKey = gruppe;
+      q.setName = SET_NAMES[gruppe];
+      q.rewards = rewardFor(QTYPE.SET, items.length, scale, rng);
+      return q;
+    }
+
+    // Botengang zu einem anderen Geist
+    if (type === 'deliver') {
+      const andere = SPIRIT_IDS.filter(function (id) {
+        return id !== spiritId && world.isUnlocked(SPIRITS[id].region);
+      });
+      if (!andere.length) return null;
+      const ziel = randPick(rng, andere);
+      const q = this._base(spiritId, QTYPE.DELIVER, randInt(rng, 2, 4), day);
+      q.itemId = randPick(rng, DELIVER_POOL);
+      q.turnInAt = ziel;
+      q.rewards = rewardFor(QTYPE.DELIVER, q.need, scale, rng);
+      return q;
+    }
+
+    // Aus dem eigenen Beet
+    if (type === 'grow') {
+      const q = this._base(spiritId, QTYPE.GROW, randInt(rng, 2, 4), day);
+      q.itemId = randPick(rng, ['berry', 'herb', 'flower_pink', 'flower_yellow',
+        'flower_violet', 'flower_white']);
+      q.rewards = rewardFor(QTYPE.GROW, q.need, scale, rng);
+      return q;
+    }
+
     if (type === 'fish') {
       const count = randInt(rng, 2, 4);
       const q = this._base(spiritId, QTYPE.FISH, count, day);
@@ -138,7 +458,11 @@ export class QuestBook {
 
     if (type === 'catch') {
       const q = this._base(spiritId, QTYPE.CATCH, 1, day);
-      const pool = fishesOf(spirit.water || 'sea', true);
+      // Nur, was jetzt auch beißt. Sonst bittet ein Geist im Winter um den
+      // Goldkarpfen, und die Bitte läuft nach fünf Tagen ungelöst ab – der
+      // Fisch steht bis zum Frühling nicht im Wasser.
+      const pool = fishesOf(spirit.water || 'sea', true, jahreszeit);
+      if (!pool.length) return null;
       q.itemId = randPick(rng, pool).id;
       q.rewards = rewardFor(QTYPE.CATCH, 1, scale, rng);
       return q;
@@ -149,7 +473,7 @@ export class QuestBook {
     // bleiben, statt sofort schlafen zu gehen.
     if (type === 'catch_bug') {
       const q = this._base(spiritId, QTYPE.CATCH, 1, day);
-      const pool = bugsOf(rng() < 0.4);
+      const pool = bugsOf(rng() < 0.4, jahreszeit);
       if (!pool.length) return null;
       q.itemId = randPick(rng, pool).id;
       q.rewards = rewardFor(QTYPE.CATCH, 1, scale, rng);
@@ -174,9 +498,24 @@ export class QuestBook {
       return q;
     }
 
+    if (type === 'cook') {
+      // Ohne Feuerstufe: Die Kochstelle steht vom ersten Tag an da. Aber
+      // ohne Wetterzutaten – siehe `verlaesslich`.
+      const pool = COOK_ASKS;
+      if (!pool.length) return null;
+      const q = this._base(spiritId, QTYPE.COOK, 1, day);
+      q.itemId = randPick(rng, pool);
+      q.rewards = rewardFor(QTYPE.COOK, 1, scale, rng, getItem(q.itemId));
+      return q;
+    }
+
     if (type === 'craft') {
+      // Nur, was am heutigen Feuer wirklich gebaut werden kann – sonst läuft
+      // die Bitte vier Tage lang gegen „Das Feuer ist noch zu klein".
+      const pool = craftableAsks(feuerStufe(state));
+      if (!pool.length) return null;
       const q = this._base(spiritId, QTYPE.CRAFT, 1, day);
-      q.itemId = randPick(rng, CRAFTABLE_ASKS);
+      q.itemId = randPick(rng, pool);
       q.rewards = rewardFor(QTYPE.CRAFT, 1, scale, rng);
       return q;
     }
@@ -215,8 +554,15 @@ export class QuestBook {
       have: 0,
       turnedIn: false,
       day: day,
+      expires: day + lifetimeOf(type),
       rewards: { coins: 0, ember: 0, items: [] },
       hiddenIds: null,
+      // Nur bei Sammelbitten belegt: die geforderten Sorten und ihre Gruppe.
+      items: null,
+      setKey: null,
+      setName: null,
+      // Nur beim Botengang belegt: wo abgegeben wird.
+      turnInAt: null,
     };
   }
 
@@ -227,12 +573,37 @@ export class QuestBook {
     switch (q.type) {
       case QTYPE.GATHER:
       case QTYPE.CRAFT:
+      case QTYPE.COOK:
+      case QTYPE.DELIVER:
+      case QTYPE.GROW:
         return Math.min(q.need, ctx.inventory.count(q.itemId));
+      case QTYPE.SET: {
+        // Gezählt wird, wie viele der geforderten Sorten überhaupt dabei sind –
+        // nicht die Stückzahl. Ein Sack voll Beeren erfüllt nichts, wenn die
+        // Sternblume fehlt.
+        let da = 0;
+        for (let i = 0; i < q.items.length; i++) {
+          if (ctx.inventory.count(q.items[i]) > 0) da++;
+        }
+        return Math.min(q.need, da);
+      }
       case QTYPE.DECORATE:
         return Math.min(q.need, charmAround(ctx.world, q.spirit, getItem));
       default:
         return Math.min(q.need, q.have);
     }
+  }
+
+  /**
+   * Bitten, die bei DIESEM Geist abgegeben werden.
+   *
+   * Bei einem Botengang ist das nicht der, der sie gestellt hat – und genau
+   * darum geht es: Man muss wissen, wohin.
+   */
+  openAtSpirit(id) {
+    return this.quests.filter(function (q) {
+      return !q.turnedIn && (q.turnInAt || q.spirit) === id;
+    });
   }
 
   isReady(q, ctx) {
@@ -273,8 +644,12 @@ export class QuestBook {
     if (q.turnedIn) return null;
     if (!this.isReady(q, ctx)) return null;
 
-    if (q.type === QTYPE.GATHER || q.type === QTYPE.CRAFT) {
+    if (q.type === QTYPE.GATHER || q.type === QTYPE.CRAFT ||
+        q.type === QTYPE.COOK || q.type === QTYPE.DELIVER || q.type === QTYPE.GROW) {
       ctx.inventory.remove(q.itemId, q.need);
+    } else if (q.type === QTYPE.SET) {
+      // Von jeder Sorte genau eines – nicht der ganze Stapel.
+      for (let i = 0; i < q.items.length; i++) ctx.inventory.remove(q.items[i], 1);
     }
     q.turnedIn = true;
     this.completedBySpirit[q.spirit] = (this.completedBySpirit[q.spirit] || 0) + 1;
@@ -308,26 +683,81 @@ export class QuestBook {
     if (!data) return qb;
     questSeq = data.seq || 1;
     qb.quests = data.quests || [];
-    qb.completedBySpirit = data.done || qb.completedBySpirit;
+    // Ältere Spielstände kennen noch keine Frist. Sie nachzutragen ist besser,
+    // als diese Aufträge für immer stehen zu lassen: sonst blieben die Plätze
+    // bei jedem, der schon gespielt hat, dauerhaft blockiert.
+    for (let i = 0; i < qb.quests.length; i++) {
+      const q = qb.quests[i];
+      if (q.expires == null) q.expires = (q.day || 1) + lifetimeOf(q.type);
+    }
+    // Zusammenführen statt ersetzen: Ein Spielstand von vor dem siebten Geist
+    // kennt ihn nicht, und dann stünde für ihn `undefined` statt einer Null.
+    if (data.done) {
+      for (const id in data.done) qb.completedBySpirit[id] = data.done[id] | 0;
+    }
     qb.totalCompleted = data.total || 0;
     return qb;
   }
 }
 
+/**
+ * Was eine erledigte Bitte einbringt.
+ *
+ * Die Zahlen sind einmal komplett neu gesetzt worden, und zwar nach einer
+ * Messung, die das ganze Spiel betraf: Wer an einem Tag alle 21 offenen
+ * Bitten erledigte, verdiente **3 400 bis 6 000 Münzen**. Alles, was es im
+ * Spiel überhaupt zu kaufen gibt – Vorratstruhe, Bucht und der komplette
+ * Katalog – kostete zusammen 30 085. Das Spiel war nach sechs bis acht Tagen
+ * leergekauft, während die Farbanzeige rund sechzehn Tage braucht: Man besaß
+ * alles, lange bevor die Insel fertig war.
+ *
+ * Bei der Glut war es noch deutlicher – 460 für das ganze Lagergrundstück
+ * gegen 130 bis 250 am Tag, also zwei Tage für ein Vorhaben, das im Text
+ * „ein Vorhaben, kein Nachmittag" heißt.
+ *
+ * Also weniger je Bitte. Wichtiger aber: eine FLACHERE Kurve (siehe `scale`
+ * bei `generate`). Vorher verdreifachte sich der Lohn im Lauf des Spiels,
+ * und genau das macht späte Ziele wertlos – wer am Tag 40 das Vierfache
+ * verdient, für den kostet die letzte Truhenstufe weniger Arbeit als die
+ * erste.
+ */
 function rewardFor(type, count, scale, rng, item) {
   const perUnit = {
-    gather: item ? Math.max(6, item.value * 1.6) : 10,
-    find: 26,
-    fish: 20,
-    catch: 70,
-    visit: 54,
-    burn: 9,
-    craft: 46,
-    decorate: 30,
-  }[type] || 10;
+    // Eine Holbitte muss MEHR einbringen als dasselbe beim Händler zu
+    // verkaufen. Das klingt selbstverständlich und war es nicht: Mit dem
+    // Faktor 0,7 lag das Abgeben bei allem, was mehr als Holz wert ist, nur
+    // vier bis sieben Prozent über dem Verkaufspreis – man hätte das Kupfer
+    // verkauft und den Geistern das Holz gebracht. Ein Spiel, das vom Helfen
+    // handelt, darf das Helfen nicht zur teuren Variante machen.
+    //
+    // Mit 1,5 liegt die Abgabe je nach Tag und Freundschaft beim Anderthalb-
+    // bis Zweieinviertelfachen. Ein Test rechnet es für jeden Gegenstand nach.
+    gather: item ? Math.max(4, item.value * 1.5) : 8,
+    // Eine Sammelbitte kostet mehr Wege als eine Holbitte – das muss sich
+    // lohnen, sonst nimmt man lieber dreimal Holz.
+    set: 15,
+    // Ein Botengang kostet vor allem Laufweg.
+    deliver: 12,
+    // Ein Beet steht zwei bis vier Tage, bevor es etwas hergibt.
+    grow: 15,
+    find: 12,
+    fish: 9,
+    catch: 30,
+    visit: 24,
+    burn: 4,
+    craft: 20,
+    decorate: 14,
+    // Wie bei der Holbitte am Wert des Gerichts: Sonst brächte der
+    // Mondblütenkuchen (168) dasselbe wie das Beerenmus (34), und man kochte
+    // immer das Billigste. Der Faktor liegt unter dem der Holbitte, weil das
+    // Gericht schon die doppelte Summe seiner Zutaten wert IST – 1,5 wäre auf
+    // eine Verdopplung aufgesetzt und machte die Küche zur Münzpresse. Zwei
+    // Prüfungen rechnen beide Grenzen nach.
+    cook: item ? Math.max(20, item.value * 1.35) : 30,
+  }[type] || 5;
 
   const coins = Math.round(perUnit * count * scale);
-  const ember = Math.round((type === 'burn' ? 1 : 2) + count * 0.7 * scale);
+  const ember = Math.round((type === 'burn' ? 1 : 1) + count * 0.3 * scale);
   const items = [];
   if (rng() < 0.35) {
     items.push({ id: randPick(rng, ['fiber', 'stone', 'wood', 'clay', 'resin']), n: randInt(rng, 2, 4) });
@@ -338,18 +768,25 @@ function rewardFor(type, count, scale, rng, item) {
 /** Kurzbeschreibung für die Oberfläche – Symbol + Zahl, kein Fließtext. */
 export function questIcon(q) {
   switch (q.type) {
+    case QTYPE.SET: return 'icon_' + q.items[0];
+    case QTYPE.DELIVER: return 'icon_' + q.itemId;
+    case QTYPE.GROW: return 'icon_seed_berry';
     case QTYPE.FIND: return 'icon_' + q.itemId;
     case QTYPE.FISH: return 'icon_fish_trout';
     case QTYPE.CATCH: return 'icon_' + q.itemId;
     case QTYPE.VISIT: return 'icon_map';
     case QTYPE.BURN: return 'icon_campfire';
     case QTYPE.CRAFT: return 'icon_' + q.itemId;
+    case QTYPE.COOK: return 'icon_' + q.itemId;
     case QTYPE.DECORATE: return 'icon_flowerbed';
     default: return 'icon_' + q.itemId;
   }
 }
 
 export const QUEST_VERB = {
+  set: 'sammeln',
+  deliver: 'überbringen',
+  grow: 'anbauen',
   gather: 'bringen',
   find: 'finden',
   fish: 'angeln',
@@ -357,18 +794,26 @@ export const QUEST_VERB = {
   visit: 'hingehen',
   burn: 'verbrennen',
   craft: 'bauen',
+  cook: 'kochen',
   decorate: 'aufstellen',
 };
 
 export function questTitle(q) {
   const item = q.itemId ? getItem(q.itemId) : null;
   switch (q.type) {
+    case QTYPE.SET: return (q.setName || 'Allerlei') + ' sammeln';
+    case QTYPE.DELIVER: {
+      const zu = SPIRITS[q.turnInAt];
+      return (item ? item.name : 'Etwas') + ' zu ' + (zu ? zu.name : 'jemandem');
+    }
+    case QTYPE.GROW: return (item ? item.name : 'Etwas') + ' anbauen';
     case QTYPE.FIND: return (item ? item.name : 'Erinnerung') + ' finden';
     case QTYPE.FISH: return 'Fische angeln';
     case QTYPE.CATCH: return (item ? item.name : 'Fisch') + ' fangen';
     case QTYPE.VISIT: return 'Nachsehen gehen';
     case QTYPE.BURN: return 'Im Feuer verbrennen';
     case QTYPE.CRAFT: return (item ? item.name : 'Gegenstand') + ' bauen';
+    case QTYPE.COOK: return (item ? item.name : 'Etwas') + ' kochen';
     case QTYPE.DECORATE: return 'Gemütlicher machen';
     default: return (item ? item.name : 'Material') + ' bringen';
   }

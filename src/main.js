@@ -1,11 +1,15 @@
 /**
  * Einstiegspunkt: Startbildschirm, Bildgröße, Spielschleife.
  */
-import { initArt, hasSprite, spriteNames } from './art/sprites.js';
+import { initArt, hasSprite, spriteNames, spr } from './art/sprites.js';
 import { Input } from './core/input.js';
 import { audio } from './core/audio.js';
-import { Game } from './game/game.js';
+import { Game, parseSave } from './game/game.js';
+import { openFile } from './core/savefile.js';
 import * as storage from './core/storage.js';
+import { makeClock, advance, FIXED_DT } from './core/clock.js';
+import { applySeason } from './art/season.js';
+import { seasonOf, forceSeason } from './game/calendar.js';
 
 const canvas = document.getElementById('game');
 const stage = document.getElementById('stage');
@@ -13,13 +17,14 @@ const boot = document.getElementById('boot');
 const bootCard = document.getElementById('boot-card');
 const btnNew = document.getElementById('btn-new');
 const btnContinue = document.getElementById('btn-continue');
+const btnLoad = document.getElementById('btn-load');
+const bootNote = document.getElementById('boot-note');
 
 let game = null;
 let input = null;
 let rafId = 0;
 let lastTime = 0;
-let accumulator = 0;
-const FIXED_DT = 1 / 60;
+const clock = makeClock();
 
 function fitCanvas() {
   const w = stage.clientWidth;
@@ -27,8 +32,18 @@ function fitCanvas() {
   canvas.style.width = w + 'px';
   canvas.style.height = h + 'px';
 
-  const uiScale = Math.max(0.85, Math.min(1.35, Math.min(w, h * 1.6) / 900 + 0.8));
-  document.documentElement.style.setProperty('--ui-scale', uiScale.toFixed(2));
+  // Anpassung an das Fenster – NUR sie, nicht die ganze Größe.
+  //
+  // Vorher stand hier `--ui-scale`, und damit war die Einstellung im Spiel
+  // wirkungslos: Sie wurde bei jedem Bildwechsel überschrieben. Jetzt gibt es
+  // zwei Faktoren, `--ui-fit` (hier) und `--ui-user` (Einstellungen), die das
+  // Stylesheet miteinander multipliziert.
+  //
+  // Die Zahl ist auf 1,0 bei einem üblichen Fenster (etwa 1280 breit) geeicht;
+  // die Grundgrößen im Stylesheet sind die, die man dort sieht. Nach unten geht
+  // es bis 0,84, damit auf einem Telefon nichts über den Rand läuft.
+  const fit = Math.max(0.84, Math.min(1.08, 0.55 + Math.min(w, h * 1.6) / 2900));
+  document.documentElement.style.setProperty('--ui-fit', fit.toFixed(3));
 
   if (game) game.syncViewport();
 }
@@ -38,29 +53,32 @@ function loop(now) {
   if (!game) return;
 
   if (!lastTime) lastTime = now;
-  let dt = (now - lastTime) / 1000;
+  const dt = (now - lastTime) / 1000;
   lastTime = now;
-  if (dt > 0.25) dt = 0.25;
 
-  accumulator += dt;
-  let steps = 0;
   // endFrame() gehört hinter JEDEN Simulationsschritt – sonst sähen mehrere
   // Schritte im selben Bild denselben Tastendruck.
-  while (accumulator >= FIXED_DT && steps < 5) {
+  const steps = advance(clock, dt);
+  for (let i = 0; i < steps; i++) {
     game.update(FIXED_DT);
     input.endFrame();
-    accumulator -= FIXED_DT;
-    steps++;
-  }
-  if (steps === 0 && accumulator > 0) {
-    game.update(accumulator);
-    input.endFrame();
-    accumulator = 0;
   }
 
+  // Der angebrochene Schritt wird NICHT simuliert, sondern gezeichnet: das
+  // Bild zeigt den Zwischenstand. Vorher lief hier ein zusätzlicher Schritt
+  // von der Länge des Rests, und der Rest wurde danach weggeworfen. Auf einem
+  // 60-Hz-Bildschirm fiel das kaum auf; auf 120 oder 144 Hz war fast jeder
+  // Schritt kürzer als 1/60 s, und die Figur lief mit ungleichmäßigem Takt.
   const drawStart = performance.now();
-  game.draw();
+  const gezeichnet = game.draw(clock.alpha);
   const drawMs = performance.now() - drawStart;
+
+  // Hinter einem offenen Fenster wird nichts gezeichnet – dann darf auch die
+  // Auflösung nicht nachgeregelt und kein Bodenstück vorgemalt werden. Sonst
+  // hielte das Spiel die kurze Bildzeit für Leistungsreserve und finge an,
+  // ausgerechnet dort zu arbeiten, wo man gerade in Ruhe etwas ansieht.
+  if (!gezeichnet) return;
+
   if (game.renderer.adapt(drawMs, game.camera)) {
     game.ui.layout();
     game.ground.prewarm(game.camera.ox, game.camera.oy,
@@ -95,7 +113,8 @@ function startGame(save) {
   }
 
   lastTime = 0;
-  accumulator = 0;
+  clock.accumulator = 0;
+  clock.alpha = 0;
   if (!rafId) rafId = requestAnimationFrame(loop);
 }
 
@@ -147,6 +166,21 @@ function setupLifecycle() {
   canvas.addEventListener('pointerdown', function () { audio.resume(); });
 }
 
+/**
+ * Eine Jahreszeit aus der Adresse: `?season=winter`.
+ *
+ * Nur zum Nachsehen. Steht dort Unsinn, gibt es null zurück, und der
+ * Kalender behält recht.
+ */
+function erwuenschteJahreszeit() {
+  try {
+    const p = new URLSearchParams(window.location.search).get('season');
+    return p || null;
+  } catch (err) {
+    return null;
+  }
+}
+
 /** Die Grafik entsteht erst beim Start – das dauert einen Moment. */
 function paintArt(done) {
   const note = document.createElement('p');
@@ -158,6 +192,16 @@ function paintArt(done) {
   requestAnimationFrame(function () {
     setTimeout(function () {
       const t0 = (window.performance || Date).now();
+      // Die Jahreszeit MUSS vor dem Malen feststehen: Danach stehen die
+      // Grafiken, und ein Wechsel bliebe ohne Wirkung. Dafür kostet er so
+      // auch nichts – die Wiese und die Kronen kommen von selbst richtig.
+      //
+      // `?season=winter` schaltet sie um, damit man im Juni nachsehen kann,
+      // wie der Schnee fällt. Es geht durch `forceSeason`, weil daran auch
+      // Wetter, Fische und Falter hängen – ein zweiter Schalter wäre eine
+      // zweite Wahrheit.
+      forceSeason(erwuenschteJahreszeit());
+      applySeason(seasonOf(new Date()).id);
       initArt();
       const ms = Math.round(((window.performance || Date).now()) - t0);
       if (window.console && window.console.info) console.info('Grafik gemalt in ' + ms + ' ms');
@@ -181,7 +225,10 @@ function main() {
     start: startGame,
     ready: false,
     get game() { return game; },
-    art: { has: hasSprite, names: spriteNames },
+    // `of` gibt den Registereintrag heraus: { c, g, w, h, ... }. Nur zum
+    // Hinsehen gedacht – die Prüfungen im Browser messen damit, ob eine
+    // Grafik wirklich gemalt wurde und nicht nur einen Namen hat.
+    art: { has: hasSprite, names: spriteNames, of: spr },
     version: '2.0.0',
   };
 
@@ -197,6 +244,27 @@ function main() {
       if (save && !window.confirm('Der alte Spielstand wird überschrieben. Fortfahren?')) return;
       storage.clearSave();
       startGame(null);
+    });
+
+    // Spielstand aus einer Datei – direkt auf dem Startbildschirm.
+    //
+    // Genau hier braucht man ihn: Wer eine neuere Fassung des Spiels bekommt
+    // und sie öffnet, sieht womöglich nur „Neues Spiel", weil der Browser den
+    // Speicher an die alte Datei gebunden hat. Der Weg über die Einstellungen
+    // führt durch ein Spiel, das man dafür erst anfangen müsste – und wer
+    // dafür „Neues Spiel" drückt, hat den alten Stand überschrieben.
+    btnLoad.addEventListener('click', function () {
+      openFile().then(function (text) {
+        if (!text) return;
+        const geprueft = parseSave(text);
+        if (!geprueft.ok) {
+          bootNote.hidden = false;
+          bootNote.textContent = geprueft.reason + '. Es wurde nichts überschrieben.';
+          return;
+        }
+        storage.writeSave(geprueft.data);
+        startGame(geprueft.data);
+      });
     });
 
     window.addEventListener('keydown', function (e) {

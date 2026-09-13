@@ -8,6 +8,8 @@ import {
   CHANNEL_X0, CHANNEL_X1, startPosition,
 } from '../../src/world/worldgen.js';
 import { T, isWalkable, isWater, TILE_SIZE } from '../../src/art/tiles.js';
+import { spriteFor, ENTITY_DEFS } from '../../src/world/entities.js';
+import { SPIRIT_IDS } from '../../src/game/spirits.js';
 
 const SEED = 12345;
 
@@ -121,16 +123,20 @@ test('Insel wird bevölkert: Bäume, Geister, Lager', () => {
 
   assert.ok(world.entities.length > 300, 'genug Objekte, waren ' + world.entities.length);
   assert.ok((kinds.tree_oak || 0) + (kinds.tree_pine || 0) + (kinds.tree_birch || 0) > 80, 'Bäume');
-  assert.equal(kinds.spirit, 6, 'sechs Geister');
+  assert.equal(kinds.spirit, SPIRIT_IDS.length, 'ein Geist je Eintrag');
   assert.equal(kinds.campfire, 1);
   assert.equal(kinds.tent, 1);
   assert.equal(kinds.stall, 1);
   assert.equal(kinds.workbench, 1);
   assert.equal(kinds.log_barrier, 1);
 
-  for (const id of ['flamey', 'mira', 'kiesel', 'bruno', 'tobi', 'nelly']) {
+  // Aus der Quelle abgeleitet: eine zweite Namensliste veraltet beim
+  // nächsten Geist stillschweigend.
+  for (const id of SPIRIT_IDS) {
     assert.ok(world.spiritEntity(id), 'Geist ' + id + ' vorhanden');
   }
+  // Und die beiden Ruderboote, ohne die die Stille Insel unerreichbar ist
+  assert.equal(kinds.boat, 2, 'an jedem Ufer ein Boot');
 });
 
 test('Objekte stehen nur auf begehbarem Boden', () => {
@@ -177,6 +183,49 @@ test('Abgebaute Bäume kehren nach der Wartezeit zurück', () => {
   world.newDay(4);
   assert.equal(tree.kind, 'tree_oak', 'wieder Baum');
   assert.equal(tree.origin, null);
+});
+
+test('Der zurückgekehrte Baum hat wieder eine Grafik, die es gibt', () => {
+  // Der Fehler dahinter: beim Zurückverwandeln wurde `def.sprite` gesetzt,
+  // also `tree_oak`. Gemalt sind aber nur `tree_oak_0` bis `_2`. Der Baum war
+  // damit am nächsten Tag unsichtbar – und stand trotzdem im Weg.
+  const world = new World(SEED).populate();
+  const arten = ['tree_oak', 'tree_birch', 'tree_maple', 'tree_pine'];
+  let geprueft = 0;
+  for (const art of arten) {
+    const tree = world.entities.find((e) => e.kind === art);
+    if (!tree) continue;
+    const vorher = tree.sprite;
+    assert.equal(vorher, spriteFor(art, tree.x, tree.y));
+    tree.origin = art;
+    tree.kind = 'tree_stump';
+    tree.sprite = 'tree_stump';
+    tree.respawnDay = 5;
+    world.newDay(5);
+    assert.equal(tree.kind, art);
+    assert.equal(tree.sprite, vorher, art + ' bekommt seine Fassung nicht zurück');
+    assert.ok(/_\d$/.test(tree.sprite), art + ' hat keine Fassungsnummer: ' + tree.sprite);
+    geprueft++;
+  }
+  assert.ok(geprueft >= 3, 'zu wenige Baumarten geprüft: ' + geprueft);
+});
+
+test('spriteFor liefert nur Namen, die auch gemalt sind', () => {
+  // Gegenprobe zur Grafikliste: jede Art, die eine Grafik hat, muss einen
+  // Namen liefern, den die Zeichenschicht kennt.
+  for (const kind of Object.keys(ENTITY_DEFS)) {
+    const def = ENTITY_DEFS[kind];
+    if (!def.sprite) continue;
+    const name = spriteFor(kind, 640, 640);
+    assert.ok(name, kind + ' liefert keinen Grafiknamen');
+    if (def.variants > 1) {
+      assert.ok(name.startsWith(def.sprite + '_'), kind + ': ' + name);
+      const nr = Number(name.slice(def.sprite.length + 1));
+      assert.ok(nr >= 0 && nr < def.variants, kind + ': Fassung ' + nr + ' gibt es nicht');
+    } else {
+      assert.equal(name, def.sprite);
+    }
+  }
 });
 
 test('Regionszuordnung passt zur Karte', () => {

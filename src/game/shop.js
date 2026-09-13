@@ -8,6 +8,16 @@ const BUY_POOL = [
   'wood', 'stone', 'fiber', 'clay', 'resin', 'hardwood', 'copper_ore',
 ];
 
+/**
+ * Saat steht IMMER im Regal, nicht nur wenn der Zufall es will.
+ *
+ * Ein Garten, für den man tagelang auf das richtige Angebot warten muss, ist
+ * kein Garten. Die Mondsaat ist die Ausnahme – sie kommt nur an manchen Tagen
+ * und ist teuer genug, dass man sich freut, wenn sie da ist.
+ */
+const SEED_ALWAYS = ['seed_berry', 'seed_herb', 'seed_flower'];
+const SEED_RARE = 'seed_moon';
+
 const WANTED_POOL = ITEM_LIST
   .filter(function (i) { return i.value > 0 && i.cat !== CAT.MEMORY && i.cat !== CAT.DECOR; })
   .map(function (i) { return i.id; });
@@ -24,6 +34,12 @@ export class Shop {
     this.stock = [];
     this.wanted = null;
     this.wantedBonus = 2;
+    /** Aufschlag aus dem Tagesereignis; 1 heißt: ein ganz normaler Tag. */
+    this.dayBonus = 1;
+    /** Dauerhafter Aufschlag aus dem Meilenstein „Guter Ruf". */
+    this.bonus = 1;
+    /** Führt der Laden jede Saat jeden Tag? Meilenstein „Die Insel ist ganz". */
+    this.allSeeds = false;
     this.day = 0;
   }
 
@@ -42,6 +58,19 @@ export class Shop {
         price: buyPrice(id),
       });
     }
+    // Saat zuerst, damit sie nicht von der Höchstzahl verdrängt wird
+    for (let i = 0; i < SEED_ALWAYS.length; i++) {
+      const it = getItem(SEED_ALWAYS[i]);
+      if (!it) continue;
+      this.stock.unshift({ id: it.id, left: randInt(rng, 2, 5), price: buyPrice(it.id) });
+    }
+    if (this.allSeeds || rng() < 0.34) {
+      const mond = getItem(SEED_RARE);
+      if (mond) {
+        this.stock.unshift({ id: mond.id, left: this.allSeeds ? 3 : 1, price: buyPrice(mond.id) });
+      }
+    }
+
     this.wanted = randPick(rng, WANTED_POOL);
     this.wantedBonus = 2 + (rng() < 0.25 ? 1 : 0);
     this.day = day;
@@ -49,10 +78,18 @@ export class Shop {
   }
 
   /** Verkaufspreis inkl. Tagesgesuch. */
+  /**
+   * Was der Händler zahlt.
+   *
+   * `dayBonus` ist der Aufschlag am Markttag. Er greift auch auf das Gesuch
+   * des Tages – wer am Markttag genau das Gesuchte bringt, hat einen richtig
+   * guten Tag, und das darf sich anfühlen wie einer.
+   */
   sellPrice(id) {
     const it = getItem(id);
     if (!it || it.value <= 0) return 0;
-    return id === this.wanted ? Math.round(it.value * this.wantedBonus) : it.value;
+    const basis = id === this.wanted ? it.value * this.wantedBonus : it.value;
+    return Math.round(basis * (this.dayBonus || 1) * (this.bonus || 1));
   }
 
   entry(id) {

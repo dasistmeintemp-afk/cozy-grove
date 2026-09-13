@@ -9,7 +9,7 @@ import { SPIRITS } from '../game/spirits.js';
 import { questIcon, questTitle } from '../game/quests.js';
 import { getItem } from '../game/items.js';
 
-const TOOL_KEYS = ['1', '2', '3', '4', '5', '6'];
+const TOOL_KEYS = ['1', '2', '3', '4', '5', '6', '7'];
 const ROMAN = { 1: '', 2: 'II', 3: 'III', 4: 'IV' };
 
 export class UI {
@@ -33,6 +33,7 @@ export class UI {
       fishingHint: document.getElementById('fishing-hint'),
       stage: document.getElementById('stage'),
       canvas: document.getElementById('game'),
+      hudTop: document.getElementById('hud-top'),
     };
     this.view = { left: 0, top: 0, scale: 1 };
     this.bubbles = [];
@@ -79,11 +80,15 @@ export class UI {
 
   refreshToolbelt() {
     const p = this.game.player;
-    const sig = p.toolIndex + ':' + p.levels.axe + p.levels.pickaxe + p.levels.shovel + p.levels.rod;
+    let sig = p.toolIndex + ':';
+    for (let i = 0; i < TOOLS.length; i++) sig += (p.levels[TOOLS[i].id] || 0) + '.';
     if (sig === this._toolSig) return;
     this._toolSig = sig;
     for (let i = 0; i < this.toolButtons.length; i++) {
       const btn = this.toolButtons[i];
+      // Was noch nicht gebaut ist, steht auch nicht in der Leiste. Ein leerer
+      // Platz mit Fragezeichen wäre ein Rätsel ohne Hinweis.
+      btn.hidden = !p.owns(i);
       btn.setAttribute('aria-pressed', String(i === p.toolIndex));
       const lvl = p.levels[TOOLS[i].id] || 1;
       btn.querySelector('.lvl').textContent = ROMAN[lvl] || '';
@@ -99,6 +104,27 @@ export class UI {
     // CSS-Pixel je Gerätepixel mal Zoom = Weltpixel -> Bildschirm
     const perDevice = this.el.canvas.width ? rect.width / this.el.canvas.width : 1;
     this.view.scale = perDevice * (this.game.renderer ? this.game.renderer.zoom : 1);
+    this.measureHud();
+  }
+
+  /**
+   * Sagt dem Stylesheet, wie hoch die Kopfzeile gerade wirklich ist.
+   *
+   * Sie bricht um: Auf einem schmalen Bildschirm rutschen die Knöpfe unter die
+   * Anzeigen, und ob sie das tun, hängt auch an der Zahl der Münzen. Ein fester
+   * Abstand für die Aufgabenleiste darunter kann das nicht treffen – sie lag
+   * dann quer über den Knöpfen. Gemessen wird nur, wenn sich etwas geändert
+   * hat: `getBoundingClientRect` erzwingt ein Neuberechnen des Layouts, und das
+   * gehört nicht in jedes Bild.
+   */
+  measureHud() {
+    const hud = this.el.hudTop;
+    if (!hud) return;
+    const stage = this.el.stage.getBoundingClientRect();
+    const unten = Math.round(hud.getBoundingClientRect().bottom - stage.top);
+    if (unten === this._hudBottom) return;
+    this._hudBottom = unten;
+    document.documentElement.style.setProperty('--hud-h', unten + 'px');
   }
 
   worldToScreen(wx, wy) {
@@ -118,6 +144,13 @@ export class UI {
     this.el.coins.textContent = num(g.state.coins);
     this.el.ember.textContent = num(g.state.ember);
     this.el.color.textContent = Math.round(g.colorField.coverage(g.world) * 100) + '%';
+    // Aus 999 werden 1.024 Münzen, und die Kopfzeile bricht um. Nur dann neu
+    // messen, nicht in jedem Bild.
+    const breite = this.el.coins.textContent.length + this.el.ember.textContent.length;
+    if (breite !== this._hudTextLen) {
+      this._hudTextLen = breite;
+      this.measureHud();
+    }
   }
 
   setPrompt(text) {
@@ -153,13 +186,21 @@ export class UI {
       card.type = 'button';
       card.className = 'qcard' + (done ? ' done' : '');
       card.title = spirit.name + ' – ' + questTitle(q) + ' (' + have + '/' + q.need + ')';
+      // Was gewollt ist, steht jetzt als Wort da.
+      //
+      // Vorher trug die Karte nur ein Symbol, „4/6" und den Namen des Geistes.
+      // Man sah, dass jemand etwas will und wie weit es ist – aber nicht, WAS.
+      // Bei sechs ähnlich aussehenden Sammelsymbolen half auch das Symbol
+      // nicht weiter, und der Titel stand nur im Mauszeiger-Hinweis, den man
+      // auf einem Telefon gar nicht bekommt.
       card.innerHTML =
-        '<span class="ico" style="background-image:url(' + iconUrl(questIcon(q)) + ')"></span>' +
+        '<span class="ico lg" style="background-image:url(' + iconUrl(questIcon(q)) + ')"></span>' +
         '<span class="who">' +
-        '<span class="goal"><span class="count">' + have + '/' + q.need + '</span>' +
-        (done ? '<span class="ico" style="width:12px;height:12px;background-image:url(' + iconUrl('icon_check') + ')"></span>' : '') +
+        '<span class="goal"><span class="what">' + escapeHtml(questTitle(q)) + '</span>' +
+        (done ? '<span class="ico" style="background-image:url(' + iconUrl('icon_check') + ')"></span>' : '') +
         '</span>' +
-        '<span class="name">' + spirit.name + '</span>' +
+        '<span class="name">' + escapeHtml(spirit.name) + ' · ' +
+        '<span class="count">' + have + '/' + q.need + '</span></span>' +
         '</span>';
       const self = this;
       card.addEventListener('click', function () {
@@ -202,13 +243,16 @@ export class UI {
   /* ---------- Sprechblasen ---------- */
 
   /**
-   * Kurze Blase über einer Weltposition.
-   * Absichtlich knapp: ein paar Wörter oder nur Symbole.
+   * Blase über einer Weltposition.
+   *
+   * Im Alltag knapp: ein paar Wörter oder nur Symbole. Für die Sätze aus den
+   * Erinnerungen gibt es `wrap` – die sind ein ganzer Satz und liefen sonst
+   * als eine einzige Zeile aus dem Bild hinaus.
    */
-  bubble(x, y, text, icons, duration) {
+  bubble(x, y, text, icons, duration, wrap) {
     if (this.game.settings.talk === 'off' && !icons) return null;
     const el = document.createElement('div');
-    el.className = 'bubble';
+    el.className = wrap ? 'bubble wrap' : 'bubble';
     let html = '';
     if (icons) {
       for (let i = 0; i < icons.length; i++) {
@@ -228,6 +272,22 @@ export class UI {
     return b;
   }
 
+  /**
+   * Eine Blase an einem BILDpunkt statt an einem Weltpunkt.
+   *
+   * Für das Hausinnere: Dort gibt es keine Kamera und keine Weltkoordinaten,
+   * also auch nichts, was `worldToScreen` umrechnen könnte. `fest` sagt der
+   * Nachführung, dass sie diese Blase in Ruhe lassen soll.
+   */
+  bubbleAtScreen(x, y, text, duration) {
+    const b = this.bubble(0, 0, text, null, duration, true);
+    if (!b) return null;
+    b.fest = true;
+    b.el.style.left = Math.round(x) + 'px';
+    b.el.style.top = Math.round(y) + 'px';
+    return b;
+  }
+
   updateBubbles(dt) {
     for (let i = this.bubbles.length - 1; i >= 0; i--) {
       const b = this.bubbles[i];
@@ -239,6 +299,7 @@ export class UI {
         this.bubbles.splice(i, 1);
         continue;
       }
+      if (b.fest) continue;   // steht schon am Bildpunkt, siehe `bubbleAtScreen`
       this._positionBubble(b);
     }
   }
@@ -247,6 +308,22 @@ export class UI {
     const s = this.worldToScreen(b.x, b.y);
     b.el.style.left = Math.round(s.x) + 'px';
     b.el.style.top = Math.round(s.y) + 'px';
+  }
+
+  /**
+   * Eine einzelne Blase sofort wegnehmen.
+   *
+   * Für Gespräche, bei denen zwei Sätze kurz hintereinander fallen: Beim
+   * Wanderer drückt man zweimal – erst grüßt er, dann wird getauscht –, und
+   * ohne das stand der zweite Satz als zweite Blase über dem ersten. Im
+   * Bildschirmfoto sah das aus wie ein Kasten mit drei Zeilen, von denen
+   * zwei nicht zusammengehörten.
+   */
+  dropBubble(b) {
+    if (!b) return;
+    const i = this.bubbles.indexOf(b);
+    if (i >= 0) this.bubbles.splice(i, 1);
+    if (b.el && b.el.parentNode) b.el.parentNode.removeChild(b.el);
   }
 
   clearBubbles() {

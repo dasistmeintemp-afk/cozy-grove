@@ -1,4 +1,5 @@
 /** Gegenstandsdatenbank. */
+import { inSeason } from './seasons.js';
 
 export const CAT = {
   MATERIAL: 'material',
@@ -8,6 +9,8 @@ export const CAT = {
   RELIC: 'relic',
   MEMORY: 'memory',
   DECOR: 'decor',
+  SEED: 'seed',
+  DISH: 'dish',
 };
 
 export const CAT_NAMES = {
@@ -18,6 +21,8 @@ export const CAT_NAMES = {
   relic: 'Fundstücke',
   memory: 'Erinnerungen',
   decor: 'Deko',
+  seed: 'Saat',
+  dish: 'Küche',
 };
 
 function it(id, name, cat, value, burn, extra) {
@@ -40,12 +45,18 @@ const LIST = [
   it('hardwood', 'Hartholz', CAT.MATERIAL, 9, 3),
   it('stone', 'Stein', CAT.MATERIAL, 3, 0),
   it('copper_ore', 'Kupfererz', CAT.MATERIAL, 11, 0),
+  // Aus dem Hochland der Stillen Insel. Ein neuer Bereich braucht etwas, das
+  // es nur dort gibt – sonst ist er eine größere Fläche mit demselben Kram.
+  it('granite', 'Granit', CAT.MATERIAL, 19, 0),
   it('fiber', 'Pflanzenfaser', CAT.MATERIAL, 2, 1),
   it('resin', 'Harz', CAT.MATERIAL, 7, 2),
   it('clay', 'Ton', CAT.MATERIAL, 4, 0),
   it('shell', 'Muschel', CAT.MATERIAL, 5, 1),
   it('feather', 'Feder', CAT.MATERIAL, 4, 1),
   it('driftwood', 'Treibholz', CAT.MATERIAL, 4, 2),
+  // Liegt am Morgen nach einer Sternennacht am Spülsaum. Wertvoll, weil das
+  // Ereignis selten ist – nicht, weil er schwer zu finden wäre.
+  it('stardust', 'Sternenstaub', CAT.MATERIAL, 38, 6),
 
   // Sammelgut
   it('berry', 'Waldbeeren', CAT.FORAGE, 6, 2),
@@ -61,6 +72,7 @@ const LIST = [
   it('shard', 'Tonscherbe', CAT.RELIC, 14, 4),
   it('bottle', 'Flaschenpost', CAT.RELIC, 10, 3),
   it('gem', 'Meerkristall', CAT.RELIC, 45, 10),
+  it('amber', 'Bernstein', CAT.RELIC, 70, 14),
   it('coin_pouch', 'Münzbeutel', CAT.RELIC, 0, 0, { opens: [40, 90] }),
 
   // Fische
@@ -93,14 +105,32 @@ const LIST = [
   it('memory_photo', 'Altes Foto', CAT.MEMORY, 0, 0, { quest: true }),
   it('memory_ribbon', 'Haarband', CAT.MEMORY, 0, 0, { quest: true }),
   it('memory_teacup', 'Teetasse', CAT.MEMORY, 0, 0, { quest: true }),
+  it('memory_shellchain', 'Muschelkette', CAT.MEMORY, 0, 0, { quest: true }),
 
   // Nur unter bestimmten Bedingungen zu finden – das ist der Grund, an einem
   // anderen Tag oder zu anderer Stunde wiederzukommen.
+  // Wächst nirgends wild. Sie kommt nur dort, wo Blumenbeete beieinander
+  // stehen – siehe `kreuzChance` in crops.js. Das einzige Stück im Spiel, das
+  // man nicht findet, sondern zieht.
+  it('flower_dusk', 'Dämmerblume', CAT.FORAGE, 26, 6),
   it('moonflower', 'Mondblume', CAT.FORAGE, 34, 6, { onlyAt: 'night', spawn: 7 }),
   it('rainmushroom', 'Regenpilz', CAT.FORAGE, 30, 6, { onlyAt: 'rain', spawn: 8 }),
   it('fogcrystal', 'Nebelkristall', CAT.RELIC, 48, 9, { onlyAt: 'fog', spawn: 5 }),
 
+  // An die Wand – nur im Zimmer. `wand` sagt: Das hängt, es steht nicht.
+  // Draußen gibt es dafür keinen Platz, und das Spiel sagt es auch.
+  it('picture', 'Bild', CAT.DECOR, 64, 0, { prop: 'picture', wand: true, charm: 5 }),
+  it('shelf', 'Wandbrett', CAT.DECOR, 58, 0, { prop: 'shelf', wand: true, charm: 4 }),
+  it('wreath', 'Kranz', CAT.DECOR, 96, 0, { prop: 'wreath', wand: true, charm: 6 }),
+  it('hangplant', 'Hängepflanze', CAT.DECOR, 130, 0, { prop: 'hangplant', wand: true, charm: 7 }),
+
   // Deko (aufstellbar)
+  // Die Reiselaterne kommt aus keiner Werkbank und aus keinem Katalog – sie
+  // ist das einzige Stück im Spiel, das man nur geschenkt bekommen kann,
+  // und zwar vom Wanderer beim zweiten Tausch. Ein Besucher, der nur
+  // Vorhandenes weiterreicht, wäre ein Händler mit Hut.
+  it('travellamp', 'Reiselaterne', CAT.DECOR, 210, 0,
+    { prop: 'travellamp', light: 146, charm: 11 }),
   it('lantern', 'Laterne', CAT.DECOR, 40, 0, { prop: 'lantern', light: 62, charm: 4 }),
   it('moonlamp', 'Mondlaterne', CAT.DECOR, 120, 0, { prop: 'lantern', light: 128, charm: 9 }),
   it('bench', 'Holzbank', CAT.DECOR, 46, 0, { prop: 'bench', charm: 4 }),
@@ -112,6 +142,69 @@ const LIST = [
   it('path_tile', 'Steinweg', CAT.DECOR, 8, 0, { prop: 'path_tile', charm: 1, tile: true }),
   it('signpost', 'Wegweiser', CAT.DECOR, 30, 0, { prop: 'signpost', charm: 2 }),
   it('bridge_kit', 'Brückenbausatz', CAT.DECOR, 0, 0, { special: 'bridge' }),
+
+  // Zum Einrichten. Zehn Stücke waren zu wenig, um sich ein Zuhause
+  // zurechtzulegen – erst mit Sitzgruppe, Licht, Garten und etwas, das flach
+  // am Boden liegt, wird aus Hinstellen ein Einrichten.
+  it('table', 'Gartentisch', CAT.DECOR, 64, 0, { prop: 'table', charm: 5 }),
+  it('chair', 'Gartenstuhl', CAT.DECOR, 42, 0, { prop: 'chair', charm: 3 }),
+  it('hammock', 'Hängematte', CAT.DECOR, 150, 0, { prop: 'hammock', charm: 9 }),
+  it('swing', 'Schaukel', CAT.DECOR, 175, 0, { prop: 'swing', charm: 10 }),
+  it('firebowl', 'Feuerschale', CAT.DECOR, 130, 0, { prop: 'firebowl', light: 96, charm: 8 }),
+  it('stringlights', 'Lichterkette', CAT.DECOR, 165, 0,
+    { prop: 'stringlights', light: 138, charm: 10 }),
+  it('paperlamp', 'Papierlampion', CAT.DECOR, 88, 0, { prop: 'paperlamp', light: 74, charm: 6 }),
+  it('planter', 'Pflanzkübel', CAT.DECOR, 56, 0, { prop: 'planter', charm: 5 }),
+  it('trellis', 'Rankgitter', CAT.DECOR, 96, 0, { prop: 'trellis', charm: 7 }),
+  it('birdbath', 'Vogeltränke', CAT.DECOR, 110, 0, { prop: 'birdbath', charm: 7 }),
+  it('beehive', 'Bienenkorb', CAT.DECOR, 145, 0, { prop: 'beehive', charm: 8 }),
+  it('scarecrow', 'Vogelscheuche', CAT.DECOR, 78, 0, { prop: 'scarecrow', charm: 5 }),
+  it('weathervane', 'Wetterhahn', CAT.DECOR, 190, 0, { prop: 'weathervane', charm: 11 }),
+  it('bowl', 'Futternapf', CAT.DECOR, 120, 0, { prop: 'bowl', charm: 3 }),
+  it('mat', 'Bastmatte', CAT.DECOR, 36, 0, { prop: 'mat', charm: 3, flat: true }),
+  it('pond', 'Zierteich', CAT.DECOR, 210, 0, { prop: 'pond', charm: 12, flat: true }),
+
+  // Nachschub für die Wünsche: zwei Stücke je Sorte. Der Grund steht in
+  // `painted-decor.js` – eine Sorte mit vier Möglichkeiten ist nach dreißig
+  // Wünschen keine Entscheidung mehr.
+  it('stump', 'Baumstumpfhocker', CAT.DECOR, 34, 0, { prop: 'stump', charm: 3 }),
+  it('stonebench', 'Steinbank', CAT.DECOR, 125, 0, { prop: 'stonebench', charm: 8 }),
+  it('stonelamp', 'Steinlaterne', CAT.DECOR, 158, 0,
+    { prop: 'stonelamp', light: 104, charm: 9 }),
+  it('torch', 'Fackel', CAT.DECOR, 52, 0, { prop: 'torch', light: 88, charm: 4 }),
+  it('flowerbox', 'Blumenkasten', CAT.DECOR, 72, 0, { prop: 'flowerbox', charm: 6 }),
+  it('bonsai', 'Bonsai', CAT.DECOR, 168, 0, { prop: 'bonsai', charm: 10 }),
+  it('hedgehogbox', 'Igelhaus', CAT.DECOR, 86, 0, { prop: 'hedgehogbox', charm: 6 }),
+  it('feeder', 'Futterhäuschen', CAT.DECOR, 104, 0, { prop: 'feeder', charm: 7 }),
+  it('steppingstones', 'Trittsteine', CAT.DECOR, 28, 0,
+    { prop: 'steppingstones', charm: 2, flat: true }),
+  it('arch', 'Torbogen', CAT.DECOR, 196, 0, { prop: 'arch', charm: 11 }),
+  it('clothesline', 'Wäscheleine', CAT.DECOR, 68, 0, { prop: 'clothesline', charm: 6 }),
+  it('bookstack', 'Bücherkiste', CAT.DECOR, 92, 0, { prop: 'bookstack', charm: 7 }),
+
+  // Gerichte aus der Küche. Der Wert liegt bei rund dem Doppelten der
+  // Zutaten – das ist der wirtschaftliche Sinn der Sache, siehe
+  // `kitchen.js`. Verbrennbar sind sie NICHT: Etwas Gekochtes ins Feuer zu
+  // werfen wäre die zweite Handlung nach der Saat, die hier wirklich schade
+  // wäre.
+  it('dish_berrymash', 'Beerenmus', CAT.DISH, 34, 0),
+  it('dish_flowersalad', 'Blütensalat', CAT.DISH, 40, 0),
+  it('dish_herbtea', 'Kräutertee', CAT.DISH, 38, 0),
+  it('dish_mushroompan', 'Pilzpfanne', CAT.DISH, 52, 0),
+  it('dish_violetsyrup', 'Glockensirup', CAT.DISH, 50, 0),
+  it('dish_forestsoup', 'Waldsuppe', CAT.DISH, 62, 0),
+  it('dish_berrycake', 'Beerenkuchen', CAT.DISH, 58, 0),
+  it('dish_rainstew', 'Regenpilz-Eintopf', CAT.DISH, 140, 0),
+  it('dish_mooncake', 'Mondblütenkuchen', CAT.DISH, 168, 0),
+
+  // Saat. `plant` sagt dem Aufstellen, dass hier ein Beet entsteht und keine
+  // Deko; `prop` ist die reife Pflanze – so sieht man beim Setzen schon, was
+  // daraus wird. Nicht verbrennbar: Saat ins Feuer zu werfen wäre die eine
+  // Handlung, die in diesem Spiel wirklich schade wäre.
+  it('seed_berry', 'Beerensaat', CAT.SEED, 9, 0, { plant: 'berry', prop: 'crop_berry_2' }),
+  it('seed_herb', 'Krautsaat', CAT.SEED, 8, 0, { plant: 'herb', prop: 'crop_herb_2' }),
+  it('seed_flower', 'Blumensaat', CAT.SEED, 12, 0, { plant: 'flower', prop: 'crop_flower_2' }),
+  it('seed_moon', 'Mondsaat', CAT.SEED, 40, 0, { plant: 'moon', prop: 'crop_moon_2' }),
 
   // Andenken – das Geschenk am Ende einer Erinnerungskette. Nicht käuflich,
   // nicht herstellbar, nicht verbrennbar: der einzige Weg dahin ist die
@@ -128,6 +221,8 @@ const LIST = [
     { prop: 'memory_music', charm: 10, keepsake: true }),
   it('keepsake_teacup', 'Nellys Teetasse', CAT.DECOR, 0, 0,
     { prop: 'memory_teacup', charm: 10, keepsake: true }),
+  it('keepsake_shellchain', 'Wandas Muschelkette', CAT.DECOR, 0, 0,
+    { prop: 'memory_shellchain', charm: 10, keepsake: true }),
 ];
 
 const BY_ID = Object.create(null);
@@ -165,13 +260,22 @@ export function isPlaceable(id) {
   return !!(it2 && it2.cat === CAT.DECOR && it2.prop);
 }
 
-export function fishesOf(water, night) {
+/**
+ * Was hier gerade beißt.
+ *
+ * `season` darf fehlen – dann zählt der ganze Kalender. Diese Nachsicht ist
+ * Absicht: Wer die Liste nur ansehen will (Fundbuch, Tests, Preisrechnung),
+ * soll keine Jahreszeit erfinden müssen. Nur wer wirklich auswirft, gibt
+ * eine an, und erst dann wird gefiltert.
+ */
+export function fishesOf(water, night, season) {
   const out = [];
   for (let i = 0; i < LIST.length; i++) {
     const f = LIST[i];
     if (f.cat !== CAT.FISH) continue;
     if (f.water !== water) continue;
     if (f.night && !night) continue;
+    if (!inSeason(f.id, season)) continue;
     out.push(f);
   }
   return out;
@@ -189,11 +293,23 @@ export const CONDITIONAL = LIST.filter(function (i) { return !!i.onlyAt; });
 /** Alle Falter. */
 export const BUGS = LIST.filter(function (i) { return i.cat === CAT.BUG; });
 
-/** Falter, die zu dieser Tageszeit fliegen. */
-export function bugsOf(night) {
-  return BUGS.filter(function (b) { return !!b.night === !!night; });
+/** Falter, die zu dieser Tageszeit fliegen – und zu dieser Jahreszeit. */
+export function bugsOf(night, season) {
+  return BUGS.filter(function (b) {
+    return !!b.night === !!night && inSeason(b.id, season);
+  });
 }
 
 export const MEMORY_IDS = LIST
   .filter(function (i) { return i.cat === CAT.MEMORY; })
   .map(function (i) { return i.id; });
+
+/**
+ * Die Kurznamen der Erinnerungsstücke – die Grafik legt sie unter diesen
+ * Namen ab.
+ *
+ * Abgeleitet aus der Gegenstandsliste statt daneben gepflegt: Beim siebten
+ * Stück stand dieselbe Aufzählung in `sprites.js` und noch einmal im Test,
+ * und beide gingen leer aus.
+ */
+export const MEMORY_KINDS = MEMORY_IDS.map(function (id) { return id.slice('memory_'.length); });

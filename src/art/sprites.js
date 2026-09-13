@@ -11,18 +11,41 @@ import {
   paintTree, paintPine, paintStump, paintLogBarrier,
   paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft,
   paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot,
+  paintFeather, paintStardust,
   paintMoonflower, paintRainmushroom, paintFogcrystal,
+  paintCrop, paintSeedPouch,
 } from './painted.js';
 import {
-  paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench,
-  paintLantern, paintBench, paintFence, paintFlowerbed, paintBirdhouse,
+  paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench, paintBoat, paintMailbox,
+  paintKitchen,
+  paintHouse,
+  paintLantern, paintTravelLamp, paintWanderer,
+  paintBench, paintFence, paintFlowerbed, paintBirdhouse,
   paintWindchime, paintRug, paintSignpost, paintCrate, paintChest,
   paintMemory, paintTool, paintButterfly, paintBird,
   paintSeli, paintSpirit, paintFlameSpirit, paintFox,
 } from './painted-camp.js';
+import {
+  paintTable, paintChair, paintHammock, paintSwing,
+  paintFirebowl, paintStringlights, paintPaperlamp,
+  paintPlanter, paintTrellis, paintBirdbath, paintBeehive, paintScarecrow,
+  paintWeathervane, paintMat, paintPond,
+  paintStumpStool, paintStonebench, paintStonelamp, paintTorch,
+  paintFlowerbox, paintBonsai, paintHedgehogbox, paintFeeder,
+  paintSteppingstones, paintArch, paintClothesline, paintBookstack,
+} from './painted-decor.js';
+import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
-import { BUGS } from '../game/items.js';
+import {
+  paintRoom, paintBed, paintPicture, paintWreath, paintShelf, paintHangplant,
+} from './painted-interior.js';
+import {
+  RAEUME, TUER_BREITE, raumFuer, ausstattungFuer, fensterFuer,
+} from '../game/interior.js';
+import { BUGS, MEMORY_KINDS } from '../game/items.js';
+import { CROPS, CROP_IDS } from '../game/crops.js';
+import { TOOL_ART } from '../game/player.js';
 
 /**
  * Die Maler arbeiten in bequemen Maßen; beim Ablegen wird alles einmal
@@ -42,6 +65,7 @@ export const SPIRIT_LOOKS = {
   kiesel: { fur: '#d5dbdc', furShade: '#adb8ba', accent: '#4f86a8', ears: 'round', hat: 'cap', blink: false },
   nelly: { fur: '#ded2e6', furShade: '#b9a9c6', accent: '#e8c34c', ears: 'long', hat: 'bow', blink: true },
   tobi: { fur: '#ecdcb8', furShade: '#c8b48c', accent: '#5b8c9a', ears: 'pointed', hat: 'glasses', blink: true },
+  wanda: { fur: '#c6d9d6', furShade: '#9db8b4', accent: '#e2a24c', ears: 'long', hat: 'scarf', blink: true },
 };
 
 /** Legt eine gemalte Grafik ab und skaliert sie auf Spielgröße. */
@@ -168,7 +192,7 @@ const FISH_COLORS = {
   fish_goldcarp: ['#e8b155', '#f9e6b4', '#cf8b38'],
 };
 
-const MEMORY_KINDS = ['locket', 'compass', 'music', 'photo', 'ribbon', 'teacup'];
+
 
 /** Baut das komplette Bildmaterial. Wird einmal beim Start aufgerufen. */
 export function initArt() {
@@ -206,6 +230,16 @@ export function initArt() {
   addArt('rock_big', paintRock({ seed: 77 }));
   addArt('rock_small', paintRock({ seed: 83, scale: 0.66, moss: false }));
   addArt('rock_ore', paintRock({ seed: 88, ore: true }));
+  // Hochland: kälterer Stein, helle Adern – und die Geode violett, damit man
+  // sie im Geröll von weitem auseinanderhält.
+  addArt('rock_granite', paintRock({
+    seed: 94, scale: 1.12, moss: false, ore: true, ore3: true,
+    oreColor: '#e6e9ee', tint: '#96999f', tintShade: '#767a82', tintDeep: '#5c606a',
+  }));
+  addArt('rock_geode', paintRock({
+    seed: 96, scale: 0.94, moss: false, ore: true, ore3: true,
+    oreColor: '#b98ada', tint: '#8b8792', tintShade: '#6d6a77', tintDeep: '#55525e',
+  }));
   addArt('rockslide', paintRockslide({ seed: 181 }));
 
   /* --- Kleinpflanzen --- */
@@ -217,7 +251,19 @@ export function initArt() {
   addArt('herb', paintHerb({ seed: 241 }));
   addArt('shell', paintShell({ seed: 261 }));
   addArt('driftwood', paintDriftwood({ seed: 281 }));
+  addArt('stardust', paintStardust({ seed: 293 }));
   addArt('digspot', paintDigspot({ seed: 301 }));
+
+  // Beete: je Art drei Wachstumsstufen
+  for (let i = 0; i < CROP_IDS.length; i++) {
+    const c = CROPS[CROP_IDS[i]];
+    for (let st = 0; st < 3; st++) {
+      addArt('crop_' + c.id + '_' + st, paintCrop({
+        stage: st, leaf: c.leaf, fruit: c.fruit, form: c.form, seed: 401 + i * 37 + st * 5,
+      }));
+    }
+    addArt('seed_' + c.id, paintSeedPouch({ band: c.fruit, seed: 451 + i * 13 }), 1);
+  }
 
   /* --- Nur bei Nacht, Regen oder Nebel --- */
   addArt('moonflower', paintMoonflower({ seed: 811 }));
@@ -227,16 +273,31 @@ export function initArt() {
   addArt('flower_yellow', paintFlower({ seed: 137, petal: INK.petalYellow }));
   addArt('flower_violet', paintFlower({ seed: 141, petal: INK.petalViolet }));
   addArt('flower_white', paintFlower({ seed: 147, petal: INK.petalWhite }));
+  addArt('flower_dusk', paintFlower({ seed: 153, petal: INK.petalDusk }));
 
   /* --- Lager --- */
   addArt('campfire', paintCampfire({ seed: 211 }));
   for (let f = 0; f < 4; f++) addArt('flame_' + f, paintFlame(f));
   addArt('tent', paintTent({ seed: 331 }));
+  // Die Zimmer werden NICHT hier gemalt, sondern erst, wenn eines gebraucht
+  // wird – siehe `ensureRoom`. Vier Ausbaustufen mal vier Ausstattungen sind
+  // sechzehn Bilder bis 1000×810; gebraucht wird eines.
+  addArt('bed', paintBed({ seed: 1971 }));
+  // Was an der Wand hängt. Anker in der Mitte, nicht am Fuß.
+  addArt('picture', paintPicture({ seed: 2101 }));
+  addArt('wreath', paintWreath({ seed: 2111 }));
+  addArt('shelf', paintShelf({ seed: 2121 }));
+  addArt('hangplant', paintHangplant({ seed: 2131 }));
   addArt('stall', paintStall({ seed: 351 }));
   addArt('workbench', paintWorkbench({ seed: 371 }));
+  addArt('boat', paintBoat({ seed: 391 }));
+  addArt('mailbox', paintMailbox({ seed: 411 }));
+  // Die Ausbaustufen des Zuhauses – Stufe 1 ist das Zelt.
+  for (let st = 2; st <= 4; st++) addArt('house_' + st, paintHouse(st, { seed: 600 + st * 31 }));
 
   /* --- Deko --- */
   addArt('lantern', paintLantern({ seed: 391 }));
+  addArt('travellamp', paintTravelLamp({ seed: 2141 }));
   addArt('bench', paintBench({ seed: 411 }));
   addArt('fence', paintFence({ seed: 431 }));
   addArt('flowerbed', paintFlowerbed({ seed: 451 }));
@@ -249,13 +310,54 @@ export function initArt() {
   addArt('path_tile', paintGroundDecal('path', 591), 1);
   addArt('bridge', paintGroundDecal('bridge', 593), 1);
 
+  /* --- Deko zum Einrichten --- */
+  addArt('table', paintTable({ seed: 1201 }));
+  addArt('chair', paintChair({ seed: 1211 }));
+  addArt('hammock', paintHammock({ seed: 1221 }));
+  addArt('swing', paintSwing({ seed: 1231 }));
+  addArt('firebowl', paintFirebowl({ seed: 1241 }));
+  addArt('stringlights', paintStringlights({ seed: 1251 }));
+  addArt('paperlamp', paintPaperlamp({ seed: 1261 }));
+  addArt('planter', paintPlanter({ seed: 1271 }));
+  addArt('trellis', paintTrellis({ seed: 1281 }));
+  addArt('birdbath', paintBirdbath({ seed: 1291 }));
+  addArt('beehive', paintBeehive({ seed: 1301 }));
+  addArt('scarecrow', paintScarecrow({ seed: 1311 }));
+  addArt('weathervane', paintWeathervane({ seed: 1321 }));
+  addArt('mat', paintMat({ seed: 1331 }));
+  addArt('pond', paintPond({ seed: 1341 }));
+  // Nachschub für die Wünsche – zwei je Sorte, siehe painted-decor.js.
+  addArt('kitchen', paintKitchen({ seed: 1601 }));
+  addArt('stump', paintStumpStool({ seed: 1401 }));
+  addArt('stonebench', paintStonebench({ seed: 1411 }));
+  addArt('stonelamp', paintStonelamp({ seed: 1421 }));
+  addArt('torch', paintTorch({ seed: 1431 }));
+  addArt('flowerbox', paintFlowerbox({ seed: 1441 }));
+  addArt('bonsai', paintBonsai({ seed: 1451 }));
+  addArt('hedgehogbox', paintHedgehogbox({ seed: 1461 }));
+  addArt('feeder', paintFeeder({ seed: 1471 }));
+  addArt('steppingstones', paintSteppingstones({ seed: 1481 }));
+  addArt('arch', paintArch({ seed: 1491 }));
+  addArt('clothesline', paintClothesline({ seed: 1501 }));
+  addArt('bookstack', paintBookstack({ seed: 1511 }));
+
+  /* --- Haustier --- */
+  for (let i = 0; i < PET_KINDS.length; i++) {
+    const art = PET_KINDS[i];
+    for (const pose of ['0', '1', 'sit']) {
+      addArt('pet_' + art + '_' + pose, paintPet(art, pose, { seed: 1401 + i * 70 }));
+    }
+  }
+  addArt('bowl', paintBowl({ seed: 1451 }));
+  addArt('feather', paintFeather({ seed: 271 }));
+
   /* --- Erinnerungsstücke --- */
   for (let i = 0; i < MEMORY_KINDS.length; i++) {
     addArt('memory_' + MEMORY_KINDS[i], paintMemory(MEMORY_KINDS[i], { seed: 601 + i * 17 }));
   }
 
   /* --- Werkzeuge --- */
-  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'net', 'hand'];
+  const tools = TOOL_ART;
   for (let i = 0; i < tools.length; i++) {
     addArt('tool_' + tools[i], paintTool(tools[i], { seed: 651 + i * 13 }));
   }
@@ -279,6 +381,11 @@ export function initArt() {
   for (let d = 0; d < dirs.length; d++) {
     for (let f = 0; f < 3; f++) addArt('player_' + dirs[d] + '_' + f, paintSeli(dirs[d], f));
   }
+  // Die vierte Haltung: sitzend. Nur ein Bild, kein Schrittzyklus – wer sitzt,
+  // bewegt sich nicht.
+  addArt('player_sit', paintSeli('sit', 0));
+  {
+  }
   for (const id in SPIRIT_LOOKS) {
     for (let f = 0; f < 2; f++) {
       addArt('spirit_' + id + '_' + f, paintSpirit(SPIRIT_LOOKS[id], f, { seed: 401 + id.charCodeAt(0) }));
@@ -288,6 +395,11 @@ export function initArt() {
   addArt('spirit_flamey_1', paintFlameSpirit(1));
   addArt('fox_0', paintFox(0));
   addArt('fox_1', paintFox(1));
+  // Der Wanderer. Zwei Bilder wie bei allem, was lebt – er atmet, mehr tut
+  // er nicht. Er läuft nicht herum: Wer einen Tag bleibt, sucht sich einen
+  // Platz und bleibt dort stehen.
+  addArt('wanderer_0', paintWanderer(0, { seed: 2151 }));
+  addArt('wanderer_1', paintWanderer(1, { seed: 2151 }));
 
   buildIcons();
   ready = true;
@@ -305,12 +417,28 @@ function buildIcons() {
   const reuse = [
     ['flower_pink', 'flower_pink'], ['flower_yellow', 'flower_yellow'],
     ['flower_violet', 'flower_violet'], ['flower_white', 'flower_white'],
+    ['flower_dusk', 'flower_dusk'],
     ['lantern', 'lantern'], ['bench', 'bench'], ['fence', 'fence'],
     ['flowerbed', 'flowerbed'], ['birdhouse', 'birdhouse'], ['windchime', 'windchime'],
     ['rug', 'rug'], ['signpost', 'signpost'], ['path_tile', 'path_tile'],
     ['bridge_kit', 'bridge'],
     ['moonflower', 'moonflower'], ['rainmushroom', 'rainmushroom'],
     ['fogcrystal', 'fogcrystal'], ['moonlamp', 'lantern'],
+    ['boat', 'boat'], ['mailbox', 'mailbox'],
+    ['picture', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
+    ['hangplant', 'hangplant'], ['travellamp', 'travellamp'],
+    ['table', 'table'], ['chair', 'chair'], ['hammock', 'hammock'],
+    ['swing', 'swing'], ['firebowl', 'firebowl'],
+    ['stringlights', 'stringlights'], ['paperlamp', 'paperlamp'],
+    ['planter', 'planter'], ['trellis', 'trellis'], ['birdbath', 'birdbath'],
+    ['beehive', 'beehive'], ['scarecrow', 'scarecrow'],
+    ['weathervane', 'weathervane'], ['mat', 'mat'], ['pond', 'pond'],
+    ['bowl', 'bowl'],
+    ['stump', 'stump'], ['stonebench', 'stonebench'], ['stonelamp', 'stonelamp'],
+    ['torch', 'torch'], ['flowerbox', 'flowerbox'], ['bonsai', 'bonsai'],
+    ['hedgehogbox', 'hedgehogbox'], ['feeder', 'feeder'],
+    ['steppingstones', 'steppingstones'], ['arch', 'arch'],
+    ['clothesline', 'clothesline'], ['bookstack', 'bookstack'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = registry[reuse[i][1]];
@@ -329,7 +457,17 @@ function buildIcons() {
     // Das Andenken am Ende einer Erinnerungskette trägt dasselbe Bild
     addArt('icon_keepsake_' + MEMORY_KINDS[i], art, 1);
   }
-  const tools = ['axe', 'pickaxe', 'shovel', 'rod', 'net', 'hand'];
+  // Saatbeutel: die Schnur trägt die Farbe der Pflanze
+  for (let i = 0; i < CROP_IDS.length; i++) {
+    const c = CROPS[CROP_IDS[i]];
+    const target = registry['seed_' + c.id];
+    if (target) {
+      addArt('icon_' + c.seed, iconFromArt({
+        color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
+      }), 1);
+    }
+  }
+  const tools = TOOL_ART;
   for (let i = 0; i < tools.length; i++) {
     const target = registry['tool_' + tools[i]];
     addArt('icon_' + tools[i], iconFromArt({
@@ -344,4 +482,38 @@ function buildIcons() {
       color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
     }), 1);
   }
+}
+
+
+/**
+ * Ein Zimmer malen lassen, falls es das noch nicht gibt.
+ *
+ * Zimmer sind groß und es gibt sie in vielen Kombinationen: vier
+ * Ausbaustufen mal vier Ausstattungen. Alle beim Start zu malen hieße
+ * sechzehn Bilder bis 1000×810 – für fünfzehn davon, die niemand ansieht.
+ * Also wird gemalt, wenn zum ersten Mal jemand hineingeht oder die
+ * Ausstattung wechselt, und das Ergebnis bleibt im Register.
+ *
+ * Die blasse Zweitfassung wird dabei weggeworfen. Jede andere Grafik braucht
+ * sie – draußen ist die Insel am Anfang eine Zeichnung, die erst nach und
+ * nach Farbe bekommt. Drinnen gibt es das nicht: Ein Zimmer ist immer
+ * koloriert, und bei dieser Bildgröße hängt daran spürbar Speicher.
+ *
+ * @returns {string} der Name im Register
+ */
+export function ensureRoom(stufe, ausstattungId) {
+  const r = raumFuer(stufe);
+  const a = ausstattungFuer(ausstattungId);
+  const name = 'room_' + r.stufe + '_' + a.id;
+  if (registry[name]) return name;
+  const art = paintRoom({
+    w: r.w, h: r.h, wand: r.wand, stufe: r.stufe,
+    tuerX: r.w / 2 - TUER_BREITE / 2, tuerW: TUER_BREITE,
+    seed: 1900 + r.stufe * 7 + a.id.length * 13,
+    farben: a,
+    fenster: fensterFuer(r),
+  });
+  art.line = makeCanvas(1, 1);
+  addArt(name, art);
+  return name;
 }

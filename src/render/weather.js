@@ -1,5 +1,5 @@
 /**
- * Wetter: Regen und Nebel.
+ * Wetter: Regen, Nebel und Schnee.
  *
  * Beides wird im Bildschirmraum gezeichnet, nicht in der Welt. Regen als
  * Partikel durch das normale System zu schicken hätte dessen Budget gesprengt –
@@ -11,21 +11,46 @@
  * dass etwas davon im Spielstand liegen muss.
  */
 import { dailyRng } from '../core/rng.js';
+import { seasonWeather } from '../game/seasons.js';
 import { makeCanvas, ctx2d } from '../core/util.js';
 
-export const WEATHER = { CLEAR: 'clear', RAIN: 'rain', FOG: 'fog' };
+export const WEATHER = { CLEAR: 'clear', RAIN: 'rain', FOG: 'fog', SNOW: 'snow' };
+
+/**
+ * Wie das Wetter heißt.
+ *
+ * Steht hier und nicht in der Oberfläche: Der Wetterhahn sagt das Wetter von
+ * MORGEN an und hat dafür kein `Weather`-Objekt, sondern nur eine Kennung
+ * aus `weatherFor`. Zwei Wörterlisten hießen, dass eine beim nächsten Wetter
+ * vergessen wird.
+ */
+export const WEATHER_LABEL = {
+  clear: 'Klar', rain: 'Regen', fog: 'Nebel', snow: 'Schnee',
+};
 
 /** Wie viele Tropfen bzw. Schwaden bei voller Stärke. */
 const DROPS = 260;
 const WISPS = 22;
 
-/** Das Wetter eines Tages. Tag 1 ist immer klar, damit der Start freundlich ist. */
-export function weatherFor(seed, day) {
+/**
+ * Das Wetter eines Tages. Tag 1 ist immer klar, damit der Start freundlich ist.
+ *
+ * Die Mischung hängt an der Jahreszeit: Vorher galt für jeden Tag im Jahr
+ * dieselbe – 18 Prozent Regen, 16 Prozent Nebel –, und ein Julitag sah aus
+ * wie ein Novembertag. Ohne Angabe gilt die Frühlingsmischung, damit alte
+ * Aufrufe und Tests weiterlaufen.
+ */
+export function weatherFor(seed, day, season) {
   if (day <= 1) return { kind: WEATHER.CLEAR, strength: 0 };
+  const m = seasonWeather(season);
   const r = dailyRng(seed, day, 'weather');
   const roll = r();
-  if (roll < 0.18) return { kind: WEATHER.RAIN, strength: 0.55 + r() * 0.45 };
-  if (roll < 0.34) return { kind: WEATHER.FOG, strength: 0.4 + r() * 0.4 };
+  let schwelle = m.snow || 0;
+  if (roll < schwelle) return { kind: WEATHER.SNOW, strength: 0.45 + r() * 0.5 };
+  schwelle += m.rain;
+  if (roll < schwelle) return { kind: WEATHER.RAIN, strength: 0.55 + r() * 0.45 };
+  schwelle += m.fog;
+  if (roll < schwelle) return { kind: WEATHER.FOG, strength: 0.4 + r() * 0.4 };
   return { kind: WEATHER.CLEAR, strength: 0 };
 }
 
@@ -41,8 +66,8 @@ export class Weather {
   }
 
   /** Wetter des Tages setzen. Der Übergang läuft weich. */
-  setDay(seed, day) {
-    const w = weatherFor(seed, day);
+  setDay(seed, day, season) {
+    const w = weatherFor(seed, day, season);
     this.kind = w.kind;
     this.strength = w.strength;
   }
@@ -61,11 +86,16 @@ export class Weather {
     return this.kind === WEATHER.FOG && this.level > 0.05;
   }
 
+  get snowing() {
+    return this.kind === WEATHER.SNOW && this.level > 0.05;
+  }
+
   /** Name für die Anzeige. */
   get label() {
-    if (this.raining) return 'Regen';
-    if (this.foggy) return 'Nebel';
-    return 'Klar';
+    if (this.raining) return WEATHER_LABEL.rain;
+    if (this.foggy) return WEATHER_LABEL.fog;
+    if (this.snowing) return WEATHER_LABEL.snow;
+    return WEATHER_LABEL.clear;
   }
 
   _fill() {
@@ -108,6 +138,18 @@ export class Weather {
         if (d.y > 1.05) { d.y -= 1.15; d.x = this.rng(); }
         if (d.x > 1.05) d.x -= 1.1;
       }
+    } else if (this.kind === WEATHER.SNOW) {
+      // Schnee fällt langsam und pendelt seitlich. Mit der Bewegung des
+      // Regens sah er aus wie weißer Regen; das Pendeln ist der ganze
+      // Unterschied zwischen Tropfen und Flocke.
+      for (let i = 0; i < this.drops.length; i++) {
+        const d = this.drops[i];
+        d.y += d.speed * dt * 0.30;
+        d.x += Math.sin(this._t * 0.7 + d.len * 9) * dt * 0.045;
+        if (d.y > 1.05) { d.y -= 1.15; d.x = this.rng(); }
+        if (d.x > 1.05) d.x -= 1.1;
+        if (d.x < -0.05) d.x += 1.1;
+      }
     } else if (this.kind === WEATHER.FOG) {
       for (let i = 0; i < this.wisps.length; i++) {
         const w = this.wisps[i];
@@ -125,6 +167,9 @@ export class Weather {
     if (this.level <= 0.02) return null;
     if (this.kind === WEATHER.RAIN) {
       return { r: 92, g: 104, b: 126, a: 0.2 * this.level };
+    }
+    if (this.kind === WEATHER.SNOW) {
+      return { r: 214, g: 228, b: 244, a: 0.18 * this.level };
     }
     return { r: 236, g: 238, b: 234, a: 0.24 * this.level };
   }
@@ -186,6 +231,17 @@ export class Weather {
         ctx.lineTo(x - l * 0.22, y + l);
       }
       ctx.stroke();
+    } else if (this.kind === WEATHER.SNOW) {
+      ctx.fillStyle = 'rgba(250,252,255,0.92)';
+      ctx.globalAlpha = 0.8 * this.level;
+      for (let i = 0; i < this.drops.length; i++) {
+        const d = this.drops[i];
+        // `len` dient hier als Größe: vorn große Flocken, hinten kleine.
+        const r = 1.1 + d.len * 2.0;
+        ctx.beginPath();
+        ctx.arc(d.x * w, d.y * h, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else if (this.kind === WEATHER.FOG) {
       // Nebel entsteht in Viertelauflösung und wird dann hochgezogen.
       //

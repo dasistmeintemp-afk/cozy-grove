@@ -17,6 +17,9 @@ const ZOOM = Number((args.find((a) => a.startsWith('--zoom=')) || '=0').split('=
 const HOUR = Number((args.find((a) => a.startsWith('--hour=')) || '=13').split('=')[1]);
 const SEED = Number((args.find((a) => a.startsWith('--seed=')) || '=7').split('=')[1]) || 7;
 const WEATHER = (args.find((a) => a.startsWith('--weather=')) || '').slice(10);
+// Die Jahreszeit muss vor dem Malen feststehen, deshalb geht sie durch die
+// Adresse und nicht über einen Aufruf im laufenden Spiel.
+const SEASON = (args.find((a) => a.startsWith('--season=')) || '').slice(9);
 const CLIP = (args.find((a) => a.startsWith('--clip=')) || '').slice(7);
 const clipRect = CLIP ? (function () {
   const p = CLIP.split(',').map(Number);
@@ -47,7 +50,8 @@ async function run() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   page.on('pageerror', (e) => console.error('pageerror', e.message));
   page.on('console', (m) => { if (m.type() === 'error') console.error('console', m.text()); });
-  await page.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'load' });
+  await page.goto('http://127.0.0.1:' + PORT + '/' + (SEASON ? '?season=' + SEASON : ''),
+    { waitUntil: 'load' });
   await page.waitForFunction(() => window.CozyGrove && window.CozyGrove.ready, null, { timeout: 90000 });
   // Feste Insel, damit zwei Läufe vergleichbar sind
   await page.evaluate((s) => {
@@ -122,7 +126,8 @@ async function run() {
       g.ground.prewarm(g.camera.ox, g.camera.oy, g.renderer.viewW, g.renderer.viewH);
     }, s);
     await page.waitForTimeout(1400);
-    const out = join(ROOT, '.screenshots', 'look-' + s.name + (PALE ? '-blass' : '') + '.png');
+    const out = join(ROOT, '.screenshots', 'look-' + s.name + (SEASON ? '-' + SEASON : '')
+      + (WEATHER ? '-' + WEATHER : '') + (PALE ? '-blass' : '') + '.png');
     await page.screenshot(clipRect ? { path: out, clip: clipRect } : { path: out });
     console.log('geschrieben: ' + out);
   }

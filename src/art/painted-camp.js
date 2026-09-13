@@ -7,42 +7,8 @@ import {
   blob, teardrop, smoothClosed, offsetShape, pathFrom, clipTo,
   inkStroke, inkLine, wash, paintObject, groundShadow, LIGHT,
 } from './brush.js';
-import { INK as ink, fill, made, dot } from './painted.js';
+import { INK as ink, fill, made, dot, slab, poly, quad } from './painted.js';
 import { makeRng } from '../core/rng.js';
-
-function quad(a, b, c, d, smooth) {
-  return smoothClosed([a, b, c, d], smooth || 4);
-}
-
-/**
- * Rechteckige Fläche, die rechteckig bleibt.
- *
- * Vier Punkte durch eine Catmull-Rom-Kurve ergeben immer einen Laib – für
- * Bretter, Theken und Pfosten ist das falsch. Mit Stützpunkten auf den Kanten
- * bleibt die Kurve dicht an der Geraden, und nur die Ecken werden weich. Ein
- * kleiner Versatz je Punkt hält das Ganze handgemalt statt technisch.
- */
-function slab(x0, y0, x1, y1, seed, wob) {
-  const rng = makeRng((seed || 1) >>> 0);
-  const j = wob == null ? 1.6 : wob;
-  const nx = Math.max(3, Math.round(Math.abs(x1 - x0) / 26));
-  const ny = Math.max(2, Math.round(Math.abs(y1 - y0) / 26));
-  const pts = [];
-  function edge(ax, ay, bx, by, n) {
-    for (let i = 0; i < n; i++) {
-      const t = i / n;
-      pts.push([
-        ax + (bx - ax) * t + (rng() - 0.5) * j,
-        ay + (by - ay) * t + (rng() - 0.5) * j,
-      ]);
-    }
-  }
-  edge(x0, y0, x1, y0, nx);
-  edge(x1, y0, x1, y1, ny);
-  edge(x1, y1, x0, y1, nx);
-  edge(x0, y1, x0, y0, ny);
-  return smoothClosed(pts, 2);
-}
 
 /**
  * Seli – die Spielfigur. Blond, warme Erdtöne, ein Tupfen Türkis,
@@ -63,6 +29,13 @@ export const SELI = {
   boot: '#8c6a4a',
   pack: '#9fa877',
   packShade: '#7d8659',
+  // Blaue Augen. Der Ton ist bewusst tief und leicht grünstichig statt
+  // leuchtend: Das Auge ist sieben mal zehn Pixel groß, und ein helles Blau
+  // auf dieser Fläche verliert gegen die dunkle Kontur ringsum – man sähe nur
+  // einen grauen Fleck. So bleibt es dunkel genug, um als Auge zu lesen, und
+  // hell genug, um blau zu sein.
+  eye: '#3d6f9e',
+  eyeDeep: '#24405c',
 };
 
 /* --------------------------------------------------------------- Lagerfeuer */
@@ -204,6 +177,391 @@ export function paintTent(opts) {
       fill(g, flag);
       inkStroke(g, flag, { width: 2.0, vary: 0.3, seed: seed + 40, color: ink.line });
       inkLine(g, cx, peak + 2, cx, peak - 30, { width: 2.4, bend: 0, seed: seed + 41 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Das Ruderboot am Sund.
+ *
+ * Von schräg oben, wie alles hier: ein Rumpf mit hochgezogenem Bug, zwei
+ * Duchten quer darin, und ein Riemen, der über die Bordwand hinausragt.
+ *
+ * Der Riemen gehört bewusst ZUR Silhouette. Als er nur eine Tuschelinie im
+ * Boot war, sah das Boot aus wie eine flache Schale mit zwei Ringen darin –
+ * erst das herausstehende Blatt macht daraus etwas, mit dem man rudert.
+ */
+export function paintBoat(opts) {
+  const o = opts || {};
+  const w = 288;
+  const h = 200;
+  const seed = o.seed || 391;
+  const cx = w / 2;
+  const baseY = h - 26;
+
+  const rumpf = smoothClosed([
+    [cx - 118, baseY - 34], [cx - 98, baseY - 64], [cx - 24, baseY - 74],
+    [cx + 74, baseY - 66], [cx + 120, baseY - 36], [cx + 76, baseY - 2],
+    [cx - 74, baseY - 8],
+  ], 8);
+  const innen = smoothClosed([
+    [cx - 96, baseY - 34], [cx - 80, baseY - 56], [cx - 22, baseY - 62],
+    [cx + 62, baseY - 56], [cx + 98, baseY - 36], [cx + 62, baseY - 14],
+    [cx - 60, baseY - 20],
+  ], 8);
+  const bankL = smoothClosed([
+    [cx - 60, baseY - 54], [cx - 40, baseY - 57], [cx - 36, baseY - 22], [cx - 56, baseY - 19],
+  ], 4);
+  const bankR = smoothClosed([
+    [cx + 14, baseY - 57], [cx + 34, baseY - 56], [cx + 38, baseY - 21], [cx + 18, baseY - 22],
+  ], 4);
+  // Riemen: Schaft aus dem Boot heraus nach links oben, Blatt am Ende
+  const ruder = smoothClosed([
+    [cx + 6, baseY - 34], [cx + 12, baseY - 42],
+    [cx - 116, baseY - 84], [cx - 122, baseY - 76],
+  ], 4);
+  const blatt = smoothClosed(blob(cx - 132, baseY - 82, 17, 11, seed + 9, 0.12, 14), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.8,
+    outline: 2.2,
+    shadow: function (g) { groundShadow(g, cx, baseY - 6, 110, 17, seed, 0.15); },
+    wash: function (g) {
+      wash(g, rumpf, ink.wood, { seed: seed + 2, scale: 1.03 });
+      wash(g, offsetShape(rumpf, 34, 10, 0.7), ink.woodDark, { seed: seed + 3, alpha: 0.6 });
+      wash(g, innen, '#c9a479', { seed: seed + 4, scale: 1.02 });
+      wash(g, offsetShape(innen, -30, -8, 0.6), '#dbbb95', { seed: seed + 5, alpha: 0.5 });
+      wash(g, bankL, ink.woodDark, { seed: seed + 6 });
+      wash(g, bankR, ink.woodDark, { seed: seed + 7 });
+      wash(g, ruder, ink.wood, { seed: seed + 8 });
+      wash(g, blatt, ink.woodDark, { seed: seed + 9, scale: 1.04 });
+    },
+    shape: function (g) {
+      fill(g, rumpf);
+      fill(g, ruder);
+      fill(g, blatt);
+    },
+    ink: function (g) {
+      inkStroke(g, innen, { width: 2.6, vary: 0.3, seed: seed + 12, color: ink.line, alpha: 0.9 });
+      inkStroke(g, bankL, { width: 2.2, vary: 0.3, seed: seed + 13, color: ink.line, alpha: 0.85 });
+      inkStroke(g, bankR, { width: 2.2, vary: 0.3, seed: seed + 14, color: ink.line, alpha: 0.85 });
+      inkStroke(g, blatt, { width: 2.2, vary: 0.3, seed: seed + 15, color: ink.line, alpha: 0.85 });
+      // Plankenfugen im Rumpf, unterhalb der Bordwand
+      for (let i = 0; i < 2; i++) {
+        inkLine(g, cx - 100 + i * 8, baseY - 24 + i * 6, cx + 100 - i * 8, baseY - 20 + i * 6,
+          { width: 1.4, bend: 0.07, seed: seed + 20 + i, color: ink.lineSoft, alpha: 0.45 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Der Briefkasten am Lager.
+ *
+ * Pfosten, Kasten, Klappe – und die Fahne oben. Die Fahne ist das ganze
+ * Zeichen: Sie sagt „da liegt was" und macht aus einem Pfosten mit Kiste
+ * einen Briefkasten.
+ */
+export function paintMailbox(opts) {
+  const o = opts || {};
+  const w = 150;
+  const h = 210;
+  const seed = o.seed || 411;
+  const cx = w / 2;
+  const baseY = h - 16;
+
+  const pfosten = smoothClosed([
+    [cx - 9, baseY], [cx - 7, baseY - 74], [cx + 7, baseY - 74], [cx + 9, baseY],
+  ], 4);
+  const kasten = smoothClosed([
+    [cx - 36, baseY - 74], [cx - 33, baseY - 128], [cx + 33, baseY - 128],
+    [cx + 36, baseY - 74],
+  ], 6);
+  // Wenig geglättet: Die Klappe soll eckig bleiben. Mit derselben Rundung wie
+  // der Kasten wurde sie zu einer Ellipse darin und sah aus wie ein Fenster.
+  const klappe = smoothClosed([
+    [cx - 23, baseY - 82], [cx - 22, baseY - 118], [cx + 22, baseY - 118],
+    [cx + 23, baseY - 82],
+  ], 2);
+  const fahne = smoothClosed([
+    [cx + 36, baseY - 132], [cx + 62, baseY - 124], [cx + 36, baseY - 110],
+  ], 4);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.7,
+    outline: 2.1,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 34, 11, seed, 0.16); },
+    wash: function (g) {
+      wash(g, pfosten, ink.wood, { seed: seed + 2, scale: 1.04 });
+      wash(g, kasten, '#8fb0bd', { seed: seed + 3, scale: 1.03 });
+      wash(g, offsetShape(kasten, 22, 8, 0.7), '#6d8e9c', { seed: seed + 4, alpha: 0.6 });
+      wash(g, klappe, '#e6ddc9', { seed: seed + 5 });
+      wash(g, fahne, ink.berry, { seed: seed + 6, scale: 1.05 });
+    },
+    shape: function (g) {
+      fill(g, pfosten);
+      fill(g, kasten);
+      fill(g, fahne);
+    },
+    ink: function (g) {
+      inkStroke(g, klappe, { width: 2.8, vary: 0.25, seed: seed + 12, color: ink.line, alpha: 0.95 });
+      // Griff an der Klappe – ohne ihn ist es ein aufgemaltes Rechteck
+      inkLine(g, cx - 9, baseY - 95, cx + 9, baseY - 95,
+        { width: 3.0, bend: 0.16, seed: seed + 13, color: ink.line, alpha: 0.9 });
+      // Der Mast der Fahne
+      inkLine(g, cx + 36, baseY - 134, cx + 36, baseY - 104,
+        { width: 2.4, bend: 0, seed: seed + 14, color: ink.line, alpha: 0.9 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Das Zuhause in seinen Ausbaustufen.
+ *
+ * Drei Häuser aus einem Bauplan: Wand, Giebel, Satteldach, Tür, Fenster – und
+ * je nach Stufe kommt etwas dazu (zweites Fenster, Schornstein, Giebelfenster,
+ * Veranda mit Laternen). So bleiben sie unverkennbar dasselbe Haus und wachsen
+ * trotzdem sichtbar.
+ *
+ * Drei Dinge sind hier mit Absicht so und nicht anders:
+ *
+ * 1. **Wand und Schornstein entstehen mit `slab`.** Ein Haus hat Ecken. Rund
+ *    gezeichnet las sich die Wand wie ein Brotlaib – genau der Grund, aus dem
+ *    auch die Theke des Marktstands aus Platten besteht.
+ * 2. **Der Giebel ist eine eigene Fläche.** Das Dach ist ein Band, kein
+ *    gefülltes Dreieck. Ohne Giebel klafft zwischen Dachunterkante und
+ *    Wandoberkante ein Loch; auf Stufe 2 deckte das breite Band es zufällig
+ *    zu, auf Stufe 4 stand der Hintergrund mitten im Haus.
+ * 3. **Der Schornstein sitzt auf der Dachschräge.** Seine Höhe wird aus
+ *    `dachY` gerechnet und sein Fuß liegt unter dem Dach, das danach darüber
+ *    gemalt wird. Auf fester Höhe gesetzt schwebte er über dem First.
+ *
+ * `stage` ist 2, 3 oder 4; Stufe 1 ist das Zelt und hat seinen eigenen Maler.
+ */
+export function paintHouse(stage, opts) {
+  const o = opts || {};
+  // Die Maße je Stufe ausgeschrieben statt in geschachtelten Fragezeichen:
+  // Beim Haus hängt jede Zahl an der nächsten, und Vordach, Tür und Fenster
+  // gehen sich nur aus dem Weg, wenn man sie nebeneinander sieht.
+  //
+  // Gemessen an der bemalten Fläche, nicht an der Leinwand: Das Zelt ist
+  // 324 × 266 groß. Ein erster Entwurf gab der Hütte 240 × 177 – der Umzug
+  // vom Zelt ins Haus hätte das Zuhause also kleiner gemacht. Die Wände
+  // stehen deshalb von Anfang an hoch, und jede Stufe legt sichtbar zu.
+  const L = stage >= 4
+    ? { w: 430, h: 420, halb: 150, wandH: 200, sockel: 32, giebelH: 100, tuerH: 58, tuerW: 34, fenY: 20, fenW: 52, fenH: 50 }
+    : stage === 3
+      ? { w: 380, h: 360, halb: 136, wandH: 178, sockel: 0, giebelH: 92, tuerH: 70, tuerW: 30, fenY: 24, fenW: 46, fenH: 44 }
+      : { w: 340, h: 320, halb: 120, wandH: 152, sockel: 0, giebelH: 84, tuerH: 66, tuerW: 27, fenY: 24, fenW: 44, fenH: 42 };
+
+  const w = L.w;
+  const h = L.h;
+  const halb = L.halb;
+  const seed = o.seed || (600 + stage * 31);
+  const cx = w / 2;
+  const baseY = h - 16;
+  // Auf Stufe 4 steht das Haus auf der Veranda, nicht direkt auf dem Boden.
+  const wandFuss = baseY - L.sockel;
+  const traufe = wandFuss - L.wandH;
+  const first = traufe - L.giebelH;
+  const UEBER = 20;
+
+  /** Oberkante des Dachs im Abstand dx von der Mitte. */
+  function dachY(dx) {
+    const t = Math.min(1, Math.abs(dx) / (halb + UEBER));
+    return first + (traufe + 10 - first) * t;
+  }
+
+  const wand = slab(cx - halb, traufe, cx + halb, wandFuss, seed + 1, 2.0);
+  const giebel = poly([
+    [cx - halb + 2, traufe + 4], [cx, first + 18], [cx + halb - 2, traufe + 4],
+  ], 2);
+  // Satteldach als Band mit Überstand – die Kante bleibt scharf.
+  const dach = poly([
+    [cx - halb - UEBER, traufe + 10], [cx, first],
+    [cx + halb + UEBER, traufe + 10], [cx + halb + 6, traufe + 22],
+    [cx, first + 26], [cx - halb - 6, traufe + 22],
+  ], 2);
+  const tuer = slab(cx - L.tuerW, wandFuss - L.tuerH, cx + L.tuerW, wandFuss, seed + 2, 1.2);
+  // Die Fenster sitzen im Verhältnis zur Wandbreite, nicht auf fester Höhe:
+  // Sonst rutschen sie mit jeder Stufe weiter in die Mitte und lassen an den
+  // Seiten leere Wand stehen.
+  const fenX = Math.round(halb * 0.34);
+  const fenY0 = traufe + L.fenY;
+  const fenY1 = fenY0 + L.fenH;
+  const fenster = slab(cx + fenX, fenY0, cx + fenX + L.fenW, fenY1, seed + 3, 1.0);
+  const fenster2 = stage >= 3
+    ? slab(cx - fenX - L.fenW, fenY0, cx - fenX, fenY1, seed + 4, 1.0) : null;
+
+  // Schornstein: rechts vom First, mit dem Fuß im Dach.
+  const sx0 = cx + halb * 0.30;
+  const sx1 = sx0 + 34;
+  const schlotOben = dachY(sx0 - cx) - 46;
+  const schlot = stage >= 3
+    ? slab(sx0, schlotOben + 8, sx1, dachY(sx1 - cx) + 16, seed + 5, 1.4) : null;
+  const kappe = stage >= 3
+    ? slab(sx0 - 6, schlotOben - 2, sx1 + 6, schlotOben + 12, seed + 6, 1.2) : null;
+  const lukeY = first + 54;
+  const luke = stage >= 3
+    ? smoothClosed(blob(cx, lukeY, 15, 15, seed + 7, 0.12, 12), 4) : null;
+
+  // Veranda: Dielen bis vor die Wand, zwei Pfosten außerhalb der Wandkante,
+  // ein Vordach breiter als das Haus. Nach innen gezeichnet verschwand alles
+  // davon in der Wand – gleiche Farbe, gleiche Fläche, kein Umriss.
+  const dielen = stage >= 4 ? poly([
+    [cx - halb - 22, wandFuss - 2], [cx + halb + 22, wandFuss - 2],
+    [cx + halb + 32, baseY - 2], [cx - halb - 32, baseY - 2],
+  ], 2) : null;
+  const vordach = stage >= 4
+    ? slab(cx - halb - 28, traufe + 80, cx + halb + 28, traufe + 98, seed + 8, 1.8) : null;
+  const pfosten = stage >= 4 ? [
+    slab(cx - halb - 8, traufe + 96, cx - halb + 8, wandFuss - 2, seed + 9, 1.2),
+    slab(cx + halb - 8, traufe + 96, cx + halb + 8, wandFuss - 2, seed + 10, 1.2),
+  ] : [];
+  // Die Laternen brauchen eine Farbfläche. Nur getuscht wären sie leere Ringe:
+  // `dot` malt ohne Wash-Ebene bloß den Umriss.
+  const laternenY = traufe + 116;
+  const laternen = stage >= 4
+    ? [cx - halb + 46, cx + halb - 46].map(function (lx, i) {
+      return smoothClosed(blob(lx, laternenY, 9, 10, seed + 11 + i, 0.12, 10), 4);
+    }) : [];
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 2.0,
+    outline: 2.3,
+    shadow: function (g) {
+      groundShadow(g, cx, baseY - 3, halb + (stage >= 4 ? 36 : 14), 20, seed, 0.17);
+    },
+    wash: function (g) {
+      if (dielen) {
+        // Deutlich kühleres Holz als die Wand: In Wandfarbe las sich die
+        // Veranda als Sockel, auf dem das Haus steht, nicht als Boden davor.
+        wash(g, dielen, '#c6a479', { seed: seed + 11, scale: 1.01 });
+        wash(g, offsetShape(dielen, 0, 16, 0.72), '#a3835a', { seed: seed + 12, alpha: 0.55 });
+      }
+      wash(g, wand, '#e0c49c', { seed: seed + 13, scale: 1.02 });
+      wash(g, offsetShape(wand, 52, 8, 0.62), '#c39f74', { seed: seed + 14, alpha: 0.6 });
+      // Der Giebel ist dieselbe Wand, nur höher: gleiche Farbe, eigener
+      // Schatten. In einem eigenen Ton las er sich als Fleck im Dach.
+      wash(g, giebel, '#e0c49c', { seed: seed + 15, scale: 1.02 });
+      wash(g, offsetShape(giebel, 26, 4, 0.62), '#c9a87e', { seed: seed + 29, alpha: 0.55 });
+      // Schornstein vor dem Dach: Was danach kommt, deckt seinen Fuß zu.
+      if (schlot) {
+        wash(g, schlot, '#b0a596', { seed: seed + 16, scale: 1.02 });
+        wash(g, offsetShape(schlot, 18, 4, 0.55), '#8d8274', { seed: seed + 17, alpha: 0.6 });
+      }
+      wash(g, dach, stage >= 4 ? '#8a6242' : '#a2704a', { seed: seed + 18, scale: 1.02 });
+      wash(g, offsetShape(dach, 44, 8, 0.6), '#6f4a30', { seed: seed + 19, alpha: 0.55 });
+      if (kappe) wash(g, kappe, '#9a8f80', { seed: seed + 20, scale: 1.02 });
+      wash(g, tuer, '#75512f', { seed: seed + 21, scale: 1.02 });
+      // Warmes Fenster statt Glas: Von außen sieht man das Licht darin.
+      wash(g, fenster, '#f4d488', { seed: seed + 22, scale: 1.03 });
+      if (fenster2) wash(g, fenster2, '#f4d488', { seed: seed + 23, scale: 1.03 });
+      if (luke) wash(g, luke, '#f0cd82', { seed: seed + 24, scale: 1.03 });
+      for (let i = 0; i < pfosten.length; i++) {
+        wash(g, pfosten[i], ink.wood, { seed: seed + 25 + i, scale: 1.02 });
+      }
+      if (vordach) {
+        wash(g, vordach, '#7d573b', { seed: seed + 27, scale: 1.02 });
+        wash(g, offsetShape(vordach, 0, 8, 0.55), '#5f4029', { seed: seed + 28, alpha: 0.55 });
+      }
+      for (let i = 0; i < laternen.length; i++) {
+        wash(g, laternen[i], '#f7d98c', { seed: seed + 30 + i, scale: 1.05 });
+      }
+    },
+    shape: function (g) {
+      if (dielen) fill(g, dielen);
+      fill(g, wand);
+      fill(g, giebel);
+      if (schlot) fill(g, schlot);
+      if (kappe) fill(g, kappe);
+      fill(g, dach);
+      for (let i = 0; i < pfosten.length; i++) fill(g, pfosten[i]);
+      if (vordach) fill(g, vordach);
+    },
+    ink: function (g) {
+      inkStroke(g, tuer, { width: 2.8, vary: 0.28, seed: seed + 30, color: ink.line, alpha: 0.95 });
+      inkStroke(g, fenster, { width: 2.6, vary: 0.28, seed: seed + 31, color: ink.line, alpha: 0.92 });
+      if (fenster2) {
+        inkStroke(g, fenster2, { width: 2.6, vary: 0.28, seed: seed + 32, color: ink.line, alpha: 0.92 });
+      }
+      if (luke) {
+        inkStroke(g, luke, { width: 2.4, vary: 0.25, seed: seed + 33, color: ink.line, alpha: 0.9 });
+        inkLine(g, cx - 14, lukeY, cx + 14, lukeY,
+          { width: 1.8, bend: 0.03, seed: seed + 34, alpha: 0.75 });
+      }
+      // Fensterkreuz – ohne es bleibt das Fenster ein gelber Fleck
+      function kreuz(x0, x1, sd) {
+        inkLine(g, x0, (fenY0 + fenY1) / 2, x1, (fenY0 + fenY1) / 2,
+          { width: 1.9, bend: 0.03, seed: sd, alpha: 0.8 });
+        inkLine(g, (x0 + x1) / 2, fenY0, (x0 + x1) / 2, fenY1,
+          { width: 1.9, bend: 0.03, seed: sd + 1, alpha: 0.8 });
+      }
+      kreuz(cx + fenX, cx + fenX + L.fenW, seed + 36);
+      if (fenster2) kreuz(cx - fenX - L.fenW, cx - fenX, seed + 38);
+      dot(null, g, cx + L.tuerW * 0.55, wandFuss - L.tuerH * 0.45, 3.6, ink.iron, seed + 40);
+
+      // Bretter in der Wand
+      for (let i = 1; i < 4; i++) {
+        const y = traufe + (L.wandH / 4) * i;
+        inkLine(g, cx - halb + 8, y, cx + halb - 8, y,
+          { width: 1.3, bend: 0.04, seed: seed + 42 + i, color: ink.lineSoft, alpha: 0.42 });
+      }
+      // Der Giebel trägt stehende Bretter – quer verlaufende würden ihn zur
+      // Fortsetzung der Wand machen, und genau das ist er nicht.
+      inkLine(g, cx - halb + 10, traufe + 3, cx + halb - 10, traufe + 3,
+        { width: 1.8, bend: 0.03, seed: seed + 46, color: ink.lineSoft, alpha: 0.55 });
+      for (let i = -2; i <= 2; i++) {
+        if (!i) continue;
+        const x = cx + i * (halb / 3.2);
+        // Bis zur Dachschräge, nicht darüber hinaus
+        const oben = first + 18 + (traufe - 14 - first) * Math.min(1, Math.abs(x - cx) / halb);
+        inkLine(g, x, oben + 8, x, traufe,
+          { width: 1.3, bend: 0.03, seed: seed + 47 + i, color: ink.lineSoft, alpha: 0.4 });
+      }
+      // Schindelstriche quer zur Dachschräge – waagerechte Latten würden über
+      // den Giebel laufen, der ja unter dem Dachband liegt und sichtbar ist.
+      for (let s = -1; s <= 1; s += 2) {
+        for (let i = 1; i <= 4; i++) {
+          const u = i / 5;
+          inkLine(g,
+            cx + s * (halb + UEBER) * u, first + (traufe + 10 - first) * u,
+            cx + s * (halb + 6) * u, first + 26 + (traufe - 4 - first) * u,
+            { width: 1.4, bend: 0.02, seed: seed + 50 + i * 3 + s, color: ink.lineSoft, alpha: 0.4 });
+        }
+      }
+      if (kappe) {
+        inkLine(g, sx0 - 6, schlotOben + 11, sx1 + 6, schlotOben + 11,
+          { width: 2.0, bend: 0.03, seed: seed + 60, color: ink.line, alpha: 0.85 });
+      }
+      if (stage >= 4) {
+        // Zwei Laternen am Vordach, jede an ihrem Haken
+        for (let i = 0; i < laternen.length; i++) {
+          const lx = i ? cx + halb - 46 : cx - halb + 46;
+          inkLine(g, lx, traufe + 98, lx, laternenY - 9,
+            { width: 1.8, bend: 0, seed: seed + 62 + i, alpha: 0.8 });
+          inkStroke(g, laternen[i],
+            { width: 2.0, vary: 0.28, seed: seed + 64 + i, color: ink.line, alpha: 0.9 });
+        }
+        // Die Naht zwischen Wand und Veranda – ohne sie steht das Haus auf
+        // einem Sockel statt vor einem Boden.
+        inkLine(g, cx - halb - 20, wandFuss - 1, cx + halb + 20, wandFuss - 1,
+          { width: 2.2, bend: 0.02, seed: seed + 68, color: ink.line, alpha: 0.75 });
+        // Dielenfugen, nach vorn hin breiter
+        for (let i = 1; i < 4; i++) {
+          const t = i / 4;
+          const y = wandFuss + (baseY - wandFuss - 4) * t;
+          const rand = halb + 22 + 10 * t;
+          inkLine(g, cx - rand, y, cx + rand, y,
+            { width: 1.2, bend: 0.03, seed: seed + 70 + i, color: ink.lineSoft, alpha: 0.38 });
+        }
+      }
     },
   });
   return made(res, w, h, cx, baseY);
@@ -873,6 +1231,32 @@ const MEMORY_PAINTERS = {
     }
     return [cup, saucer];
   },
+  /**
+   * Wandas Muschelkette: drei Muscheln an einer Schnur.
+   *
+   * Die Schnur ist eine Tuschelinie und gehört bewusst NICHT zur Silhouette –
+   * sonst zieht die Umrisslinie einen dicken Bogen um nichts.
+   */
+  shellchain: function (g, gi, cx, cy, seed) {
+    const links = smoothClosed(blob(cx - 20, cy + 8, 11, 12, seed + 1, 0.12, 12), 4);
+    const mitte = smoothClosed(blob(cx + 1, cy + 16, 15, 15, seed + 2, 0.1, 14), 5);
+    const rechts = smoothClosed(blob(cx + 22, cy + 8, 11, 12, seed + 3, 0.12, 12), 4);
+    if (g) {
+      wash(g, links, '#f0d9c4', { seed: seed + 4, scale: 1.05 });
+      wash(g, mitte, '#f6e6d2', { seed: seed + 5, scale: 1.05 });
+      wash(g, rechts, '#e9cbb4', { seed: seed + 6, scale: 1.05 });
+      wash(g, offsetShape(mitte, 0, 4, 0.5), '#dcbb9e', { seed: seed + 7, alpha: 0.6 });
+    }
+    if (gi) {
+      inkLine(gi, cx - 30, cy - 6, cx + 30, cy - 6, { width: 1.6, bend: 0.22, seed: seed + 8, alpha: 0.8 });
+      // Rillen, sonst sind es drei Kiesel
+      for (let i = -1; i <= 1; i++) {
+        inkLine(gi, cx + 1 + i * 5, cy + 6, cx + 1 + i * 8, cy + 28,
+          { width: 1.2, bend: 0.06, seed: seed + 10 + i, color: ink.lineSoft, alpha: 0.55 });
+      }
+    }
+    return [links, mitte, rechts];
+  },
 };
 
 export function paintMemory(kind, opts) {
@@ -919,6 +1303,13 @@ export function paintTool(kind, opts) {
   let shafts = [];
   let heads = [];
   let headColor = ink.iron;
+  /** Die Wassertropfen der Gießkanne – gefüllt gewaschen, dann umrandet. */
+  let kanneTropfen = null;
+
+  /** Ein runder Klecks als Form, ohne ihn gleich zu zeichnen. */
+  function blobDot(x, y, r, s) {
+    return smoothClosed(blob(x, y, r, r, s, 0.12, 10), 4);
+  }
 
   if (kind === 'axe') {
     shafts = [handle(cx - 22, cy + 44, cx + 4, cy - 30, 7)];
@@ -945,6 +1336,44 @@ export function paintTool(kind, opts) {
     shafts = [handle(cx - 30, cy + 46, cx + 4, cy - 8, 6)];
     heads = [smoothClosed(blob(cx + 14, cy - 30, 27, 24, seed + 3, 0.07, 18), 6)];
     headColor = ink.paper;
+  } else if (kind === 'can') {
+    // Bauch, Tülle und Bügel – alles aus einem Stück Blech, darum alles in
+    // `heads`. Als die Tülle noch ein „Stiel" war, wurde sie holzfarben
+    // gewaschen, und die Kanne sah aus wie ein Stein mit einem Kochlöffel.
+    const bx = cx - 12;
+    const by = cy + 6;
+    // Die Tropfen fallen unter der Tüllenspitze – darum zeigt die Tülle nach
+    // schräg unten. Zeigte sie nach oben, standen Kanne und Wasser in zwei
+    // verschiedene Richtungen und das Bild erzählte nichts.
+    kanneTropfen = [
+      blobDot(bx + 47, by + 33, 4.4, seed + 71),
+      blobDot(bx + 54, by + 42, 3.4, seed + 72),
+      blobDot(bx + 40, by + 43, 2.8, seed + 73),
+    ];
+    // Der Bügel: außen herum und innen zurück, das ergibt ein Band statt
+    // eines Klumpens. Ein gerader Strich darüber sah aus wie eine Latte.
+    const buegel = [];
+    for (let i = 0; i <= 12; i++) {
+      const a = Math.PI + (i / 12) * Math.PI;
+      buegel.push([bx + Math.cos(a) * 27, (by - 22) + Math.sin(a) * 24]);
+    }
+    for (let i = 12; i >= 0; i--) {
+      const a = Math.PI + (i / 12) * Math.PI;
+      buegel.push([bx + Math.cos(a) * 19, (by - 22) + Math.sin(a) * 15]);
+    }
+    heads = [
+      smoothClosed(blob(bx - 2, by + 2, 27, 24, seed + 5, 0.07, 18), 6),
+      // Tülle: am Bauch breit, zur Brause hin schmal, schräg nach unten.
+      smoothClosed([
+        [bx + 14, by - 12], [bx + 16, by + 6],
+        [bx + 52, by + 22], [bx + 49, by + 12],
+      ], 4),
+      // Die Brause sitzt als eigener Kopf am Ende. Ohne sie läuft die Tülle
+      // spitz aus, und die Kanne bekommt einen Schnabel statt einer Brause.
+      smoothClosed(blob(bx + 50, by + 18, 8, 9, seed + 9, 0.1, 12), 4),
+      smoothClosed(buegel, 4),
+    ];
+    headColor = ink.iron;
   } else { // hand
     heads = [smoothClosed(blob(cx, cy + 4, 26, 30, seed, 0.14, 16), 5)];
     headColor = ink.skin;
@@ -960,6 +1389,13 @@ export function paintTool(kind, opts) {
         wash(g, heads[i], headColor, { seed: seed + 20 + i, scale: 1.05 });
         wash(g, offsetShape(heads[i], 6, 5, 0.6), kind === 'hand' ? ink.skinShade : ink.ironDark,
           { seed: seed + 30 + i, alpha: 0.6 });
+      }
+      // Die Tropfen liegen NICHT in der Silhouette: sonst klebten sie als
+      // Blechnasen an der Tülle, statt zu fallen.
+      if (kanneTropfen) {
+        for (let i = 0; i < kanneTropfen.length; i++) {
+          wash(g, kanneTropfen[i], ink.water, { seed: seed + 60 + i, scale: 1.02 });
+        }
       }
     },
     shape: function (g) {
@@ -981,6 +1417,20 @@ export function paintTool(kind, opts) {
             { width: 1.1, bend: 0.05, seed: seed + 50 + i, color: ink.lineSoft, alpha: 0.42 });
           inkLine(g, cx - 12, cy - 30 + i * 9, cx + 40, cy - 30 + i * 9,
             { width: 1.1, bend: 0.08, seed: seed + 60 + i, color: ink.lineSoft, alpha: 0.42 });
+        }
+      }
+      if (kind === 'can' && kanneTropfen) {
+        // Der Rand der Brause, ein Naht­strich über dem Bauch – und die
+        // Tropfen. Erst sie sagen, dass hier gegossen und nicht geschöpft
+        // wird; ohne sie ist es eine Kanne wie jede andere.
+        // Brausenrand quer zur Tülle, dazu eine Naht über dem Bauch.
+        inkLine(g, cx + 34, cy + 16, cx + 42, cy + 30,
+          { width: 2.6, bend: 0.04, seed: seed + 46, color: ink.ironDark, alpha: 0.9 });
+        inkLine(g, cx - 34, cy - 4, cx + 2, cy - 4,
+          { width: 1.4, bend: 0.09, seed: seed + 48, color: ink.ironDark, alpha: 0.5 });
+        for (let i = 0; i < kanneTropfen.length; i++) {
+          inkStroke(g, kanneTropfen[i],
+            { width: 1.3, vary: 0.3, seed: seed + 50 + i, color: ink.waterDeep, alpha: 0.85 });
         }
       }
       if (kind === 'hand') {
@@ -1066,8 +1516,19 @@ export function paintBird(frame, opts) {
 
 /**
  * Spielfigur.
- * @param {'down'|'up'|'side'} dir
+ *
+ * @param {'down'|'up'|'side'|'sit'} dir
  * @param {number} frame 0 = Stand, 1/2 = Schritt
+ *
+ * `sit` ist die vierte Haltung und die einzige, die nichts mit Laufen zu tun
+ * hat: Seli sitzt auf einer Bank, im Gras oder in der Hängematte. Sie war
+ * lange die auffälligste Lücke im Spiel – man baut sich eine Bank, stellt
+ * sie ans Wasser und kann sich nie hineinsetzen.
+ *
+ * Technisch ist sie derselbe Körper, nur ein Stück tiefer (das erledigt `bob`
+ * für alles, was daran hängt) und mit angewinkelten Beinen statt gestreckter.
+ * Eine zweite Malroutine daneben wäre eine zweite Seli, die beim nächsten
+ * Farbwechsel abweicht.
  */
 export function paintSeli(dir, frame, opts) {
   const o = opts || {};
@@ -1077,9 +1538,15 @@ export function paintSeli(dir, frame, opts) {
   const cx = w / 2;
   const baseY = h - 10;
   const headY = 56;
-  const bob = frame === 0 ? 0 : -3;
-  const stepA = frame === 1 ? 7 : 0;
-  const stepB = frame === 2 ? 7 : 0;
+  const sit = dir === 'sit';
+  // Im Sitzen sackt der ganze Oberkörper ab – über `bob`, an dem Kopf, Haar,
+  // Hut, Rock, Arme und Halstuch ohnehin schon hängen.
+  // Zwölf Pixel, nachgerechnet: Der Rockbund liegt dann bei baseY-40, der
+  // Saum bei baseY-26 – vierzehn Pixel Rock. Bei zwanzig fielen Bund und
+  // Saum aufeinander, und aus dem Rock wurde ein Strich.
+  const bob = (frame === 0 ? 0 : -3) + (sit ? 12 : 0);
+  const stepA = sit ? 0 : (frame === 1 ? 7 : 0);
+  const stepB = sit ? 0 : (frame === 2 ? 7 : 0);
   const side = dir === 'side';
   const back = dir === 'up';
 
@@ -1087,26 +1554,52 @@ export function paintSeli(dir, frame, opts) {
   const hairShade = o.hairShade || SELI.hairShade;
   const hairLight = o.hairLight || SELI.hairLight;
 
-  // Beine schlank, Stiefel dunkel – helle Strümpfe allein verschwinden im Papier
-  const legL = smoothClosed([
-    [cx - 12 - stepA * 0.4, baseY - 30 + bob], [cx - 13 - stepA * 0.6, baseY - 11],
-    [cx - 3 - stepA * 0.6, baseY - 11], [cx - 3, baseY - 30 + bob],
-  ], 4);
-  const legR = smoothClosed([
-    [cx + 3, baseY - 30 + bob], [cx + 3 + stepB * 0.6, baseY - 11],
-    [cx + 13 + stepB * 0.6, baseY - 11], [cx + 12 + stepB * 0.4, baseY - 30 + bob],
-  ], 4);
-  const bootL = smoothClosed(blob(cx - 8 - stepA * 0.6, baseY - 7, 8.5, 6.5, seed + 62, 0.09, 12), 4);
-  const bootR = smoothClosed(blob(cx + 8 + stepB * 0.6, baseY - 7, 8.5, 6.5, seed + 63, 0.09, 12), 4);
+  // Beine schlank, Stiefel dunkel – helle Strümpfe allein verschwinden im Papier.
+  // Im Sitzen liegen die Oberschenkel waagerecht nach vorn, die Unterschenkel
+  // fallen davor herunter: von vorn zwei runde Knie und darunter die Stiefel.
+  const legL = sit
+    ? smoothClosed([
+      [cx - 15, baseY - 26], [cx - 17, baseY - 12],
+      [cx - 6, baseY - 11], [cx - 5, baseY - 25],
+    ], 5)
+    : smoothClosed([
+      [cx - 12 - stepA * 0.4, baseY - 30 + bob], [cx - 13 - stepA * 0.6, baseY - 11],
+      [cx - 3 - stepA * 0.6, baseY - 11], [cx - 3, baseY - 30 + bob],
+    ], 4);
+  const legR = sit
+    ? smoothClosed([
+      [cx + 5, baseY - 25], [cx + 6, baseY - 11],
+      [cx + 17, baseY - 12], [cx + 15, baseY - 26],
+    ], 5)
+    : smoothClosed([
+      [cx + 3, baseY - 30 + bob], [cx + 3 + stepB * 0.6, baseY - 11],
+      [cx + 13 + stepB * 0.6, baseY - 11], [cx + 12 + stepB * 0.4, baseY - 30 + bob],
+    ], 4);
+  const bootL = sit
+    ? smoothClosed(blob(cx - 12, baseY - 8, 9, 6, seed + 62, 0.09, 12), 4)
+    : smoothClosed(blob(cx - 8 - stepA * 0.6, baseY - 7, 8.5, 6.5, seed + 62, 0.09, 12), 4);
+  const bootR = sit
+    ? smoothClosed(blob(cx + 12, baseY - 8, 9, 6, seed + 63, 0.09, 12), 4)
+    : smoothClosed(blob(cx + 8 + stepB * 0.6, baseY - 7, 8.5, 6.5, seed + 63, 0.09, 12), 4);
 
   // Rock: unten weiter als oben, das liest sich auch klein noch als Kleid
   const skirtTop = baseY - 52 + bob;
-  const skirt = smoothClosed([
-    [cx - 13, skirtTop], [cx + 13, skirtTop],
-    [cx + 22, baseY - 30 + bob], [cx + 14, baseY - 26 + bob],
-    [cx, baseY - 29 + bob],
-    [cx - 14, baseY - 26 + bob], [cx - 22, baseY - 30 + bob],
-  ], 6);
+  // Im Sitzen liegt der Rock auf dem Schoß: breiter und deutlich kürzer, sonst
+  // verdeckt er die angewinkelten Beine ganz und die Haltung liest sich als
+  // Hocke im Zelt.
+  const skirt = sit
+    ? smoothClosed([
+      [cx - 15, skirtTop], [cx + 15, skirtTop],
+      [cx + 26, baseY - 27], [cx + 14, baseY - 23],
+      [cx, baseY - 26],
+      [cx - 14, baseY - 23], [cx - 26, baseY - 27],
+    ], 6)
+    : smoothClosed([
+      [cx - 13, skirtTop], [cx + 13, skirtTop],
+      [cx + 22, baseY - 30 + bob], [cx + 14, baseY - 26 + bob],
+      [cx, baseY - 29 + bob],
+      [cx - 14, baseY - 26 + bob], [cx - 22, baseY - 30 + bob],
+    ], 6);
   const body = smoothClosed(blob(cx, baseY - 60 + bob, side ? 19 : 22, 18, seed + 1, 0.06, 16), 5);
   const armL = smoothClosed(blob(cx - (side ? 15 : 22), baseY - 56 + bob + stepB, 7, 13, seed + 2, 0.08, 12), 5);
   const armR = smoothClosed(blob(cx + (side ? 15 : 22), baseY - 56 + bob + stepA, 7, 13, seed + 3, 0.08, 12), 5);
@@ -1235,11 +1728,38 @@ export function paintSeli(dir, frame, opts) {
       inkStroke(g, scarf, { width: 2.0, vary: 0.3, seed: seed + 56, color: ink.line, alpha: 0.75 });
 
       // Gesicht
+      //
+      // Das Auge in drei Lagen: dunkle Kontur, blaue Iris, schwarze Pupille.
+      // Nur eine blaue Fläche wäre auf zehn Pixeln kein Auge mehr, sondern ein
+      // Fleck – der dunkle Rand hält die Form, die Pupille den Blick.
       const ex = side ? 9 : 0;
+      const augeL = { x: cx - 11 + ex, y: headY + 5 + bob, rx: 3.6, ry: 4.8 };
+      const augeR = side
+        ? { x: cx + 19, y: headY + 5 + bob, rx: 3.2, ry: 4.4 }
+        : { x: cx + 11, y: headY + 5 + bob, rx: 3.6, ry: 4.8 };
+      const augen = side ? [augeL, augeR] : [augeL, augeR];
+
       g.fillStyle = ink.line;
-      fill(g, smoothClosed(blob(cx - 11 + ex, headY + 5 + bob, 3.6, 4.8, seed + 40, 0.08, 10), 4));
-      if (!side) fill(g, smoothClosed(blob(cx + 11, headY + 5 + bob, 3.6, 4.8, seed + 41, 0.08, 10), 4));
-      else fill(g, smoothClosed(blob(cx + 19, headY + 5 + bob, 3.2, 4.4, seed + 41, 0.08, 10), 4));
+      for (let i = 0; i < augen.length; i++) {
+        const a = augen[i];
+        fill(g, smoothClosed(blob(a.x, a.y, a.rx, a.ry, seed + 40 + i, 0.08, 10), 4));
+      }
+      // Iris: etwas kleiner als die Kontur, minimal nach unten gesetzt –
+      // dadurch bleibt oben ein dunkler Lidschatten stehen.
+      g.fillStyle = SELI.eye;
+      for (let i = 0; i < augen.length; i++) {
+        const a = augen[i];
+        g.beginPath();
+        g.ellipse(a.x, a.y + 0.5, a.rx * 0.74, a.ry * 0.72, 0, 0, 6.2832);
+        g.fill();
+      }
+      g.fillStyle = SELI.eyeDeep;
+      for (let i = 0; i < augen.length; i++) {
+        const a = augen[i];
+        g.beginPath();
+        g.ellipse(a.x, a.y + 0.9, a.rx * 0.4, a.ry * 0.42, 0, 0, 6.2832);
+        g.fill();
+      }
       // Lichtpunkt oben links im Auge – erst damit schaut sie wirklich
       g.fillStyle = '#fffdf6';
       g.beginPath();
@@ -1570,6 +2090,325 @@ export function paintFox(frame, opts) {
       fill(g, smoothClosed(blob(cx, headY + 12 + bob, 5.4, 4, seed + 42, 0.08, 10), 4));
       inkLine(g, cx, headY + 16 + bob, cx - 8, headY + 22 + bob, { width: 1.5, bend: 0.2, seed: seed + 43 });
       inkLine(g, cx, headY + 16 + bob, cx + 8, headY + 22 + bob, { width: 1.5, bend: -0.2, seed: seed + 44 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Die Kochstelle.
+ *
+ * Ein Dreibein mit Kessel über einer Feuerstelle, daneben ein Brett mit
+ * Kraut. Absichtlich NICHT wie das Lagerfeuer: Das ist rund und lodert, die
+ * Kochstelle steht auf drei Beinen und hat einen Topf – man muss sie aus
+ * zwanzig Metern auseinanderhalten können, sonst läuft man zum falschen.
+ *
+ * Die Glut darunter glimmt nur. Eine zweite große Flamme im Lager würde dem
+ * Feuer die Rolle nehmen, und die Farbe der Insel hängt an genau dieser
+ * einen Flamme.
+ */
+export function paintKitchen(opts) {
+  const o = opts || {};
+  const w = 196;
+  const h = 168;
+  const seed = o.seed || 1601;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  // Drei Beine, die sich oben treffen. Zwei sähen aus wie ein Torbogen.
+  const beinL = poly([
+    [cx - 46, baseY - 4], [cx - 34, baseY - 4], [cx - 2, baseY - 116], [cx - 9, baseY - 118],
+  ], 2);
+  const beinR = poly([
+    [cx + 34, baseY - 4], [cx + 46, baseY - 4], [cx + 9, baseY - 118], [cx + 2, baseY - 116],
+  ], 2);
+  const beinM = poly([
+    [cx + 12, baseY - 10], [cx + 20, baseY - 12], [cx + 5, baseY - 114], [cx - 1, baseY - 113],
+  ], 2);
+
+  const steine = [];
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI * (0.15 + (i / 4) * 0.7);
+    steine.push(smoothClosed(blob(cx - Math.cos(a) * 40, baseY - 6 - Math.sin(a) * 5,
+      11, 8, seed + 10 + i, 0.2, 12), 5));
+  }
+  const glut = smoothClosed(blob(cx, baseY - 14, 22, 7, seed + 3, 0.18, 14), 5);
+
+  const kessel = smoothClosed([
+    [cx - 30, baseY - 78], [cx + 30, baseY - 78],
+    [cx + 25, baseY - 40], [cx, baseY - 33], [cx - 25, baseY - 40],
+  ], 6);
+  const rand = slab(cx - 32, baseY - 84, cx + 32, baseY - 74, seed + 4, 1.4);
+  const brett = slab(cx + 40, baseY - 34, cx + 84, baseY - 26, seed + 5, 1.3);
+  const bock = slab(cx + 56, baseY - 26, cx + 66, baseY - 3, seed + 6, 1.2);
+  const kraut = smoothClosed(blob(cx + 62, baseY - 40, 14, 9, seed + 7, 0.2, 12), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx + 6, baseY - 3, 82, 13, seed, 0.16); },
+    wash: function (g) {
+      for (let i = 0; i < steine.length; i++) {
+        wash(g, steine[i], i % 2 ? ink.rock : ink.rockShade, { seed: seed + 20 + i, scale: 1.03 });
+      }
+      wash(g, glut, ink.emberDeep, { seed: seed + 30, scale: 1.06 });
+      wash(g, offsetShape(glut, 0, -2, 0.6), ink.ember, { seed: seed + 31, alpha: 0.8 });
+      wash(g, beinL, ink.woodDark, { seed: seed + 32 });
+      wash(g, beinR, ink.woodDark, { seed: seed + 33 });
+      wash(g, beinM, ink.bark, { seed: seed + 34 });
+      wash(g, bock, ink.woodDark, { seed: seed + 35 });
+      wash(g, brett, ink.wood, { seed: seed + 36, scale: 1.02 });
+      wash(g, kraut, ink.leafDark, { seed: seed + 37, scale: 1.04 });
+      wash(g, kessel, '#6f767c', { seed: seed + 38, scale: 1.02 });
+      wash(g, offsetShape(kessel, 20, 6, 0.6), '#565c61', { seed: seed + 39, alpha: 0.65 });
+      wash(g, rand, '#8a9196', { seed: seed + 40, scale: 1.02 });
+    },
+    shape: function (g) {
+      for (let i = 0; i < steine.length; i++) fill(g, steine[i]);
+      fill(g, beinM); fill(g, beinL); fill(g, beinR);
+      fill(g, bock); fill(g, brett);
+      fill(g, kessel); fill(g, rand);
+    },
+    ink: function (g) {
+      inkStroke(g, kessel, { width: 2.2, vary: 0.3, seed: seed + 50, color: ink.line, alpha: 0.8 });
+      inkStroke(g, rand, { width: 2.0, vary: 0.3, seed: seed + 51, color: ink.line, alpha: 0.85 });
+      inkStroke(g, brett, { width: 1.8, vary: 0.3, seed: seed + 52, color: ink.line, alpha: 0.7 });
+      inkStroke(g, kraut, { width: 1.5, vary: 0.35, seed: seed + 53, color: ink.line, alpha: 0.65 });
+      // Der Bügel, an dem der Kessel hängt – ohne ihn schwebt er.
+      inkLine(g, cx - 28, baseY - 82, cx, baseY - 104,
+        { width: 2.2, bend: 0.18, seed: seed + 54, alpha: 0.85 });
+      inkLine(g, cx + 28, baseY - 82, cx, baseY - 104,
+        { width: 2.2, bend: -0.18, seed: seed + 55, alpha: 0.85 });
+      for (let i = 0; i < steine.length; i++) {
+        inkStroke(g, steine[i], { width: 1.4, vary: 0.35, seed: seed + 60 + i, color: ink.line, alpha: 0.6 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/* --------------------------------------------------- Der Wanderer und seine
+ * Laterne. Beides steht bewusst neben der Inselpalette: Die Insel ist warm
+ * und hell, er ist gedeckt und kühl. Wer am Strand steht, soll auf zwanzig
+ * Pixel Entfernung sehen, dass der da nicht hierher gehört. */
+
+/**
+ * Die Reiselaterne.
+ *
+ * Kein zweiter Laternenpfahl: Sie ist eine Sturmlaterne, die man in der Hand
+ * trägt – gedrungen, mit Traggriff, und der Messingbügel oben macht die
+ * Silhouette unverwechselbar. Neben der Laterne (schlank, eisern, auf einem
+ * Pfahl) erkennt man sie auch als Symbol im Beutel sofort wieder.
+ */
+export function paintTravelLamp(opts) {
+  const o = opts || {};
+  const w = 92;
+  const h = 132;
+  const seed = o.seed || 2141;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const fuss = smoothClosed(blob(cx, baseY - 8, 26, 10, seed + 1, 0.13, 16), 5);
+  const bauch = smoothClosed([
+    [cx - 26, baseY - 14], [cx + 26, baseY - 14],
+    [cx + 22, baseY - 64], [cx - 22, baseY - 64],
+  ], 6);
+  const glas = smoothClosed([
+    [cx - 18, baseY - 20], [cx + 18, baseY - 20],
+    [cx + 15, baseY - 58], [cx - 15, baseY - 58],
+  ], 6);
+  const deckel = smoothClosed([
+    [cx - 27, baseY - 64], [cx + 27, baseY - 64],
+    [cx + 15, baseY - 82], [cx - 15, baseY - 82],
+  ], 5);
+  // Der Traggriff gehört in die Silhouette – sonst ist er ein Strich neben
+  // einem Kasten und nichts, was man anfassen könnte.
+  const griff = smoothClosed([
+    [cx - 17, baseY - 80], [cx - 20, baseY - 100], [cx, baseY - 108],
+    [cx + 20, baseY - 100], [cx + 17, baseY - 80],
+    [cx + 12, baseY - 82], [cx + 14, baseY - 97], [cx, baseY - 101],
+    [cx - 14, baseY - 97], [cx - 12, baseY - 82],
+  ], 6);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.4,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx + 2, baseY - 3, 28, 9, seed, 0.16); },
+    wash: function (g) {
+      wash(g, fuss, ink.woodDark, { seed: seed + 2 });
+      wash(g, bauch, ink.copper, { seed: seed + 3, scale: 1.04 });
+      wash(g, offsetShape(bauch, LIGHT.x * 16, LIGHT.y * 12, 0.55), ink.gold,
+        { seed: seed + 4, alpha: 0.45 });
+      wash(g, deckel, ink.copper, { seed: seed + 5 });
+      wash(g, griff, ink.gold, { seed: seed + 6 });
+      // Das Licht darin: heller Kern, warmer Rand. Sie brennt noch – das ist
+      // der Grund, warum jemand sie weitergibt statt sie wegzuwerfen.
+      wash(g, glas, ink.emberLight, { seed: seed + 7, scale: 1.1 });
+      wash(g, offsetShape(glas, 0, 8, 0.62), ink.ember, { seed: seed + 8, alpha: 0.85 });
+      dot(g, null, cx, baseY - 40, 7, ink.emberLight, seed + 9);
+    },
+    shape: function (g) { fill(g, fuss); fill(g, bauch); fill(g, deckel); fill(g, griff); },
+    ink: function (g) {
+      inkStroke(g, glas, { width: 2.2, vary: 0.3, seed: seed + 12, color: ink.line, alpha: 0.85 });
+      // Zwei Streben über dem Glas, die der Laterne ihr Alter geben.
+      inkLine(g, cx - 12, baseY - 20, cx - 10, baseY - 58, { width: 1.5, bend: 0, seed: seed + 13, alpha: 0.5 });
+      inkLine(g, cx + 12, baseY - 20, cx + 10, baseY - 58, { width: 1.5, bend: 0, seed: seed + 14, alpha: 0.5 });
+      inkStroke(g, griff, { width: 1.6, vary: 0.3, seed: seed + 15, color: ink.line, alpha: 0.6 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Der Wanderer selbst.
+ *
+ * Ein Mensch wie Seli – die Geister sind Tiere, er ist es nicht. Aber alles
+ * an ihm ist Reisegepäck: breiter Hut, Umhang bis zu den Stiefeln, ein Sack
+ * auf dem Rücken, ein Stab in der Hand. Vor allem der Stab: Er steht auch im
+ * Stehen schräg im Boden, und damit sieht man aus jeder Entfernung, dass
+ * dieser Jemand unterwegs ist.
+ *
+ * Der Umhang verdeckt die Beine ganz. Das ist kein Sparen am Bild, sondern
+ * die Absicht: Was man von ihm sieht, ist das, was man von einem Fremden
+ * sieht – wenig, und das Gesicht unter einer Hutkrempe.
+ */
+export function paintWanderer(frame, opts) {
+  const o = opts || {};
+  const w = 148;
+  const h = 196;
+  const seed = (o.seed || 2151) + frame * 7;
+  const cx = w / 2 - 6;   // etwas nach links: rechts steht der Stab
+  const baseY = h - 10;
+  const headY = 66;
+  const bob = frame === 1 ? -3 : 0;
+
+  const mantelFarbe = '#7c8f86';
+  const mantelSchatten = '#5a6d66';
+  const hutFarbe = '#b08a56';
+  const hutSchatten = '#8a6a3d';
+  const sackFarbe = '#cb9a5c';
+
+  const stiefelL = smoothClosed(blob(cx - 12, baseY - 8, 10, 7, seed + 1, 0.09, 12), 4);
+  const stiefelR = smoothClosed(blob(cx + 11, baseY - 8, 10, 7, seed + 2, 0.09, 12), 4);
+  // Der Umhang: oben schmal, unten weit, und der Saum schwingt beim Atmen.
+  const saum = baseY - 14;
+  const mantel = smoothClosed([
+    [cx - 20, baseY - 96 + bob], [cx + 20, baseY - 96 + bob],
+    [cx + 32, saum - 6], [cx + 18, saum], [cx, saum - 4],
+    [cx - 18, saum], [cx - 32, saum - 6],
+  ], 6);
+  const kapuze = smoothClosed(blob(cx, baseY - 96 + bob, 26, 14, seed + 3, 0.07, 16), 5);
+  const sack = smoothClosed(blob(cx - 30, baseY - 84 + bob, 18, 21, seed + 4, 0.08, 16), 5);
+  const arm = smoothClosed(blob(cx + 23, baseY - 78 + bob, 8, 15, seed + 5, 0.08, 12), 5);
+  const kopf = smoothClosed(blob(cx, headY + bob, 27, 26, seed + 6, 0.05, 20), 6);
+  // Der Bart war beim ersten Anlauf 32 Punkte breit und fast weiß – aus zwei
+  // Metern sah das Gesicht aus wie eine Maske. Jetzt ist es ein Kinnbart:
+  // schmal, unter dem Mund, und in einem Grau, das sich vom Papier abhebt.
+  const bart = smoothClosed([
+    [cx - 9, headY + 17 + bob], [cx + 9, headY + 17 + bob],
+    [cx + 7, headY + 27 + bob], [cx, headY + 32 + bob], [cx - 7, headY + 27 + bob],
+  ], 6);
+  const krempe = smoothClosed(blob(cx, headY - 20 + bob, 46, 12, seed + 7, 0.06, 18), 6);
+  const kegel = smoothClosed([
+    [cx - 20, headY - 22 + bob], [cx + 20, headY - 22 + bob],
+    [cx + 11, headY - 46 + bob], [cx - 11, headY - 46 + bob],
+  ], 5);
+  // Der Stab steht im Boden, nicht auf ihm: unten leicht hinter der Ferse.
+  //
+  // `slab` und nicht `quad`: Ein Viereck aus vier Punkten wird beim Glätten
+  // zur Linse, und bei 11 Punkten Breite auf 148 Länge gewinnt die Wölbung.
+  // Beim ersten Anlauf stand neben ihm ein blasses Brett. `slab` setzt
+  // Stützpunkte entlang der Kanten – die Kante bleibt gerade.
+  const stab = slab(cx + 36, baseY - 178 + bob, cx + 47, baseY - 4, seed + 40, 1.2);
+  // Die Hand am Stab. Ohne sie hält er ihn nicht, er steht nur daneben.
+  const hand = smoothClosed(blob(cx + 36, baseY - 92 + bob, 9, 8, seed + 41, 0.08, 12), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.9,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 32, 10, seed + 8, 0.17); },
+    wash: function (g) {
+      wash(g, sack, sackFarbe, { seed: seed + 10, scale: 1.04 });
+      wash(g, offsetShape(sack, 7, 6, 0.6), hutSchatten, { seed: seed + 11, alpha: 0.5 });
+      wash(g, stab, ink.barkDark, { seed: seed + 12 });
+      wash(g, stiefelL, ink.boot, { seed: seed + 13 });
+      wash(g, stiefelR, ink.boot, { seed: seed + 14 });
+
+      wash(g, mantel, mantelFarbe, { seed: seed + 15, scale: 1.03 });
+      wash(g, offsetShape(mantel, 10, 6, 0.62), mantelSchatten, { seed: seed + 16, alpha: 0.6 });
+      wash(g, offsetShape(mantel, -LIGHT.x * 16, -LIGHT.y * 10, 0.5), '#93a69c',
+        { seed: seed + 17, alpha: 0.35 });
+      wash(g, kapuze, mantelSchatten, { seed: seed + 18 });
+      wash(g, arm, mantelFarbe, { seed: seed + 19 });
+      wash(g, offsetShape(arm, 6, 4, 0.6), mantelSchatten, { seed: seed + 27, alpha: 0.5 });
+      wash(g, hand, ink.skin, { seed: seed + 28 });
+
+      wash(g, kopf, ink.skin, { seed: seed + 20, scale: 1.04 });
+      // Die Krempe wirft Schatten aufs Gesicht – ohne den liegt das Gesicht
+      // heller da als der Hut, und der Hut sieht aus wie aufgeklebt.
+      wash(g, offsetShape(kopf, 0, -9, 0.9), ink.skinShade, { seed: seed + 21, alpha: 0.45 });
+      wash(g, bart, '#c6bda8', { seed: seed + 22 });
+
+      wash(g, krempe, hutFarbe, { seed: seed + 23, scale: 1.04 });
+      wash(g, kegel, hutFarbe, { seed: seed + 24 });
+      wash(g, offsetShape(kegel, 6, 4, 0.66), hutSchatten, { seed: seed + 25, alpha: 0.6 });
+      wash(g, offsetShape(krempe, 0, 5, 0.8), hutSchatten, { seed: seed + 26, alpha: 0.4 });
+    },
+    shape: function (g) {
+      fill(g, stab);
+      fill(g, sack);
+      fill(g, stiefelL); fill(g, stiefelR);
+      fill(g, mantel);
+      fill(g, kapuze);
+      fill(g, arm);
+      fill(g, hand);
+      fill(g, kopf); fill(g, bart);
+      fill(g, kegel); fill(g, krempe);
+    },
+    ink: function (g) {
+      // Augen: zwei Punkte unter der Krempe, mit demselben Lichtpunkt oben
+      // links wie bei allen anderen hier.
+      g.fillStyle = ink.line;
+      fill(g, smoothClosed(blob(cx - 11, headY + 1 + bob, 4.8, 5.8, seed + 30, 0.08, 10), 4));
+      fill(g, smoothClosed(blob(cx + 11, headY + 1 + bob, 4.8, 5.8, seed + 31, 0.08, 10), 4));
+      g.fillStyle = '#fffdf6';
+      g.beginPath();
+      g.arc(cx - 12.5, headY - 1 + bob, 1.5, 0, 6.2832);
+      g.arc(cx + 9.5, headY - 1 + bob, 1.5, 0, 6.2832);
+      g.fill();
+
+      // Nase und Schnurrbart – ohne sie sitzen zwei Augen über einem Fleck.
+      // `fillStyle` wird hier NEU gesetzt: Direkt davor steht der Lichtpunkt
+      // im Auge, und der ist weiß. Ohne diese Zeile bekam er eine weiße Nase.
+      g.fillStyle = ink.line;
+      fill(g, smoothClosed(blob(cx, headY + 9 + bob, 4.4, 3.2, seed + 42, 0.08, 10), 4));
+      inkLine(g, cx - 2, headY + 13 + bob, cx - 12, headY + 17 + bob,
+        { width: 1.8, bend: 0.25, seed: seed + 43, alpha: 0.6 });
+      inkLine(g, cx + 2, headY + 13 + bob, cx + 12, headY + 17 + bob,
+        { width: 1.8, bend: -0.25, seed: seed + 44, alpha: 0.6 });
+      inkStroke(g, bart, { width: 1.8, vary: 0.3, seed: seed + 32, color: ink.line, alpha: 0.55 });
+      inkStroke(g, hand, { width: 1.6, vary: 0.3, seed: seed + 45, color: ink.line, alpha: 0.6 });
+      inkStroke(g, krempe, { width: 2.0, vary: 0.3, seed: seed + 33, color: ink.line, alpha: 0.42 });
+      inkStroke(g, sack, { width: 1.8, vary: 0.3, seed: seed + 34, color: ink.line, alpha: 0.6 });
+      // Falten im Umhang – drei reichen, fünf machen daraus einen Vorhang.
+      inkLine(g, cx - 10, baseY - 88 + bob, cx - 16, saum - 6,
+        { width: 1.5, bend: 0.12, seed: seed + 35, alpha: 0.45 });
+      inkLine(g, cx + 2, baseY - 90 + bob, cx + 4, saum - 4,
+        { width: 1.5, bend: -0.08, seed: seed + 36, alpha: 0.4 });
+      inkLine(g, cx + 14, baseY - 88 + bob, cx + 22, saum - 6,
+        { width: 1.5, bend: -0.12, seed: seed + 37, alpha: 0.45 });
+      // Der Riemen des Sacks quer über die Brust.
+      inkLine(g, cx - 24, baseY - 94 + bob, cx + 14, baseY - 66 + bob,
+        { width: 2.0, bend: 0.1, seed: seed + 38, color: ink.boot, alpha: 0.7 });
+      inkStroke(g, stab, { width: 1.7, vary: 0.25, seed: seed + 39, color: ink.line, alpha: 0.65 });
+      // Zwei Astansätze – ein Stab ohne sie ist ein Besenstiel.
+      inkLine(g, cx + 41, baseY - 60 + bob, cx + 50, baseY - 66 + bob,
+        { width: 1.6, bend: -0.2, seed: seed + 46, alpha: 0.55 });
+      inkLine(g, cx + 41, baseY - 132 + bob, cx + 33, baseY - 140 + bob,
+        { width: 1.5, bend: 0.2, seed: seed + 47, alpha: 0.5 });
     },
   });
   return made(res, w, h, cx, baseY);

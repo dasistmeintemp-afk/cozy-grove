@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<title>Cozy Grove – Web Edition</title>
+<title>Seli Grove – Web Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="description" content="Ein gemütliches Insel-Sammelspiel im Browser: Farbe zurückbringen, sammeln, angeln, bauen – ganz ohne lange Dialoge.">
 <meta name="theme-color" content="#2b3a31">
@@ -91,13 +91,15 @@
   <!-- Startbildschirm (nötig für Audio-Freigabe in Safari) -->
   <div id="boot">
     <div id="boot-card">
-      <h1>Cozy&nbsp;Grove</h1>
+      <h1>Seli&nbsp;Grove</h1>
       <p class="sub">Web&nbsp;Edition</p>
       <p class="blurb">Eine verzauberte Insel hat ihre Farben verloren.<br>Du bist <b>Seli</b>. Sammle, angle, baue – und bring sie Stück für Stück zurück.</p>
       <div id="boot-actions">
         <button id="btn-continue" class="big-btn" hidden>Weiterspielen</button>
         <button id="btn-new" class="big-btn primary">Neues Spiel</button>
+        <button id="btn-load" class="big-btn quiet">Spielstand aus Datei laden</button>
       </div>
+      <p id="boot-note" class="legal" hidden></p>
       <details id="boot-help">
         <summary>Steuerung</summary>
         <ul>
@@ -111,7 +113,7 @@
           <li>Am Touchscreen: Joystick links, Tasten rechts</li>
         </ul>
       </details>
-      <p class="legal">Unabhängige Fan-Hommage. Alle Grafiken und Klänge werden im Browser erzeugt.</p>
+      <p class="legal">Alle Grafiken und Klänge werden im Browser erzeugt – keine einzige Bild- oder Tondatei.</p>
     </div>
   </div>
 

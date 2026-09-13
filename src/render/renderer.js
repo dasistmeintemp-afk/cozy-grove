@@ -16,11 +16,13 @@ import { drawSprite, spr } from '../art/sprites.js';
 import { defOf } from '../world/entities.js';
 import { getItem } from '../game/items.js';
 import { campfireLevelFor } from '../game/recipes.js';
+import { seasonTint } from '../game/seasons.js';
+import { sitzHoehe } from '../game/rest.js';
 import { INK } from '../art/painted.js';
 import { TILE_SIZE } from '../art/tiles.js';
 
 /** Diese Wesen behalten immer ihre Farbe – sie sind ja nicht verblasst. */
-const ALWAYS_COLOR = { spirit: 1, fox: 1, hidden: 1 };
+const ALWAYS_COLOR = { spirit: 1, fox: 1, hidden: 1, wanderer: 1 };
 
 const REFERENCE_W = 1560;
 const REFERENCE_H = 880;
@@ -56,6 +58,11 @@ export class Renderer {
     this.lightCanvas = makeCanvas(this.w, this.h);
     this.lightCtx = ctx2d(this.lightCanvas);
     this.lightCtx.imageSmoothingEnabled = true;
+    // Eigene Fläche für die Farbmaske. Sie muss getrennt liegen, weil mehrere
+    // Farbquellen sich VEREINIGEN müssen; siehe _drawColorPass().
+    this.maskCanvas = makeCanvas(this.w, this.h);
+    this.maskCtx = ctx2d(this.maskCanvas);
+    this.maskCtx.imageSmoothingEnabled = true;
     this._vignette = null;
   }
 
@@ -127,6 +134,179 @@ export class Renderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
+  /**
+   * Das Hausinnere zeichnen.
+   *
+   * Ein eigener, viel kürzerer Weg als `draw`: Drinnen gibt es keinen Boden
+   * aus Kacheln, keine Farbmaske, kein Wetter, keine Tageszeit und keine
+   * Kamera, die hinterherfährt. **Der ganze Raum ist immer zu sehen** – das
+   * ist die Idee hinter dem Zimmer, und sie spart hier die halbe Zeichenkette.
+   *
+   * Der Raum ist EIN Bild (siehe `paintRoom`). Darüber liegen nur die Stücke
+   * und Seli, nach `y` sortiert – dieselbe Tiefensortierung wie draußen,
+   * damit ein Stuhl vor ihr steht und der hinter ihr dahinter bleibt.
+   */
+  drawInterior(game, time) {
+    const ctx = this.ctx;
+    const raum = game.raum();
+    this._screen(ctx);
+    ctx.fillStyle = INK.paper;
+    ctx.fillRect(0, 0, this.w, this.h);
+
+    // Der Raum füllt das Bild, soweit er das kann.
+    //
+    // Nur zentriert sah die Zeltecke auf einem großen Bildschirm verloren aus
+    // – ein Fingernagel Zimmer in einem Meer aus Papier. Also wird
+    // vergrößert, bis er mit etwas Luft ringsum passt. Nach oben begrenzt,
+    // denn der Raum ist ein gemaltes Bild: Über anderthalbfach wird aus dem
+    // Aquarell Matsch.
+    //
+    // Oben und unten bleibt Platz für Kopf- und Werkzeugleiste. Ohne das lag
+    // die TÜR genau hinter der Werkzeugleiste – im Bild sah alles gut aus,
+    // und hinaus kam man nur, wenn man wusste, dass es dort weitergeht. Es
+    // ist der einzige Ausgang; er darf nicht unter der Bedienung liegen.
+    const obenFrei = 76;
+    const untenFrei = 128;
+    const seiteFrei = 56;
+    const ganzH = raum.h + raum.wand;
+    const platzH = Math.max(160, this.viewH - obenFrei - untenFrei);
+    const innenZoom = clamp(Math.min(
+      (this.viewW - seiteFrei * 2) / raum.w,
+      platzH / ganzH
+    ), 0.5, 1.5);
+    const z = this.zoom * innenZoom;
+    const ox = Math.round(Math.max(0, (this.viewW / innenZoom - raum.w) / 2));
+    const oy = Math.round(Math.max(
+      obenFrei / innenZoom,
+      (obenFrei + platzH / 2 - (ganzH * innenZoom) / 2) / innenZoom
+    ));
+    game.innenOffset = { x: ox, y: oy + raum.wand, zoom: innenZoom };
+
+    ctx.save();
+    ctx.scale(z, z);
+    drawSprite(ctx, game.raumSprite(), ox, oy, false);
+
+    // Was an der Wand hängt, liegt VOR dem Wandbild und HINTER allem, was
+    // auf dem Boden steht. Eine eigene Ebene, keine Tiefensortierung: Eine
+    // Wand hat keine Tiefe.
+    const wandStuecke = game.innenWand();
+    for (let i = 0; i < wandStuecke.length; i++) {
+      const s = wandStuecke[i];
+      const item = getItem(s.id);
+      if (item && item.prop) drawSprite(ctx, item.prop, ox + s.x, oy + s.y, false);
+    }
+
+    // Stücke und Seli in EINER Liste, nach Tiefe sortiert. Das Bett steht
+    // fest eingebaut mit drin: Es soll sich genauso einordnen wie ein Stuhl,
+    // sonst liefe Seli davor, wenn sie dahinter steht.
+    const liste = [];
+    const bett = game.bettPunkt();
+    liste.push({ y: bett.y, flach: false, sprite: 'bed', x: bett.x });
+    const stuecke = game.innenStuecke();
+    for (let i = 0; i < stuecke.length; i++) {
+      const s = stuecke[i];
+      const item = getItem(s.id);
+      liste.push({
+        y: s.y, flach: !!(item && item.flat),
+        sprite: (item && item.prop) || null, x: s.x,
+      });
+    }
+    // Das Tier sortiert sich mit ein – sonst säße es vor dem Tisch, an dem
+    // es gerade vorbeigelaufen ist.
+    const tier = game.innenPetBild();
+    if (tier) liste.push({ y: tier.y, flach: false, sprite: tier.sprite, x: tier.x, flip: tier.blick < 0 });
+    liste.sort(function (a, b) { return a.y - b.y; });
+
+    const px = game.innen.x;
+    const py = game.innen.y;
+    // Raumkoordinaten zählen vom linken oberen Punkt des BODENS, nicht des
+    // Bildes: Die Wand steht darüber und ist nicht begehbar.
+    const bx = ox;
+    const by = oy + raum.wand;
+
+    // Flaches zuerst – Teppiche liegen unter allem, auch unter Seli.
+    for (let i = 0; i < liste.length; i++) {
+      const s = liste[i];
+      if (s.flach && s.sprite) drawSprite(ctx, s.sprite, bx + s.x, by + s.y, false);
+    }
+    let selizeichnet = false;
+    for (let i = 0; i < liste.length; i++) {
+      const s = liste[i];
+      if (s.flach) continue;
+      if (!selizeichnet && s.y > py) {
+        this._drawInnenSeli(ctx, game, bx + px, by + py);
+        selizeichnet = true;
+      }
+      if (s.sprite) drawSprite(ctx, s.sprite, bx + s.x, by + s.y, false, s.flip ? { flip: true } : null);
+    }
+    if (!selizeichnet) this._drawInnenSeli(ctx, game, bx + px, by + py);
+
+    // Der Umriss des Stücks, das gerade gesetzt wird.
+    const p = game.placing;
+    if (p && p.sprite) {
+      ctx.globalAlpha = p.valid ? 0.72 : 0.34;
+      // Wandstücke zählen von der Wandoberkante, nicht vom Boden.
+      if (p.wand) drawSprite(ctx, p.sprite, ox + p.x, oy + p.y, false);
+      else drawSprite(ctx, p.sprite, bx + p.x, by + p.y, false);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    this._drawInnenLicht(ctx, game, bx, by, z);
+    this._screen(ctx);
+    this.stats.entities = liste.length;
+  }
+
+  /**
+   * Abendlicht im Zimmer.
+   *
+   * Dieselbe Technik wie draußen, nur viel kürzer: ein dunkler Überzug, und
+   * jede Lampe stanzt ein weiches Loch hinein. Der Unterschied liegt in der
+   * Stärke – drinnen wird es Dämmerung und nicht Nacht, damit niemand ohne
+   * Laterne im Dunkeln sitzt (siehe `innenDunkel`).
+   */
+  _drawInnenLicht(ctx, game, bx, by, z) {
+    const t = game.innenDunkel();
+    if (t <= 0.01) return;
+    const lc = this.lightCtx;
+    this._screen(lc);
+    lc.globalCompositeOperation = 'source-over';
+    lc.clearRect(0, 0, this.w, this.h);
+    // Ein tiefes Blau, kein Grau: Abendlicht ist kalt, Lampenlicht warm, und
+    // erst der Unterschied macht die Laterne gemütlich.
+    lc.fillStyle = 'rgba(42,44,78,' + t.toFixed(3) + ')';
+    lc.fillRect(0, 0, this.w, this.h);
+
+    const lichter = game.innenLichter();
+    if (lichter.length) {
+      lc.setTransform(z, 0, 0, z, 0, 0);
+      lc.globalCompositeOperation = 'destination-out';
+      for (let i = 0; i < lichter.length; i++) {
+        const L = lichter[i];
+        const x = bx + L.x;
+        const y = by + L.y;
+        const grad = lc.createRadialGradient(x, y, 0, x, y, L.r);
+        grad.addColorStop(0, 'rgba(0,0,0,0.95)');
+        grad.addColorStop(0.55, 'rgba(0,0,0,0.52)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        lc.fillStyle = grad;
+        lc.fillRect(x - L.r, y - L.r, L.r * 2, L.r * 2);
+      }
+      this._screen(lc);
+      lc.globalCompositeOperation = 'source-over';
+    }
+    this._screen(ctx);
+    ctx.drawImage(this.lightCanvas, 0, 0);
+  }
+
+  _drawInnenSeli(ctx, game, x, y) {
+    const p = game.player;
+    // Wie draußen: Wer sitzt, steht nicht auf dem Boden – der Fußpunkt
+    // wandert um die Sitzhöhe des Möbels nach oben. Nur fürs Bild.
+    const dy = p.sitzt ? sitzHoehe(p.sitzt.itemId) : 0;
+    drawSprite(ctx, p.spriteName(), x, y - dy, false,
+      p.flipped() ? { flip: true } : null);
+  }
+
   draw(game, time) {
     const ctx = this.ctx;
     const cam = game.camera;
@@ -145,32 +325,17 @@ export class Renderer {
     game.ground.draw(ctx, camX, camY, this.viewW, this.viewH, true);
 
     const sources = game.colorField.visibleSources(camX, camY, this.viewW, this.viewH);
-    if (sources.length) {
-      // Nur der wirklich eingefärbte Ausschnitt wird zweimal gezeichnet.
-      const box = this._sourceBox(sources, camX, camY);
-      const cc = this.colorCtx;
-      this._screen(cc);
-      cc.clearRect(box.sx, box.sy, box.sw, box.sh);
-      cc.save();
-      cc.beginPath();
-      cc.rect(box.sx, box.sy, box.sw, box.sh);
-      cc.clip();
-      this._world(cc, camX, camY);
-      game.ground.draw(cc, camX, camY, this.viewW, this.viewH, false, false);
-      cc.globalCompositeOperation = 'destination-in';
-      game.colorField.drawMask(cc, sources);
-      cc.globalCompositeOperation = 'source-over';
-      cc.restore();
-      this._screen(ctx);
-      ctx.drawImage(this.colorCanvas, box.sx, box.sy, box.sw, box.sh,
-        box.sx, box.sy, box.sw, box.sh);
-      this._world(ctx, camX, camY);
-    }
+    if (sources.length) this._drawColorPass(ctx, game, sources, camX, camY);
+
+    // Die Grenze liegt AUF dem Boden, unter allem, was darauf steht – sonst
+    // liefe eine gestrichelte Linie quer über Zelt und Bäume.
+    this._drawPlot(ctx, game, camX, camY);
 
     // 2 – Objekte in EINEM Durchgang. Wie farbig etwas ist, entscheidet die
     //     Farbquelle an seiner Position – das spart das zweite Malen der
     //     ganzen Szene und war der Grund für die schlechte Bildrate.
     const list = this._collectVisible(world, camX, camY);
+    this._lastVisible = list;
     this._drawEntities(ctx, game, list, time);
 
     // 3 – Tageszeit, Lichter und Randabdunklung in EINEM Überzug
@@ -207,6 +372,60 @@ export class Renderer {
     return out;
   }
 
+  /**
+   * Blendet die kolorierte Fassung des Bodens durch die Farbmaske ein.
+   *
+   * Die Maske entsteht in einer EIGENEN Fläche und wird erst danach in einem
+   * Zug angewandt. Vorher wurde jede Farbquelle einzeln mit `destination-in`
+   * auf die Farbfläche gelegt – das multipliziert die Deckkraft, statt sie zu
+   * vereinigen: bei zwei Quellen blieb nur ihr Schnitt farbig, und weil jede
+   * Quelle ein Rechteck füllt, sprang die Kante sichtbar um, sobald eine
+   * Quelle in den Blick geriet oder ihn verließ. Genau das war das Flackern
+   * mit dem farbigen Rand rund um die Geister. Objekte fragen ihre Farbe
+   * dagegen über `colorField.at()` ab, das den GRÖSSTEN Wert nimmt – Boden und
+   * Bäume widersprachen sich also auch noch.
+   */
+  _drawColorPass(ctx, game, sources, camX, camY) {
+    const box = this._sourceBox(sources, camX, camY);
+    if (box.sw <= 0 || box.sh <= 0) return;
+
+    // 1 – Maske: alle Quellen übereinander, normal deckend. Weißes Weiß über
+    //     weißem Weiß addiert die Deckkraft (a1 + a2·(1-a1)) und ergibt damit
+    //     die Vereinigung der Kreise.
+    const mc = this.maskCtx;
+    this._screen(mc);
+    mc.clearRect(box.sx, box.sy, box.sw, box.sh);
+    mc.save();
+    mc.beginPath();
+    mc.rect(box.sx, box.sy, box.sw, box.sh);
+    mc.clip();
+    this._world(mc, camX, camY);
+    game.colorField.drawMask(mc, sources);
+    mc.restore();
+
+    // 2 – Der kolorierte Boden, auf denselben Ausschnitt begrenzt
+    const cc = this.colorCtx;
+    this._screen(cc);
+    cc.clearRect(box.sx, box.sy, box.sw, box.sh);
+    cc.save();
+    cc.beginPath();
+    cc.rect(box.sx, box.sy, box.sw, box.sh);
+    cc.clip();
+    this._world(cc, camX, camY);
+    game.ground.draw(cc, camX, camY, this.viewW, this.viewH, false, false);
+    this._screen(cc);
+    cc.globalCompositeOperation = 'destination-in';
+    cc.drawImage(this.maskCanvas, box.sx, box.sy, box.sw, box.sh,
+      box.sx, box.sy, box.sw, box.sh);
+    cc.globalCompositeOperation = 'source-over';
+    cc.restore();
+
+    this._screen(ctx);
+    ctx.drawImage(this.colorCanvas, box.sx, box.sy, box.sw, box.sh,
+      box.sx, box.sy, box.sw, box.sh);
+    this._world(ctx, camX, camY);
+  }
+
   /** Sichtbarer Ausschnitt, in dem überhaupt Farbe liegt (Bildschirmpixel). */
   _sourceBox(sources, camX, camY) {
     let x0 = Infinity;
@@ -227,11 +446,25 @@ export class Renderer {
     return { sx: sx, sy: sy, sw: Math.max(0, ex - sx), sh: Math.max(0, ey - sy) };
   }
 
+  /**
+   * Erst alles Flache, dann alles Aufrechte.
+   *
+   * Ein Teppich liegt auf dem Boden. Nach der Tiefe einsortiert kam er hinter
+   * die Figur, sobald sie über ihm stand – gemessen wechselten 422 von 650
+   * Bildpunkten im Rumpf die Farbe, der Teppich lag also über Seli. Flaches
+   * gehört in denselben Durchgang wie die Grundstücksgrenze: unter allem, was
+   * darauf steht. Untereinander bleiben die Teppiche nach Tiefe sortiert,
+   * damit sich zwei überlappende sinnvoll schichten.
+   */
   _drawEntities(ctx, game, list, time) {
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].flat) this._drawEntity(ctx, game, list[i], time);
+    }
     const playerY = game.player.y;
     let playerDrawn = false;
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
+      if (e.flat) continue;
       if (!playerDrawn && e.y > playerY) {
         this._drawPlayer(ctx, game, time);
         playerDrawn = true;
@@ -281,6 +514,20 @@ export class Renderer {
         drawSprite(ctx, 'fox_' + frame, x, y, false);
         return;
       }
+      case 'wanderer': {
+        // Langsamer als die Geister und ohne Schweben: Er ist kein Geist, er
+        // steht auf dem Boden und wartet.
+        const frame = Math.floor(time * 0.7 + e.phase) % 2;
+        drawSprite(ctx, 'wanderer_' + frame, x, y, false);
+        return;
+      }
+      case 'pet': {
+        // Die Grafik zeigt nach rechts; nach links wird sie gespiegelt.
+        // Immer farbig, wie alles, was lebt.
+        const bob = e.laeuft ? 0 : Math.sin(time * 1.7 + e.phase) * 1.6;
+        drawSprite(ctx, e.sprite, x, y + bob, false, { flip: e.blick === -1 });
+        return;
+      }
       case 'campfire': {
         this._blend(ctx, game, 'campfire', x, y);
         const lvl = campfireLevelFor(game.state.campfireFuel).level;
@@ -294,13 +541,46 @@ export class Renderer {
         return;
       }
       case 'hidden': {
+        // Fundstücke müssen auf der ganzen Insel auffallen, auch im blassen
+        // Teil. Ein blasscremefarbener Kreis auf Papier tat das nicht: die
+        // Karte zeigte ein Flämmchen, am Ort stand scheinbar nichts. Jetzt
+        // steht dort wirklich ein Flämmchen – ein warmer Schein, ein paar
+        // aufsteigende Funken und ein Ring, der auf dem Boden liegt.
         const bob = Math.sin(time * 2.6 + e.phase) * 5;
+        const puls = 0.5 + Math.sin(time * 2.2 + e.phase) * 0.5;
         ctx.save();
-        ctx.globalAlpha = 0.3 + Math.sin(time * 3 + e.phase) * 0.14;
-        ctx.fillStyle = '#fff3c8';
+
+        // Ring am Boden: sagt, WO genau es liegt
+        ctx.globalAlpha = 0.3 + puls * 0.22;
+        ctx.strokeStyle = '#d8931f';
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
-        ctx.arc(x, y + bob - 26, 34, 0, Math.PI * 2);
+        ctx.ellipse(x, y + 4, 26 + puls * 5, 10 + puls * 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Schein: warm, mit hartem Kern – sonst verschwindet er im Papier
+        const glow = ctx.createRadialGradient(x, y + bob - 26, 2, x, y + bob - 26, 46);
+        glow.addColorStop(0, 'rgba(255,214,132,0.72)');
+        glow.addColorStop(0.45, 'rgba(255,196,104,0.34)');
+        glow.addColorStop(1, 'rgba(255,196,104,0)');
+        ctx.globalAlpha = 0.55 + puls * 0.3;
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(x, y + bob - 26, 46, 0, Math.PI * 2);
         ctx.fill();
+
+        // Funken: drei, mit versetzter Phase, steigen und verlöschen
+        ctx.globalAlpha = 1;
+        for (let k = 0; k < 3; k++) {
+          const t = ((time * 0.55 + e.phase * 0.3 + k * 0.34) % 1);
+          const fx = x + Math.sin((time + k * 2.1) * 1.7 + e.phase) * (7 + k * 3);
+          const fy = y + bob - 34 - t * 42;
+          ctx.globalAlpha = (1 - t) * 0.75;
+          ctx.fillStyle = k === 1 ? '#ffe6ac' : '#f5b34a';
+          ctx.beginPath();
+          ctx.arc(fx, fy, 2.6 - t * 1.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
         drawSprite(ctx, e.sprite, x, y + bob, false);
         return;
@@ -325,7 +605,14 @@ export class Renderer {
 
   _drawPlayer(ctx, game, time) {
     const p = game.player;
-    drawSprite(ctx, p.spriteName(), p.x, p.y, false, { flip: p.flipped() });
+    // Gezeichnet wird der Zwischenstand, nicht der letzte fertige Schritt –
+    // sonst zappelte die Figur gegen die weich mitlaufende Kamera.
+    const pos = p.renderPos(game.camera.alpha);
+    // Wer sitzt, steht nicht auf dem Boden: Der Fußpunkt wandert um die
+    // Sitzhöhe des Möbels nach oben. Nur fürs Bild – in der Welt bleibt Seli
+    // unten, sonst zielte und hörte sie einen halben Meter über sich.
+    if (p.sitzt) pos.y -= sitzHoehe(p.sitzt.itemId);
+    drawSprite(ctx, p.spriteName(), pos.x, pos.y, false, { flip: p.flipped() });
 
     if (p.swing > 0 && p.tool.sprite && p.tool.id !== 'hand') {
       const t = 1 - p.swing;
@@ -333,7 +620,7 @@ export class Renderer {
       const offX = p.dir === 'left' ? -26 : p.dir === 'right' ? 26 : (p.dir === 'up' ? 18 : -18);
       const offY = p.dir === 'up' ? -54 : -46;
       ctx.save();
-      ctx.translate(p.x + offX, p.y + offY);
+      ctx.translate(pos.x + offX, pos.y + offY);
       ctx.rotate(angle);
       drawSprite(ctx, p.tool.sprite, 0, 0, false, { scale: 0.72 });
       ctx.restore();
@@ -345,7 +632,7 @@ export class Renderer {
       ctx.strokeStyle = 'rgba(74,64,56,0.7)';
       ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.moveTo(p.x, p.y - 62);
+      ctx.moveTo(pos.x, pos.y - 62);
       ctx.lineTo(f.bobber.x, f.bobber.y);
       ctx.stroke();
       const bob = Math.sin(time * 5) * 4;
@@ -373,6 +660,14 @@ export class Renderer {
     lc.clearRect(0, 0, this.w, this.h);
     if (tint.a >= 0.02) {
       lc.fillStyle = 'rgba(' + tint.r + ',' + tint.g + ',' + tint.b + ',' + tint.a.toFixed(3) + ')';
+      lc.fillRect(0, 0, this.w, this.h);
+    }
+    // Die Jahreszeit legt ihren Ton unter das Wetter: Sie gilt den ganzen
+    // Tag, das Wetter ist die Abweichung darüber. Der Frühling hat keinen –
+    // er ist der Maßstab, an dem man die anderen drei überhaupt erkennt.
+    const jt = seasonTint(game.season ? game.season() : null);
+    if (jt) {
+      lc.fillStyle = 'rgba(' + jt.r + ',' + jt.g + ',' + jt.b + ',' + jt.a.toFixed(3) + ')';
       lc.fillRect(0, 0, this.w, this.h);
     }
     // Wetter färbt mit: Regen kühlt und graut ein, Nebel hellt flach auf.
@@ -411,9 +706,107 @@ export class Renderer {
     if (game.weather) game.weather.draw(ctx, this.w, this.h);
   }
 
+  /**
+   * Das Flämmchen über einem Fundstück – hoch genug, um über Baumkronen zu
+   * stehen.
+   *
+   * Es wird bewusst NACH allen Objekten gezeichnet. Der Schein am Boden liegt
+   * in der Tiefenstaffelung und verschwindet deshalb hinter einem Baum, der
+   * ein Stück weiter unten steht; die Karte verspricht dann ein Flämmchen, das
+   * am Ort niemand sieht. Dieses hier ist immer da.
+   */
+  _drawFindWisps(ctx, game, time) {
+    const list = this._lastVisible;
+    if (!list) return;
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
+      if (e.kind !== 'hidden') continue;
+      const bob = Math.sin(time * 2.2 + e.phase) * 7;
+      const x = e.x;
+      const y = e.y - 132 + bob;
+      const flack = 1 + Math.sin(time * 9 + e.phase * 3) * 0.12;
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = '#ffcf7a';
+      ctx.beginPath();
+      ctx.arc(x, y, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.translate(x, y);
+      ctx.scale(1, flack);
+      // Tropfenform: unten rund, oben ausgezogen
+      ctx.beginPath();
+      ctx.moveTo(0, -17);
+      ctx.bezierCurveTo(8, -6, 10, 3, 0, 10);
+      ctx.bezierCurveTo(-10, 3, -8, -6, 0, -17);
+      ctx.closePath();
+      ctx.fillStyle = '#f0972a';
+      ctx.fill();
+      ctx.strokeStyle = INK.line;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -7);
+      ctx.bezierCurveTo(4, -2, 5, 2, 0, 5);
+      ctx.bezierCurveTo(-5, 2, -4, -2, 0, -7);
+      ctx.closePath();
+      ctx.fillStyle = '#ffe3a6';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /**
+   * Die Grenze des Grundstücks – eine gestrichelte Linie im Gras.
+   *
+   * Ohne sie weiß niemand, wo die Regeln wechseln: Innerhalb wächst nichts
+   * nach und man darf näher ans Lager bauen, außerhalb nicht. Bewusst dünn
+   * und blass – es ist ein Vermerk, kein Zaun.
+   */
+  _drawPlot(ctx, game, camX, camY) {
+    if (!game.plotStatus) return;
+    // Beide eigenen Grundstücke tragen dieselbe Linie: das Lager und die
+    // Bucht auf der Insel. Sie liegen weit auseinander, also ist immer nur
+    // eines im Bild – aber dieselbe Regel gilt für beide, und zwei
+    // verschiedene Umrandungen hätten das Gegenteil behauptet.
+    this._plotOutline(ctx, game.plotRect ? game.plotRect() : null, camX, camY);
+    this._plotOutline(ctx, game.islePlotRect ? game.islePlotRect() : null, camX, camY);
+  }
+
+  _plotOutline(ctx, r, camX, camY) {
+    if (!r) return;
+    if (r.x + r.w < camX || r.x > camX + this.viewW) return;
+    if (r.y + r.h < camY || r.y > camY + this.viewH) return;
+
+    ctx.save();
+    ctx.strokeStyle = INK.lineSoft;
+    ctx.globalAlpha = 0.42;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([16, 14]);
+    ctx.lineCap = 'round';
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.setLineDash([]);
+    // Eckpfosten: die Linie allein liest sich als Zeichenfehler, vier
+    // Pflöcke sagen „das ist abgesteckt".
+    ctx.globalAlpha = 0.72;
+    ctx.fillStyle = INK.wood;
+    const ecken = [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]];
+    for (let i = 0; i < ecken.length; i++) {
+      ctx.beginPath();
+      ctx.ellipse(ecken[i][0], ecken[i][1] - 10, 4, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   _drawMarkers(ctx, game, time) {
+    this._drawFindWisps(ctx, game, time);
     const t = game.target;
-    if (t && t.entity) {
+    // Beim Sitzen kein Zielpfeil: Er zeigte auf die Bank, auf der man schon
+    // sitzt, und wippte dabei über Selis Kopf. Das Ausruhen ist die eine
+    // Stelle, an der das Spiel nichts zu zeigen hat.
+    if (t && t.entity && !game.player.sitzt) {
       const e = t.entity;
       const s = spr(e.sprite || (defOf(e.kind) && defOf(e.kind).sprite));
       const top = e.y - (s ? s.ay : 48) - 18;
@@ -442,6 +835,83 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(x, y + 31, 4.4, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Ein Umschlag über dem Briefkasten, solange Post ungelesen ist. Ohne
+    // ihn müsste man jeden Morgen nachsehen gehen, ob sich der Weg lohnt –
+    // und nach drei leeren Kästen geht niemand mehr hin.
+    if (game.world.mailbox && game.unreadMail && game.unreadMail() > 0) {
+      const m = game.world.mailbox;
+      const bob = Math.sin(time * 2.8) * 4;
+      const x = m.x;
+      const y = m.y - 150 + bob;
+      ctx.save();
+      ctx.fillStyle = INK.paper;
+      ctx.strokeStyle = INK.line;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.rect(x - 13, y, 26, 18);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 13, y);
+      ctx.lineTo(x, y + 11);
+      ctx.lineTo(x + 13, y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Wo das Haustier etwas gefunden hat. Ohne Zeichen säße es irgendwo im
+    // Gras und man wüsste nicht, warum – der Fund ist der ganze Sinn.
+    const fund = game.world.pet && !game.world.pet.gone ? game.world.pet.fund : null;
+    if (fund && !fund.gone) {
+      const bob = Math.sin(time * 3.1) * 5;
+      const x = fund.x;
+      const y = fund.y - 80 + bob;
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#f2c063';
+      ctx.strokeStyle = INK.line;
+      ctx.lineWidth = 2.2;
+      // Ein kleiner Stern, dasselbe Zeichen wie bei den Meilensteinen
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+        const r = i % 2 === 0 ? 11 : 4.6;
+        const px = x + Math.cos(a) * r;
+        const py = y + Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Herz: dieser Geist mag etwas, das gerade in der Tasche liegt. Ohne
+    // Zeichen bliebe das Mitbringen eine versteckte Regel – man müsste jeden
+    // Geist mit jedem Gegenstand ausprobieren.
+    const mag = game.spiritsWantingGift();
+    for (let i = 0; i < mag.length; i++) {
+      const e = mag[i];
+      const bob = Math.sin(time * 2.4 + e.phase + 1.1) * 4;
+      const x = e.x + 26;
+      const y = e.y - 150 + bob;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(0.9, 0.9);
+      ctx.beginPath();
+      ctx.moveTo(0, 9);
+      ctx.bezierCurveTo(-13, -1, -8, -13, 0, -6);
+      ctx.bezierCurveTo(8, -13, 13, -1, 0, 9);
+      ctx.closePath();
+      ctx.fillStyle = '#d4756b';
+      ctx.fill();
+      ctx.strokeStyle = INK.line;
+      ctx.lineWidth = 2;
       ctx.stroke();
       ctx.restore();
     }
@@ -475,16 +945,26 @@ export class Renderer {
     ctx.restore();
   }
 
+  /**
+   * Randabdunklung – sehr zurückhaltend.
+   *
+   * Sie sitzt in der Bildmitte, und die Kamera folgt der Figur: Ein kräftiger
+   * Verlauf ist damit ein heller Kreis, der mit dem Spieler mitwandert. Genau
+   * das steht der Kernmechanik im Weg – man soll an der Farbe ablesen können,
+   * wo die Insel schon wieder lebt, nicht daran, wo man gerade steht. Bei 0.2
+   * waren das 14 % Abdunklung in den Ecken, und der Kreis war deutlich zu
+   * sehen. 0.06 rahmt das Bild noch, ohne die Farbe zu überstimmen.
+   */
   _vignetteLayer() {
     if (!this._vignette) {
       const c = makeCanvas(this.w, this.h);
       const g = ctx2d(c);
       const grad = g.createRadialGradient(
-        this.w / 2, this.h / 2, Math.min(this.w, this.h) * 0.36,
-        this.w / 2, this.h / 2, Math.max(this.w, this.h) * 0.74
+        this.w / 2, this.h / 2, Math.min(this.w, this.h) * 0.52,
+        this.w / 2, this.h / 2, Math.max(this.w, this.h) * 0.78
       );
       grad.addColorStop(0, 'rgba(0,0,0,0)');
-      grad.addColorStop(1, 'rgba(96,84,60,0.2)');
+      grad.addColorStop(1, 'rgba(96,84,60,0.06)');
       g.fillStyle = grad;
       g.fillRect(0, 0, this.w, this.h);
       this._vignette = c;

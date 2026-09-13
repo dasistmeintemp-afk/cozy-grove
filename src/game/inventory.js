@@ -3,7 +3,9 @@ import { getItem } from './items.js';
 
 export class Inventory {
   constructor(capacity) {
-    this.capacity = capacity || 30;
+    // `!= null`, nicht `||`: Null Fächer sind eine gültige Größe – die
+    // Vorratstruhe fängt vor dem ersten Ausbau genau dort an.
+    this.capacity = capacity != null ? capacity : 30;
     this.slots = [];
     /**
      * Fundbuch: was schon einmal in der Tasche lag, und wie viel davon
@@ -92,6 +94,60 @@ export class Inventory {
     return this.count(id) >= (n == null ? 1 : n);
   }
 
+  /**
+   * Ginge dieser Tausch aus, ohne dass etwas verlorengeht?
+   *
+   * Beim Tausch ist das keine Höflichkeit, sondern Pflicht: Wer erst abgibt
+   * und dann keinen Platz mehr hat, hätte drei Muscheln für nichts gegeben.
+   * Der Festgruß darf eine Gabe verfallen lassen, ein Tausch nicht.
+   *
+   * Gerechnet wird auf einer KOPIE der Stapel, und zwar in der richtigen
+   * Reihenfolge: erst das Weggeben (das macht vielleicht einen Platz frei),
+   * dann das Bekommen. Andersherum – oder Stück für Stück gegen den
+   * Ist-Zustand geprüft – zählt der zweite Gegenstand denselben freien Platz
+   * noch einmal mit, und die Prüfung sagt Ja, wo sie Nein sagen müsste.
+   *
+   * @param {Array} weg  [{id, n}] was abgegeben wird
+   * @param {Array} rein [{id, n}] was dafür kommt
+   */
+  passtNach(weg, rein) {
+    const kopie = this.slots.map(function (s) { return { id: s.id, n: s.n }; });
+
+    const raus = weg || [];
+    for (let i = 0; i < raus.length; i++) {
+      let left = raus[i].n == null ? 1 : raus[i].n;
+      for (let j = kopie.length - 1; j >= 0 && left > 0; j--) {
+        if (kopie[j].id !== raus[i].id) continue;
+        const take = Math.min(kopie[j].n, left);
+        kopie[j].n -= take;
+        left -= take;
+        if (kopie[j].n <= 0) kopie.splice(j, 1);
+      }
+      if (left > 0) return false;   // so viel ist gar nicht da
+    }
+
+    const dazu = rein || [];
+    for (let i = 0; i < dazu.length; i++) {
+      const item = getItem(dazu[i].id);
+      if (!item) return false;
+      const max = item.stack || 99;
+      let left = dazu[i].n == null ? 1 : dazu[i].n;
+      for (let j = 0; j < kopie.length && left > 0; j++) {
+        if (kopie[j].id !== dazu[i].id || kopie[j].n >= max) continue;
+        const take = Math.min(max - kopie[j].n, left);
+        kopie[j].n += take;
+        left -= take;
+      }
+      while (left > 0) {
+        if (kopie.length >= this.capacity) return false;
+        const take = Math.min(max, left);
+        kopie.push({ id: dazu[i].id, n: take });
+        left -= take;
+      }
+    }
+    return true;
+  }
+
   /** Alle Stapel einer Kategorie. */
   byCategory(cat) {
     const out = [];
@@ -132,7 +188,10 @@ export class Inventory {
   }
 
   static fromJSON(data) {
-    const inv = new Inventory(data && data.capacity ? data.capacity : 30);
+    // `!= null` statt einer Wahrheitsprüfung: Die Vorratstruhe hat vor dem
+    // ersten Ausbau NULL Fächer, und mit `data.capacity ? …` wurden daraus
+    // beim Laden dreißig – ein Lager, das niemand bezahlt hatte.
+    const inv = new Inventory(data && data.capacity != null ? data.capacity : 30);
     if (data && data.slots) inv.slots = data.slots.filter(function (s) { return getItem(s.id); });
     if (data && data.found) {
       for (const id in data.found) {

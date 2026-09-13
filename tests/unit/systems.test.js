@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Inventory } from '../../src/game/inventory.js';
-import { QuestBook, QTYPE, questTitle, questIcon, QUEST_VERB } from '../../src/game/quests.js';
+import {
+  QuestBook, QTYPE, questTitle, questIcon, QUEST_VERB, lifetimeOf, daysLeft,
+  craftableAsks, CRAFTABLE_ASKS, COOK_ASKS, verlaesslich,
+} from '../../src/game/quests.js';
 import { World } from '../../src/world/world.js';
 import { DayCycle, DAY_START, DAY_END } from '../../src/game/daycycle.js';
 import { Fishing } from '../../src/game/fishing.js';
@@ -13,8 +16,10 @@ import { SPIRITS, SPIRIT_IDS, friendshipLevel, friendshipGift } from '../../src/
 import { charmAround, cosyLevel, pointsToNext, cosyRadius, rewardFactor, COSY_STEPS, COSY_MAX, COSY_RADIUS } from '../../src/game/cosiness.js';
 import { weatherFor, WEATHER } from '../../src/render/weather.js';
 import { getItem, ITEM_LIST, CAT } from '../../src/game/items.js';
+import { parseSave, SAVE_VERSION } from '../../src/game/game.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
-import { RECIPES } from '../../src/game/recipes.js';
+import { RECIPES, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
+import { GERICHTE, gerichtFuer } from '../../src/game/kitchen.js';
 import {
   StoryBook, STORIES, STAGES, QUESTS_PER_STAGE, keepsakeOf, storyIcon,
 } from '../../src/game/stories.js';
@@ -70,6 +75,30 @@ test('Tasche lässt sich sichern und laden', () => {
   assert.equal(dirty.slots.length, 1);
 });
 
+/* ---------------- Spielstand ---------------- */
+
+test('Spielstandprüfung nimmt Gültiges an und weist Unfug ab', () => {
+  assert.equal(parseSave('{').ok, false);
+  assert.equal(parseSave('null').ok, false);
+  assert.equal(parseSave('{"version":1}').ok, false, 'ohne Samen ist es keiner');
+  assert.equal(parseSave('{"version":99,"seed":5}').ok, false, 'fremde Fassung');
+  const gut = parseSave('{"version":' + SAVE_VERSION + ',"seed":5,"day":{"day":3}}');
+  assert.equal(gut.ok, true);
+  assert.equal(gut.data.seed, 5);
+  // Jede Ablehnung muss sagen, WAS los ist – sonst steht man vor einem
+  // stummen Knopf und weiß nicht, ob der Stand kaputt oder nur alt ist.
+  for (const text of ['{', 'null', '{"version":99,"seed":5}']) {
+    assert.ok(parseSave(text).reason.length > 8, text);
+  }
+});
+
+test('Die Fassungsnummer des Spielstands bleibt, solange nur ergänzt wird', () => {
+  // Alles, was seither dazugekommen ist – Beete, Saat, Fristen, Tagebuch,
+  // Oberflächengröße –, ist zusätzlich. Ein alter Stand darf deshalb weiter
+  // gelesen werden, und genau dafür steht diese Zahl still.
+  assert.equal(SAVE_VERSION, 1);
+});
+
 /* ---------------- Aufgaben ---------------- */
 
 function makeCtx() {
@@ -115,6 +144,82 @@ test('Nie mehr als drei offene Aufgaben pro Geist', () => {
   }
 });
 
+test('Bitten laufen ab und machen Platz für neue', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  qb.newDay(1, ctx.world, ctx);
+  const ersteTag = qb.active().map((q) => q.id);
+  assert.ok(ersteTag.length > 0);
+  for (const q of qb.active()) {
+    assert.ok(q.expires > 1, 'jede Bitte braucht eine Frist');
+    assert.equal(q.expires, 1 + lifetimeOf(q.type));
+  }
+
+  // Weit genug in die Zukunft, dass alles vom ersten Tag abgelaufen ist
+  for (let day = 2; day <= 7; day++) qb.newDay(day, ctx.world, ctx);
+  const nochDa = qb.active().filter((q) => ersteTag.indexOf(q.id) >= 0);
+  assert.equal(nochDa.length, 0, 'liegengebliebene Bitten vom ersten Tag: ' + nochDa.length);
+  assert.ok(qb.active().length > 0, 'aber es gibt neue');
+});
+
+test('Fertige Bitten laufen NICHT ab', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  qb.newDay(1, ctx.world, ctx);
+  // Eine Sammelaufgabe erfüllen, aber nicht abgeben
+  const q = qb.active().filter((x) => x.type === QTYPE.GATHER)[0];
+  assert.ok(q, 'kein Sammelauftrag am ersten Tag');
+  ctx.inventory.add(q.itemId, q.need);
+  for (let day = 2; day <= 9; day++) qb.newDay(day, ctx.world, ctx);
+  assert.ok(qb.byId(q.id), 'die erfüllte Bitte wurde weggeworfen');
+});
+
+test('Abgelaufene Suchaufträge räumen ihre Fundstücke weg', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  let q = null;
+  for (let day = 1; day <= 12 && !q; day++) {
+    qb.newDay(day, ctx.world, ctx);
+    q = qb.active().filter((x) => x.type === QTYPE.FIND && x.hiddenIds && x.hiddenIds.length)[0];
+  }
+  assert.ok(q, 'kein Suchauftrag erzeugt');
+  const ids = q.hiddenIds.slice();
+  for (const id of ids) assert.ok(ctx.world.byId[id], 'Fundstück fehlt schon vorher');
+
+  const bis = q.expires;
+  for (let day = q.day + 1; day <= bis + 1; day++) qb.newDay(day, ctx.world, ctx);
+  assert.equal(qb.byId(q.id), null, 'der Auftrag läuft nicht ab');
+  for (const id of ids) {
+    assert.equal(ctx.world.byId[id], undefined, 'verwaistes Fundstück ' + id + ' liegt noch herum');
+  }
+});
+
+test('Ein Geist stellt nicht zweimal dieselbe Bitte gleichzeitig', () => {
+  const ctx = makeCtx();
+  for (let day = 1; day < 40; day++) {
+    const qb = new QuestBook();
+    qb.newDay(day, ctx.world, ctx);
+    const gesehen = Object.create(null);
+    for (const q of qb.active()) {
+      // Maßstab ist die Karte, die im Spiel steht: zwei Bitten mit derselben
+      // Überschrift sind für den Spieler dieselbe Bitte, auch wenn intern
+      // andere Zutaten dranhängen.
+      const k = q.spirit + '|' + questTitle(q);
+      assert.ok(!gesehen[k], 'doppelt an Tag ' + day + ': ' + k);
+      gesehen[k] = 1;
+    }
+  }
+});
+
+test('Alte Spielstände bekommen ihre Frist nachgetragen', () => {
+  const alt = { seq: 9, total: 0, done: {}, quests: [
+    { id: 'q1_3', spirit: 'mira', type: QTYPE.GATHER, itemId: 'berry', need: 3, have: 0,
+      turnedIn: false, day: 3, rewards: { coins: 1, ember: 1, items: [] }, hiddenIds: null },
+  ] };
+  const qb = QuestBook.fromJSON(alt);
+  assert.equal(qb.active()[0].expires, 3 + lifetimeOf(QTYPE.GATHER));
+});
+
 test('Aufgaben sind nicht überwiegend Hol-und-Bring', () => {
   const ctx = makeCtx();
   const arten = Object.create(null);
@@ -155,6 +260,107 @@ test('Sammelaufgabe: Fortschritt aus der Tasche, Abgabe verbraucht', () => {
   assert.equal(qb.active().length, 0);
   assert.equal(qb.completedBySpirit.mira, 1);
   assert.equal(qb.totalCompleted, 1);
+});
+
+test('Sammelbitte zählt Sorten, nicht Stückzahl', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const q = {
+    id: 'set1', spirit: 'mira', type: QTYPE.SET, itemId: null,
+    items: ['berry', 'herb', 'resin'], setKey: 'wald', setName: 'Aus dem Wald',
+    need: 3, have: 0, turnedIn: false, day: 1,
+    rewards: { coins: 90, ember: 4, items: [] }, hiddenIds: null,
+  };
+  qb.quests.push(q);
+
+  // Ein Sack voll Beeren erfüllt nichts – es fehlen zwei Sorten.
+  ctx.inventory.add('berry', 20);
+  assert.equal(qb.progress(q, ctx), 1, 'zwanzig Beeren sind trotzdem eine Sorte');
+  assert.equal(qb.isReady(q, ctx), false);
+
+  ctx.inventory.add('herb', 1);
+  ctx.inventory.add('resin', 1);
+  assert.equal(qb.progress(q, ctx), 3);
+
+  assert.ok(qb.turnIn(q, ctx));
+  // Von jeder Sorte genau eines, nicht der ganze Stapel.
+  assert.equal(ctx.inventory.count('berry'), 19, 'der Beerenvorrat bleibt');
+  assert.equal(ctx.inventory.count('herb'), 0);
+  assert.equal(ctx.inventory.count('resin'), 0);
+});
+
+test('Botengang wird beim Ziel abgegeben, nicht beim Auftraggeber', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const q = {
+    id: 'del1', spirit: 'mira', type: QTYPE.DELIVER, itemId: 'shell',
+    turnInAt: 'flamey', need: 2, have: 0, turnedIn: false, day: 1,
+    rewards: { coins: 50, ember: 3, items: [] }, hiddenIds: null,
+  };
+  qb.quests.push(q);
+  ctx.inventory.add('shell', 2);
+
+  assert.deepEqual(qb.openAtSpirit('flamey').map((x) => x.id), ['del1'],
+    'abgegeben wird bei Flamey');
+  assert.deepEqual(qb.openAtSpirit('mira'), [],
+    'bei Mira steht nichts zum Abgeben');
+  // Der Auftrag gehört aber weiter zu Mira – sie hat ihn gestellt.
+  assert.deepEqual(qb.openForSpirit('mira').map((x) => x.id), ['del1']);
+
+  assert.ok(qb.turnIn(q, ctx));
+  assert.equal(ctx.inventory.count('shell'), 0);
+  assert.equal(qb.completedBySpirit.mira, 1, 'die Freundschaft zählt beim Auftraggeber');
+});
+
+test('Botengang schickt nie zum Auftraggeber selbst zurück', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const rng = makeRng(7);
+  let gesehen = 0;
+  for (let i = 0; i < 400; i++) {
+    const q = qb.generate('mira', 5, ctx.world, ctx, rng);
+    if (!q || q.type !== QTYPE.DELIVER) continue;
+    gesehen++;
+    assert.notEqual(q.turnInAt, 'mira');
+    assert.ok(ctx.world.isUnlocked(SPIRITS[q.turnInAt].region),
+      'Ziel muss erreichbar sein: ' + q.turnInAt);
+  }
+  assert.ok(gesehen > 0, 'keine einzige Botengang-Bitte erzeugt');
+});
+
+test('Jede Sammel- und Botengangsorte ist ein echter Gegenstand', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const rng = makeRng(31);
+  let geprueft = 0;
+  for (let i = 0; i < 900; i++) {
+    const q = qb.generate('flamey', 9, ctx.world, ctx, rng);
+    if (!q) continue;
+    const ids = q.type === QTYPE.SET ? q.items
+      : (q.type === QTYPE.DELIVER || q.type === QTYPE.GROW) ? [q.itemId] : null;
+    if (!ids) continue;
+    for (const id of ids) {
+      assert.ok(getItem(id), 'kein Gegenstand: ' + id);
+      geprueft++;
+    }
+  }
+  assert.ok(geprueft > 20, 'zu wenig geprüft: ' + geprueft);
+});
+
+test('Sammelbitte fordert lauter verschiedene Sorten', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const rng = makeRng(5);
+  let gesehen = 0;
+  for (let i = 0; i < 600; i++) {
+    const q = qb.generate('kiesel', 9, ctx.world, ctx, rng);
+    if (!q || q.type !== QTYPE.SET) continue;
+    gesehen++;
+    assert.equal(new Set(q.items).size, q.items.length, 'doppelt: ' + q.items);
+    assert.equal(q.need, q.items.length);
+    assert.ok(q.items.length >= 3);
+  }
+  assert.ok(gesehen > 0, 'keine einzige Sammelbitte erzeugt');
 });
 
 test('Suchaufgabe legt versteckte Fundstücke in der Welt ab', () => {
@@ -232,6 +438,211 @@ test('Aufgabenbuch überlebt Speichern und Laden', () => {
   const back = QuestBook.fromJSON(json);
   assert.equal(back.active().length, qb.active().length);
   assert.equal(back.totalCompleted, qb.totalCompleted);
+});
+
+/* ---------------- Baubitten ---------------- */
+
+/**
+ * Ein Spiel mit einem Lagerfeuer einer bestimmten Stufe.
+ *
+ * `CAMPFIRE_LEVELS` nennt den Brennstoff je Stufe; hier wird so viel
+ * eingelegt, dass genau diese Stufe erreicht ist.
+ */
+function ctxMitFeuer(stufe) {
+  const ctx = makeCtx();
+  const lvl = CAMPFIRE_LEVELS.filter((l) => l.level <= stufe).pop();
+  ctx.state = { campfireFuel: lvl.fuel };
+  return ctx;
+}
+
+test('Die Baubitten kommen aus den Bauplänen, nicht aus einer Handliste', () => {
+  // Der Anlass: Zwölf neue Baupläne kamen dazu, und niemand bat um sie.
+  // Jetzt genügt ein Rezept, damit auch gefragt werden kann.
+  const alle = CRAFTABLE_ASKS;
+  assert.ok(alle.length >= 15,
+    'nur ' + alle.length + ' Baubitten – die Liste hinkt den Bauplänen hinterher');
+  for (const id of alle) {
+    const rec = RECIPES.find((r) => r.id === id);
+    assert.ok(rec, id + ': dazu gibt es gar keinen Bauplan');
+    assert.equal(rec.out && rec.out.id, id,
+      id + ': der Bauplan liefert etwas anderes, die Bitte zeigt ins Leere');
+  }
+  // Die Gegenprobe: Jede Deko, die sich bauen lässt, kommt auch vor.
+  for (const rec of RECIPES) {
+    if (rec.kind !== 'item' || rec.once || rec.needs) continue;
+    if (!rec.out || rec.out.id !== rec.id) continue;
+    const bedingt = rec.cost.some((c) => { const z = getItem(c.id); return !!(z && z.onlyAt); });
+    if (bedingt) continue;
+    assert.ok(alle.indexOf(rec.id) >= 0, rec.name + ' steht im Bauplan, aber in keiner Bitte');
+  }
+});
+
+test('Niemand bittet um Werkzeug, Tasche oder die einmalige Brücke', () => {
+  for (const id of CRAFTABLE_ASKS) {
+    const rec = RECIPES.find((r) => r.id === id);
+    assert.equal(rec.kind, 'item', id + ': das kann man gar nicht abgeben');
+    assert.ok(!rec.once, id + ': einmalig – nach dem ersten Mal unerfüllbar');
+    assert.ok(!rec.needs, id + ': hängt an einem Meilenstein');
+  }
+});
+
+test('Keine Baubitte hängt an Wetter oder Nachtzeit', () => {
+  // Vier Tage Frist und kein einziger Nebeltag wären dieselbe tote Aufgabe,
+  // die beim Fischfang schon einmal auffiel.
+  for (const id of CRAFTABLE_ASKS) {
+    const rec = RECIPES.find((r) => r.id === id);
+    for (const c of rec.cost) {
+      const z = getItem(c.id);
+      assert.ok(!(z && z.onlyAt),
+        id + ' braucht ' + c.id + ', und das gibt es nur bei ' + z.onlyAt);
+    }
+  }
+});
+
+test('Am kleinen Feuer wird nur erbeten, was am kleinen Feuer geht', () => {
+  // Der eigentliche Fehler: Die alte Liste enthielt Laterne und Vogelhaus,
+  // beide ab Stufe 2. Wer am ersten Tag danach gefragt wurde, bekam an der
+  // Werkbank „Das Feuer ist noch zu klein" und sah vier Tage lang zu.
+  for (let stufe = 1; stufe <= 3; stufe++) {
+    const pool = craftableAsks(stufe);
+    assert.ok(pool.length > 0, 'Stufe ' + stufe + ': gar nichts zu bauen');
+    for (const id of pool) {
+      const rec = RECIPES.find((r) => r.id === id);
+      assert.ok((rec.fire || 1) <= stufe,
+        'Stufe ' + stufe + ': ' + id + ' braucht Feuerstufe ' + rec.fire);
+    }
+  }
+});
+
+test('Ein größeres Feuer macht die Bitten reicher', () => {
+  const a = craftableAsks(1);
+  const b = craftableAsks(2);
+  const c = craftableAsks(3);
+  assert.ok(b.length > a.length, 'Stufe 2 bringt nichts Neues');
+  assert.ok(c.length > b.length, 'Stufe 3 bringt nichts Neues');
+  // Und nichts fällt wieder weg – was man einmal bauen konnte, bleibt.
+  for (const id of a) assert.ok(b.indexOf(id) >= 0, id + ' verschwindet bei Stufe 2');
+  for (const id of b) assert.ok(c.indexOf(id) >= 0, id + ' verschwindet bei Stufe 3');
+});
+
+test('Am ersten Tag ist jede Baubitte auch wirklich baubar', () => {
+  // Die Probe am laufenden Aufgabenbuch statt nur an der Liste: Hier hängt
+  // alles zusammen – Feuerstufe, Bittenwahl und was die Werkbank hergibt.
+  const ctx = ctxMitFeuer(1);
+  const qb = new QuestBook();
+  let gesehen = 0;
+  for (let tag = 1; tag <= 40; tag++) {
+    qb.newDay(tag, ctx.world, ctx);
+    for (const q of qb.active()) {
+      if (q.type !== QTYPE.CRAFT) continue;
+      gesehen++;
+      const rec = RECIPES.find((r) => r.out && r.out.id === q.itemId && r.id === q.itemId);
+      assert.ok(rec, q.itemId + ': keine Bauanleitung');
+      assert.equal(rec.fire || 1, 1,
+        'Tag ' + tag + ': „' + q.itemId + '" braucht Feuerstufe ' + rec.fire +
+        ', das Feuer hat 1');
+    }
+    for (const q of qb.active()) q.expires = tag;   // Platz für den nächsten Tag
+  }
+  assert.ok(gesehen >= 5, 'nur ' + gesehen + ' Baubitten in 40 Tagen – prüft nichts');
+});
+
+/* ---------------- Kochbitten ---------------- */
+
+test('Um jedes Gericht kann gebeten werden – bis auf das vom Wetter', () => {
+  // Die Küche war das einzige System des Spiels, das an keiner Bitte hing:
+  // kochen, verkaufen, verschenken – aber niemand hat je danach gefragt.
+  assert.ok(COOK_ASKS.length >= 6, 'nur ' + COOK_ASKS.length + ' Gerichte erbittbar');
+  for (const id of COOK_ASKS) {
+    assert.ok(gerichtFuer(id), id + ': das ist gar kein Gericht');
+    assert.ok(getItem(id), id + ': den Gegenstand gibt es nicht');
+  }
+  // Die Gegenprobe: Was fehlt, fehlt aus genau einem Grund.
+  for (const g of GERICHTE) {
+    if (COOK_ASKS.indexOf(g.id) >= 0) continue;
+    const wetter = g.zutaten.some((z) => !verlaesslich(z.id));
+    assert.ok(wetter, g.name + ' fehlt in den Kochbitten, hängt aber an keinem Wetter');
+  }
+});
+
+test('Keine Kochbitte wartet auf Regen oder Nebel', () => {
+  // Sechs Tage Frist und kein einziger Regentag wären dieselbe tote Aufgabe,
+  // die beim Fischfang schon einmal auffiel.
+  for (const id of COOK_ASKS) {
+    for (const z of gerichtFuer(id).zutaten) {
+      const it = getItem(z.id);
+      assert.ok(verlaesslich(z.id),
+        id + ' braucht ' + z.id + ', und das gibt es nur bei ' + (it && it.onlyAt));
+    }
+  }
+});
+
+test('Die Nacht zählt als verlässlich, das Wetter nicht', () => {
+  // Der Unterschied, um den es geht: Die Nacht kommt jeden Tag, der Nebel
+  // vielleicht die ganze Woche nicht.
+  assert.equal(verlaesslich('moonflower'), true, 'die Nacht kommt jeden Tag');
+  assert.equal(verlaesslich('rainmushroom'), false);
+  assert.equal(verlaesslich('fogcrystal'), false);
+  assert.equal(verlaesslich('berry'), true);
+  assert.equal(verlaesslich('gibtsnicht'), true, 'Unbekanntes darf nicht alles sperren');
+  // Und der Mondblütenkuchen ist deshalb wirklich dabei – sonst prüfte der
+  // Satz oben nur eine Regel ohne Fall.
+  assert.ok(COOK_ASKS.indexOf('dish_mooncake') >= 0, 'die Nachtzutat wird doch gesperrt');
+});
+
+test('Eine Kochbitte nimmt das Gericht und zahlt dafür', () => {
+  const ctx = makeCtx();
+  const qb = new QuestBook();
+  const q = {
+    id: 'koch1', spirit: 'mira', type: QTYPE.COOK, itemId: 'dish_forestsoup',
+    need: 1, have: 0, turnedIn: false, day: 1, expires: 7,
+    rewards: { coins: 87, ember: 2, items: [] }, hiddenIds: null,
+  };
+  qb.quests.push(q);
+
+  assert.equal(qb.progress(q, ctx), 0, 'ohne Suppe kein Fortschritt');
+  assert.equal(qb.isReady(q, ctx), false);
+  assert.equal(qb.turnIn(q, ctx), null, 'abgeben geht noch nicht');
+
+  ctx.inventory.add('dish_forestsoup', 1);
+  assert.equal(qb.progress(q, ctx), 1);
+  assert.equal(qb.isReady(q, ctx), true);
+  const lohn = qb.turnIn(q, ctx);
+  assert.ok(lohn && lohn.coins > 0, 'nichts bezahlt');
+  assert.equal(ctx.inventory.count('dish_forestsoup'), 0, 'die Suppe liegt noch in der Tasche');
+  assert.equal(qb.totalCompleted, 1);
+});
+
+test('Kochbitten kommen im laufenden Spiel wirklich vor', () => {
+  // Ein Auftragstyp, den niemand vergibt, ist toter Code. Gemessen an einem
+  // echten Aufgabenbuch über vierzig Tage.
+  const ctx = makeCtx();
+  for (let r = 1; r <= 3; r++) ctx.world.unlockRegion(r);
+  const qb = new QuestBook();
+  const wer = Object.create(null);
+  let n = 0;
+  for (let tag = 1; tag <= 40; tag++) {
+    qb.newDay(tag, ctx.world, ctx);
+    for (const q of qb.active()) {
+      if (q.type !== QTYPE.COOK) continue;
+      n++;
+      wer[q.spirit] = 1;
+      assert.ok(COOK_ASKS.indexOf(q.itemId) >= 0, 'Tag ' + tag + ': ' + q.itemId + ' steht nicht im Topf');
+      assert.equal(questIcon(q), 'icon_' + q.itemId);
+      assert.ok(/kochen$/.test(questTitle(q)), 'seltsamer Titel: ' + questTitle(q));
+    }
+    for (const q of qb.active()) q.expires = tag;
+  }
+  assert.ok(n >= 5, 'nur ' + n + ' Kochbitten in 40 Tagen');
+  assert.ok(Object.keys(wer).length >= 2,
+    'nur ein einziger Geist kocht je – dann ist es seine Eigenart und kein Auftragstyp');
+});
+
+test('Eine Kochbitte gilt länger als jede Holbitte', () => {
+  // Zutaten von drei Stellen holen und dann ans Feuer: Das ist die längste
+  // Kette, die eine Bitte in diesem Spiel auslöst.
+  assert.ok(lifetimeOf(QTYPE.COOK) > lifetimeOf(QTYPE.GATHER));
+  assert.ok(lifetimeOf(QTYPE.COOK) >= lifetimeOf(QTYPE.CRAFT));
 });
 
 /* ---------------- Tageslauf ---------------- */
@@ -342,9 +753,31 @@ test('Laden wechselt täglich, aber reproduzierbar', () => {
   const s2 = new Shop().refresh(3, SEED);
   const s3 = new Shop().refresh(4, SEED);
   assert.deepEqual(s1.stock, s2.stock, 'gleicher Tag, gleiches Angebot');
-  assert.ok(s1.stock.length >= 4 && s1.stock.length <= 6);
+  // Vier bis sechs wechselnde Waren plus die Saat, die immer liegt
+  const wechselnd = s1.stock.filter((x) => getItem(x.id).cat !== CAT.SEED);
+  assert.ok(wechselnd.length >= 4 && wechselnd.length <= 6,
+    'wechselnde Waren: ' + wechselnd.length);
   assert.notDeepEqual(s1.stock.map((s) => s.id), s3.stock.map((s) => s.id));
   assert.ok(s1.wanted);
+});
+
+test('Saat gibt es jeden Tag zu kaufen', () => {
+  // Ein Garten, für den man auf das richtige Tagesangebot warten muss, ist
+  // keiner. Deshalb liegen die drei einfachen Saaten immer im Regal.
+  for (let day = 1; day <= 30; day++) {
+    const shop = new Shop().refresh(day, SEED);
+    const ids = shop.stock.map((x) => x.id);
+    for (const id of ['seed_berry', 'seed_herb', 'seed_flower']) {
+      assert.ok(ids.indexOf(id) >= 0, 'Tag ' + day + ': ' + id + ' fehlt');
+    }
+  }
+  // Die Mondsaat kommt nur manchmal – sonst wäre sie nichts Besonderes
+  let mondTage = 0;
+  for (let day = 1; day <= 60; day++) {
+    const shop = new Shop().refresh(day, SEED);
+    if (shop.stock.some((x) => x.id === 'seed_moon')) mondTage++;
+  }
+  assert.ok(mondTage > 5 && mondTage < 40, 'Mondsaat an ' + mondTage + ' von 60 Tagen');
 });
 
 test('Tagesgesuch zahlt mehr', () => {
@@ -669,7 +1102,13 @@ test('Neue Aufgabenarten: Hingehen zählt erst am Ziel', () => {
 test('Jede Aufgabenart hat Titel, Verb und Symbol', () => {
   for (const key of Object.keys(QTYPE)) {
     const type = QTYPE[key];
-    const q = { type: type, itemId: 'wood', need: 2, have: 0, spot: { x: 0, y: 0 } };
+    // Eine Attrappe mit allen Feldern, die irgendeine Art liest – so fällt
+    // auf, wenn eine neue Art einen Titel ohne passendes Feld baut.
+    const q = {
+      type: type, itemId: 'wood', need: 2, have: 0, spot: { x: 0, y: 0 },
+      items: ['berry', 'herb', 'resin'], setKey: 'wald', setName: 'Aus dem Wald',
+      turnInAt: 'flamey',
+    };
     const titel = questTitle(q);
     assert.ok(titel && titel.length > 0, type + ' braucht einen Titel');
     assert.ok(titel.length <= 34, type + ': Titel zu lang – "' + titel + '"');

@@ -17,7 +17,7 @@ import {
 } from './brush.js';
 import { makeRng } from '../core/rng.js';
 
-/** Farbwelt nach dem Vorbild: warmes Papier, Tinte in Sepia statt Schwarz. */
+/** Die Farbwelt: warmes Papier, Tinte in Sepia statt Schwarz. */
 export const INK = {
   line: '#4a4038',
   lineSoft: '#7a6f5e',
@@ -77,6 +77,10 @@ export const INK = {
   petalYellow: '#f7d97e',
   petalViolet: '#b9a3dd',
   petalWhite: '#fdfaf2',
+  // Die Dämmerblume: das Blau, das der Himmel kurz nach Sonnenuntergang hat.
+  // Dunkel genug, dass sie zwischen Rosa, Gelb, Violett und Weiß sofort
+  // auffällt – sie ist die eine, die man nicht findet, sondern zieht.
+  petalDusk: '#6f86c4',
   mushroomCap: '#e2705c',
   mushroomStem: '#f6ecd8',
 
@@ -106,6 +110,61 @@ const ink = INK;
 export function fill(g, pts) {
   pathFrom(g, pts, true);
   g.fill();
+}
+
+/**
+ * Rechteckige Fläche, die rechteckig bleibt.
+ *
+ * Vier Punkte durch eine Catmull-Rom-Kurve ergeben immer einen Laib – für
+ * Bretter, Theken und Pfosten ist das falsch. Mit Stützpunkten auf den Kanten
+ * bleibt die Kurve dicht an der Geraden, und nur die Ecken werden weich. Ein
+ * kleiner Versatz je Punkt hält das Ganze handgemalt statt technisch.
+ */
+export function slab(x0, y0, x1, y1, seed, wob) {
+  const rng = makeRng((seed || 1) >>> 0);
+  const j = wob == null ? 1.6 : wob;
+  const nx = Math.max(3, Math.round(Math.abs(x1 - x0) / 26));
+  const ny = Math.max(2, Math.round(Math.abs(y1 - y0) / 26));
+  const pts = [];
+  function edge(ax, ay, bx, by, n) {
+    for (let i = 0; i < n; i++) {
+      const t = i / n;
+      pts.push([
+        ax + (bx - ax) * t + (rng() - 0.5) * j,
+        ay + (by - ay) * t + (rng() - 0.5) * j,
+      ]);
+    }
+  }
+  edge(x0, y0, x1, y0, nx);
+  edge(x1, y0, x1, y1, ny);
+  edge(x1, y1, x0, y1, nx);
+  edge(x0, y1, x0, y0, ny);
+  return smoothClosed(pts, 2);
+}
+
+/**
+ * Dasselbe wie `slab`, nur für schräge Kanten.
+ *
+ * Ein Giebel ist kein Rechteck, soll aber genauso wenig zum Laib zerlaufen.
+ * Stützpunkte auf jeder Kante halten die Kurve nah an der Geraden.
+ */
+export function poly(ecken, smooth) {
+  const pts = [];
+  for (let i = 0; i < ecken.length; i++) {
+    const a = ecken[i];
+    const b = ecken[(i + 1) % ecken.length];
+    const n = Math.max(2, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 26));
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      pts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    }
+  }
+  return smoothClosed(pts, smooth == null ? 2 : smooth);
+}
+
+/** Viereck mit runden Ecken – für Sitzflächen, Bretter, Kissen. */
+export function quad(a, b, c, d, smooth) {
+  return smoothClosed([a, b, c, d], smooth || 4);
 }
 
 /**
@@ -168,7 +227,7 @@ export function leafClumps(g, cx, cy, rx, ry, seed, color) {
 /**
  * Nadelsaum: kurze Striche, die von einer Etagenkante nach unten außen
  * ausfransen. Ohne sie bleibt ein Nadelbaum ein gestapelter, glatter Kegel;
- * mit ihnen bekommt er die zerfaserte Kante des Vorbilds.
+ * mit ihnen bekommt er eine zerfaserte, gezeichnete Kante.
  */
 export function needleFringe(g, cx, y, halfW, seed, color) {
   const rng = makeRng(seed >>> 0);
@@ -518,12 +577,15 @@ export function paintRock(opts) {
     outline: 1.8 * Math.min(1.2, scale),
     shadow: function (g) { groundShadow(g, cx + 4, baseY - 3, 42 * scale, 11 * scale, seed + 1, 0.15); },
     wash: function (g) {
-      wash(g, body, ink.rock, { seed: seed + 2, scale: 1.05 });
+      // Der Stein darf seine Farbe wechseln: Der Granit im Hochland ist
+      // kälter als der Findling am Strand, sonst wäre der neue Bereich nur
+      // derselbe Stein an einer anderen Stelle.
+      wash(g, body, o.tint || ink.rock, { seed: seed + 2, scale: 1.05 });
       // Vorderseite liegt im Schatten, Deckfläche fängt das Licht
       wash(g, offsetShape(body, -LIGHT.x * 16 * scale, -LIGHT.y * 13 * scale, 0.78),
-        ink.rockShade, { seed: seed + 3, alpha: 0.8 });
+        o.tintShade || ink.rockShade, { seed: seed + 3, alpha: 0.8 });
       wash(g, offsetShape(body, -LIGHT.x * 24 * scale, -LIGHT.y * 17 * scale, 0.5),
-        ink.rockDeep, { seed: seed + 4, alpha: 0.4 });
+        o.tintDeep || ink.rockDeep, { seed: seed + 4, alpha: 0.4 });
       wash(g, top, '#efece0', { seed: seed + 30, alpha: 0.72, scale: 1.02 });
       if (o.moss !== false) {
         // Moos gehört auf den Stein, nicht daneben: die Lasuren liegen
@@ -534,8 +596,10 @@ export function paintRock(opts) {
         g.restore();
       }
       if (o.ore) {
-        dot(g, null, cx + 11 * scale, baseY - 34 * scale, 9 * scale, ink.copper, seed + 8);
-        dot(g, null, cx - 15 * scale, baseY - 22 * scale, 7 * scale, ink.copper, seed + 11);
+        const adern = o.oreColor || ink.copper;
+        dot(g, null, cx + 11 * scale, baseY - 34 * scale, 9 * scale, adern, seed + 8);
+        dot(g, null, cx - 15 * scale, baseY - 22 * scale, 7 * scale, adern, seed + 11);
+        if (o.ore3) dot(g, null, cx - 2 * scale, baseY - 48 * scale, 6 * scale, adern, seed + 13);
       }
     },
     shape: function (g) { fill(g, body); },
@@ -548,8 +612,10 @@ export function paintRock(opts) {
       inkLine(g, cx + 2, baseY - 32 * scale, cx + 21 * scale, baseY - 21 * scale,
         { width: 1.5, bend: -0.12, seed: seed + 22, alpha: 0.42 });
       if (o.ore) {
-        dot(null, g, cx + 11 * scale, baseY - 34 * scale, 9 * scale, ink.copper, seed + 8);
-        dot(null, g, cx - 15 * scale, baseY - 22 * scale, 7 * scale, ink.copper, seed + 11);
+        const adern = o.oreColor || ink.copper;
+        dot(null, g, cx + 11 * scale, baseY - 34 * scale, 9 * scale, adern, seed + 8);
+        dot(null, g, cx - 15 * scale, baseY - 22 * scale, 7 * scale, adern, seed + 11);
+        if (o.ore3) dot(null, g, cx - 2 * scale, baseY - 48 * scale, 6 * scale, adern, seed + 13);
       }
     },
   });
@@ -1016,6 +1082,61 @@ export function paintHerb(opts) {
   return made(res, w, h, cx, baseY);
 }
 
+/**
+ * Eine Feder im Gras.
+ *
+ * Sie stand als Gegenstand von Anfang an in der Liste – ein Geist konnte
+ * sogar darum bitten –, aber es gab sie nirgends: kein Objekt ließ sie
+ * fallen, kein Rezept, kein Laden. Gemessen waren das acht unlösbare
+ * Aufträge in neunzig Tagen, und die Materialreihe im Fundbuch blieb für
+ * immer unvollständig. Jetzt liegt sie herum, wo Vögel sind.
+ *
+ * Schräg gelegt, nicht senkrecht: Eine stehende Feder sieht aus, als wäre
+ * sie eingepflanzt.
+ */
+export function paintFeather(opts) {
+  const o = opts || {};
+  const w = 72;
+  const h = 52;
+  const seed = o.seed || 271;
+  const cx = w / 2;
+  const baseY = h - 8;
+  // Kiel von unten links nach oben rechts, Fahne beidseitig daran
+  const a = [cx - 22, baseY - 2];
+  const b = [cx + 22, baseY - 34];
+  const fahne = smoothClosed([
+    a,
+    [cx - 12, baseY - 20], [cx + 2, baseY - 32], [cx + 16, baseY - 38],
+    b,
+    [cx + 12, baseY - 26], [cx - 2, baseY - 16], [cx - 14, baseY - 6],
+  ], 6);
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.0,
+    outline: 1.5,
+    shadow: function (g) { groundShadow(g, cx, baseY - 1, 20, 5, seed, 0.11); },
+    wash: function (g) {
+      wash(g, fahne, '#e4edf3', { seed: seed + 2, scale: 1.05 });
+      wash(g, offsetShape(fahne, 5, 4, 0.62), '#b9cbd8', { seed: seed + 3, alpha: 0.65 });
+    },
+    shape: function (g) { fill(g, fahne); },
+    ink: function (g) {
+      // Der Kiel und ein paar Fahnenstriche – ohne sie ist es ein Blatt
+      inkLine(g, a[0], a[1], b[0], b[1], { width: 1.8, bend: 0.05, seed: seed + 10, alpha: 0.75 });
+      for (let i = 1; i <= 4; i++) {
+        const t = i / 5;
+        const px = a[0] + (b[0] - a[0]) * t;
+        const py = a[1] + (b[1] - a[1]) * t;
+        inkLine(g, px, py, px - 7, py - 6,
+          { width: 1.2, bend: 0.06, seed: seed + 20 + i, color: ink.lineSoft, alpha: 0.5 });
+        inkLine(g, px, py, px + 6, py + 6,
+          { width: 1.2, bend: 0.06, seed: seed + 30 + i, color: ink.lineSoft, alpha: 0.45 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
 export function paintShell(opts) {
   const o = opts || {};
   const w = 64;
@@ -1042,6 +1163,70 @@ export function paintShell(opts) {
         inkLine(g, cx + i * 2, baseY - 26, cx + i * 9, baseY - 2,
           { width: 1.4, bend: 0.05, seed: seed + 10 + i, alpha: 0.5 });
       }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Sternenstaub.
+ *
+ * Am Morgen nach einer Sternennacht liegt er am Spülsaum. Ein Stern, kein
+ * Kiesel: fünf Zacken, aber weich – ein exakter Stern sähe aus wie ein
+ * Symbol aus einem Menü, und auf dieser Insel ist alles mit dem Pinsel
+ * gemacht. Der Schein darunter ist ein zweiter, größerer Wasch in derselben
+ * Farbe; er lässt ihn im Sand leuchten, ohne dass eine Lichtquelle nötig
+ * wäre.
+ */
+export function paintStardust(opts) {
+  const o = opts || {};
+  const w = 60;
+  const h = 54;
+  const seed = o.seed || 293;
+  const cx = w / 2;
+  const baseY = h - 9;
+  const cy = baseY - 15;
+
+  // Fünf Zacken, jede etwas anders lang – von Hand gelegt, nicht gerechnet.
+  const zacken = [];
+  const lang = [15, 13.5, 14.5, 13, 14];
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI * 2) / 5;
+    const b = a + Math.PI / 5;
+    zacken.push([cx + Math.cos(a) * lang[i], cy + Math.sin(a) * lang[i]]);
+    zacken.push([cx + Math.cos(b) * 6.2, cy + Math.sin(b) * 6.2]);
+  }
+  const stern = smoothClosed(zacken, 2.2);
+  const schein = smoothClosed(zacken.map(function (p) {
+    return [cx + (p[0] - cx) * 1.7, cy + (p[1] - cy) * 1.7];
+  }), 5);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.3,
+    shadow: function (g) { groundShadow(g, cx + 1, baseY, 13, 4, seed, 0.10); },
+    wash: function (g) {
+      wash(g, schein, '#f2e9b8', { seed: seed + 1, scale: 1.2, alpha: 0.28 });
+      wash(g, stern, '#fdf3c4', { seed: seed + 2, scale: 1.0 });
+      wash(g, offsetShape(stern, 3, 2, 0.5), '#e8cf7c', { seed: seed + 3, alpha: 0.55 });
+    },
+    shape: function (g) { fill(g, stern); },
+    ink: function (g) {
+      // Ein paar Körnchen daneben – Staub, nicht ein einzelner Stein.
+      const r = makeRng(seed + 40);
+      for (let i = 0; i < 5; i++) {
+        const a = r() * Math.PI * 2;
+        const d = 17 + r() * 10;
+        const px = cx + Math.cos(a) * d;
+        const py = cy + Math.sin(a) * d * 0.6;
+        g.globalAlpha = 0.5;
+        g.fillStyle = '#e8cf7c';
+        g.beginPath();
+        g.arc(px, py, 1 + r() * 1.4, 0, Math.PI * 2);
+        g.fill();
+      }
+      g.globalAlpha = 1;
     },
   });
   return made(res, w, h, cx, baseY);
@@ -1117,6 +1302,244 @@ export function paintDigspot(opts) {
     ink: function (g) {
       inkLine(g, cx - 12, baseY - 12, cx + 6, baseY - 8, { width: 1.4, bend: 0.2, seed: seed + 10, alpha: 0.45 });
       inkLine(g, cx - 4, baseY - 16, cx + 10, baseY - 14, { width: 1.2, bend: -0.15, seed: seed + 11, alpha: 0.35 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/* ------------------------------------------------------------------ Anbau */
+
+/**
+ * Eine Pflanze im Beet, in drei Stufen.
+ *
+ * Stufe 0 ist ein Keimling, 1 eine junge Pflanze, 2 die reife. Alle drei
+ * stehen auf demselben Fleck umgegrabener Erde: Damit ist auch der Keimling
+ * als „hier wurde gepflanzt" zu erkennen und nicht als zufälliges Gras. Ohne
+ * das Beet sähe ein frisch gesäter Fleck aus wie nichts, und man liefe am
+ * eigenen Garten vorbei.
+ *
+ * @param {object} opts stage 0..2, leaf, fruit, form 'beere'|'blatt'|'blüte'|'mond'
+ */
+export function paintCrop(opts) {
+  const o = opts || {};
+  const stage = o.stage == null ? 2 : o.stage;
+  const w = 78;
+  const h = 88;
+  const seed = o.seed || 401;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const leafColor = o.leaf || ink.leaf;
+  const fruitColor = o.fruit || ink.berry;
+  const form = o.form || 'beere';
+
+  // Beet: ein flacher Hügel aus dunkler Erde, in allen Stufen gleich
+  const beet = smoothClosed(blob(cx, baseY - 5, 25, 9, seed + 1, 0.22, 14), 5);
+
+  const hoehe = stage === 0 ? 16 : stage === 1 ? 32 : 44;
+  const stemTop = baseY - 6 - hoehe;
+  const stem = smoothClosed([
+    [cx - 2.6, baseY - 6], [cx - 3.2, stemTop + 4], [cx + 3.2, stemTop + 4], [cx + 2.6, baseY - 6],
+  ], 4);
+
+  // Blätter: paarweise, nach oben hin kleiner und schräg nach oben gestellt.
+  //
+  // Waagerechte Ovale übereinander sahen aus wie eine kleine Tanne. Erst der
+  // Winkel macht daraus eine Pflanze, die aus dem Boden strebt.
+  function dreh(pts, ox, oy, winkel) {
+    const c = Math.cos(winkel);
+    const si = Math.sin(winkel);
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const dx = pts[i][0] - ox;
+      const dy = pts[i][1] - oy;
+      out.push([ox + dx * c - dy * si, oy + dx * si + dy * c]);
+    }
+    return out;
+  }
+  const blaetter = [];
+  const paare = stage === 0 ? 1 : stage === 1 ? 2 : 3;
+  for (let p = 0; p < paare; p++) {
+    const y = baseY - 10 - (hoehe * (p + 0.65)) / (paare + 0.25);
+    const gr = (stage === 0 ? 10 : 13) - p * 1.8;
+    const neigung = 0.42 - p * 0.06;
+    for (let seite = -1; seite <= 1; seite += 2) {
+      const lx = cx + seite * (7 + p * 0.8);
+      const roh = blob(lx + seite * gr * 0.55, y, gr, gr * 0.46, seed + 10 + p * 7 + (seite > 0 ? 3 : 0), 0.2, 12);
+      blaetter.push(smoothClosed(dreh(roh, lx, y, -seite * neigung), 4));
+    }
+  }
+  // Kraut trägt keine Beeren, sondern mehr Blattwerk: ein Büschel obenauf.
+  if (stage === 2 && form === 'blatt') {
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI / 2 + (i - 1) * 0.5;
+      const lx = cx + Math.cos(a) * 8;
+      const ly = stemTop + 8 + Math.sin(a) * 3;
+      const roh = blob(lx + Math.cos(a) * 7, ly + Math.sin(a) * 7, 11, 5, seed + 70 + i, 0.2, 12);
+      blaetter.push(smoothClosed(dreh(roh, lx, ly, a + Math.PI / 2), 4));
+    }
+  }
+
+  // Früchte nur in der reifen Stufe – daran erkennt man auf zwanzig Meter,
+  // ob sich das Hinlaufen lohnt.
+  const fruchtR = form === 'mond' ? 11 : form === 'blüte' ? 10 : 7;
+  const fruechte = [];
+  if (stage === 2 && form !== 'blatt') {
+    const rng = makeRng(seed + 33);
+    const n = form === 'blüte' || form === 'mond' ? 1 : 3;
+    for (let i = 0; i < n; i++) {
+      const a = n === 1 ? -Math.PI / 2 : (i / n) * Math.PI * 2 + 0.7;
+      // Die einzelne Blüte sitzt ÜBER den obersten Blättern, nicht dazwischen:
+      // sonst verschwindet sie zwischen dem Grün und die reife Pflanze ist von
+      // weitem nicht von der jungen zu unterscheiden.
+      fruechte.push([
+        cx + Math.cos(a) * (n === 1 ? 0 : 11),
+        (n === 1 ? stemTop - 1 : stemTop + 7 + Math.sin(a) * 8) + rng() * 2,
+      ]);
+    }
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.25,
+    shadow: function (g) { groundShadow(g, cx + 2, baseY - 3, 26, 8, seed + 4, 0.13); },
+    wash: function (g) {
+      wash(g, beet, ink.dirtDark, { seed: seed + 5, alpha: 0.9 });
+      wash(g, smoothClosed(blob(cx - 4, baseY - 7, 15, 5, seed + 6, 0.26, 12), 4),
+        ink.dirt, { seed: seed + 7, alpha: 0.7 });
+      wash(g, stem, ink.grassDark, { seed: seed + 8 });
+      for (let i = 0; i < blaetter.length; i++) {
+        wash(g, blaetter[i], leafColor, { seed: seed + 40 + i, scale: 1.05 });
+      }
+      if (blaetter.length) {
+        washGroup(g, blaetter.map(function (b) {
+          return offsetShape(b, -LIGHT.x * 5, -LIGHT.y * 4, 0.78);
+        }), ink.leafDeep, { alpha: 0.42 });
+      }
+      for (let i = 0; i < fruechte.length; i++) {
+        dot(g, null, fruechte[i][0], fruechte[i][1], fruchtR,
+          fruitColor, seed + 60 + i);
+      }
+    },
+    shape: function (g) {
+      fill(g, beet);
+      fill(g, stem);
+      for (let i = 0; i < blaetter.length; i++) fill(g, blaetter[i]);
+      for (let i = 0; i < fruechte.length; i++) {
+        const f = fruechte[i];
+        g.moveTo(f[0] + fruchtR, f[1]);
+        g.ellipse(f[0], f[1], fruchtR, fruchtR * 0.94, 0, 0, Math.PI * 2);
+      }
+    },
+    ink: function (g) {
+      // Blattadern – ohne sie sind die Blätter nur grüne Ovale. Sie laufen
+      // vom Stängel in die Blattspitze, also mit demselben Winkel.
+      for (let p = 0; p < paare; p++) {
+        const y = baseY - 10 - (hoehe * (p + 0.65)) / (paare + 0.25);
+        const gr = (stage === 0 ? 10 : 13) - p * 1.8;
+        const neigung = 0.42 - p * 0.06;
+        for (let seite = -1; seite <= 1; seite += 2) {
+          const lx = cx + seite * (7 + p * 0.8);
+          const spitze = gr * 1.5;
+          inkLine(g, lx, y,
+            lx + seite * spitze * Math.cos(neigung), y - spitze * Math.sin(neigung),
+            { width: 1.1, bend: seite * 0.14, seed: seed + 80 + p * 3 + (seite > 0 ? 1 : 0),
+              color: ink.lineSoft, alpha: 0.5 });
+        }
+      }
+      // Krümel am Beetrand
+      const rng = makeRng(seed + 90);
+      g.save();
+      g.globalAlpha = 0.42;
+      g.fillStyle = ink.dirtDark;
+      g.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const x = cx - 20 + rng() * 40;
+        const y = baseY - 8 + rng() * 6;
+        g.moveTo(x + 2, y);
+        g.ellipse(x, y, 2 + rng(), 1.4 + rng() * 0.6, 0, 0, Math.PI * 2);
+      }
+      g.fill();
+      g.restore();
+      for (let i = 0; i < fruechte.length; i++) {
+        dot(null, g, fruechte[i][0], fruechte[i][1], fruchtR,
+          fruitColor, seed + 60 + i);
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Saatbeutel – das Symbol für eine Saat.
+ *
+ * Ein Leinenbeutel mit farbiger Schnur; die Farbe sagt, was daraus wird. Die
+ * reife Pflanze als Symbol zu nehmen wäre naheliegend gewesen, aber dann sähe
+ * die Saat in der Tasche genauso aus wie die Ernte daneben.
+ */
+export function paintSeedPouch(opts) {
+  const o = opts || {};
+  const w = 64;
+  const h = 68;
+  const seed = o.seed || 451;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const band = o.band || ink.berry;
+
+  const sack = smoothClosed(blob(cx, baseY - 18, 18, 17, seed, 0.14, 14), 5);
+  const hals = smoothClosed([
+    [cx - 7, baseY - 33], [cx - 5, baseY - 42], [cx + 5, baseY - 42], [cx + 7, baseY - 33],
+  ], 4);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.1,
+    outline: 1.6,
+    shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 19, 7, seed + 1, 0.14); },
+    wash: function (g) {
+      wash(g, sack, '#e0d3b2', { seed: seed + 2, scale: 1.05 });
+      wash(g, offsetShape(sack, -LIGHT.x * 8, -LIGHT.y * 7, 0.72), '#c3b28c', { alpha: 0.55 });
+      wash(g, hals, '#d6c8a4', { seed: seed + 3 });
+      // Ein breites farbiges Band quer über den Beutel.
+      //
+      // Erst nur eine dünne Schnur am Hals – bei Symbolgröße zwei Pixel, und
+      // die vier Saaten sahen in der Tasche alle gleich aus. Die Farbe muss
+      // Fläche haben, sonst sagt sie nichts.
+      // Auf den Beutel, nicht daneben: die Lasur ist weichgezeichnet und
+      // stünde sonst als farbiger Hof über der Kontur.
+      clipTo(g, [sack]);
+      wash(g, smoothClosed([
+        [cx - 19, baseY - 22], [cx + 19, baseY - 24],
+        [cx + 19, baseY - 13], [cx - 19, baseY - 11],
+      ], 4), band, { seed: seed + 4, alpha: 0.92 });
+      g.restore();
+      // Und ein Büschel derselben Farbe schaut oben heraus
+      const buschel = smoothClosed(blob(cx, baseY - 44, 9, 6, seed + 5, 0.24, 12), 4);
+      clipTo(g, [buschel]);
+      wash(g, buschel, band, { seed: seed + 6, alpha: 0.85 });
+      g.restore();
+    },
+    shape: function (g) {
+      fill(g, sack);
+      fill(g, hals);
+      fill(g, smoothClosed(blob(cx, baseY - 44, 9, 6, seed + 5, 0.24, 12), 4));
+    },
+    ink: function (g) {
+      // Die Schnur, die das Band zusammenhält
+      g.save();
+      g.strokeStyle = ink.line;
+      g.globalAlpha = 0.7;
+      g.lineWidth = 2.6;
+      g.lineCap = 'round';
+      g.beginPath();
+      g.moveTo(cx - 8, baseY - 34);
+      g.quadraticCurveTo(cx, baseY - 31, cx + 8, baseY - 34);
+      g.stroke();
+      g.restore();
+      inkLine(g, cx - 9, baseY - 24, cx - 4, baseY - 12,
+        { width: 1.3, bend: 0.2, seed: seed + 10, color: ink.lineSoft, alpha: 0.5 });
+      inkLine(g, cx + 8, baseY - 26, cx + 3, baseY - 13,
+        { width: 1.3, bend: -0.2, seed: seed + 11, color: ink.lineSoft, alpha: 0.45 });
     },
   });
   return made(res, w, h, cx, baseY);

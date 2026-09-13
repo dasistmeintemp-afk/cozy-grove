@@ -5,10 +5,12 @@ import {
   walkableTilesOf, findWalkableNear, CAMP_TILE,
   FORD_X0, FORD_X1, RIVER_Y0, RIVER_Y1,
   CHANNEL_X0, CHANNEL_X1, BRIDGE_Y0, BRIDGE_Y1,
+  DOCK_TILE, ISLE_DOCK_TILE, ALL_REGIONS, HIGHLAND_Y,
 } from './worldgen.js';
-import { makeEntity, defOf } from './entities.js';
+import { makeEntity, defOf, spriteFor } from './entities.js';
 import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
 import { syncIdCounter } from '../core/util.js';
+import { inAnyPlot, inAnyPlotAt } from '../game/plot.js';
 
 const CELL = 160;
 const GRID_W = Math.ceil((MAP_W * TILE_SIZE) / CELL);
@@ -25,6 +27,7 @@ export const SPIRIT_HOMES = {
   bruno: { tx: 38, ty: 26, region: REGION.FOREST },
   tobi: { tx: 44, ty: 14, region: REGION.FOREST },
   nelly: { tx: 78, ty: 50, region: REGION.CLIFFS },
+  wanda: { tx: 8, ty: 44, region: REGION.ISLE },
 };
 
 export class World {
@@ -39,8 +42,13 @@ export class World {
     for (let i = 0; i < this.grid.length; i++) this.grid[i] = [];
     this.groundDirty = true;
     this.groundStamp = 0;
-    this.unlocked = [true, false, false];
+    this.unlocked = [true, false, false, false];
     this.bridgeBuilt = false;
+    /** Ausbaustufe des Grundstücks – die Welt liest sie beim Nachwachsen. */
+    this.plotStage = 1;
+    // 0 heißt: die Bucht auf der Insel ist noch nicht gekauft. Dann gibt es
+    // sie nicht, und sie darf auch nichts vom Nachwachsen ausnehmen.
+    this.islePlotStage = 0;
   }
 
   /* ---------- Kacheln ---------- */
@@ -194,6 +202,7 @@ export class World {
 
     this._placeCamp();
     this._placeBarriers();
+    this._placeBoats();
     this._scatterNature(rng);
     this._placeSpirits();
     return this;
@@ -207,6 +216,19 @@ export class World {
     this.tent = this.add(makeEntity('tent', px(cx - 5), px(cy - 2)));
     this.workbench = this.add(makeEntity('workbench', px(cx + 5), px(cy - 1)));
     this.stall = this.add(makeEntity('stall', px(cx + 4), px(cy + 5)));
+    // Neben dem Feuer, gegenüber der Werkbank: Was man kocht, kocht man am
+    // Feuer, und wer morgens aus dem Zelt kommt, läuft daran vorbei.
+    this.kitchen = this.add(makeEntity('kitchen', px(cx - 4), px(cy + 4)));
+    // Der Briefkasten steht neben dem Zelt: Wer morgens aufwacht, läuft
+    // an ihm vorbei, ohne ihn suchen zu müssen.
+    this.mailbox = this.add(makeEntity('mailbox', px(cx - 7), px(cy - 1)));
+    // Die Truhe steht von Anfang an da – wie die Boote am Sund. Bis die
+    // erste Ausbaustufe bezahlt ist, lässt sie sich nur nicht öffnen.
+    //
+    // Vorher war sie `gone`, und `_canPlaceAt` überspringt genau das: Man
+    // konnte eine Bank auf ihren Platz stellen, und nach dem Bezahlen stand
+    // die Truhe mitten darin.
+    this.storage = this.add(makeEntity('storage', px(cx + 7), px(cy + 3)));
     this.fox = this.add(makeEntity('fox', px(cx + 4), px(cy + 7)));
   }
 
@@ -222,6 +244,28 @@ export class World {
     const nook = findWalkableNear(this.tiles, 86, 46, 10, REGION.CLIFFS);
     if (nook) {
       this.rockslide = this.add(makeEntity('rockslide', (nook.x + 0.5) * TILE_SIZE, (nook.y + 0.5) * TILE_SIZE));
+    }
+  }
+
+  /**
+   * Die beiden Ruderboote – eines an jedem Ufer des Sunds.
+   *
+   * Sie stehen von Anfang an da, aber sie fahren erst, wenn die Stille Insel
+   * freigeschaltet ist. Ein Boot, das erst auftaucht, wenn man es benutzen
+   * darf, erklärt nichts; eines, das schon da liegt, macht neugierig.
+   */
+  _placeBoats() {
+    const hier = findWalkableNear(this.tiles, DOCK_TILE.x, DOCK_TILE.y, 14, REGION.CAMP);
+    const drueben = findWalkableNear(this.tiles, ISLE_DOCK_TILE.x, ISLE_DOCK_TILE.y, 14, REGION.ISLE);
+    if (hier) {
+      this.dock = this.add(makeEntity('boat', (hier.x + 0.5) * TILE_SIZE, (hier.y + 0.5) * TILE_SIZE, {
+        toRegion: REGION.ISLE,
+      }));
+    }
+    if (drueben) {
+      this.isleDock = this.add(makeEntity('boat', (drueben.x + 0.5) * TILE_SIZE, (drueben.y + 0.5) * TILE_SIZE, {
+        toRegion: REGION.CAMP,
+      }));
     }
   }
 
@@ -274,6 +318,8 @@ export class World {
     scatter(['herb'], grassCamp, 12, 48);
     scatter(['shell', 'driftwood'], sandCamp, 26, 48);
     scatter(['reeds'], sandCamp, 18, 48);
+    scatter(['feather'], sandCamp, 8, 56);
+    scatter(['feather'], grassCamp, 8, 60);
 
     // Wald
     scatter(['tree_oak', 'tree_pine', 'tree_birch', 'tree_maple'], grassForest, 78, 72);
@@ -281,9 +327,39 @@ export class World {
     scatter(['mushroom'], grassForest, 26, 44);
     scatter(['herb'], grassForest, 16, 48);
     scatter(['flower_violet', 'flower_white'], grassForest, 18, 48);
+    scatter(['feather'], grassForest, 12, 56);
     scatter(['rock_big', 'rock_small'], grassForest, 14, 72);
     scatter(['rock_ore'], grassForest, 4, 104);
     scatter(['grass_tuft'], grassForest, 26, 40);
+
+    // Stille Insel. Sie zerfällt in zwei Hälften: unten der grüne Süden mit
+    // Wanda, oben das Hochland aus Fels. Nur dort liegen Granit und Geoden,
+    // und nur dafür lohnen die letzten beiden Spitzhackenstufen. Ein Bereich,
+    // den man mit dem Werkzeug vom ersten Tag leerräumt, wäre bloß größer.
+    const isleAll = walkableTilesOf(this.tiles, REGION.ISLE, function (t) {
+      return t === T.GRASS || t === T.ROCKFLOOR || t === T.DIRT;
+    });
+    const isleLand = isleAll.filter(function (p) { return p.y >= HIGHLAND_Y; });
+    const isleHigh = isleAll.filter(function (p) { return p.y < HIGHLAND_Y; });
+    const isleSand = walkableTilesOf(this.tiles, REGION.ISLE, function (t) { return t === T.SAND; });
+    scatter(['tree_pine', 'tree_birch'], isleLand, 16, 76);
+    scatter(['rock_ore'], isleLand, 10, 72);
+    scatter(['rock_big', 'rock_small'], isleLand, 12, 64);
+    scatter(['bush_berry'], isleLand, 8, 60);
+    scatter(['herb', 'mushroom'], isleLand, 14, 44);
+    scatter(['flower_violet', 'flower_white'], isleLand, 12, 44);
+    scatter(['grass_tuft'], isleLand, 14, 40);
+    scatter(['shell', 'driftwood'], isleSand, 18, 44);
+    scatter(['reeds'], isleSand, 10, 44);
+
+    // Das Hochland
+    scatter(['rock_granite'], isleHigh, 22, 82);
+    scatter(['rock_geode'], isleHigh, 6, 150);
+    scatter(['rock_big', 'rock_small'], isleHigh, 18, 68);
+    scatter(['rock_ore'], isleHigh, 8, 88);
+    scatter(['tree_pine'], isleHigh, 10, 92);
+    scatter(['herb'], isleHigh, 8, 56);
+    scatter(['grass_tuft'], isleHigh, 8, 52);
 
     // Klippen
     scatter(['tree_pine'], cliffLand, 26, 80);
@@ -292,6 +368,7 @@ export class World {
     scatter(['flower_violet'], cliffLand, 12, 48);
     scatter(['herb', 'mushroom'], cliffLand, 12, 48);
     scatter(['shell', 'driftwood'], cliffSand, 14, 48);
+    scatter(['feather'], cliffSand, 6, 56);
     scatter(['grass_tuft'], cliffLand, 16, 40);
   }
 
@@ -319,6 +396,100 @@ export class World {
       e.sprite = 'spirit_' + id + '_0';
       this.add(e);
     }
+  }
+
+  /**
+   * Wohin dieses Boot fährt – der Landeplatz neben dem Boot am anderen Ufer.
+   *
+   * Nicht auf das Boot selbst, sondern eine Kachel daneben: Man soll drüben
+   * stehen und das Boot sehen, nicht darin.
+   */
+  /**
+   * Wo einen die Überfahrt absetzt.
+   *
+   * Gesucht wird ein Platz, auf dem man wirklich STEHEN kann, nicht nur
+   * begehbarer Boden: `findWalkableNear` kennt die Kacheln, aber nicht, was
+   * darauf steht. Über sechzig Seeds gemessen landete man einmal in einem
+   * Findling und steckte fest – nie im Wasser, immer an einem Objekt.
+   */
+  boatTarget(boat) {
+    const anderes = boat === this.dock ? this.isleDock : this.dock;
+    if (!anderes) return null;
+    const tx = Math.floor(anderes.x / TILE_SIZE);
+    const ty = Math.floor(anderes.y / TILE_SIZE);
+    const region = regionAt(tx, ty);
+    for (let r = 0; r <= 8; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = tx + dx;
+          const y = ty + 1 + dy;
+          if (x < 1 || y < 1 || x >= MAP_W - 1 || y >= MAP_H - 1) continue;
+          if (regionAt(x, y) !== region) continue;
+          if (!isWalkable(this.tileAtTile(x, y))) continue;
+          const px = (x + 0.5) * TILE_SIZE;
+          const py = (y + 0.5) * TILE_SIZE;
+          if (!this.canStand(px, py, 12, 8)) continue;
+          return { x: px, y: py };
+        }
+      }
+    }
+    // Notnagel: lieber auf freiem Boden als gar nicht übersetzen.
+    const spot = findWalkableNear(this.tiles, tx, ty + 1, 8, region) || { x: tx, y: ty };
+    return { x: (spot.x + 0.5) * TILE_SIZE, y: (spot.y + 0.5) * TILE_SIZE };
+  }
+
+  /**
+   * Ein freier Fleck Sand im Lagerbereich.
+   *
+   * Für den Wanderer. Er soll am Strand stehen, nicht im Boot: Der erste
+   * Entwurf setzte ihn neben das Boot, und im Bildschirmfoto stand er
+   * darin. Schlimmer als das Bild war die Folge – über 250 Inseln gemessen
+   * zielte die Taste in 1,5 % der Fälle auf das BOOT statt auf ihn, und wer
+   * mit jemandem reden will und stattdessen übersetzt, hat den schlechtesten
+   * Fehler erwischt, den diese Insel anbieten kann.
+   *
+   * Deshalb hier: Sand, und mit ausdrücklichem Abstand zu allem, was eine
+   * Station ist. Die Regel steht nicht im Spiel, sondern hier, weil die
+   * Kachelkarte hier liegt.
+   *
+   * @param {function} rng      Tageswurf – gleiche Insel, gleicher Tag, gleicher Platz
+   * @param {object} nahBei     {x, y} – in dessen Nähe gesucht wird
+   * @param {number} maxWeg     wie weit weg der Fleck höchstens liegen darf
+   * @param {number} vonStation Mindestabstand zu Booten, Läden, Truhen, Feuer
+   * @param {number} frei       Mindestabstand zu allem anderen
+   */
+  strandPlatz(rng, nahBei, maxWeg, vonStation, frei) {
+    const sand = walkableTilesOf(this.tiles, REGION.CAMP, function (t) {
+      return t === T.SAND;
+    });
+    const passt = [];
+    for (let i = 0; i < sand.length; i++) {
+      const wx = (sand[i].x + 0.5) * TILE_SIZE;
+      const wy = (sand[i].y + 0.5) * TILE_SIZE;
+      const dx = wx - nahBei.x;
+      const dy = wy - nahBei.y;
+      if (dx * dx + dy * dy > maxWeg * maxWeg) continue;
+      if (!this.canStand(wx, wy, 16, 10)) continue;
+      // Der Abstand wird NACHGERECHNET: `queryNear` arbeitet auf einem
+      // 160-Punkte-Raster und meldet auch Nachbarn, die weiter weg sind.
+      const nah = this.queryNear(wx, wy, Math.max(vonStation, frei));
+      let gut = true;
+      for (let k = 0; k < nah.length && gut; k++) {
+        const e = nah[k];
+        if (e.gone) continue;
+        const d = defOf(e.kind);
+        if (!d) continue;
+        const r = (d.category === 'station' || d.category === 'spirit' ||
+          d.category === 'fox') ? vonStation : frei;
+        const ex = e.x - wx;
+        const ey = e.y - wy;
+        if (ex * ex + ey * ey < r * r) gut = false;
+      }
+      if (gut) passt.push({ x: wx, y: wy });
+    }
+    if (!passt.length) return null;
+    return passt[Math.floor(rng() * passt.length)];
   }
 
   spiritEntity(id) {
@@ -355,10 +526,24 @@ export class World {
    * Erneuert die Insel für einen neuen Tag:
    * abgebaute Objekte kehren zurück, Grabstellen werden neu verteilt.
    */
-  newDay(day) {
+  /**
+   * @param {number} day Inseltag
+   * @param {object} [ereignis] Tagesereignis: { digs: Faktor, bloom: Anzahl }
+   */
+  newDay(day, ereignis) {
     const rng = dailyRng(this.seed, day, 'world');
+    const ev = ereignis || {};
 
-    for (let i = 0; i < this.entities.length; i++) {
+    // Was ein Tagesereignis gestern ausgestreut hat, wird zuerst wieder
+    // eingesammelt. Sonst blühte die Insel nach einer Woche Blütentagen
+    // durchgehend, und das Besondere wäre verbraucht.
+    for (let i = this.entities.length - 1; i >= 0; i--) {
+      if (this.entities[i].fromEvent) this.remove(this.entities[i]);
+    }
+
+    // Rückwärts: Auf dem Grundstück wird hier entfernt, und `remove` rückt
+    // die Liste zusammen – vorwärts übersprungen man dabei den Nachbarn.
+    for (let i = this.entities.length - 1; i >= 0; i--) {
       const e = this.entities[i];
       if (!e.gone && e.kind !== 'tree_stump') {
         const def = defOf(e.kind);
@@ -366,9 +551,18 @@ export class World {
         continue;
       }
       if (e.respawnDay && day >= e.respawnDay) {
+        // Auf dem Grundstück wächst nichts nach. Das ist die ganze Regel,
+        // und sie ist der Grund, warum man dort überhaupt bauen kann: Ohne
+        // sie stand der gefällte Baum drei Tage später wieder mitten im
+        // Garten. Gefundenes und Grabstellen bleiben davon unberührt – die
+        // legt `_respawnDigspots` ohnehin neu aus.
+        if (inAnyPlotAt(e.x, e.y, this.plotStage, this.islePlotStage)) {
+          this.remove(e);
+          continue;
+        }
         if (e.origin) {
           e.kind = e.origin;
-          e.sprite = defOf(e.origin).sprite;
+          e.sprite = spriteFor(e.origin, e.x, e.y) || e.sprite;
           e.origin = null;
         }
         e.gone = false;
@@ -378,8 +572,110 @@ export class World {
       }
     }
 
-    this._respawnDigspots(rng);
+    this._respawnDigspots(rng, ev.digs || 1);
+    this._featherUnderBirdhouses(rng);
+    if (ev.bloom) this._scatterBloom(rng, ev.bloom);
+    if (ev.stardust) this._scatterStardust(rng, ev.stardust);
     return this;
+  }
+
+  /**
+   * Am Morgen nach einer Sternennacht liegt Sternenstaub am Spülsaum.
+   *
+   * Die Sternschnuppen selbst bleiben, was sie sind: ein Bild ohne Aufgabe.
+   * Wer nachts hochsieht, muss nichts tun und nichts drücken – genau das
+   * steht als Vorsatz über `_shootingStars`, und daran ändert sich nichts.
+   *
+   * Belohnt wird trotzdem, aber am nächsten Morgen und ohne Bedingung: Wer
+   * durchgeschlafen hat, findet dasselbe. Das ist der Unterschied zwischen
+   * „schön, dass du aufgepasst hast" und „du hättest aufpassen müssen".
+   *
+   * Am Sand, weil dort ohnehin Treibholz und Muscheln liegen – die
+   * Morgenrunde am Wasser bekommt damit einen seltenen Tag, keinen neuen Weg.
+   */
+  _scatterStardust(rng, count) {
+    const regions = ALL_REGIONS;
+    for (let r = 0; r < regions.length; r++) {
+      if (!this.unlocked[regions[r]]) continue;
+      const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
+        return t === T.SAND;
+      });
+      if (!spots.length) continue;
+      let placed = 0;
+      let guard = 0;
+      while (placed < count && guard++ < 400) {
+        const s = spots[Math.floor(rng() * spots.length)];
+        const wx = (s.x + 0.5) * TILE_SIZE;
+        const wy = (s.y + 0.5) * TILE_SIZE;
+        if (this._tooClose(wx, wy, 90)) continue;
+        const e = makeEntity('stardust', wx, wy);
+        // `fromEvent` räumt es am nächsten Morgen wieder weg, falls es
+        // liegen bleibt: Sonst läge nach dem zehnten Sternenhimmel überall
+        // Staub, und das Seltene wäre Kulisse.
+        e.fromEvent = true;
+        this.add(e);
+        placed++;
+      }
+    }
+  }
+
+  /**
+   * Unter einem Vogelhaus liegt morgens manchmal eine Feder.
+   *
+   * Das Vogelhaus war bis dahin das einzige Stück Deko ohne jede Wirkung –
+   * ein Haus für Vögel, in dem nie ein Vogel war, während über der Insel
+   * welche fliegen. Und Federn brauchten ohnehin eine Quelle in der Nähe:
+   * Wer danach gefragt wird, soll nicht die halbe Karte absuchen.
+   */
+  _featherUnderBirdhouses(rng) {
+    for (let i = 0; i < this.entities.length; i++) {
+      const e = this.entities[i];
+      if (e.kind !== 'decor' || e.itemId !== 'birdhouse' || e.gone) continue;
+      if (rng() > 0.5) continue;
+      // Nur eine je Haus und Tag: Sonst läge nach einer Woche ein Teppich
+      // aus Federn darunter, und das Vogelhaus wäre eine Maschine.
+      const schon = this.queryNear(e.x, e.y, 110).some(function (o) {
+        return o.kind === 'feather' && !o.gone;
+      });
+      if (schon) continue;
+      const a = rng() * Math.PI * 2;
+      const r = 52 + rng() * 40;
+      const x = e.x + Math.cos(a) * r;
+      const y = e.y + Math.sin(a) * r;
+      if (!isWalkable(this.tileAt(x, y))) continue;
+      this.add(makeEntity('feather', x, y));
+    }
+  }
+
+  /**
+   * Blütentag: zusätzliche Blumen über die freigeschalteten Bereiche.
+   *
+   * Sie tragen `fromEvent` und verschwinden am nächsten Morgen wieder – ein
+   * Blütentag soll ein Tag sein, kein dauerhafter Zustand.
+   */
+  _scatterBloom(rng, count) {
+    const arten = ['flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'];
+    const regions = ALL_REGIONS;
+    for (let r = 0; r < regions.length; r++) {
+      if (!this.unlocked[regions[r]]) continue;
+      const self = this;
+      const spots = walkableTilesOf(this.tiles, regions[r], function (t, tx, ty) {
+        return (t === T.GRASS || t === T.DIRT) &&
+          !inAnyPlot(tx, ty, self.plotStage, self.islePlotStage);
+      });
+      let placed = 0;
+      let guard = 0;
+      while (placed < count && guard++ < 500 && spots.length) {
+        const s = spots[Math.floor(rng() * spots.length)];
+        const wx = (s.x + 0.5) * TILE_SIZE;
+        const wy = (s.y + 0.5) * TILE_SIZE;
+        if (this._tooClose(wx, wy, 56)) continue;
+        const e = makeEntity(arten[Math.floor(rng() * arten.length)], wx, wy);
+        e.fromEvent = true;
+        this.add(e);
+        placed++;
+      }
+    }
   }
 
   /**
@@ -400,13 +696,15 @@ export class World {
     }
     if (!active || have >= count) return;
 
-    const regions = [REGION.CAMP, REGION.FOREST, REGION.CLIFFS];
+    const regions = ALL_REGIONS;
     let guard = 0;
     while (have < count && guard++ < 500) {
       const r = regions[Math.floor(rng() * regions.length)];
       if (!this.unlocked[r]) continue;
-      const spots = walkableTilesOf(this.tiles, r, function (t) {
-        return t === T.GRASS || t === T.DIRT || t === T.ROCKFLOOR;
+      const self = this;
+      const spots = walkableTilesOf(this.tiles, r, function (t, tx, ty) {
+        return (t === T.GRASS || t === T.DIRT || t === T.ROCKFLOOR) &&
+          !inAnyPlot(tx, ty, self.plotStage, self.islePlotStage);
       });
       if (!spots.length) continue;
       const s = spots[Math.floor(rng() * spots.length)];
@@ -418,17 +716,24 @@ export class World {
     }
   }
 
-  _respawnDigspots(rng) {
+  _respawnDigspots(rng, faktor) {
     for (let i = this.entities.length - 1; i >= 0; i--) {
       if (this.entities[i].kind === 'digspot') this.remove(this.entities[i]);
     }
-    const regions = [REGION.CAMP, REGION.FOREST, REGION.CLIFFS];
+    const regions = ALL_REGIONS;
     for (let r = 0; r < regions.length; r++) {
       if (!this.unlocked[regions[r]]) continue;
-      const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
-        return t === T.SAND || t === T.GRASS || t === T.DIRT;
+      const self = this;
+      const spots = walkableTilesOf(this.tiles, regions[r], function (t, tx, ty) {
+        if (t !== T.SAND && t !== T.GRASS && t !== T.DIRT) return false;
+        // Nicht auf dem Grundstück: Wer seinen Garten anlegt, will morgens
+        // keine frischen Löcher darin finden.
+        return !inAnyPlot(tx, ty, self.plotStage, self.islePlotStage);
       });
-      const count = regions[r] === REGION.CAMP ? 9 : 7;
+      // Die Stille Insel ist klein – dort wären sieben Grabstellen ein
+      // Minenfeld statt eines Fundes.
+      const grund = regions[r] === REGION.CAMP ? 9 : regions[r] === REGION.ISLE ? 4 : 7;
+      const count = Math.round(grund * (faktor || 1));
       let placed = 0;
       let guard = 0;
       while (placed < count && guard++ < 400 && spots.length) {

@@ -2,7 +2,10 @@
 import { randInt } from '../core/rng.js';
 import { nextId } from '../core/util.js';
 
-export const TOOL = { HAND: 'hand', AXE: 'axe', PICK: 'pickaxe', SHOVEL: 'shovel', ROD: 'rod', NET: 'net' };
+export const TOOL = {
+  HAND: 'hand', AXE: 'axe', PICK: 'pickaxe', SHOVEL: 'shovel', ROD: 'rod', NET: 'net',
+  CAN: 'can',
+};
 
 function drop(id, min, max) {
   return function (level, rng) {
@@ -90,6 +93,39 @@ export const ENTITY_DEFS = {
     respawn: 3, category: 'rock',
   },
 
+  // Nur im Hochland der Stillen Insel. Die dritte Spitzhackenstufe ist die
+  // Eintrittskarte: Ein neuer Bereich, den man mit dem Werkzeug vom ersten
+  // Tag leerräumt, gibt dem Aufsteigen keinen Sinn.
+  rock_granite: {
+    sprite: 'rock_granite', solid: true, blockR: 30, reachR: 84, tool: TOOL.PICK, minLevel: 3, hits: 5,
+    yield: function (level, rng) {
+      const out = [
+        { id: 'granite', n: randInt(rng, 1, 2) + (level >= 4 ? 1 : 0) },
+        { id: 'stone', n: randInt(rng, 1, 3) },
+      ];
+      if (rng() < 0.18) out.push({ id: 'copper_ore', n: 1 });
+      return out;
+    },
+    respawn: 3, category: 'rock',
+  },
+  rock_geode: {
+    sprite: 'rock_geode', solid: true, blockR: 28, reachR: 84, tool: TOOL.PICK, minLevel: 4, hits: 6,
+    yield: function (level, rng) {
+      const out = [{ id: 'amber', n: 1 }, { id: 'granite', n: randInt(rng, 1, 2) }];
+      if (rng() < 0.4) out.push({ id: 'gem', n: 1 });
+      return out;
+    },
+    respawn: 5, category: 'rock',
+  },
+
+  /**
+   * Das Haustier. Kein `solid`: Man soll nicht an der eigenen Katze
+   * hängenbleiben. Der Napf dagegen ist gewöhnliche Deko – gefüttert wird
+   * das Tier, nicht die Schüssel.
+   */
+  pet: {
+    sprite: 'pet_cat_0', solid: false, reachR: 96, category: 'pet', priority: 30,
+  },
   bush_berry: {
     sprite: 'bush_berry', solid: true, blockR: 24, reachR: 72, tool: TOOL.HAND, hits: 1,
     yield: drop('berry', 1, 2), becomes: 'bush_plain', respawn: 1, sway: true, category: 'forage',
@@ -115,6 +151,19 @@ export const ENTITY_DEFS = {
   shell: {
     sprite: 'shell', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('shell', 1, 1), respawn: 1, category: 'forage',
+  },
+  /**
+   * Federn lagen bisher in keiner Welt, obwohl ein Geist darum bitten
+   * konnte und das Fundbuch sie verlangte. Sie liegen dort, wo Vögel sind:
+   * unter Bäumen und am Strand.
+   */
+  feather: {
+    sprite: 'feather', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
+    yield: drop('feather', 1, 1), respawn: 1, sway: true, category: 'forage',
+  },
+  stardust: {
+    sprite: 'stardust', solid: false, reachR: 60, tool: TOOL.HAND, hits: 1,
+    yield: drop('stardust', 1, 1), category: 'forage',
   },
   driftwood: {
     sprite: 'driftwood', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
@@ -174,17 +223,52 @@ export const ENTITY_DEFS = {
   tent: { sprite: 'tent', solid: true, blockR: 72, blockH: 40, reachR: 112, category: 'station', station: 'tent' },
   workbench: { sprite: 'workbench', solid: true, blockR: 56, blockH: 28, reachR: 104, category: 'station', station: 'craft' },
   stall: { sprite: 'stall', solid: true, blockR: 80, blockH: 40, reachR: 120, category: 'station', station: 'shop' },
+  // Die Kochstelle steht im Lager, gleich neben dem Feuer. Kein Meilenstein
+  // davor: Sie nimmt, was ohnehin herumliegt, und wer am ersten Tag drei
+  // Beeren findet, soll damit etwas anfangen können.
+  kitchen: { sprite: 'kitchen', solid: true, blockR: 54, blockH: 26, reachR: 104, category: 'station', station: 'kitchen' },
   bridge_spot: { sprite: 'signpost', solid: false, reachR: 120, category: 'station', station: 'bridge' },
+  /**
+   * Das Ruderboot: an beiden Ufern eines. Nicht fest, damit man am schmalen
+   * Anleger nicht daran hängen bleibt.
+   *
+   * `priority` weil man IM Boot steht: Ohne den Zuschlag gewann jedes
+   * Grasbüschel unter den Füßen gegen das Boot – man stand am Anleger und
+   * las „Sammeln" statt „Übersetzen". Alle anderen Stationen sind fest, da
+   * kann nichts unter einem liegen.
+   */
+  boat: {
+    sprite: 'boat', solid: false, reachR: 132,
+    category: 'station', station: 'boat', priority: 40,
+  },
+  mailbox: {
+    sprite: 'mailbox', solid: true, blockR: 18, reachR: 96,
+    category: 'station', station: 'mail',
+  },
+  // Die Vorratstruhe. Steht erst da, wenn die erste Ausbaustufe bezahlt ist –
+  // vorher wäre sie eine Kiste, die man nicht öffnen darf.
+  storage: {
+    sprite: 'chest', solid: true, blockR: 30, blockH: 18, reachR: 104,
+    category: 'station', station: 'storage',
+  },
 
   // Lebewesen
   spirit: { solid: false, reachR: 120, category: 'spirit' },
   fox: { sprite: 'fox_0', solid: false, reachR: 112, category: 'fox' },
+  // Der Wanderer – steht einen Tag am Strand. Nicht fest: Wer ihn nicht
+  // ansprechen will, soll an ihm vorbeigehen können, ohne ihn zu umrunden.
+  wanderer: { sprite: 'wanderer_0', solid: false, reachR: 120, category: 'wanderer' },
 
   // Aufgabengegenstände
   hidden: { solid: false, reachR: 80, tool: TOOL.HAND, hits: 1, category: 'hidden' },
 
   // Vom Spieler aufgestellte Deko
   decor: { solid: true, blockR: 28, reachR: 80, category: 'decor' },
+
+  // Ein Beet. Nicht fest: Man soll darüberlaufen können, sonst wäre ein
+  // angelegter Garten eine Mauer aus Pflanzen. Die Grafik hängt an Art und
+  // Wachstumsstufe und wird beim Setzen gesetzt, nicht hier.
+  crop: { solid: false, reachR: 72, tool: TOOL.HAND, hits: 1, category: 'crop' },
 };
 
 export function defOf(kind) {
@@ -201,10 +285,26 @@ function variantAt(x, y, count) {
   return ((h >>> 3) % count + count) % count;
 }
 
+/**
+ * Der Grafikname für eine Art an einem Ort – inklusive Fassungsnummer.
+ *
+ * Wird nicht nur beim Erzeugen gebraucht, sondern auch, wenn ein Objekt seine
+ * Art wechselt und wieder zurückwechselt: Ein gefällter Ahorn wird zum Stumpf
+ * und drei Tage später wieder zum Ahorn. Setzte man dabei einfach `def.sprite`,
+ * stünde dort `tree_maple` – eine Grafik, die es gar nicht gibt, denn gemalt
+ * sind nur `tree_maple_0` bis `_2`. Der Baum wurde damit unsichtbar,
+ * blockierte aber weiter den Weg.
+ */
+export function spriteFor(kind, x, y) {
+  const def = ENTITY_DEFS[kind];
+  if (!def || !def.sprite) return null;
+  if (def.variants > 1) return def.sprite + '_' + variantAt(x, y, def.variants);
+  return def.sprite;
+}
+
 export function makeEntity(kind, x, y, extra) {
   const def = ENTITY_DEFS[kind];
-  let sprite = def && def.sprite ? def.sprite : null;
-  if (sprite && def.variants > 1) sprite = sprite + '_' + variantAt(x, y, def.variants);
+  const sprite = spriteFor(kind, x, y);
   const e = {
     id: nextId(),
     kind: kind,

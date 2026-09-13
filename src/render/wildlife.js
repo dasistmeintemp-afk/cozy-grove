@@ -14,14 +14,36 @@ import { drawSprite } from '../art/sprites.js';
 import { randRange } from '../core/rng.js';
 import { isWalkable, isWater } from '../art/tiles.js';
 import { bugsOf } from '../game/items.js';
+import { tierGunst, TIER_RADIUS } from '../game/decor.js';
+import { ZAHM_RADIUS, ZAHM_ABSTAND } from '../game/rest.js';
 
 const MAX = 9;
+
+/**
+ * Am Falterzug fliegt mehr und öfter.
+ *
+ * Zwei Zahlen statt einer Sonderbehandlung: die Höchstzahl gleichzeitig und
+ * wie schnell nachkommt. So bleibt der Rest der Datei frei von Ereignissen.
+ */
+const SCHWARM_MAX = 16;
 
 export class Wildlife {
   constructor(rng) {
     this.rng = rng || Math.random;
     this.list = [];
     this._spawnTimer = 0;
+    /** Falterzug: mehr Falter, und sie kommen schneller nach. */
+    this.swarm = false;
+    /** Jahreszeit – manche Falter fliegen nur zu ihrer. Null heißt: alle. */
+    this.season = null;
+    /**
+     * Wo jemand still sitzt – oder null.
+     *
+     * Steht hier ein Punkt, drehen Falter, Motten und Vögel in seiner Nähe
+     * langsam darauf zu, statt blind weiterzuziehen. Das ist der ganze Lohn
+     * fürs Sitzenbleiben: Wer stehen bleibt, dem kommt die Insel entgegen.
+     */
+    this.ruhe = null;
     /** Wird beim Fischsprung gerufen – das Spiel hängt dort den Klang an. */
     this.onJump = null;
   }
@@ -43,6 +65,7 @@ export class Wildlife {
       // Zuschlagen ohne Ziel soll etwas kosten, sonst wischt man blind.
       if (c.flee > 0) c.flee = Math.max(0, c.flee - dt);
       const hast = c.flee > 0 ? 2.3 : 1;
+      this._zurRuhe(c, dt);
 
       if (c.type === 'butterfly') {
         c.x += Math.cos(c.dir) * c.speed * hast * dt;
@@ -80,8 +103,9 @@ export class Wildlife {
     }
 
     this._spawnTimer -= dt;
-    if (this._spawnTimer > 0 || this.list.length >= MAX) return;
-    this._spawnTimer = randRange(rng, 1.4, 4.5);
+    const grenze = this.swarm ? SCHWARM_MAX : MAX;
+    if (this._spawnTimer > 0 || this.list.length >= grenze) return;
+    this._spawnTimer = this.swarm ? randRange(rng, 0.5, 1.6) : randRange(rng, 1.4, 4.5);
 
     // Ein Fischsprung ist zu jeder Tageszeit möglich
     if (rng() < 0.3 && this._spawnJump(camera, world, viewW, viewH)) return;
@@ -91,30 +115,91 @@ export class Wildlife {
       return;
     }
     if (rng() < 0.72) this._spawnButterfly(camera, world, viewW, viewH);
-    else this._spawnBird(camera, viewW, viewH);
+    else this._spawnBird(camera, world, viewW, viewH);
+  }
+
+  /**
+   * Ein Tier zu jemandem lenken, der still sitzt.
+   *
+   * Zwei Kreise: Innerhalb von `ZAHM_RADIUS` dreht das Tier langsam auf den
+   * Punkt zu, innerhalb von `ZAHM_ABSTAND` wieder weg. Zusammen ergibt das
+   * kein Anfliegen, sondern ein Umkreisen – und genau so sieht es aus, wenn
+   * ein Falter jemanden für einen Busch hält.
+   *
+   * Fischsprünge lässt das kalt, und wer gerade vor dem Kescher geflohen ist,
+   * kommt auch nicht zurück: Ein Falter, der nach dem Fehlschlag brav
+   * angeflogen käme, würde das Zielen zur Formsache machen.
+   */
+  _zurRuhe(c, dt) {
+    const r = this.ruhe;
+    if (!r || c.type === 'jump' || c.flee > 0) return;
+    const dx = r.x - c.x;
+    const dy = r.y - c.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d > ZAHM_RADIUS || d < 1) return;
+
+    let want = Math.atan2(dy, dx);
+    if (d < ZAHM_ABSTAND) want += Math.PI;
+    let diff = want - c.dir;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    c.dir += diff * 1.3 * dt;
+
+    // In der Nähe eines Sitzenden bleibt es länger: Sonst löste sich das
+    // Tier, das gerade angekommen ist, nach zwei Sekunden auf.
+    if (c.life < 4) c.life = 4;
+  }
+
+  /**
+   * Ein Platz im Bild, an dem ein Tier auftauchen darf.
+   *
+   * Hier hängt die Deko dran: Eine Vogeltränke zieht an, eine Vogelscheuche
+   * hält fern. Beides war vorher nur ein Charmewert – eine Tränke ohne
+   * Vögel, während über der Insel welche fliegen.
+   *
+   * „Der beste aus mehreren Versuchen" statt reiner Ablehnung: Gäbe man nur
+   * verscheuchte Plätze zurück, stünde die Insel bei einer Vogelscheuche im
+   * Bild ganz still. So verschiebt sich das Leben, statt aufzuhören.
+   */
+  _platz(camera, world, viewW, viewH) {
+    const rng = this.rng;
+    let ersatz = null;
+    for (let tries = 0; tries < 12; tries++) {
+      // Sitzt jemand still, taucht die Hälfte davon in seinem Umkreis auf –
+      // sonst kämen die Tiere zwar heran, aber vom Bildrand, und man sähe
+      // nur, dass sie lange brauchen.
+      const nahRuhe = this.ruhe && tries % 2 === 0;
+      const x = nahRuhe ? this.ruhe.x + randRange(rng, -ZAHM_RADIUS, ZAHM_RADIUS)
+        : camera.ox + randRange(rng, 40, viewW - 40);
+      const y = nahRuhe ? this.ruhe.y + randRange(rng, -ZAHM_RADIUS, ZAHM_RADIUS)
+        : camera.oy + randRange(rng, 40, viewH - 40);
+      if (!isWalkable(world.tileAt(x, y))) continue;
+      const gunst = world.queryNear
+        ? tierGunst(world.queryNear(x, y, TIER_RADIUS), x, y) : 1;
+      if (gunst === 0) continue;
+      if (gunst > 1) return { x: x, y: y };
+      if (!ersatz) ersatz = { x: x, y: y };
+    }
+    return ersatz;
   }
 
   _spawnMoth(camera, world, viewW, viewH) {
     const rng = this.rng;
-    for (let tries = 0; tries < 12; tries++) {
-      const x = camera.ox + randRange(rng, 40, viewW - 40);
-      const y = camera.oy + randRange(rng, 40, viewH - 40);
-      if (!isWalkable(world.tileAt(x, y))) continue;
-      const art = pickSpecies(rng, true);
-      this.list.push({
-        type: 'moth',
-        species: art.id,
-        x: x, y: y,
-        dir: randRange(rng, 0, Math.PI * 2),
-        speed: randRange(rng, 42, 78) * (art.flight || 1),
-        life: randRange(rng, 8, 16),
-        t: 0,
-        phase: randRange(rng, 0, 6.28),
-        z: randRange(rng, 34, 76),
-        flee: 0,
-      });
-      return;
-    }
+    const p = this._platz(camera, world, viewW, viewH);
+    if (!p) return;
+    const art = pickSpecies(rng, true, this.season);
+    this.list.push({
+      type: 'moth',
+      species: art.id,
+      x: p.x, y: p.y,
+      dir: randRange(rng, 0, Math.PI * 2),
+      speed: randRange(rng, 42, 78) * (art.flight || 1),
+      life: randRange(rng, 8, 16),
+      t: 0,
+      phase: randRange(rng, 0, 6.28),
+      z: randRange(rng, 34, 76),
+      flee: 0,
+    });
   }
 
   /** Sucht offenes Wasser im Bild und lässt dort einen Fisch springen. */
@@ -144,29 +229,36 @@ export class Wildlife {
 
   _spawnButterfly(camera, world, viewW, viewH) {
     const rng = this.rng;
-    for (let tries = 0; tries < 12; tries++) {
-      const x = camera.ox + randRange(rng, 40, viewW - 40);
-      const y = camera.oy + randRange(rng, 40, viewH - 40);
-      if (!isWalkable(world.tileAt(x, y))) continue;
-      const art = pickSpecies(rng, false);
-      this.list.push({
-        type: 'butterfly',
-        species: art.id,
-        x: x, y: y,
-        dir: randRange(rng, 0, Math.PI * 2),
-        speed: randRange(rng, 34, 66) * (art.flight || 1),
-        life: randRange(rng, 9, 20),
-        t: 0,
-        phase: randRange(rng, 0, 6.28),
-        z: randRange(rng, 30, 70),
-        flee: 0,
-      });
-      return;
-    }
+    const p = this._platz(camera, world, viewW, viewH);
+    if (!p) return;
+    const art = pickSpecies(rng, false, this.season);
+    this.list.push({
+      type: 'butterfly',
+      species: art.id,
+      x: p.x, y: p.y,
+      dir: randRange(rng, 0, Math.PI * 2),
+      speed: randRange(rng, 34, 66) * (art.flight || 1),
+      life: randRange(rng, 9, 20),
+      t: 0,
+      phase: randRange(rng, 0, 6.28),
+      z: randRange(rng, 30, 70),
+      flee: 0,
+    });
   }
 
-  _spawnBird(camera, viewW, viewH) {
+  /**
+   * Ein Vogel zieht durchs Bild.
+   *
+   * Er kommt von der Seite und fliegt geradeaus – aber er kommt gar nicht
+   * erst, wenn im Bild eine Vogelscheuche steht und keine Tränke. Der Vogel
+   * hat kein Ziel im Bild, deshalb wird die Mitte gefragt.
+   */
+  _spawnBird(camera, world, viewW, viewH) {
     const rng = this.rng;
+    const mx = camera.ox + viewW / 2;
+    const my = camera.oy + viewH / 2;
+    if (world && world.queryNear &&
+        tierGunst(world.queryNear(mx, my, TIER_RADIUS), mx, my) === 0) return;
     const fromLeft = rng() < 0.5;
     this.list.push({
       type: 'bird',
@@ -331,8 +423,8 @@ function nearestLight(lights, x, y) {
  * Wählt eine Art nach Gewicht. Der Mondfalter ist selten – ohne Gewichtung
  * wäre er so häufig wie der Zitronenfalter und damit nichts wert.
  */
-function pickSpecies(rng, night) {
-  const pool = bugsOf(night);
+function pickSpecies(rng, night, season) {
+  const pool = bugsOf(night, season);
   if (!pool.length) return { id: 'butterfly', flight: 1 };
   let total = 0;
   for (let i = 0; i < pool.length; i++) total += pool[i].weight || 1;

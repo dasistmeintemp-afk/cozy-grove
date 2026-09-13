@@ -6,6 +6,15 @@ import { pickWeighted, clamp } from '../core/util.js';
 import { fishesOf } from './items.js';
 import { randRange } from '../core/rng.js';
 
+/**
+ * Wurfweite: So weit vor der Figur landet der Schwimmer.
+ *
+ * Steht hier und nicht im Spiel, weil das Angeln entscheidet, was ein Wurf
+ * ist. Der Hinweis „Angeln" und der Vorrang vor der Ernte lesen denselben
+ * Wert – vorher rechnete das Spiel mit 26 px und das Angeln mit 104.
+ */
+export const CAST_REACH = 104;
+
 export const FISH_STATE = {
   IDLE: 'idle',
   CAST: 'cast',
@@ -26,6 +35,10 @@ export class Fishing {
     this.zoneStart = 0.4;
     this.zoneSize = 0.24;
     this.fish = null;
+    /** Fisch-Kennung, die heute besonders oft beißt – oder null. */
+    this.boost = null;
+    /** Stärkung des Tages: seltene Fische beißen öfter an. 0 = keine. */
+    this.glueck = 0;
     this.result = null;
     this.hint = '';
   }
@@ -35,17 +48,27 @@ export class Fishing {
   }
 
   /** Wirft aus. Gibt false zurück, wenn dort kein Wasser ist. */
-  cast(world, player, rng, night, rodLevel) {
+  cast(world, player, rng, night, rodLevel, season) {
     if (this.active) return false;
-    const p = player.facingPoint(104);
+    const p = player.facingPoint(CAST_REACH);
     if (!world.waterAt(p.x, p.y)) return false;
 
     const kind = world.waterKind(p.x, p.y);
-    const pool = fishesOf(kind, night);
+    const pool = fishesOf(kind, night, season);
     if (!pool.length) return false;
 
+    // Am Fischschwarmtag steht eine Art dick vor der Küste. Das ist der
+    // einzige Weg, an einen sehr seltenen Fisch verlässlich heranzukommen –
+    // sonst hängt er allein am Glück.
+    const boost = this.boost;
+    // „Glücklich" aus der Küche: Seltenes zählt doppelt. Das verschiebt die
+    // Verteilung spürbar, ohne den Schwarmtag zu entwerten – der gibt einer
+    // EINZIGEN Art das Zwölffache, hier bekommen alle seltenen das Doppelte.
+    const glueck = this.glueck || 0;
     const weighted = pool.map(function (f) {
-      return { f: f, weight: 1 / (f.rarity * f.rarity) };
+      let w = 1 / (f.rarity * f.rarity);
+      if (glueck && f.rarity >= 3) w *= 1 + glueck;
+      return { f: f, weight: f.id === boost ? w * 12 : w };
     });
     this.fish = pickWeighted(weighted, rng).f;
     this.bobber.x = p.x;

@@ -5,8 +5,20 @@
  * sitzt (ein zufriedener Geist, das Lagerfeuer), wird die farbige Fassung
  * durch eine weiche Maske eingeblendet.
  */
-import { TILE_SIZE, MAP_W, MAP_H } from './worldgen.js';
+import { TILE_SIZE, MAP_W, MAP_H, regionAt } from './worldgen.js';
 import { isWalkable } from '../art/tiles.js';
+
+/**
+ * Welcher Radius entsteht, wenn zu einem Kreis mit Radius `r` die Fläche
+ * `area` dazukommt.
+ *
+ * πr² + A = πR², also R = √(r² + A/π). Bei r = 0 wächst der Kreis kräftig,
+ * bei r = 800 nur noch um ein paar Pixel – genau der Verlauf, den ein
+ * Fortschrittsbalken braucht, der Wochen halten soll.
+ */
+export function radiusForArea(r, area) {
+  return Math.sqrt(r * r + Math.max(0, area) / Math.PI);
+}
 
 export class ColorField {
   constructor() {
@@ -41,6 +53,28 @@ export class ColorField {
     const s = this.find(key);
     if (!s) return null;
     s.target += amount;
+    this._dirty = true;
+    return s;
+  }
+
+  /**
+   * Wachsen um eine FLÄCHE statt um einen Radius.
+   *
+   * Der Unterschied entscheidet, wie lange das Spiel trägt. Mit festem
+   * Radiuszuwachs färbt der hundertste Auftrag ein Vielfaches dessen ein, was
+   * der erste einfärbte – die Anzeige raste. Gemessen stand sie nach rund 130
+   * Aufträgen auf 100 %, also nach knapp zwei Wochen; danach stieg nichts mehr.
+   *
+   * Gleiche Fläche je Auftrag ist die ehrlichere Regel: Jede Bitte bringt
+   * gleich viel Insel zurück, und weil ein großer Kreis dafür weniger Radius
+   * braucht, streckt sich der Bogen von selbst. Gemessen: 100 % erst bei rund
+   * 330 Aufträgen. Die ersten Tage fühlen sich dabei fast unverändert an
+   * (Auftrag 1: 5,3 % vorher, 4,7 % jetzt) – gestreckt wird das Ende.
+   */
+  growByArea(key, area) {
+    const s = this.find(key);
+    if (!s) return null;
+    s.target = radiusForArea(s.target, area);
     this._dirty = true;
     return s;
   }
@@ -100,7 +134,16 @@ export class ColorField {
     return best;
   }
 
-  /** Anteil der eingefärbten Landfläche (0..1). Wird gepuffert. */
+  /**
+   * Anteil der eingefärbten Landfläche (0..1). Wird gepuffert.
+   *
+   * Gezählt wird nur, was OFFEN ist. Sonst hinge die Anzeige von Anfang an
+   * an Land, das man gar nicht betreten kann – die Stille Insel allein sind
+   * rund 200 Kacheln, gut sieben Prozent. Die Zahl bedeutet so: „wie viel von
+   * dem, was du erreichen kannst, hat wieder Farbe". Und ein alter
+   * Spielstand behält seinen Prozentsatz auf die Kachel genau, weil bei ihm
+   * dieselben Bereiche offen sind wie vorher.
+   */
   coverage(world) {
     if (!this._dirty) return this._coverage;
     let land = 0;
@@ -109,6 +152,7 @@ export class ColorField {
     for (let ty = 0; ty < MAP_H; ty += step) {
       for (let tx = 0; tx < MAP_W; tx += step) {
         if (!isWalkable(world.tileAtTile(tx, ty))) continue;
+        if (!world.isUnlocked(regionAt(tx, ty))) continue;
         land++;
         if (this.at((tx + 0.5) * TILE_SIZE, (ty + 0.5) * TILE_SIZE) > 0.5) colored++;
       }
@@ -135,7 +179,15 @@ export class ColorField {
     return out;
   }
 
-  /** Zeichnet die Maske (weiß = Farbe) in Weltkoordinaten. */
+  /**
+   * Zeichnet die Maske (weiß = Farbe) in Weltkoordinaten.
+   *
+   * Die Quellen werden normal übereinandergelegt und vereinigen sich dadurch.
+   * Der Verlauf ist bewusst genau derselbe wie in `at()`: linear von voller
+   * Deckung bei 0,55·r bis null am Rand. Vorher hatte die Maske bei 0,865·r
+   * noch 0,72 Deckung, `at()` dort aber nur 0,30 – der Boden war also viel
+   * farbiger als die Bäume, die darauf standen.
+   */
   drawMask(ctx, sources) {
     for (let i = 0; i < sources.length; i++) {
       const s = sources[i];
@@ -143,7 +195,6 @@ export class ColorField {
       const y = s.y;
       const grad = ctx.createRadialGradient(x, y, Math.max(1, s.r * 0.55), x, y, s.r);
       grad.addColorStop(0, 'rgba(255,255,255,1)');
-      grad.addColorStop(0.7, 'rgba(255,255,255,0.72)');
       grad.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = grad;
       ctx.fillRect(x - s.r, y - s.r, s.r * 2, s.r * 2);

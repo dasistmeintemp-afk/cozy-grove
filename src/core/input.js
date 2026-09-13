@@ -12,7 +12,7 @@ const KEYMAP = {
   KeyE: 'interact', Space: 'interact', Enter: 'interact',
   Escape: 'cancel',
   Digit1: 'tool1', Digit2: 'tool2', Digit3: 'tool3', Digit4: 'tool4', Digit5: 'tool5',
-  Digit6: 'tool6',
+  Digit6: 'tool6', Digit7: 'tool7',
   Tab: 'nextTool',
   KeyI: 'panelInventory',
   KeyQ: 'panelQuests',
@@ -20,6 +20,7 @@ const KEYMAP = {
   KeyM: 'panelMap',
   KeyB: 'panelFound',
   KeyG: 'panelStories',
+  KeyL: 'panelPlot',
   KeyF: 'sleep',
   KeyR: 'rotate',
   KeyX: 'cancelPlace',
@@ -118,6 +119,19 @@ export class Input {
         self.pointer.down = false;
       }, { passive: true });
     }
+
+    /**
+     * Mausrad wechselt das Werkzeug.
+     *
+     * Sechs Zifferntasten sind auf einer Tastatur eine Handbewegung weg vom
+     * Laufen; das Rad liegt unter dem Finger, der ohnehin dort ist. Absicht:
+     * hoch = vorwärts, wie in fast jedem Spiel mit Werkzeuggürtel.
+     */
+    this._on(el, 'wheel', function (e) {
+      if (Math.abs(e.deltaY) < 1) return;
+      self.trigger(e.deltaY > 0 ? 'toolNext' : 'toolPrev');
+      e.preventDefault();
+    }, { passive: false });
 
     // Kontextmenü im Spielfeld stört nur.
     this._on(el, 'contextmenu', function (e) { e.preventDefault(); });
@@ -242,6 +256,19 @@ export class Input {
 
   pressed(action) {
     return !!this.justPressed[action];
+  }
+
+  /**
+   * Gerade losgelassen.
+   *
+   * Gegenstück zu `pressed`, und für eine Taste gedacht, die zwei Dinge
+   * bedeutet: Tippen das eine, Halten das andere. Der Unterschied zeigt sich
+   * erst beim Loslassen – auf `pressed` hin wäre jedes Halten zuerst ein
+   * Tippen. `releaseAll` löst das ausdrücklich NICHT aus: Ein Fensterwechsel
+   * ist kein Tastendruck.
+   */
+  released(action) {
+    return !!this.justReleased[action];
   }
 
   releaseAll() {
