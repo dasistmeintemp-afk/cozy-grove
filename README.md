@@ -18,10 +18,12 @@ ist die Schrift (`styles/fonts/`, 38 kB, freie Lizenz) – sie liegt lokal bei,
 damit die Oberfläche überall gleich aussieht und trotzdem nichts aus dem Netz
 nachgeladen wird.
 
-Der **Klang** ebenso: zwanzig Einzelgeräusche, eine Melodie in Pentatonik und
-ein Klangbett aus vier Rauschschichten – Brandung, Wind, Grillen, Regen. Das
-Spiel mischt sie nach Ort und Uhrzeit; am Strand rauscht die See, im Wald der
-Wind, nachts zirpt es. Abschaltbar unter „Umgebung“.
+Der **Klang** ebenso: zwanzig Einzelgeräusche, **fünf Melodien** in Pentatonik
+– eine je Jahreszeit und eine fürs Fest – und ein Klangbett aus vier
+Rauschschichten: Brandung, Wind, Grillen, Regen. Das Spiel mischt sie nach
+Ort, Uhrzeit und Wetter; am Strand rauscht die See, im Wald der Wind, nachts
+zirpt es, und im Haus bleibt vom Regen mehr übrig als von der Brandung.
+Abschaltbar unter „Umgebung“.
 
 Ein eigenständiges Spiel – Welt, Figuren, Regeln, Grafik und Klang stammen
 aus diesem Projekt.
@@ -418,6 +420,34 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nicht zumachen, nur weil man fertig ist. Die sieben Sätze stehen zum
   Nachlesen im Erinnerungsfenster – eine Sprechblase ist nach acht Sekunden
   weg, und das sind die Sätze, auf die alles zuläuft.
+* **Eine Melodie je Jahreszeit – und drinnen wird es leise.** Zwei Löcher im
+  Klang, die beide dasselbe Muster hatten: Die Insel richtete sich nach
+  Jahreszeit, Wetter und Ort – die Farben, die Fische, die Falter, das
+  Klangbett. Die **Musik** wusste von alldem nichts.
+
+  Es gab **eine** Melodie: sechzehn Töne, in zwei Fassungen für Tag und
+  Nacht. Das ist eine Schleife von knapp fünfzehn Sekunden, und in einer
+  halben Stunde hört man sie **etwa hundertzwanzigmal**. Jetzt hat jede
+  Jahreszeit ihre eigene: der Frühling hell und aufwärts, der Sommer
+  schwebend und ohne Terz, der Herbst dunkel mit großen Schritten, der
+  Winter langsam und mit den wenigsten Tönen. Dazu eine fünfte fürs **Fest** –
+  damit man beim Aufwachen *hört*, dass heute etwas ist.
+
+  **Alles bleibt fünftönig.** Fünf Töne je Tonleiter, keiner davon kann gegen
+  einen anderen klingen – dieselbe Entscheidung wie in der ersten Fassung,
+  nur jetzt mit vier verschiedenen Fünfern statt einem. Die Phrasen sind
+  verschieden lang (12 bis 20 Schritte); bei überall sechzehn hätte jede
+  Jahreszeit dieselbe Form mit anderen Tönen gehabt. Nacht und Zimmer wirken
+  als Faktoren darauf, nicht als eigene Melodien: sonst wären es vier
+  Jahreszeiten mal Tag/Nacht mal drinnen/draußen – sechzehn Stücke, die man
+  einzeln pflegen müsste.
+
+  **Und im Haus wird es endlich leiser.** Das Klangbett rechnet mit der
+  Weltposition, und die ändert sich beim Hineingehen nicht – man ging bei
+  Regen ins Haus, und es prasselte genauso laut weiter. Jetzt gehen Brandung
+  und Wind fast weg, die Grillen bleiben als Ahnung. **Der Regen am
+  wenigsten**, und das ist der Punkt: Regen auf dem Dach ist der Grund,
+  drinnen zu sitzen.
 * **Wunschplätze – das Spiel nach dem Spiel.** Danach hörte das Spiel nicht
   auf, aber es ging auch nicht weiter: derselbe Tagesbetrieb, dieselbe Runde.
   Ab der Stillen Insel (also weit vor dem Ende) fangen die Geister an, sich
@@ -1094,8 +1124,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 586 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer …
-npm run test:browser   # 357 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 602 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen …
+npm run test:browser   # 361 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

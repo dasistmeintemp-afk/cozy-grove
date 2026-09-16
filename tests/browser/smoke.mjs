@@ -3604,6 +3604,129 @@ async function run() {
 
 
 
+
+    /* ---- Klang: Weise und Dämpfung ---- */
+    const klang = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { forceSeason } = await import('/src/game/calendar.js');
+      const r = {};
+      const merkHaus = g.state.house;
+      const merkInterior = g.state.interior;
+      const merkX = g.player.x;
+      const merkY = g.player.y;
+
+      // Der Klangerzeuger läuft im Testlauf ohne Ton (keine Nutzergeste), aber
+      // die MISCHUNG wird trotzdem gerechnet und gemerkt – daran lässt sich
+      // ablesen, was ankäme.
+      const misch = () => Object.assign({}, g.audio._ambTarget);
+      // Über die ECHTE Schleife, nicht über `_klangNachfuehren` von Hand:
+      // Der Fehler, um den es hier geht, war ja gerade, dass die Schleife
+      // drinnen vorher abbog und den Klang nie erreichte. Wer die Methode
+      // selbst aufruft, prüft, dass sie rechnet – nicht, dass sie läuft.
+      const laufen = () => { for (let i = 0; i < 30; i++) g.update(1 / 60); };
+
+      // Draußen, am Wasser, im Regen. `raining` ist abgeleitet und lässt sich
+      // nicht setzen – Art und Stärke bestimmen es.
+      g.player.x = g.world.dock.x;
+      g.player.y = g.world.dock.y + 60;
+      g.weather.kind = 'rain';
+      g.weather.level = 1;
+      r.regnetWirklich = g.weather.raining;
+      laufen();
+      const draussen = misch();
+
+      // Und dasselbe von drinnen. Die Weltposition ändert sich beim
+      // Hineingehen nicht – genau deshalb hatte das Zimmer vorher dasselbe
+      // Klangbett wie der Steg davor.
+      g.state.house = 3;
+      g.state.interior = { raeume: [{ stuecke: [], wand: [], ausstattung: 'holz' }] };
+      g.syncHouse();
+      g.betritt();
+      laufen();
+      const drinnen = misch();
+      r.drinnenLaeuft = g.drinnen();
+
+      r.draussen = draussen;
+      r.drinnen = drinnen;
+      // Am Steg ist Wasser in Hörweite und es regnet – diese beiden sind
+      // sicher zu hören. Ob auch Bäume in der Nähe stehen, hängt an der
+      // Insel, deshalb wird der Wind nur geprüft, wenn er draußen da ist.
+      r.hoerbar = draussen.surf > 0.01 && draussen.rain > 0.01;
+      r.allesLeiser = true;
+      for (const k of ['surf', 'wind', 'night', 'rain']) {
+        if (draussen[k] > 0.01 && !(drinnen[k] < draussen[k])) r.allesLeiser = k;
+      }
+      r.surfFastWeg = drinnen.surf < draussen.surf * 0.5;
+      // Der Regen bleibt am deutlichsten hörbar – das ist der Punkt.
+      r.regenBleibt = drinnen.rain > 0.3 && drinnen.rain < draussen.rain;
+      r.regenAmLautesten = (drinnen.rain / draussen.rain) > (drinnen.surf / draussen.surf);
+
+      // Die Weise wechselt mit der Jahreszeit – und drinnen noch einmal.
+      //
+      // `forceSeason` allein reicht nicht: `game.season()` liest die
+      // Jahreszeit aus `today`, und die steht dort seit dem Tagesbeginn.
+      // Erst `refreshToday()` holt sie neu.
+      // Auch hier über die Schleife – und OHNE `_musikMarke` von Hand zu
+      // leeren: Dass der Wechsel überhaupt bemerkt wird, ist die halbe
+      // Prüfung.
+      const namen = {};
+      for (const jz of ['spring', 'summer', 'autumn', 'winter']) {
+        forceSeason(jz);
+        g.refreshToday();
+        laufen();
+        namen[jz] = g.audio.weisenName();
+      }
+      r.jahreszeiten = namen;
+      r.alleVerschieden = new Set(Object.keys(namen).map((k) => namen[k])).size === 4;
+      // „drinnen" steht dran, weil Seli gerade drinnen ist.
+      r.drinnenImNamen = namen.winter.indexOf('drinnen') >= 0;
+
+      g.verlaesst();
+      forceSeason('summer');
+      g.refreshToday();
+      laufen();
+      r.draussenName = g.audio.weisenName();
+
+      // Am Fest klingt es anders als sonst im selben Sommer. Das Fest wird
+      // NACH `refreshToday` gesetzt – die Methode holt es sich sonst vom
+      // echten Datum zurück.
+      const merkFest = g.today.fest;
+      g.today.fest = { id: 'sonnwend' };
+      laufen();
+      r.festName = g.audio.weisenName();
+      g.today.fest = merkFest;
+
+      forceSeason(null);
+      g.refreshToday();
+      g.weather.level = 0;
+      g.weather.kind = 'clear';
+      g.state.house = merkHaus;
+      g.state.interior = merkInterior;
+      // Seli zurück an ihren Platz – und die Kamera mit ihr. Dieser Block
+      // lässt als einziger die echte Schleife laufen, und die zieht die
+      // Kamera nach; wer danach kommt, soll das nicht merken.
+      g.player.x = merkX;
+      g.player.y = merkY;
+      g.camera.snapTo(merkX, merkY - 6);
+      g.syncHouse();
+      g.save();
+      g._musikMarke = null;
+      return r;
+    });
+    check('Drinnen wird das Klangbett gedämpft – es friert nicht ein',
+      klang.regnetWirklich === true && klang.drinnenLaeuft === true &&
+      klang.hoerbar === true && klang.allesLeiser === true &&
+      klang.surfFastWeg === true, JSON.stringify(klang));
+    check('Der Regen bleibt drinnen am deutlichsten zu hören',
+      klang.regenBleibt === true && klang.regenAmLautesten === true,
+      JSON.stringify(klang));
+    check('Jede Jahreszeit hat ihre eigene Weise',
+      klang.alleVerschieden === true && klang.drinnenImNamen === true,
+      JSON.stringify(klang.jahreszeiten));
+    check('Draußen klingt es anders als drinnen, und am Fest anders als sonst',
+      klang.draussenName === 'Sommer' && klang.festName === 'Fest',
+      JSON.stringify(klang));
+
     /* ---- Becken und Falterkasten ---- */
     const becken = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
@@ -4435,6 +4558,13 @@ async function run() {
       r.grafik = steht ? steht.sprite : null;
       // Sie zählt beim Licht mit – das ist ihre Mechanik. Die Quelle sitzt
       // 58 Punkte über dem Fußpunkt, wie bei jeder anderen Lampe auch.
+      //
+      // Vorher die Kamera nachziehen: `lightSources` sammelt nur, was im
+      // Bild liegt – im Spiel folgt die Kamera jedem Schritt, hier oben ist
+      // Seli aber bis zu 1400 Punkte weit gesprungen, ohne dass eine
+      // Bildfolge lief. Ohne diese Zeile hing die Prüfung daran, wo der
+      // vorige Block die Kamera stehen gelassen hat.
+      g.camera.snapTo(g.player.x, g.player.y - 6);
       const lichter = g.lightSources(0);
       r.imLichtkreis = lichter.some((l) =>
         Math.abs(l.x - steht.x) < 2 && Math.abs(l.y - (steht.y - 58)) < 2 &&

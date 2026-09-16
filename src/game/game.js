@@ -37,6 +37,7 @@ import {
   MITBRINGSEL, SAETZE as WANDER_SAETZE, naechsterBesuch,
 } from './wanderer.js';
 import { naechsterTermin as terminInnerhalb, wannText, heuteIst } from './termine.js';
+import { weiseFuer } from './musik.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
@@ -165,6 +166,16 @@ const INNEN_NACHT = 0.4;
  * und die Wand waere ein Stolperdraht statt einer Ebene.
  */
 const WAND_GRIFF = 96;
+
+/**
+ * Wie stark das Klangbett drinnen gedämpft wird.
+ *
+ * Vier Zahlen, und die Reihenfolge ist Absicht: Der Regen kommt am weitesten
+ * durch, weil Regen auf dem Dach der Grund ist, drinnen zu sitzen. Brandung
+ * und Blattwerk verschwinden fast – eine Bretterwand ist keine Grenze, aber
+ * fast eine. Die Grillen bleiben als Ahnung stehen.
+ */
+const INNEN_KLANG = { surf: 0.22, wind: 0.18, nacht: 0.3, regen: 0.55 };
 
 /** Wie lange Seli stillstehen muss, bis sich das Tier im Zimmer dazulegt. */
 const INNEN_PET_WARTET = 2.5;
@@ -725,7 +736,7 @@ export class Game {
     this.camera.follow(this.player.x, this.player.y - 6, dt);
     this.ground.flush();
 
-    this.audio.setMood(this.day.isNight() ? 'night' : 'day');
+    this._klangNachfuehren(dt);
 
     this.ui.refreshHud();
     this.ui.refreshQuests();
@@ -4292,6 +4303,10 @@ export class Game {
 
   _innenUpdate(dt, move) {
     this.player.tempo = tempoFaktor(this.state.staerkung, this.day.day);
+    // GANZ oben, vor dem Sitzen: Diese Methode hat zwei Ausgänge, und der
+    // Klang muss durch beide. Weiter unten stünde er hinter dem Ausruhen –
+    // und wer sich drinnen hinsetzt, hörte wieder den Stand von draußen.
+    this._klangNachfuehren(dt);
     // Sitzt sie, übernimmt das Ausruhen die ganze Eingabe – wie draußen.
     if (this._innenRuhen(dt, move)) {
       this._innenPetUpdate(dt);
@@ -5467,7 +5482,63 @@ export class Game {
       }
     }
 
-    this._ambienceMix(night);
+  }
+
+  /**
+   * Klang nachführen – draußen UND drinnen.
+   *
+   * Steht in einer eigenen Methode, weil das die Stelle war, an der es
+   * schiefging: Das Klangbett lief in `update()` HINTER dem frühen Absprung
+   * ins Zimmer (`if (this.innen) …; return;`). Damit fror beim Hineingehen
+   * alles ein – die Mischung blieb auf den Werten von draußen stehen, und
+   * die Weise wechselte drinnen nie.
+   *
+   * Die Teilung ist jetzt sauber: `_ambient` macht, was es nur draußen gibt
+   * (Blätter, Funken, Vögel), und hier steht, was überall gilt.
+   *
+   * Gedrosselt auf gut drei Bilder in der Sekunde: Die Mischung rastert neun
+   * Kacheln in jede Richtung ab, und wie viel Wasser in Hörweite liegt,
+   * ändert sich nicht sechzigmal pro Sekunde.
+   */
+  _klangNachfuehren(dt) {
+    this._klangTimer = (this._klangTimer || 0) - dt;
+    if (this._klangTimer <= 0) {
+      this._klangTimer = 0.35;
+      this._ambienceMix(this.day.isDark());
+    }
+    this._musikNachfuehren();
+  }
+
+  /**
+   * Welche Weise gerade dran ist.
+   *
+   * Vier Jahreszeiten, eine Festfassung, dazu Nacht und Zimmer – siehe
+   * `musik.js`. Bis hierher gab es EINE Melodie von knapp fünfzehn Sekunden,
+   * und in einer halben Stunde hörte man sie etwa hundertzwanzigmal.
+   *
+   * Die vier Merkmale werden gemerkt und nur bei einer Änderung neu
+   * gerechnet: Das hier läuft in jedem Bild, und eine Weise je Bild zu bauen
+   * wäre sechzig Wegwerfobjekte in der Sekunde für eine Zahl, die sich
+   * dreimal am Tag ändert.
+   */
+  _musikNachfuehren() {
+    // `season()` gibt die KENNUNG heraus, nicht die Jahreszeit. Hier stand
+    // `this.season().id` – auf einer Zeichenkette ist `.id` undefiniert, und
+    // `weiseFuer` fiel für jede Jahreszeit auf den Frühling zurück. Es gab
+    // keinen Fehler und keinen stummen Ton: Es klang nur das ganze Jahr
+    // gleich. Die Einzelprüfungen liefen daran vorbei, weil sie `weiseFuer`
+    // selbst aufrufen und die Kennung von Hand hineingeben.
+    const jahr = this.season();
+    const fest = !!this.fest();
+    const nacht = this.day.isNight();
+    const drinnen = this.drinnen();
+    const marke = jahr + (fest ? 'F' : '') + (nacht ? 'N' : '') + (drinnen ? 'I' : '');
+    if (marke === this._musikMarke) return false;
+    this._musikMarke = marke;
+    this.audio.setWeise(weiseFuer({
+      season: jahr, fest: fest, nacht: nacht, drinnen: drinnen,
+    }));
+    return true;
   }
 
   /**
@@ -5500,11 +5571,22 @@ export class Game {
     }
     const leaves = Math.min(1, trees / 14);
 
+    // Drinnen ist gedämpft.
+    //
+    // Das fehlte, seit es ein Zimmer gibt: `_ambienceMix` rechnet mit der
+    // WELTposition, und die ändert sich beim Hineingehen nicht – das war ja
+    // die Idee hinter `this.innen`. Folge: Man ging bei Regen ins Haus, und
+    // es prasselte genauso laut weiter.
+    //
+    // Der Regen wird am wenigsten gedämpft, und das ist der Punkt: Regen auf
+    // dem Dach ist der Grund, drinnen zu sitzen. Brandung und Wind gehen
+    // fast weg, die Grillen bleiben als Ahnung.
+    const d = this.drinnen() ? INNEN_KLANG : null;
     this.audio.setAmbienceMix(
-      Math.min(1, waterShare * 2.2),
-      leaves,
-      night ? 1 : 0,
-      this.weather.raining ? this.weather.level : 0
+      Math.min(1, waterShare * 2.2) * (d ? d.surf : 1),
+      leaves * (d ? d.wind : 1),
+      (night ? 1 : 0) * (d ? d.nacht : 1),
+      (this.weather.raining ? this.weather.level : 0) * (d ? d.regen : 1)
     );
   }
 

@@ -6,10 +6,45 @@
 const SCALE = [0, 2, 4, 7, 9]; // Pentatonik – klingt immer freundlich
 const BASE_HZ = 220;
 
-function noteHz(step) {
-  const octave = Math.floor(step / SCALE.length);
-  const idx = ((step % SCALE.length) + SCALE.length) % SCALE.length;
-  return BASE_HZ * Math.pow(2, (SCALE[idx] + 12 * octave) / 12);
+/**
+ * Eine Stufe in eine Frequenz – exportiert, damit sich das ohne Browser
+ * nachrechnen lässt.
+ *
+ * `toene` sind Halbtöne über dem Grundton, also ZAHLEN. Das stand vorher nur
+ * hier im Kopf, und die Weisen aus `musik.js` reichten den NAMEN ihrer
+ * Tonleiter herein („dur"). Eine Zeichenkette hat auch eine Länge und auch
+ * einen Index – die Rechnung lief durch, `sk[idx]` war der Buchstabe „d",
+ * und heraus kam NaN. Zu hören war nichts, in der Konsole sechs Fehler.
+ * Darum jetzt eine Prüfung statt einer Annahme.
+ */
+export function noteHz(step, toene) {
+  const sk = Array.isArray(toene) && toene.length ? toene : SCALE;
+  const octave = Math.floor(step / sk.length);
+  const idx = ((step % sk.length) + sk.length) % sk.length;
+  return BASE_HZ * Math.pow(2, (sk[idx] + 12 * octave) / 12);
+}
+
+/**
+ * Die Weise, solange keine gesetzt wurde.
+ *
+ * Dieselbe wie in der ersten Fassung des Spiels. Sie steht hier, damit der
+ * Klangerzeuger für sich allein lauffähig bleibt: Er weiß nichts von
+ * Jahreszeiten – die kommen von außen herein (siehe `musik.js`), so wie ihm
+ * auch das Klangbett gesagt wird.
+ */
+const WEISE_STANDARD = {
+  name: 'Standard',
+  toene: SCALE,
+  phrase: [0, 2, 4, 3, 5, 4, 2, 1, 3, 5, 7, 5, 4, 2, 0, 2],
+  beat: 0.92, lage: 2, dichte: 0.75, bass: 8, laut: 0.06,
+};
+
+/** Taugt das zum Spielen? Siehe `setWeise`. */
+function weiseTaugt(w) {
+  return !!w && Array.isArray(w.toene) && w.toene.length > 0 &&
+    Array.isArray(w.phrase) && w.phrase.length > 0 &&
+    Number.isFinite(w.beat) && w.beat > 0 &&
+    Number.isFinite(w.lage) && Number.isFinite(w.laut);
 }
 
 export class AudioEngine {
@@ -25,7 +60,7 @@ export class AudioEngine {
     this._musicTimer = null;
     this._nextNoteAt = 0;
     this._step = 0;
-    this._mood = 'day';
+    this._weise = WEISE_STANDARD;
     this._lastStepSound = 0;
     this.ambienceOn = true;
     this._amb = null;
@@ -184,8 +219,31 @@ export class AudioEngine {
     if (this.master && this.enabled) this.master.gain.value = v;
   }
 
-  setMood(mood) {
-    this._mood = mood;
+  /**
+   * Was gespielt werden soll – kommt aus `musik.js`.
+   *
+   * Beim WECHSEL fängt die Phrase von vorn an. Ohne das stünde man mitten in
+   * der Winterphrase und spielte ab Schritt neun im Frühling weiter; bei
+   * verschieden langen Phrasen kommt dabei eine heraus, die es gar nicht
+   * gibt. Schon geplante Töne laufen aus – das ist der Übergang.
+   *
+   * Was hier nicht taugt, kommt gar nicht erst herein: Die laufende Weise
+   * bleibt stehen. Das ist die EINE Tür, durch die etwas Unspielbares
+   * eindringen könnte, und deshalb steht die Prüfung hier und nicht bei
+   * jedem einzelnen Ton – ein Ton, der sich stumm wegwirft, versteckt den
+   * Fehler nur, bis jemandem auffällt, dass es leise geworden ist.
+   */
+  setWeise(weise) {
+    if (!weiseTaugt(weise)) return false;
+    if (this._weise && this._weise.name === weise.name) return false;
+    this._weise = weise;
+    this._step = 0;
+    return true;
+  }
+
+  /** Wie die laufende Weise heißt – fürs Nachsehen und für den Test. */
+  weisenName() {
+    return (this._weise || WEISE_STANDARD).name;
   }
 
   resume() {
@@ -363,20 +421,23 @@ export class AudioEngine {
     if (!this.ctx || !this.musicOn || !this.enabled) return;
     const ctx = this.ctx;
     const lookahead = 0.9;
-    const night = this._mood === 'night';
-    const beat = night ? 1.35 : 0.92;
+    const w = this._weise || WEISE_STANDARD;
+    const toene = w.toene;
+    const beat = w.beat;
 
     while (this._nextNoteAt < ctx.currentTime + lookahead) {
       const t = this._nextNoteAt;
       const s = this._step;
       // Sanfte Melodie: bewegt sich in kleinen Schritten in der Pentatonik.
-      const phrase = [0, 2, 4, 3, 5, 4, 2, 1, 3, 5, 7, 5, 4, 2, 0, 2];
-      const deg = phrase[s % phrase.length] + (night ? -3 : 2);
-      if (s % 4 !== 3 || Math.random() < 0.6) {
-        this._pad(noteHz(deg), t, beat * 1.6, night ? 0.05 : 0.06);
+      const deg = w.phrase[s % w.phrase.length] + w.lage;
+      // Pausen machen den Unterschied zwischen einer Melodie und einem Band.
+      // Der vierte Schritt ist der, der aussetzen darf – und wie oft, sagt
+      // die Dichte der Weise: Der Winter atmet, das Fest nicht.
+      if (s % 4 !== 3 || Math.random() < w.dichte) {
+        this._pad(noteHz(deg, toene), t, beat * 1.6, w.laut);
       }
-      if (s % 8 === 0) {
-        this._pad(noteHz(deg - 7), t, beat * 5.2, 0.045); // Basston
+      if (w.bass && s % w.bass === 0) {
+        this._pad(noteHz(deg - 7, toene), t, beat * 5.2, w.laut * 0.75);
       }
       this._nextNoteAt += beat;
       this._step++;
