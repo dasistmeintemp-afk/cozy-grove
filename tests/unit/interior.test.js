@@ -22,6 +22,9 @@ import {
   WOHN_BONUS_MAX, raumFuer, tuerFuer, anDerTuer, bettFuer, amBett, imRaum,
   klemmeInRaum, platzFrei, stueckAn, maxStuecke, gemuetlichkeit, wohnStufe,
   bisZurNaechstenWohnstufe, wohnBonus, emptyInterior, interiorAus, BETT_HOEHE,
+  raeumeFuer, raumZahl, raumStand, emptyRaum, raumAus, KAMMERN, KAMMER_AB,
+  hatBett, hatAusgang, hatVerbindung, innenTuerFuer, anDerInnenTuer,
+  INNENTUER_BREITE, INNENTUER_TIEFE,
   AUSSTATTUNG, AUSSTATTUNG_IDS, ausstattungFuer,
   fensterFuer, wandHoehe, maxWandStuecke, anDerWand, wandPlatzFrei, wandStueckAn,
   WAND_ABSTAND, WAND_RAND,
@@ -247,15 +250,19 @@ test('Ein voll eingerichtetes Zimmer bleibt unter der Obergrenze zu erreichen', 
 
 /* ---------------- Spielstände ---------------- */
 
-test('Ein leeres Zimmer ist wirklich leer', () => {
+test('Ein leeres Zuhause ist eine Liste mit einem leeren Zimmer', () => {
   const i = emptyInterior();
-  assert.deepEqual(i.stuecke, []);
+  assert.equal(i.raeume.length, 1);
+  assert.deepEqual(i.raeume[0].stuecke, []);
 });
 
 test('Ein Spielstand von vor dem Zimmer bekommt eines', () => {
   for (const roh of [null, undefined, 0, 'nein', [], {}]) {
-    const i = interiorAus(roh, RAUM, null);
-    assert.deepEqual(i.stuecke, [], JSON.stringify(roh) + ' ergibt kein leeres Zimmer');
+    const i = interiorAus(roh, 3, null);
+    assert.equal(i.raeume.length, raumZahl(3), JSON.stringify(roh) + ': falsche Raumzahl');
+    for (const r of i.raeume) {
+      assert.deepEqual(r.stuecke, [], JSON.stringify(roh) + ' ergibt kein leeres Zimmer');
+    }
   }
 });
 
@@ -273,9 +280,10 @@ test('Unfug im Spielstand wird still verworfen', () => {
       { id: 'gibtsnicht', x: 100, y: 100 },
     ],
   };
-  const i = interiorAus(roh, RAUM, (id) => !!(getItem(id) && getItem(id).prop));
-  assert.equal(i.stuecke.length, 1, 'durchgekommen: ' + JSON.stringify(i.stuecke));
-  assert.equal(i.stuecke[0].id, 'bench');
+  const i = interiorAus(roh, 3, (id) => !!(getItem(id) && getItem(id).prop));
+  const vorn = i.raeume[0];
+  assert.equal(vorn.stuecke.length, 1, 'durchgekommen: ' + JSON.stringify(vorn.stuecke));
+  assert.equal(vorn.stuecke[0].id, 'bench');
 });
 
 test('Möbel aus einem größeren Zimmer gehen nicht verloren', () => {
@@ -287,9 +295,10 @@ test('Möbel aus einem größeren Zimmer gehen nicht verloren', () => {
     { id: 'bench', x: gross.w - 20, y: gross.h - 20 },
     { id: 'table', x: gross.w - 60, y: 40 },
   ] };
-  const i = interiorAus(roh, klein, null);
-  assert.equal(i.stuecke.length, 2, 'ein Möbelstück ist verschwunden');
-  for (const s of i.stuecke) {
+  const i = interiorAus(roh, 1, null);
+  const vorn = i.raeume[0];
+  assert.equal(vorn.stuecke.length, 2, 'ein Möbelstück ist verschwunden');
+  for (const s of vorn.stuecke) {
     assert.ok(imRaum(s.x, s.y, klein), 'steht immer noch draußen: ' + JSON.stringify(s));
     assert.equal(anDerTuer(s.x, s.y, klein), false,
       'nach dem Ziehen im Ausgang: ' + JSON.stringify(s));
@@ -299,9 +308,9 @@ test('Möbel aus einem größeren Zimmer gehen nicht verloren', () => {
 test('Mehr Stücke, als hineinpassen, werden gekappt', () => {
   const viele = [];
   for (let i = 0; i < 400; i++) viele.push({ id: 'bench', x: 100, y: 100 });
-  const i = interiorAus({ stuecke: viele }, RAUM, null);
-  assert.ok(i.stuecke.length <= maxStuecke(RAUM), 'das Zimmer läuft über');
-  assert.ok(i.stuecke.length > 0, 'es wurde alles weggeworfen');
+  const i = interiorAus({ stuecke: viele }, 3, null);
+  assert.ok(i.raeume[0].stuecke.length <= maxStuecke(RAUM), 'das Zimmer läuft über');
+  assert.ok(i.raeume[0].stuecke.length > 0, 'es wurde alles weggeworfen');
 });
 
 test('Die Türbreite passt zu jedem Zimmer', () => {
@@ -368,17 +377,184 @@ test('Eine unbekannte Ausstattung fällt auf die erste zurück', () => {
 
 test('Ein frisches Zimmer hat eine gültige Ausstattung', () => {
   const i = emptyInterior();
-  assert.ok(AUSSTATTUNG_IDS.indexOf(i.ausstattung) >= 0, i.ausstattung);
+  assert.ok(AUSSTATTUNG_IDS.indexOf(i.raeume[0].ausstattung) >= 0, i.raeume[0].ausstattung);
 });
 
 test('Eine kaputte Ausstattung im Spielstand wird gerade gezogen', () => {
-  assert.equal(interiorAus({ stuecke: [], ausstattung: 'blau?' }, RAUM, null).ausstattung,
-    AUSSTATTUNG[0].id);
-  assert.equal(interiorAus({ stuecke: [], ausstattung: 'moos' }, RAUM, null).ausstattung, 'moos');
-  assert.equal(interiorAus(null, RAUM, null).ausstattung, AUSSTATTUNG[0].id);
+  const aus = (roh) => interiorAus(roh, 3, null).raeume[0].ausstattung;
+  assert.equal(aus({ stuecke: [], ausstattung: 'blau?' }), AUSSTATTUNG[0].id);
+  assert.equal(aus({ stuecke: [], ausstattung: 'moos' }), 'moos');
+  assert.equal(aus(null), AUSSTATTUNG[0].id);
 });
 
 /* ---------------- Die Wand ---------------- */
+
+/* ---------------- Die Kammer ---------------- */
+
+test('Erst das große Haus hat zwei Räume', () => {
+  // Wer im Zelt wohnt, hat eine Ecke. Eine Tür in eine zweite Zeltecke wäre
+  // albern, und ein Ausbau, der nichts ändert, wäre kein Ausbau.
+  for (let st = 1; st < KAMMER_AB; st++) {
+    assert.equal(raumZahl(st), 1, 'Stufe ' + st + ' hat schon eine Kammer');
+  }
+  for (let st = KAMMER_AB; st <= MAX_HOUSE_STAGE; st++) {
+    assert.equal(raumZahl(st), 2, 'Stufe ' + st + ' hat keine Kammer');
+  }
+  assert.equal(KAMMERN.length, MAX_HOUSE_STAGE - KAMMER_AB + 1);
+});
+
+test('Die Kammer ist kleiner als das Zimmer davor', () => {
+  // Eine zweite Halle wäre die doppelte Arbeit für dasselbe Gefühl. Eine
+  // Kammer ist ein Ort, den man vollkriegt.
+  for (let st = KAMMER_AB; st <= MAX_HOUSE_STAGE; st++) {
+    const vorn = raumFuer(st, 0);
+    const hinten = raumFuer(st, 1);
+    assert.ok(hinten.w * hinten.h < vorn.w * vorn.h,
+      st + ': die Kammer ist nicht kleiner (' + hinten.w + '×' + hinten.h + ')');
+    // Aber auch nicht winzig: Unter der Zeltecke wäre sie ein Schrank.
+    const zelt = raumFuer(1);
+    assert.ok(hinten.w * hinten.h > zelt.w * zelt.h,
+      st + ': die Kammer ist kleiner als die Zeltecke');
+    assert.ok(maxStuecke(hinten) >= 8, st + ': in die Kammer passt fast nichts');
+  }
+});
+
+test('In der Kammer steht kein Bett, und hinaus geht es nur vorn', () => {
+  // Der Ausgang ist die eine Stelle, an der man das Haus verlässt, und das
+  // Bett der eine Grund, abends hineinzugehen. Beides zweimal wäre zweimal
+  // dieselbe Sache an verschiedenen Stellen.
+  for (let st = KAMMER_AB; st <= MAX_HOUSE_STAGE; st++) {
+    const vorn = raumFuer(st, 0);
+    const hinten = raumFuer(st, 1);
+    assert.ok(hatBett(vorn) && hatAusgang(vorn), st + ': dem Zimmer fehlt etwas');
+    assert.ok(!hatBett(hinten), st + ': in der Kammer steht ein Bett');
+    assert.ok(!hatAusgang(hinten), st + ': aus der Kammer geht es hinaus');
+    assert.equal(bettFuer(hinten), null);
+    assert.equal(tuerFuer(hinten), null);
+    assert.equal(amBett(100, 100, hinten), false);
+    assert.equal(anDerTuer(hinten.w / 2, hinten.h - 10, hinten), false);
+    // Und sie hat kein Fenster – ihr Licht kommt durch die Tür.
+    assert.deepEqual(fensterFuer(hinten), []);
+    assert.ok(fensterFuer(vorn).length >= 1, st + ': das Zimmer hat kein Fenster');
+  }
+});
+
+test('Die Verbindungstür gibt es genau dort, wo es zwei Räume gibt', () => {
+  for (let st = 1; st <= MAX_HOUSE_STAGE; st++) {
+    const zwei = raumZahl(st) > 1;
+    for (let i = 0; i < raumZahl(st); i++) {
+      const r = raumFuer(st, i);
+      assert.equal(hatVerbindung(r), zwei, st + '/' + i + ': falsche Tür');
+      assert.equal(anDerInnenTuer(innenTuerFuer(r).x + 10, 4, r), zwei,
+        st + '/' + i + ': die Tür reagiert falsch');
+    }
+  }
+});
+
+test('Die Verbindungstür liegt ganz auf der Wand', () => {
+  // Eine Tür, die halb neben der Wand sitzt, wäre ein Loch im Bildrand.
+  for (let st = KAMMER_AB; st <= MAX_HOUSE_STAGE; st++) {
+    for (let i = 0; i < raumZahl(st); i++) {
+      const r = raumFuer(st, i);
+      const t = innenTuerFuer(r);
+      assert.ok(t.x >= 0, st + '/' + i + ': ragt links hinaus');
+      assert.ok(t.x + t.w <= r.w, st + '/' + i + ': ragt rechts hinaus');
+      assert.equal(t.w, INNENTUER_BREITE);
+      // Und sie liegt nicht über einem Fenster.
+      for (const f of fensterFuer(r)) {
+        assert.ok(t.x >= f.x + f.w || t.x + t.w <= f.x,
+          st + '/' + i + ': die Tür liegt über dem Fenster');
+      }
+    }
+  }
+});
+
+test('Vor und über der Verbindungstür bleibt frei', () => {
+  // Dieselben zwei Regeln wie am Ausgang: Ein zugestellter Durchgang wäre
+  // die einzige Sackgasse, die dieses Spiel anbieten könnte – und ein Kranz
+  // darüber wäre ein Kranz, durch den man hindurchläuft.
+  for (let st = KAMMER_AB; st <= MAX_HOUSE_STAGE; st++) {
+    for (let i = 0; i < raumZahl(st); i++) {
+      const r = raumFuer(st, i);
+      const t = innenTuerFuer(r);
+      for (let x = t.x; x <= t.x + t.w; x += 10) {
+        assert.equal(platzFrei([], x, 20, r), false,
+          st + '/' + i + ': vor der Tür ging etwas hin (' + Math.round(x) + ')');
+        assert.equal(wandPlatzFrei([], x, wandHoehe(r), r), false,
+          st + '/' + i + ': über der Tür hing etwas (' + Math.round(x) + ')');
+      }
+    }
+  }
+});
+
+test('Auch in der Kammer ist Wand frei', () => {
+  // Dieselbe Messung wie bei den Zimmern – nur zählt hier die Tür statt des
+  // Bettes. Ohne diese Prüfung hätte die Kammer nach dem Wegfall des
+  // Fensters ebenso gut wandlos sein können.
+  for (let st = KAMMER_AB; st <= MAX_HOUSE_STAGE; st++) {
+    const r = raumFuer(st, 1);
+    let frei = 0;
+    for (let x = 0; x <= r.w; x += 10) {
+      if (wandPlatzFrei([], x, wandHoehe(r), r)) frei++;
+    }
+    assert.ok(frei >= 8, r.name + ': nur ' + frei + ' freie Wandstellen');
+  }
+});
+
+test('Jeder Raum hat eigene Möbel, eigene Wand und eigene Ausstattung', () => {
+  // Der ganze Grund für die Kammer: Ein Raum hat EINEN Ton. Zwei Räume sind
+  // zwei Entscheidungen – sonst wäre es nur mehr Fläche.
+  const roh = { raeume: [
+    { stuecke: [{ id: 'bench', x: 200, y: 200 }], wand: [], ausstattung: 'holz' },
+    { stuecke: [{ id: 'table', x: 150, y: 150 }], wand: [], ausstattung: 'abend' },
+  ] };
+  const i = interiorAus(roh, MAX_HOUSE_STAGE, null);
+  assert.equal(i.raeume.length, 2);
+  assert.equal(i.raeume[0].stuecke[0].id, 'bench');
+  assert.equal(i.raeume[1].stuecke[0].id, 'table');
+  assert.equal(i.raeume[0].ausstattung, 'holz');
+  assert.equal(i.raeume[1].ausstattung, 'abend');
+});
+
+test('Ein Spielstand von vor der Kammer wird zum vorderen Raum', () => {
+  // Wer sein Zimmer eingerichtet hat, findet es unverändert wieder – die
+  // Kammer kommt leer dazu und nimmt ihm nichts weg.
+  const flach = {
+    stuecke: [{ id: 'bench', x: 200, y: 200 }, { id: 'table', x: 300, y: 250 }],
+    wand: [{ id: 'picture', x: 120 }],
+    ausstattung: 'moos',
+  };
+  const i = interiorAus(flach, MAX_HOUSE_STAGE, (id) => !!(getItem(id) && getItem(id).prop));
+  assert.equal(i.raeume.length, 2);
+  assert.equal(i.raeume[0].stuecke.length, 2, 'Möbel verloren');
+  assert.equal(i.raeume[0].wand.length, 1, 'Wandstück verloren');
+  assert.equal(i.raeume[0].ausstattung, 'moos');
+  assert.deepEqual(i.raeume[1].stuecke, []);
+});
+
+test('Wer kleiner wohnt, verliert die Kammer – aber nicht das Zimmer', () => {
+  const zwei = { raeume: [
+    { stuecke: [{ id: 'bench', x: 200, y: 200 }], wand: [], ausstattung: 'holz' },
+    { stuecke: [{ id: 'table', x: 150, y: 150 }], wand: [], ausstattung: 'abend' },
+  ] };
+  const klein = interiorAus(zwei, 1, null);
+  assert.equal(klein.raeume.length, 1, 'die Zeltecke hat zwei Räume');
+  assert.equal(klein.raeume[0].stuecke.length, 1, 'das Zimmer ist leer geworden');
+  // Und zurück: Die Kammer kommt leer wieder. Was drin stand, ist weg – das
+  // ist die ehrliche Folge davon, kleiner zu wohnen, und passiert im Spiel
+  // nie, weil das Haus nicht schrumpft.
+  const gross = interiorAus(klein, MAX_HOUSE_STAGE, null);
+  assert.equal(gross.raeume.length, 2);
+  assert.deepEqual(gross.raeume[1].stuecke, []);
+});
+
+test('raumStand gibt nie undefined zurück', () => {
+  const i = emptyInterior();
+  assert.deepEqual(raumStand(i, 0).stuecke, []);
+  assert.deepEqual(raumStand(i, 5).stuecke, []);
+  assert.deepEqual(raumStand(null, 0).stuecke, []);
+  assert.deepEqual(raumStand({}, 0).wand, []);
+});
 
 test('In jedem Zimmer ist Wand frei – auch in der Zeltecke', () => {
   // Genau das war NICHT so: Waagerechter und senkrechter Rand waren
@@ -479,15 +655,16 @@ test('Die Wand übersteht Speichern und Laden', () => {
     { id: 'wreath', x: 'links' },
     { id: 'shelf', x: 99999 },
   ] };
-  const i = interiorAus(roh, r, (id) => !!(getItem(id) && getItem(id).prop));
-  assert.equal(i.wand.length, 2, 'durchgekommen: ' + JSON.stringify(i.wand));
-  for (const s of i.wand) {
+  const i = interiorAus(roh, 3, (id) => !!(getItem(id) && getItem(id).prop));
+  const wandListe = i.raeume[0].wand;
+  assert.equal(wandListe.length, 2, 'durchgekommen: ' + JSON.stringify(wandListe));
+  for (const s of wandListe) {
     // Die Höhe kommt aus dem Raum, nicht aus dem Spielstand: Eine „999" darin
     // hinge sonst unter dem Fussboden.
     assert.equal(s.y, wandHoehe(r), s.id + ' hängt auf einer erfundenen Höhe');
     assert.ok(s.x >= WAND_RAND && s.x <= r.w - WAND_RAND, s.id + ' hängt neben der Wand');
   }
-  assert.deepEqual(interiorAus(null, r, null).wand, []);
+  assert.deepEqual(interiorAus(null, 3, null).raeume[0].wand, []);
 });
 
 /* ---------------- Gruppen ---------------- */

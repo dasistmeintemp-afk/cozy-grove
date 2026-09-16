@@ -23,8 +23,10 @@ import {
 } from './festivals.js';
 import { emptyDaybook, daybookHasContent } from './daybook.js';
 import {
-  raumFuer, tuerFuer, anDerTuer, imRaum, platzFrei, stueckAn, maxStuecke,
+  raumFuer, raeumeFuer, raumZahl, tuerFuer, anDerTuer, imRaum, platzFrei,
+  stueckAn, maxStuecke,
   gemuetlichkeit, wohnBonus, wohnStufe, emptyInterior, interiorAus, RAND,
+  emptyRaum, anDerInnenTuer, innenTuerFuer, INNENTUER_TIEFE,
   bettFuer, amBett, ausstattungFuer, AUSSTATTUNG_IDS,
   wandPlatzFrei, wandStueckAn, wandHoehe, maxWandStuecke, WAND_RAND, WAND_ABSTAND,
   klemmeInRaum, gruppen, gruppenPunkte,
@@ -401,7 +403,7 @@ export class Game {
     // Hausinneren hat keines, und einer, dessen Haus inzwischen gewachsen
     // ist, hat Möbel an Stellen, die es im kleinen Raum noch nicht gab.
     this.state.interior = interiorAus(
-      this.state.interior, raumFuer(this.state.house || 1),
+      this.state.interior, this.state.house || 1,
       function (id) { const it = getItem(id); return !!(it && it.prop); });
     // Was Seli beim Ausruhen zuletzt gedacht hat. Steht im Spielstand, damit
     // sie sich nach dem Neuladen nicht mit denselben acht Sätzen begrüßt.
@@ -3667,9 +3669,47 @@ export class Game {
 
   /* ---------------- Das Hausinnere ---------------- */
 
-  /** Der Raum, den die heutige Ausbaustufe hergibt. */
+  /** In welchem Raum Seli gerade steht – vorn ist 0. */
+  raumIndex() {
+    return this.innen ? (this.innen.raum | 0) : 0;
+  }
+
+  /** Wie viele Räume das Zuhause gerade hat. */
+  raumZahl() {
+    return raumZahl(this.state.house || 1);
+  }
+
+  /** Der Raum, in dem Seli gerade steht (draußen: der vordere). */
   raum() {
-    return raumFuer(this.state.house || 1);
+    return raumFuer(this.state.house || 1, this.raumIndex());
+  }
+
+  /** Alle Räume des Zuhauses – vorn zuerst. */
+  raeume() {
+    return raeumeFuer(this.state.house || 1);
+  }
+
+  /**
+   * Der Spielstand des Raums, in dem Seli gerade steht.
+   *
+   * Gibt IMMER ein Objekt zurück, das wirklich im Spielstand liegt – und
+   * legt es an, wenn es fehlt. Der erste Entwurf lieferte in dem Fall eine
+   * frische Kopie, und das war still falsch: Jedes hineingestellte Möbel
+   * landete in einem Wegwerfobjekt, und im Zimmer stand danach nichts. Kein
+   * Fehler in der Konsole, kein Absturz – nur ein Raum, der leer blieb.
+   *
+   * Ein alter oder von Hand bearbeiteter Spielstand wird hier nebenbei
+   * geradegezogen, statt beim Laden einmal und nie wieder.
+   */
+  raumStand(index) {
+    const i = index == null ? this.raumIndex() : (index | 0);
+    if (!this.state.interior || !Array.isArray(this.state.interior.raeume)) {
+      this.state.interior = interiorAus(this.state.interior, this.state.house || 1,
+        function (id) { const it = getItem(id); return !!(it && it.prop); });
+    }
+    const liste = this.state.interior.raeume;
+    while (liste.length <= i) liste.push(emptyRaum());
+    return liste[i];
   }
 
   /** Ob Seli gerade drinnen ist. */
@@ -3678,8 +3718,8 @@ export class Game {
   }
 
   /** Was im Zimmer steht. */
-  innenStuecke() {
-    return (this.state.interior && this.state.interior.stuecke) || [];
+  innenStuecke(index) {
+    return this.raumStand(index).stuecke;
   }
 
   /**
@@ -3695,10 +3735,18 @@ export class Game {
   _innenPetStart() {
     if (!istZahm(this.state.pet)) { this.innenPet = null; return; }
     const raum = this.raum();
-    const t = tuerFuer(raum);
+    // Neben Seli, nicht an der Ausgangstür.
+    //
+    // Der erste Entwurf setzte es neben die Tür, und das ging genau so lange
+    // gut, wie es nur einen Raum gab: In der Kammer gibt es keinen Ausgang,
+    // `tuerFuer` liefert dort null, und der erste Schritt hinein wäre mit
+    // einer Ausnahme geendet. Neben ihr ist ohnehin der richtige Platz – es
+    // kommt mit, es wartet nicht am Eingang.
+    const seli = this.innen || { x: raum.w / 2, y: raum.h - RAND - 10 };
+    const p = klemmeInRaum(seli.x + 60, seli.y + 10, raum);
     this.innenPet = {
-      x: t.x + t.w / 2 + 60,
-      y: raum.h - RAND - 10,
+      x: p.x,
+      y: p.y,
       art: this.state.pet.art || 'cat',
       laeuft: false, schritt: 0, blick: -1, stillZeit: 0,
     };
@@ -3767,8 +3815,8 @@ export class Game {
   }
 
   /** Was an der Wand hängt. */
-  innenWand() {
-    return (this.state.interior && this.state.interior.wand) || [];
+  innenWand(index) {
+    return this.raumStand(index).wand;
   }
 
   /** Wo das Bett steht – in Raumkoordinaten. */
@@ -3810,8 +3858,8 @@ export class Game {
   }
 
   /** Welche Ausstattung das Zimmer gerade hat. */
-  ausstattung() {
-    return ausstattungFuer(this.state.interior && this.state.interior.ausstattung);
+  ausstattung(index) {
+    return ausstattungFuer(this.raumStand(index).ausstattung);
   }
 
   /**
@@ -3822,7 +3870,7 @@ export class Game {
    * beim ersten Hineingehen und beim Wechsel.
    */
   raumSprite() {
-    return ensureRoom(this.state.house || 1, this.ausstattung().id);
+    return ensureRoom(this.state.house || 1, this.ausstattung().id, this.raumIndex());
   }
 
   /**
@@ -3834,8 +3882,11 @@ export class Game {
   waehleAusstattung(id) {
     if (AUSSTATTUNG_IDS.indexOf(id) < 0) return false;
     if (!this.state.interior) this.state.interior = emptyInterior();
-    if (this.state.interior.ausstattung === id) return false;
-    this.state.interior.ausstattung = id;
+    // Je Raum getrennt – das ist der halbe Grund, warum es die Kammer gibt:
+    // vorn das Wohnliche, hinten die Werkstatt.
+    const stand = this.raumStand();
+    if (stand.ausstattung === id) return false;
+    stand.ausstattung = id;
     // Gleich malen lassen: Sonst käme der Ruck beim nächsten Bild, und man
     // sähe den Wechsel nicht, sondern ein Stocken.
     this.raumSprite();
@@ -3864,9 +3915,14 @@ export class Game {
     this.stehAuf(true);
     this.cancelPlacing();
     this.fishing.cancel();
+    // Immer im vorderen Raum: Die Haustür führt ins Zimmer, nicht in die
+    // Kammer. `this.innen` muss dafür VOR `raum()` stehen – die Methode
+    // liest den Raumindex von dort.
+    this.innen = { x: 0, y: 0, raum: 0 };
     const raum = this.raum();
     const t = tuerFuer(raum);
-    this.innen = { x: t.x + t.w / 2, y: raum.h - RAND - 6 };
+    this.innen.x = t.x + t.w / 2;
+    this.innen.y = raum.h - RAND - 6;
     this.player.moving = false;
     this.player.frame = 0;
     this.player.dir = 'up';
@@ -3886,6 +3942,52 @@ export class Game {
     this._blasenLeeren();
     this.invalidate();
     return true;
+  }
+
+  /**
+   * Durch die Verbindungstür in den anderen Raum.
+   *
+   * Kein Ladebildschirm und keine Kamerafahrt: Man steht drüben, wo man
+   * hereinkommt – unter der Tür, denn die sitzt in beiden Räumen oben in der
+   * Wand. Dieselbe Idee wie beim Hineingehen ins Haus: Der Ort, an dem man
+   * auftaucht, ist der Ort, durch den man gekommen ist.
+   *
+   * @returns {boolean} ob wirklich gewechselt wurde
+   */
+  wechsleRaum() {
+    if (!this.innen) return false;
+    if (this.raumZahl() < 2) return false;
+    this.stehAufInnen(true);
+    this.cancelPlacing();
+    const ziel = this.raumIndex() === 0 ? 1 : 0;
+    this.innen.raum = ziel;
+    const raum = this.raum();
+    const t = innenTuerFuer(raum);
+    this.innen.x = t.x + t.w / 2;
+    // Unterhalb des Türstreifens: Stünde sie darin, liefe der Hinweis
+    // sofort wieder auf „zurück" und ein Tastendruck schickte einen hin und
+    // her, ohne dass man je im Raum ankäme.
+    this.innen.y = INNENTUER_TIEFE + 24;
+    this.player.moving = false;
+    this.player.frame = 0;
+    this.player.dir = 'down';
+    // Das Bild des anderen Raums wird erst hier gemalt, falls es das noch
+    // nicht gibt – wie beim Hineingehen.
+    this.raumSprite();
+    // Das Tier kommt mit. Es steht sonst im Raum, den man gerade verlassen
+    // hat, und wäre beim Zurückkommen an einer Stelle, die es nie gab.
+    this._innenPetStart();
+    this.audio.play('ui');
+    this._blasenLeeren();
+    this.invalidate();
+    this.save();
+    return true;
+  }
+
+  /** Wie der andere Raum heißt – für den Hinweis über dem Kopf. */
+  andererRaum() {
+    if (this.raumZahl() < 2) return null;
+    return raumFuer(this.state.house || 1, this.raumIndex() === 0 ? 1 : 0);
   }
 
   /** Alles aus dem Blasenbehälter werfen, auch das gerade Ausblendende. */
@@ -3917,11 +4019,14 @@ export class Game {
   _innenBegehbar(x, y) {
     const raum = this.raum();
     if (!imRaum(x, y, raum)) return false;
-    // Durchs Bett geht es nicht – es steht da wie jedes Möbelstück.
+    // Durchs Bett geht es nicht – es steht da wie jedes Möbelstück. In der
+    // Kammer steht keines.
     const b = bettFuer(raum);
-    const bdx = b.x - x;
-    const bdy = b.y - y;
-    if (bdx * bdx + bdy * bdy < 54 * 54) return false;
+    if (b) {
+      const bdx = b.x - x;
+      const bdy = b.y - y;
+      if (bdx * bdx + bdy * bdy < 54 * 54) return false;
+    }
     const stuecke = this.innenStuecke();
     for (let i = 0; i < stuecke.length; i++) {
       const s = stuecke[i];
@@ -4180,6 +4285,16 @@ export class Game {
       this.ui.setPrompt('Hinausgehen');
       return;
     }
+    if (anDerInnenTuer(this.innen.x, this.innen.y, this.raum())) {
+      // „Nach Die Werkkammer" – der erste Entwurf las sich wie ein
+      // Übersetzungsfehler, weil die Raumnamen ihren Artikel mitbringen.
+      // Der Mittelpunkt ist die Trennung, die das Spiel ohnehin benutzt,
+      // und das Wort davor sagt die Richtung.
+      const ziel = this.andererRaum();
+      const wohin = this.raumIndex() === 0 ? 'Weiter' : 'Zurück';
+      this.ui.setPrompt(ziel ? wohin + ' · ' + ziel.name : 'Weiter');
+      return;
+    }
     const s = this.innenZiel();
     if (s) {
       if (istSitzplatz(s.id)) {
@@ -4201,6 +4316,7 @@ export class Game {
     if (this.placing) { this._innenPlatzieren(); return; }
     if (amBett(this.innen.x, this.innen.y, this.raum())) { this.sleep(false); return; }
     if (anDerTuer(this.innen.x, this.innen.y, this.raum())) { this.verlaesst(); return; }
+    if (anDerInnenTuer(this.innen.x, this.innen.y, this.raum())) { this.wechsleRaum(); return; }
     const s = this.innenZiel();
     if (!s) return;
     // Wie draußen: Auf ein Sitzmöbel setzt man sich, alles andere packt man
@@ -4350,8 +4466,16 @@ export class Game {
     // Der Zuschlag für Gruppen steht hier und nicht in `gemuetlichkeit`:
     // Diese Zahl ist die reine Summe der Stücke, und die gilt drinnen wie
     // draußen. Das Zusammenstellen ist etwas, das es nur drinnen gibt.
-    return gemuetlichkeit(this.innenStuecke(), getItem, this.innenWand()) +
-      gruppenPunkte(this.innenStuecke(), getItem);
+    // Über ALLE Räume: Ein Zuhause ist so gemütlich, wie es insgesamt ist –
+    // und die Kammer ist ein Teil davon, auch wenn man gerade vorn steht.
+    // Der Farbkreis draußen deckelt das ohnehin (`WOHN_BONUS_MAX`).
+    let summe = 0;
+    const n = this.raumZahl();
+    for (let i = 0; i < n; i++) {
+      summe += gemuetlichkeit(this.innenStuecke(i), getItem, this.innenWand(i)) +
+        gruppenPunkte(this.innenStuecke(i), getItem);
+    }
+    return summe;
   }
 
   /** Welche Gruppen im Zimmer stehen – fürs Fenster. */

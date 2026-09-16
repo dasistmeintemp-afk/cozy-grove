@@ -200,8 +200,9 @@ export class Renderer {
     // fest eingebaut mit drin: Es soll sich genauso einordnen wie ein Stuhl,
     // sonst liefe Seli davor, wenn sie dahinter steht.
     const liste = [];
+    // In der Kammer steht keines – dort gibt `bettPunkt()` null zurück.
     const bett = game.bettPunkt();
-    liste.push({ y: bett.y, flach: false, sprite: 'bed', x: bett.x });
+    if (bett) liste.push({ y: bett.y, flach: false, sprite: 'bed', x: bett.x });
     const stuecke = game.innenStuecke();
     for (let i = 0; i < stuecke.length; i++) {
       const s = stuecke[i];

@@ -986,18 +986,34 @@ export class Panels {
     const stufe = wohnStufe(punkte);
     const bis = bisZurNaechstenWohnstufe(punkte);
     const bonus = wohnBonus(punkte);
-    const n = g.innenStuecke().length;
     const gruppen = g.wohnGruppen();
     let gebunden = 0;
     for (let i = 0; i < gruppen.length; i++) gebunden += gruppen[i].n;
+    const raeume = g.raeume();
+    const hier = g.raumIndex();
 
-    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Dein Zimmer</h3>' +
-      '<div class="rows"><div class="row">' + ico('icon_flowerbed', 'lg') +
-      '<div class="grow"><div class="title">' + escapeHtml(raum.name) + ' · ' +
-      escapeHtml(stufe.name) + '</div>' +
+    // Eine Zeile je Raum. Das Zuhause ist die Summe – die Wohnstufe steht
+    // deshalb einmal oben und nicht an jedem Raum. Die Stückzahlen stehen
+    // getrennt: Wie voll die Kammer ist, sagt nichts darüber, wie voll das
+    // Zimmer ist.
+    const zeilen = raeume.map(function (r, i) {
+      const stuecke = g.innenStuecke(i).length;
+      const wand = g.innenWand(i).length;
+      return '<div class="row' + (g.drinnen() && i !== hier ? ' dim' : '') + '">' +
+        ico(i === 0 ? 'icon_flowerbed' : 'icon_bookstack', 'lg') +
+        '<div class="grow"><div class="title">' + escapeHtml(r.name) +
+        (g.drinnen() && i === hier ? ' · hier' : '') + '</div>' +
+        '<div class="meta">' +
+        '<span>' + stuecke + ' von ' + maxStuecke(r) + ' Stücken</span>' +
+        (wand ? '<span>' + wand + ' an der Wand</span>' : '') +
+        '<span>' + escapeHtml(g.ausstattung(i).name) + '</span>' +
+        '</div></div></div>';
+    }).join('');
+
+    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Dein Zuhause</h3>' +
+      '<div class="rows"><div class="row">' + ico('icon_heart', 'lg') +
+      '<div class="grow"><div class="title">' + escapeHtml(stufe.name) + '</div>' +
       '<div class="meta">' +
-      '<span>' + n + ' von ' + maxStuecke(raum) + ' Stücken</span>' +
-      (g.innenWand().length ? '<span>' + g.innenWand().length + ' an der Wand</span>' : '') +
       // Gruppen nur nennen, wenn es welche gibt: Eine Zeile „0 Gruppen" wäre
       // ein Vorwurf, und drinnen gibt es keine.
       (gruppen.length
@@ -1008,9 +1024,15 @@ export class Panels {
         ? '<span>noch ' + bis + ' bis „' + escapeHtml(wohnStufe(punkte + bis).name) + '"</span>'
         : '<span>schöner geht es nicht</span>') +
       (bonus > 0 ? '<span>färbt ' + bonus + ' Punkte weiter</span>' : '') +
-      '</div></div></div></div>' +
+      '</div></div></div>' + zeilen + '</div>' +
       // Wand und Boden: die eine Entscheidung im Zimmer, die nicht aus der
       // Tasche kommt. Kostet nichts – drinnen soll nichts Pflicht sein.
+      //
+      // Sie gilt für den Raum, in dem man GERADE steht. Deshalb steht sein
+      // Name darüber: Wer in der Kammer Abendblau wählt, soll nicht später
+      // im Zimmer danach suchen.
+      '<h3 style="font-size:0.95em;margin:18px 0 8px">Wand und Boden · ' +
+      escapeHtml(raum.name) + '</h3>' +
       '<div class="rows" style="margin-top:8px">' +
       AUSSTATTUNG.map(function (a) {
         const jetzt = a.id === g.ausstattung().id;
@@ -1030,7 +1052,12 @@ export class Panels {
       'aus der Tasche auswählen, auf Sitzmöbel setzt du dich. Bilder und ' +
       'Kränze hängen an der Rückwand. Am Bett wird geschlafen, an der Tür ' +
       'geht es wieder hinaus.<br>Was auf einem Teppich steht, gehört ' +
-      'zusammen und zählt doppelt – bis zu drei Stücke je Teppich.</p>';
+      'zusammen und zählt doppelt – bis zu drei Stücke je Teppich.' +
+      (raeume.length > 1
+        ? '<br>Oben rechts in der Wand geht es weiter in ' +
+          escapeHtml(raeume[1].name) + ' – eigene Möbel, eigene Wand, eigener Boden.'
+        : '') +
+      '</p>';
   }
 
   /* ---------------- Vorratstruhe ---------------- */

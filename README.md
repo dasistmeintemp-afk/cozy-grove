@@ -212,7 +212,8 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 
   **Der Raum wächst mit dem Haus** – Zeltecke (420×300) → Stube → Zimmer →
   Zimmer mit Veranda (960×620), und mit ihm die Zahl der Stücke, die
-  hineinpassen. Ab der Hütte sind es Dielen und eine Bretterwand mit Fenster,
+  hineinpassen. Ab dem großen Haus kommt ein **zweiter Raum** dazu, die
+  Kammer. Ab der Hütte sind es Dielen und eine Bretterwand mit Fenster,
   und das Licht daraus fällt als heller Fleck auf den Boden; die Zeltecke ist
   Stoff und gestampfte Erde.
 
@@ -257,6 +258,34 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   erste nähme dem Zimmer sein Licht, das zweite wäre ein Bild, das man
   aufhängt und nie wieder sieht. Abgenommen wird nah an der Wand mit Blick
   nach oben – sonst hinge man beim Vorbeilaufen Bilder ab.
+* **Zwei Räume ab dem großen Haus.** Oben rechts in der Rückwand geht eine Tür
+  weiter: vom **Zimmer** in die **Kammer** und wieder zurück. Jeder Raum hat
+  eigene Möbel, eigene Wandstücke und eine eigene Ausstattung.
+
+  **Warum nicht einfach ein größeres Zimmer.** Weil das dasselbe getan und
+  weniger gekostet hätte. Der Grund ist ein anderer: Ein Raum hat **einen**
+  Ton. Wer Wand und Boden auf Abendblau stellt, stellt damit alles auf
+  Abendblau, und jedes Stück, das nicht dazu passt, muss weg. Mit zwei Räumen
+  wird aus dem Einrichten zum ersten Mal eine Entscheidung, die man zweimal
+  treffen darf – vorn das Wohnliche, hinten die Werkstatt.
+
+  **Die Kammer ist kleiner**, hat **kein Bett** und **keinen Ausgang**:
+  Geschlafen und hinausgegangen wird vorn. Ein zweiter Ausgang wäre dieselbe
+  Sache an zwei Stellen, und ein zweites Bett auch.
+
+  **Und sie hat kein Fenster.** Ihr Licht fällt durch die Verbindungstür. Das
+  ist kein Sparen: Ein Fenster hätte mitten in einer ohnehin kurzen Wand
+  gestanden und von den Aufhängeplätzen die Hälfte gekostet – gemessen, nicht
+  vermutet. So sind es zwei verschiedene Orte statt zweier Größen desselben.
+
+  Vor der Tür und über ihr bleibt frei, wie am Ausgang auch: Ein zugestellter
+  Durchgang wäre die einzige Sackgasse, die dieses Spiel anbieten könnte, und
+  ein Kranz darüber wäre ein Kranz, durch den man hindurchläuft.
+
+  **Im Spielstand steht jetzt eine Liste von Räumen** statt eines Zimmers mit
+  einem Anhängsel. Ein Stand aus der Zeit davor wird beim Laden zum vorderen
+  Raum – wer sein Zimmer eingerichtet hat, findet es unverändert wieder, und
+  die Kammer kommt leer dazu.
 * **Das Tier kommt mit hinein.** Ist es zahm, folgt es dir durch die Tür,
   läuft dir im Zimmer hinterher und legt sich neben dich, sobald du stehen
   bleibst oder dich hinsetzt. Ein Streuner, der noch am Napf sitzt, folgt
@@ -1009,8 +1038,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 541 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer …
-npm run test:browser   # 331 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 552 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer …
+npm run test:browser   # 343 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

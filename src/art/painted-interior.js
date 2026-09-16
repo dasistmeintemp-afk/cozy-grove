@@ -30,12 +30,18 @@ const GRUND = {
   fensterTief: '#a9c4cf',
   schwelle: '#a9855e',
   lichtFleck: '#f6ecd2',
+  // Der Durchgang zum anderen Raum. Bewusst NICHT schwarz: Ein schwarzes
+  // Loch in einer Papierwand sieht aus wie ein Fehler. Es ist der Ton, den
+  // ein Zimmer hat, in das man von hier aus nur hineinschaut.
+  durchgang: '#8f7657',
+  durchgangTief: '#6b573e',
 };
 
 /**
  * Ein Zimmer malen.
  *
  * @param {object} opts  w, h (Boden), wand (Wandhöhe), stufe, tuerX, tuerW
+ *                       (0 = kein Ausgang), innenTuer ({x, w} oder null)
  */
 export function paintRoom(opts) {
   const o = opts || {};
@@ -43,7 +49,12 @@ export function paintRoom(opts) {
   const rh = o.h || 420;
   const wand = o.wand || 120;
   const stufe = o.stufe || 2;
-  const tuerW = o.tuerW || 104;
+  // `!= null`, nicht `||`: NULL ist eine gültige Breite – sie heißt „dieser
+  // Raum hat keinen Ausgang". Mit `||` wurden daraus 104, und die Kammer
+  // bekam eine Türöffnung an Position 0, unten links in der Ecke. Im Bild
+  // ein brauner Klotz, in der Rechnung nichts. Dieselbe Falle wie bei der
+  // Vorratstruhe mit null Fächern.
+  const tuerW = o.tuerW != null ? o.tuerW : 104;
   const tuerX = o.tuerX != null ? o.tuerX : rw / 2 - tuerW / 2;
   const seed = o.seed || 1900 + stufe * 7;
   // Wand-, Boden- und Leistenfarbe kommen von außen: Damit wird aus einem
@@ -60,9 +71,21 @@ export function paintRoom(opts) {
   const bodenFlaeche = poly([[0, wand], [w, wand], [w, h], [0, h]], 2);
 
   // Die Türöffnung: unten in der Mitte, als hellerer Streifen mit Schwelle.
-  const tuer = poly([
+  // `tuerW === 0` heißt: Dieser Raum hat keinen Ausgang nach draußen. Das ist
+  // die Kammer – aus ihr geht es nur zurück ins Zimmer.
+  const tuer = tuerW > 0 ? poly([
     [tuerX, h - 26], [tuerX + tuerW, h - 26], [tuerX + tuerW, h], [tuerX, h],
-  ], 2);
+  ], 2) : null;
+
+  // Die Verbindungstür: ein dunkler Durchgang in der Rückwand, unten offen.
+  // Sie reicht bis auf den Boden – eine Tür, die über der Leiste endet, sähe
+  // aus wie ein Schrank.
+  const it = o.innenTuer;
+  const itH = Math.round(wand * 0.82);
+  const innenTuer = it ? poly([
+    [it.x, wand - itH], [it.x + it.w, wand - itH],
+    [it.x + it.w, wand], [it.x, wand],
+  ], 2) : null;
 
   // Die Fenstermaße kommen aus `interior.js`, nicht von hier: Die Frage, wo
   // ein Bild an der Wand hängen darf, hängt an denselben Zahlen. Zwei
@@ -108,7 +131,27 @@ export function paintRoom(opts) {
           [cx + 108, wand + rh * 0.52], [cx - 108, wand + rh * 0.52],
         ], 2), HOLZ.lichtFleck, { seed: seed + 27 + i, alpha: 0.4 });
       }
-      wash(g, tuer, HOLZ.schwelle, { seed: seed + 30, alpha: 0.8 });
+      if (tuer) wash(g, tuer, HOLZ.schwelle, { seed: seed + 30, alpha: 0.8 });
+      if (innenTuer) {
+        // Der Durchgang selbst dunkel – dahinter ist ein anderer Raum, und
+        // den sieht man von hier aus nicht.
+        wash(g, innenTuer, HOLZ.durchgang, { seed: seed + 32, scale: 1.02 });
+        // Nach oben hin dunkler. Beim ersten Versuch stand hier -0.45 mal
+        // Türhöhe: Die verkleinerte Kopie rutschte damit über die Wandkante
+        // hinaus und lag als grauer Block über dem Zimmer. Im Bild sofort zu
+        // sehen, in der Rechnung nicht.
+        wash(g, offsetShape(innenTuer, 0, -itH * 0.18, 0.82), HOLZ.durchgangTief,
+          { seed: seed + 33, alpha: 0.5 });
+        // Und das Licht, das von drüben hereinfällt. In der Kammer ist das
+        // die einzige Lichtquelle – sie hat kein Fenster –, deshalb reicht
+        // der Fleck dort weiter in den Raum.
+        const cx = it.x + it.w / 2;
+        const weit = fenster.length ? 0.34 : 0.62;
+        wash(g, poly([
+          [cx - it.w * 0.5, wand + 6], [cx + it.w * 0.5, wand + 6],
+          [cx + it.w * 0.95, wand + rh * weit], [cx - it.w * 0.95, wand + rh * weit],
+        ], 2), HOLZ.lichtFleck, { seed: seed + 34, alpha: fenster.length ? 0.34 : 0.46 });
+      }
     },
     shape: function (g) {
       fill(g, wandFlaeche);
@@ -166,11 +209,20 @@ export function paintRoom(opts) {
       }
       // Die Tür: Schwelle quer, Zarge senkrecht. Man soll auf einen Blick
       // sehen, wo es hinausgeht – es ist der einzige Ausgang.
-      inkStroke(g, tuer, { width: 1.8, seed: seed + 140 });
-      inkLine(g, tuerX, h - 26, tuerX, h,
-        { width: 2.0, bend: 0.01, seed: seed + 141, color: ink.line, alpha: 0.85 });
-      inkLine(g, tuerX + tuerW, h - 26, tuerX + tuerW, h,
-        { width: 2.0, bend: 0.01, seed: seed + 142, color: ink.line, alpha: 0.85 });
+      if (tuer) {
+        inkStroke(g, tuer, { width: 1.8, seed: seed + 140 });
+        inkLine(g, tuerX, h - 26, tuerX, h,
+          { width: 2.0, bend: 0.01, seed: seed + 141, color: ink.line, alpha: 0.85 });
+        inkLine(g, tuerX + tuerW, h - 26, tuerX + tuerW, h,
+          { width: 2.0, bend: 0.01, seed: seed + 142, color: ink.line, alpha: 0.85 });
+      }
+      if (innenTuer) {
+        // Zarge ringsum, und ein Sturz oben. Ohne den ist der Durchgang ein
+        // dunkler Fleck an der Wand.
+        inkStroke(g, innenTuer, { width: 2.0, seed: seed + 143 });
+        inkLine(g, it.x - 5, wand - itH, it.x + it.w + 5, wand - itH,
+          { width: 2.4, bend: 0.008, seed: seed + 144, color: HOLZ.leiste, alpha: 0.95 });
+      }
       // Der Rahmen des ganzen Raums.
       inkStroke(g, wandFlaeche, { width: 1.6, seed: seed + 150 });
       inkStroke(g, bodenFlaeche, { width: 1.6, seed: seed + 151 });
