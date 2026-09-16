@@ -221,6 +221,10 @@ export class Renderer {
     // es gerade vorbeigelaufen ist.
     const tier = game.innenPetBild();
     if (tier) liste.push({ y: tier.y, flach: false, sprite: tier.sprite, x: tier.x, flip: tier.blick < 0 });
+    // Und der Gast, aus demselben Grund: Er steht im Raum wie ein Möbel und
+    // soll sich einordnen, statt vor oder hinter allem zu kleben.
+    const gast = game.innenGastBild();
+    if (gast) liste.push({ y: gast.y, flach: false, sprite: gast.sprite, x: gast.x });
     liste.sort(function (a, b) { return a.y - b.y; });
 
     const px = game.innen.x;

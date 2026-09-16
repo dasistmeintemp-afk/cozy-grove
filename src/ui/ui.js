@@ -273,18 +273,26 @@ export class UI {
   }
 
   /**
-   * Eine Blase an einem BILDpunkt statt an einem Weltpunkt.
+   * Eine Blase an einem LEINWANDpunkt statt an einem Weltpunkt.
    *
    * Für das Hausinnere: Dort gibt es keine Kamera und keine Weltkoordinaten,
    * also auch nichts, was `worldToScreen` umrechnen könnte. `fest` sagt der
    * Nachführung, dass sie diese Blase in Ruhe lassen soll.
+   *
+   * **Umgerechnet wird trotzdem.** Die erste Fassung setzte die Punkte
+   * unverändert als CSS-Pixel – und übersprang damit genau das, was
+   * `worldToScreen` für jede andere Blase tut: die Leinwand liegt im Bild
+   * versetzt (`view.left`) und wird skaliert dargestellt (`view.scale`).
+   * Selis Gedanke im Zimmer hing deshalb ein gutes Stück links über ihr, was
+   * niemandem auffiel, solange nur sie dort etwas sagte. Mit einem zweiten
+   * Sprecher im Raum stand die Blase sichtbar bei der falschen Figur.
    */
   bubbleAtScreen(x, y, text, duration) {
     const b = this.bubble(0, 0, text, null, duration, true);
     if (!b) return null;
     b.fest = true;
-    b.el.style.left = Math.round(x) + 'px';
-    b.el.style.top = Math.round(y) + 'px';
+    b.el.style.left = Math.round(this.view.left + x * this.view.scale) + 'px';
+    b.el.style.top = Math.round(this.view.top + y * this.view.scale) + 'px';
     return b;
   }
 

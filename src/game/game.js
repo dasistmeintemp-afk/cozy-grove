@@ -45,6 +45,11 @@ import {
   skizzeAus, schonDa, titel as bildTitel, bilderAus, sortiert as bilderSortiert,
   kennung as bildKennung, moeglich as bilderMoeglich,
 } from './bild.js';
+import {
+  gastFuer, satzFuer as besuchSatz, bestesStueck, emptyBesuch, besuchAus,
+  heuteGesprochen as gastGesprochen, naechsterBesuch as naechsterGast,
+  FREUND_AB as BESUCH_FREUND_AB,
+} from './besuch.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
@@ -183,6 +188,15 @@ const WAND_GRIFF = 96;
  * fast eine. Die Grillen bleiben als Ahnung stehen.
  */
 const INNEN_KLANG = { surf: 0.22, wind: 0.18, nacht: 0.3, regen: 0.55 };
+
+/**
+ * Auf welchen Abstand ein Gast ansprechbar ist.
+ *
+ * Etwas grosszuegiger als der Griff nach einem Moebel (54): Wer neben
+ * jemandem steht, der im Zimmer wartet, will mit ihm reden - und nicht
+ * zweimal einen Schritt zur Seite machen muessen, bis es klappt.
+ */
+const GAST_REICHWEITE = 72;
 
 /** Wie lange Seli stillstehen muss, bis sich das Tier im Zimmer dazulegt. */
 const INNEN_PET_WARTET = 2.5;
@@ -330,7 +344,16 @@ export class Game {
   }
 
   _fresh() {
-    const seed = (Math.random() * 0xffffffff) >>> 0;
+    // Ein erzwungener Inselsamen – zum Nachstellen, nicht zum Spielen.
+    //
+    // Die Browserprüfung würfelt je Lauf eine neue Insel, und das ist
+    // richtig so: Sie findet damit Fehler, die auf EINER Insel nie
+    // auftreten. Der Preis war bisher, dass ein solcher Fehler nicht
+    // wiederholbar ist – man sieht ihn einmal und danach nie wieder. Jetzt
+    // schreibt die Prüfung den Samen mit, und mit `SMOKE_SEED` läuft sie
+    // noch einmal auf genau derselben Insel.
+    const erzwungen = typeof window !== 'undefined' && window.__seliSeed;
+    const seed = erzwungen ? (erzwungen >>> 0) : ((Math.random() * 0xffffffff) >>> 0);
     this.world = new World(seed).populate();
     this.colorField = new ColorField();
     const p = startPosition(this.world.tiles);
@@ -460,6 +483,9 @@ export class Game {
     // Der Skizzenzettel. Ein alter Spielstand hat keinen – dann fängt er
     // beim nächsten Mal Sitzen an, sich einen anzulegen.
     this.state.bilder = bilderAus(this.state.bilder);
+    // Wer zuletzt zu Besuch war. Ein alter Spielstand hatte noch nie
+    // jemanden da – dann kommt beim nächsten Fenster eben der erste.
+    this.state.besuch = besuchAus(this.state.besuch);
     if (!trachtOffen(trachtFuer(this.state.tracht), this.state.trachten)) {
       this.state.tracht = 'standard';
     }
@@ -3955,6 +3981,11 @@ export class Game {
    * Tier, das quer durchs Zimmer zur Bank läuft, statt sich dazuzulegen,
    * wäre die schlechtere Gesellschaft.
    */
+  /** Der Gast atmet – zwei Bilder, wie draußen auch. */
+  _innenGastUpdate(dt) {
+    if (this.innenGast) this.innenGast.t = (this.innenGast.t || 0) + dt;
+  }
+
   _innenPetUpdate(dt) {
     const p = this.innenPet;
     if (!p) return;
@@ -4006,6 +4037,133 @@ export class Game {
       sprite: 'pet_' + p.art + '_' +
         (p.laeuft ? (Math.floor(p.schritt || 0) % 2 === 0 ? '0' : '1') : 'sit'),
     };
+  }
+
+  /* ---------------- Der Besuch ---------------- */
+
+  /**
+   * Wer heute vorbeikäme.
+   *
+   * Nur Geister, die man gut genug kennt – und nur, wenn es überhaupt ein
+   * Zimmer gibt. Wer im Zelt wohnt, bekommt keinen Besuch: Dort wäre der
+   * Satz über „dein Zimmer" ein Satz über eine Plane.
+   */
+  gastHeute() {
+    // Ab der Hütte. Stufe 1 ist die Zeltecke, und ein Satz über „dein
+    // Zimmer" wäre dort ein Satz über eine Plane.
+    if ((this.state.house || 1) < 2) return null;
+    const kandidaten = [];
+    for (let i = 0; i < SPIRIT_IDS.length; i++) {
+      const id = SPIRIT_IDS[i];
+      // Nur wer schon da ist: Ein Geist aus einem Bereich, den man noch
+      // nicht betreten hat, stünde im Zimmer, bevor man ihn kennengelernt
+      // hat.
+      if (!(this.state.met && this.state.met[id])) continue;
+      if (this.friendshipLevelOf(id) < BESUCH_FREUND_AB) continue;
+      kandidaten.push(id);
+    }
+    // Am letzten Abend nicht – der gehört allen sieben am Feuer.
+    if (this.state.finale) return null;
+    return gastFuer(this.world.seed, this.day.day, kandidaten);
+  }
+
+  /** Wann der nächste kommen könnte – für die Prüfung. */
+  naechsterGastTag() {
+    return naechsterGast(this.world.seed, this.day.day);
+  }
+
+  /**
+   * Den Gast ins Zimmer setzen.
+   *
+   * Nur in den VORDEREN Raum: Die Haustür führt ins Zimmer, und jemand, der
+   * in der Kammer wartet, wird nie gefunden.
+   */
+  _innenGastStart() {
+    this.innenGast = null;
+    const wer = this.gastHeute();
+    if (!wer) return;
+    if (this.raumIndex() !== 0) return;
+    const raum = this.raum();
+    // Auf der linken Seite, mit Abstand zur Tür – dort steht Seli, wenn sie
+    // hereinkommt, und zwei Figuren aufeinander sind eine.
+    const p = klemmeInRaum(raum.w * 0.3, raum.h * 0.55, raum);
+    this.innenGast = { x: p.x, y: p.y, spiritId: wer, t: 0 };
+  }
+
+  /** Steht Seli nah genug am Gast? Derselbe Abstand wie bei einem Möbel. */
+  gastInReichweite() {
+    const g = this.innenGast;
+    if (!g || !this.innen) return false;
+    const dx = g.x - this.innen.x;
+    const dy = g.y - this.innen.y;
+    return dx * dx + dy * dy < GAST_REICHWEITE * GAST_REICHWEITE;
+  }
+
+  /** Wo der Gast steht – in derselben Form wie das Tier. */
+  innenGastBild() {
+    const g = this.innenGast;
+    if (!g) return null;
+    const art = (SPIRITS[g.spiritId] && SPIRITS[g.spiritId].art) || 'spirit_flamey';
+    return {
+      x: g.x, y: g.y, spiritId: g.spiritId,
+      sprite: art + '_' + (Math.floor((g.t || 0) * 2) % 2),
+    };
+  }
+
+  /**
+   * Der Satz zum Zimmer.
+   *
+   * Einmal am Tag. Beim zweiten Ansprechen sagt er etwas Kurzes – nicht
+   * denselben Satz noch einmal: Eine Bemerkung, die man beliebig oft
+   * nachlesen kann, ist keine mehr.
+   */
+  redeMitGast() {
+    const g = this.innenGast;
+    if (!g) return false;
+    const stand = this.state.besuch || emptyBesuch();
+    this.state.besuch = stand;
+    const tag = this.day.day;
+    const spirit = SPIRITS[g.spiritId];
+
+    if (gastGesprochen(stand, tag)) {
+      this._gastBlase(pickLine(spirit.lines.wait), 2.4);
+      this.audio.play('ghost');
+      return true;
+    }
+    stand.gesprochen = tag;
+    stand.tag = tag;
+    stand.wer = g.spiritId;
+
+    const stuecke = this.innenStuecke(0);
+    const bestes = bestesStueck(stuecke,
+      function (id) { const it = getItem(id); return (it && it.charm) || 0; },
+      function (id) { return itemName(id); });
+    const satz = besuchSatz(g.spiritId, {
+      stuecke: stuecke.length,
+      stueckName: bestes ? bestes.name : null,
+    });
+    this._gastBlase(satz, 4.6);
+    this.audio.play('ghost');
+    this.save();
+    return true;
+  }
+
+  /**
+   * Die Blase über dem Gast.
+   *
+   * Über `bubbleAtScreen` wie Selis Gedanke im Zimmer und aus demselben
+   * Grund: Blasen hängen sonst an WELTkoordinaten, und die gibt es drinnen
+   * nicht. Ein Gast mit einer Blase irgendwo auf der Insel wäre der zweite
+   * Fehler dieser Art im selben Zimmer.
+   */
+  _gastBlase(satz, dauer) {
+    const g = this.innenGast;
+    if (!g || !satz) return;
+    const o = this.innenOffset || { x: 0, y: 0, zoom: 1 };
+    this.ui.bubbleAtScreen(
+      (o.x + g.x) * (o.zoom || 1),
+      (o.y + g.y - 120) * (o.zoom || 1),
+      satz, dauer);
   }
 
   /** Was an der Wand hängt. */
@@ -4184,6 +4342,7 @@ export class Game {
     // Das Zimmerbild wird erst hier gemalt, falls es das noch nicht gibt.
     this.raumSprite();
     this._innenPetStart();
+    this._innenGastStart();
     this.audio.play('ui');
     this.ui.clearBubbles();
     // Und den Blasenbehälter hart leeren. `clearBubbles` räumt die Liste,
@@ -4232,6 +4391,7 @@ export class Game {
     // Das Tier kommt mit. Es steht sonst im Raum, den man gerade verlassen
     // hat, und wäre beim Zurückkommen an einer Stelle, die es nie gab.
     this._innenPetStart();
+    this._innenGastStart();
     this.audio.play('ui');
     this._blasenLeeren();
     this.invalidate();
@@ -4259,6 +4419,7 @@ export class Game {
     this.cancelPlacing();
     this.innen = null;
     this.innenPet = null;
+    this.innenGast = null;
     this._blasenLeeren();
     this.player.moving = false;
     this.player.dir = 'down';
@@ -4494,6 +4655,7 @@ export class Game {
     // Sitzt sie, übernimmt das Ausruhen die ganze Eingabe – wie draußen.
     if (this._innenRuhen(dt, move)) {
       this._innenPetUpdate(dt);
+      this._innenGastUpdate(dt);
       this._innenPrompt();
       this.ui.refreshHud();
       this.ui.updateBubbles(dt);
@@ -4503,6 +4665,7 @@ export class Game {
     }
     this._innenBewegen(dt, move);
     this._innenPetUpdate(dt);
+    this._innenGastUpdate(dt);
     if (this.player.consumeStep()) this.audio.play('step');
     this._innenPlacingUpdate();
     this._innenPrompt();
@@ -4538,6 +4701,12 @@ export class Game {
     }
     if (amBett(this.innen.x, this.innen.y, this.raum())) {
       this.ui.setPrompt('Schlafen');
+      return;
+    }
+    // Vor dem Bett und der Tür, aber nach dem Aufstellen: Wer gerade ein
+    // Möbel setzt, will das zu Ende bringen.
+    if (this.gastInReichweite()) {
+      this.ui.setPrompt('Reden');
       return;
     }
     if (anDerTuer(this.innen.x, this.innen.y, this.raum())) {
@@ -4576,6 +4745,9 @@ export class Game {
     if (amBett(this.innen.x, this.innen.y, this.raum())) { this.sleep(false); return; }
     if (anDerTuer(this.innen.x, this.innen.y, this.raum())) { this.verlaesst(); return; }
     if (anDerInnenTuer(this.innen.x, this.innen.y, this.raum())) { this.wechsleRaum(); return; }
+    // Der Gast kommt vor den Möbeln: Wer neben ihm steht, will mit ihm
+    // reden und nicht den Stuhl einpacken, auf dem er steht.
+    if (this.gastInReichweite()) { this.redeMitGast(); return; }
     const s = this.innenZiel();
     if (!s) return;
     // Wie draußen: Auf ein Sitzmöbel setzt man sich, alles andere packt man

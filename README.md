@@ -420,6 +420,28 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nicht zumachen, nur weil man fertig ist. Die sieben Sätze stehen zum
   Nachlesen im Erinnerungsfenster – eine Sprechblase ist nach acht Sekunden
   weg, und das sind die Sätze, auf die alles zuläuft.
+* **Ein Geist kommt zu Besuch.** Das Einrichten hatte eine Lücke am Ende: Der
+  Charme deines Zimmers ist eine Zahl, die **nur du siehst**. Man stellt einen
+  Tisch hin, legt einen Teppich darunter, hängt ein Bild auf – und niemand
+  sagte je ein Wort dazu. Die sieben waren noch nie in deinem Haus.
+
+  Etwa alle zehn Tage steht einer davon im Zimmer, wenn du hereinkommst. Wer,
+  hängt an der **Freundschaft** – wer sich das Zimmer von jemandem ansieht,
+  kennt ihn. Über 400 Inseln gemessen: 35 Besuche im Jahr, zwischen zwei
+  Besuchen **2 bis 18 Tage**, der erste zwischen Tag 13 und 21. Dieselbe
+  Bauart wie beim Wanderer und aus demselben Grund – gewürfelt wird nicht
+  *ob*, sondern *an welchem Tag des Fensters*.
+
+  **Er sagt einen Satz, nicht drei**, und er nennt darin ein Stück, das
+  wirklich dasteht – das mit dem meisten Charme. Ein Geist, der durchs Zimmer
+  geht und alles kommentiert, wäre eine Führung.
+
+  **Er verlangt nichts und wertet nicht.** Kein Auftrag, keine Punktzahl. Wer
+  ein kahles Zimmer hat, bekommt keinen Tadel, sondern einen anderen Satz –
+  und der ist freundlich: Flämmchen findet Platz gut, Nelly sieht schon, wo
+  etwas hinkäme, Tobi denkt ans Bauen. Jeder sieht dasselbe leere Zimmer und
+  sagt etwas anderes darüber; das ist der ganze Sinn davon, dass es sieben
+  sind.
 * **Skizzen von der Insel – an deiner Wand.** Draußen und drinnen berührten
   einander nur über Möbel: Man trug einen Stuhl hinein. **Was die Insel selbst
   hergibt – ein Abend an den Klippen, der erste Schnee am Wasser – blieb
@@ -1184,12 +1206,17 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 631 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen, die Trachten, die Skizzen …
-npm run test:browser   # 373 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 648 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen, die Trachten, die Skizzen, der Besuch …
+npm run test:browser   # 379 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 
-Der Browsertest legt Bildschirmfotos unter `.screenshots/` ab.
+Der Browsertest legt Bildschirmfotos unter `.screenshots/` ab. **Er würfelt je
+Lauf eine neue Insel** – so findet er Fehler, die auf *einer* Insel nie
+auftreten. Welche es war, schreibt er mit; `SMOKE_SEED=… npm run test:browser`
+läuft noch einmal auf genau derselben. Ohne das ist ein Fehler, der nur auf
+einer von zehn Inseln auftritt, nicht wiederholbar – man sieht ihn einmal und
+danach nie wieder.
 
 Dazu drei Werkzeuge zum Hinsehen:
 

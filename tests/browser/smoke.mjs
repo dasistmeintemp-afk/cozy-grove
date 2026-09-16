@@ -79,6 +79,12 @@ async function run() {
 
   let exitCode = 0;
   try {
+    // Vor dem Laden setzen, sonst waere die Insel schon gewuerfelt.
+    if (process.env.SMOKE_SEED) {
+      const wunsch = Number(process.env.SMOKE_SEED) >>> 0;
+      await page.addInitScript((v) => { window.__seliSeed = v; }, wunsch);
+      console.log('Inselsamen erzwungen: ' + wunsch);
+    }
     const resp = await page.goto(BASE, { waitUntil: 'load' });
     check('Startseite lädt (HTTP ' + (resp && resp.status()) + ')', resp && resp.ok());
 
@@ -96,6 +102,13 @@ async function run() {
     await page.click('#btn-new');
     await waitFor(page, () => !!(window.CozyGrove && window.CozyGrove.game), 20000, 'Spielstart');
     await page.waitForTimeout(1500);
+
+    // Welche Insel dieser Lauf erwischt hat. Ohne diese Zeile ist ein
+    // Fehler, der nur auf einer von zwanzig Inseln auftritt, nicht
+    // wiederholbar: Man sieht ihn einmal und danach nie wieder.
+    // `SMOKE_SEED=... npm run test:browser` laeuft noch einmal auf derselben.
+    const seed = await page.evaluate(() => window.CozyGrove.game.world.seed);
+    console.log('Inselsamen: ' + seed + '  (SMOKE_SEED=' + seed + ' wiederholt ihn)');
 
     const info = await page.evaluate(() => {
       const g = window.CozyGrove.game;
@@ -4585,6 +4598,113 @@ async function run() {
     check('Und sie wirft abends wirklich Licht',
       wand4.imLichtkreis === true, JSON.stringify(wand4));
 
+    /* ---- Der Besuch ---- */
+    const gast = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { SAETZE } = await import('/src/game/besuch.js');
+      const { hasSprite } = await import('/src/art/sprites.js');
+      const r = {};
+      const merkHaus = g.state.house;
+      const merkInterior = g.state.interior;
+      const merkBesuch = g.state.besuch;
+
+      g.state.house = 3;
+      g.state.interior = {
+        raeume: [{
+          stuecke: [
+            { itemId: 'table', x: 260, y: 220, sprite: 'table' },
+            { itemId: 'chair', x: 330, y: 240, sprite: 'chair' },
+            { itemId: 'bookstack', x: 180, y: 250, sprite: 'bookstack' },
+            { itemId: 'crate', x: 120, y: 260, sprite: 'crate' },
+          ],
+          wand: [], ausstattung: 'holz',
+        }],
+      };
+      g.syncHouse();
+      if (!g.drinnen()) g.betritt();
+
+      // Einen Gast hinstellen – wie ihn `_innenGastStart` setzen würde.
+      g.state.besuch = { tag: 0, wer: null, gesprochen: 0 };
+      const raum = g.raum();
+      g.innenGast = { x: raum.w * 0.3, y: raum.h * 0.55, spiritId: 'nelly', t: 0 };
+
+      // Er hat eine Grafik, und zwar seine eigene.
+      const bild = g.innenGastBild();
+      r.hatBild = !!bild && hasSprite(bild.sprite);
+      r.bildName = bild ? bild.sprite : null;
+
+      // Von weitem lässt er sich nicht ansprechen.
+      g.innen.x = 20;
+      g.innen.y = 20;
+      r.weitWeg = g.gastInReichweite();
+
+      // Von nah schon – und der Satz nennt ein Stück, das WIRKLICH dasteht.
+      g.innen.x = g.innenGast.x + 40;
+      g.innen.y = g.innenGast.y + 10;
+      r.nah = g.gastInReichweite();
+      g.ui.clearBubbles();
+      r.geredet = g.redeMitGast();
+      const b = g.ui.bubbles[g.ui.bubbles.length - 1];
+      r.satz = b ? b.el.textContent : null;
+      // Die Bücherkiste hat den meisten Charme von den vieren.
+      r.nenntStueck = !!r.satz && r.satz.indexOf('Bücherkiste') >= 0;
+      r.ausNellysMund = !!r.satz &&
+        r.satz.indexOf(SAETZE.nelly.stueck.split('%s')[1].trim()) >= 0;
+
+      // Und die Blase hängt über IHM, nicht irgendwo. Das ist die Prüfung,
+      // die nur hier geht: `bubbleAtScreen` rechnet Leinwand in Bildpunkte
+      // um, und diese Rechnung stimmte vorher nicht.
+      const o = g.innenOffset || { x: 0, y: 0, zoom: 1 };
+      const soll = {
+        x: g.ui.view.left + (o.x + g.innenGast.x) * o.zoom * g.ui.view.scale,
+        y: g.ui.view.top + (o.y + g.innenGast.y) * o.zoom * g.ui.view.scale,
+      };
+      const links = b ? parseFloat(b.el.style.left) : NaN;
+      const oben = b ? parseFloat(b.el.style.top) : NaN;
+      r.blaseWaagerecht = Math.round(Math.abs(links - soll.x));
+      // Senkrecht steht sie über ihm, aber nicht mehr als eine Raumhöhe.
+      r.blaseUeberIhm = oben < soll.y && soll.y - oben < 220;
+
+      // Einmal am Tag. Beim zweiten Mal kommt ein anderer Satz.
+      g.ui.clearBubbles();
+      g.redeMitGast();
+      const b2 = g.ui.bubbles[g.ui.bubbles.length - 1];
+      r.zweiterAnders = !!b2 && b2.el.textContent !== r.satz;
+
+      // Er zählt nicht als Möbel: Wer neben ihm steht, packt nichts ein.
+      const vorher = g.innenStuecke().length;
+      g.player.selectTool(0);
+      g._innenInteract();
+      r.nichtsEingepackt = g.innenStuecke().length === vorher;
+
+      // Und in der Kammer wartet er nicht – die Haustür führt ins Zimmer.
+      r.nurVorn = true;
+      g.innenGast = null;
+      g.state.house = merkHaus;
+      g.state.interior = merkInterior;
+      g.state.besuch = merkBesuch;
+      g.verlaesst();
+      g.syncHouse();
+      g.save();
+      return r;
+    });
+    check('Der Gast steht im Zimmer und hat seine eigene Grafik',
+      gast.hatBild === true && /nelly/.test(gast.bildName || ''),
+      JSON.stringify(gast));
+    check('Ansprechen geht nur von nah',
+      gast.weitWeg === false && gast.nah === true && gast.geredet === true,
+      JSON.stringify(gast));
+    check('Und er nennt ein Stück, das wirklich im Zimmer steht',
+      gast.nenntStueck === true && gast.ausNellysMund === true,
+      JSON.stringify(gast));
+    check('Seine Blase hängt über ihm',
+      gast.blaseWaagerecht <= 2 && gast.blaseUeberIhm === true,
+      JSON.stringify(gast));
+    check('Einmal am Tag – beim zweiten Mal sagt er etwas anderes',
+      gast.zweiterAnders === true, JSON.stringify(gast));
+    check('Neben ihm packt man kein Möbel ein',
+      gast.nichtsEingepackt === true, JSON.stringify(gast));
+
     /* ---- Die Skizzen ---- */
     const skizze = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
@@ -4598,13 +4718,27 @@ async function run() {
 
       // Eine Skizze entsteht beim SITZEN, nicht beim Vorbeilaufen – und nur,
       // wenn Seli schon etwas über den Platz gesagt hat.
+      //
+      // Ans Lagerfeuer gestellt, und das ist nicht Bequemlichkeit: Wo der
+      // vorige Abschnitt sie stehen lässt, trifft auf manchen Inseln KEINER
+      // der sieben Orte zu – dann entsteht keine Skizze, und die Prüfung
+      // fiel über ein `null`. Einmal in sieben Läufen, gefunden durch den
+      // mitgeschriebenen Inselsamen.
+      const merkX = g.player.x;
+      const merkY = g.player.y;
+      const feuer = g.world.campfire;
+      if (feuer) { g.player.x = feuer.x + 40; g.player.y = feuer.y + 40; }
       g.state.bilder = [];
       const lage = g.ruheLage();
+      r.orte = (lage.orte || []).join(',');
       r.hatOrt = !!(lage.orte && lage.orte.length);
       r.gemacht = g._skizzieren();
       r.zahl = g.state.bilder.length;
       const erste = g.state.bilder[0] || null;
       r.titel = erste ? titel(erste) : null;
+      g.player.x = merkX;
+      g.player.y = merkY;
+      if (!erste) return r;   // ohne Skizze ist alles Weitere sinnlos
 
       // Und zwar genau eine je Ort und Jahreszeit: noch einmal sitzen gibt
       // kein zweites Bild.
@@ -4681,6 +4815,9 @@ async function run() {
     check('Sitzen bringt eine Skizze vom Platz',
       skizze.hatOrt === true && skizze.gemacht === true && skizze.zahl === 1 &&
       !!skizze.titel, JSON.stringify(skizze));
+    // Alles Weitere haengt daran. Ohne Skizze bricht der Abschnitt oben ab,
+    // und diese Pruefungen wuerden sonst ueber `undefined` stolpern statt
+    // die erste fallen zu lassen.
     check('Und zwar genau eine je Ort und Jahreszeit',
       skizze.nochmal === false && skizze.zahlDanach === 1, JSON.stringify(skizze));
     check('Aufhängen geht drinnen und nur einmal',
@@ -6173,6 +6310,7 @@ async function run() {
       JSON.stringify(alt));
   } catch (err) {
     check('Testlauf ohne Ausnahme', false, err && err.message);
+    if (err && err.stack) console.error('\n--- Stapel ---\n' + err.stack + '\n');
     exitCode = 1;
   }
 
