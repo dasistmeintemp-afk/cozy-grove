@@ -1530,6 +1530,31 @@ export function paintBird(frame, opts) {
  * Eine zweite Malroutine daneben wäre eine zweite Seli, die beim nächsten
  * Farbwechsel abweicht.
  */
+/**
+ * Was eine Tracht überhaupt färben darf.
+ *
+ * Die Liste ist die Regel selbst und nicht ihre Beschreibung: `trachtFarben`
+ * geht sie durch und sieht sich nichts anderes an. Haar und Augen stehen
+ * nicht darin, also kann keine Tracht sie erreichen – auch keine, die jemand
+ * später danebenschreibt. Eine Regel, die man einhalten MUSS, ist besser als
+ * eine, an die man sich erinnern muss.
+ */
+export const KLEIDER = [
+  'top', 'topShade', 'skirt', 'skirtShade', 'tights',
+  'scarf', 'hat', 'hatShade', 'boot', 'pack', 'packShade',
+];
+
+/** Selis Farben mit den Kleidern einer Tracht darüber. */
+export function trachtFarben(tracht) {
+  if (!tracht) return SELI;
+  const c = Object.assign({}, SELI);
+  for (let i = 0; i < KLEIDER.length; i++) {
+    const k = KLEIDER[i];
+    if (tracht[k]) c[k] = tracht[k];
+  }
+  return c;
+}
+
 export function paintSeli(dir, frame, opts) {
   const o = opts || {};
   const w = 124;
@@ -1550,9 +1575,17 @@ export function paintSeli(dir, frame, opts) {
   const side = dir === 'side';
   const back = dir === 'up';
 
-  const hair = o.hair || SELI.hair;
-  const hairShade = o.hairShade || SELI.hairShade;
-  const hairLight = o.hairLight || SELI.hairLight;
+  // Die Farbtafel dieser Figur.
+  //
+  // Eine Tracht bringt nur KLEIDER mit – Bluse, Rock, Strümpfe, Halstuch,
+  // Hut, Stiefel, Ranzen. Haar und Augen stehen nicht darin und lassen sich
+  // darüber auch nicht setzen: Seli ist blond und blauäugig, und eine
+  // Kleiderauswahl, in der man sie umfärben kann, ist keine Kleiderauswahl
+  // mehr, sondern ein zweiter Charakter. Die Prüfung wacht darüber.
+  const c = trachtFarben(o.tracht);
+  const hair = o.hair || c.hair;
+  const hairShade = o.hairShade || c.hairShade;
+  const hairLight = o.hairLight || c.hairLight;
 
   // Beine schlank, Stiefel dunkel – helle Strümpfe allein verschwinden im Papier.
   // Im Sitzen liegen die Oberschenkel waagerecht nach vorn, die Unterschenkel
@@ -1650,24 +1683,24 @@ export function paintSeli(dir, frame, opts) {
       wash(g, hairBack, hair, { seed: seed + 31, scale: 1.03 });
       wash(g, offsetShape(hairBack, 8, 7, 0.62), hairShade, { seed: seed + 38, alpha: 0.5 });
 
-      wash(g, legL, SELI.tights, { seed: seed + 10 });
-      wash(g, legR, SELI.tights, { seed: seed + 11 });
-      wash(g, bootL, SELI.boot, { seed: seed + 64 });
-      wash(g, bootR, SELI.boot, { seed: seed + 65 });
+      wash(g, legL, c.tights, { seed: seed + 10 });
+      wash(g, legR, c.tights, { seed: seed + 11 });
+      wash(g, bootL, c.boot, { seed: seed + 64 });
+      wash(g, bootR, c.boot, { seed: seed + 65 });
 
       // Oberteil zuerst, Rock darüber – sonst blutet das Blau ins Rot
-      wash(g, body, SELI.top, { seed: seed + 12, scale: 1.03 });
-      wash(g, offsetShape(body, 8, 5, 0.6), SELI.topShade, { seed: seed + 13, alpha: 0.6 });
-      wash(g, armL, SELI.top, { seed: seed + 14 });
-      wash(g, armR, SELI.top, { seed: seed + 15 });
-      wash(g, skirt, SELI.skirt, { seed: seed + 20, scale: 1.02 });
-      wash(g, offsetShape(skirt, 8, 4, 0.66), SELI.skirtShade, { seed: seed + 21, alpha: 0.6 });
+      wash(g, body, c.top, { seed: seed + 12, scale: 1.03 });
+      wash(g, offsetShape(body, 8, 5, 0.6), c.topShade, { seed: seed + 13, alpha: 0.6 });
+      wash(g, armL, c.top, { seed: seed + 14 });
+      wash(g, armR, c.top, { seed: seed + 15 });
+      wash(g, skirt, c.skirt, { seed: seed + 20, scale: 1.02 });
+      wash(g, offsetShape(skirt, 8, 4, 0.66), c.skirtShade, { seed: seed + 21, alpha: 0.6 });
 
       if (back) {
-        wash(g, pack, SELI.pack, { seed: seed + 16, scale: 1.03 });
-        wash(g, offsetShape(pack, 6, 5, 0.6), SELI.packShade, { seed: seed + 17, alpha: 0.6 });
+        wash(g, pack, c.pack, { seed: seed + 16, scale: 1.03 });
+        wash(g, offsetShape(pack, 6, 5, 0.6), c.packShade, { seed: seed + 17, alpha: 0.6 });
       } else {
-        wash(g, scarf, SELI.scarf, { seed: seed + 18 });
+        wash(g, scarf, c.scarf, { seed: seed + 18 });
         wash(g, head, ink.skin, { seed: seed + 22, scale: 1.04 });
         wash(g, offsetShape(head, 10, 8, 0.54), ink.skinShade, { seed: seed + 23, alpha: 0.4 });
       }
@@ -1683,9 +1716,9 @@ export function paintSeli(dir, frame, opts) {
       wash(g, fringe, hair, { seed: seed + 36, scale: 1.02 });
       wash(g, offsetShape(fringe, -7, -6, 0.55), hairLight, { seed: seed + 37, alpha: 0.7 });
 
-      wash(g, brim, SELI.hat, { seed: seed + 24, scale: 1.04 });
-      wash(g, crown, SELI.hat, { seed: seed + 25 });
-      wash(g, offsetShape(crown, 5, 4, 0.7), SELI.hatShade, { seed: seed + 26, alpha: 0.6 });
+      wash(g, brim, c.hat, { seed: seed + 24, scale: 1.04 });
+      wash(g, crown, c.hat, { seed: seed + 25 });
+      wash(g, offsetShape(crown, 5, 4, 0.7), c.hatShade, { seed: seed + 26, alpha: 0.6 });
     },
     shape: function (g) {
       fill(g, hairBack);
@@ -1700,7 +1733,7 @@ export function paintSeli(dir, frame, opts) {
     ink: function (g) {
       inkStroke(g, brim, { width: 2.3, vary: 0.35, seed: seed + 50, color: ink.line, alpha: 0.9 });
       inkLine(g, cx - 20, headY - 26 + bob, cx + 20, headY - 26 + bob,
-        { width: 2.0, bend: 0.1, seed: seed + 57, color: SELI.hatShade, alpha: 0.85 });
+        { width: 2.0, bend: 0.1, seed: seed + 57, color: c.hatShade, alpha: 0.85 });
       inkStroke(g, skirt, { width: 2.1, vary: 0.3, seed: seed + 55, color: ink.line, alpha: 0.7 });
       inkStroke(g, bootL, { width: 1.9, vary: 0.3, seed: seed + 68, color: ink.line, alpha: 0.7 });
       inkStroke(g, bootR, { width: 1.9, vary: 0.3, seed: seed + 69, color: ink.line, alpha: 0.7 });
@@ -1710,11 +1743,11 @@ export function paintSeli(dir, frame, opts) {
         inkStroke(g, pack, { width: 2.2, vary: 0.3, seed: seed + 52, color: ink.line, alpha: 0.8 });
         // Deckelnaht und die beiden Träger, die unter dem Haar verschwinden
         inkLine(g, cx - 13, baseY - 58 + bob, cx + 13, baseY - 59 + bob,
-          { width: 1.6, bend: 0.14, seed: seed + 54, color: SELI.packShade, alpha: 0.8 });
+          { width: 1.6, bend: 0.14, seed: seed + 54, color: c.packShade, alpha: 0.8 });
         inkLine(g, cx - 11, baseY - 70 + bob, cx - 8, baseY - 60 + bob,
-          { width: 2.0, bend: 0.1, seed: seed + 53, color: SELI.packShade, alpha: 0.6 });
+          { width: 2.0, bend: 0.1, seed: seed + 53, color: c.packShade, alpha: 0.6 });
         inkLine(g, cx + 11, baseY - 70 + bob, cx + 8, baseY - 60 + bob,
-          { width: 2.0, bend: -0.1, seed: seed + 58, color: SELI.packShade, alpha: 0.6 });
+          { width: 2.0, bend: -0.1, seed: seed + 58, color: c.packShade, alpha: 0.6 });
         // Scheitel und zwei Haarwellen von hinten
         inkLine(g, cx, headY - 16 + bob, cx, headY + 16 + bob,
           { width: 1.6, bend: 0.03, seed: seed + 59, color: hairShade, alpha: 0.55 });
@@ -1746,14 +1779,14 @@ export function paintSeli(dir, frame, opts) {
       }
       // Iris: etwas kleiner als die Kontur, minimal nach unten gesetzt –
       // dadurch bleibt oben ein dunkler Lidschatten stehen.
-      g.fillStyle = SELI.eye;
+      g.fillStyle = c.eye;
       for (let i = 0; i < augen.length; i++) {
         const a = augen[i];
         g.beginPath();
         g.ellipse(a.x, a.y + 0.5, a.rx * 0.74, a.ry * 0.72, 0, 0, 6.2832);
         g.fill();
       }
-      g.fillStyle = SELI.eyeDeep;
+      g.fillStyle = c.eyeDeep;
       for (let i = 0; i < augen.length; i++) {
         const a = augen[i];
         g.beginPath();

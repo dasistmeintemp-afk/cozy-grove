@@ -1102,7 +1102,7 @@ async function run() {
       JSON.stringify(sitzen));
     check('E setzt Seli auf die Bank, und sie wird sitzend gezeichnet',
       sitzen.sitzt === true && sitzen.aufDerBank === true &&
-      sitzen.sprite === 'player_sit', JSON.stringify(sitzen));
+      /_sit$/.test(sitzen.sprite || ''), JSON.stringify(sitzen));
     check('Sitzend sagt der Hinweis, wie man wieder hochkommt',
       /Aufstehen/.test(sitzen.hinweisSitzend || '') &&
       /halten/.test(sitzen.hinweisSitzend || ''), JSON.stringify(sitzen));
@@ -1114,7 +1114,7 @@ async function run() {
       sitzen.gedanke === true && sitzen.gedankenGemerkt > 0, JSON.stringify(sitzen));
     check('Loslaufen stellt sie auf – und zwar dorthin, wo sie stand',
       sitzen.stehtWieder === true && sitzen.zurueck === true &&
-      sitzen.spriteStehend !== 'player_sit', JSON.stringify(sitzen));
+      !/_sit$/.test(sitzen.spriteStehend || ''), JSON.stringify(sitzen));
     check('Kurz gedrückt bleibt die Bank stehen',
       sitzen.kurzGehaltenNochDa === true, JSON.stringify(sitzen));
     check('Lange gehalten wandert sie in die Tasche',
@@ -3370,7 +3370,7 @@ async function run() {
     check('Auf ein Sitzmöbel im Zimmer setzt man sich',
       innen2.hinweisVorDerBank === 'Hinsetzen · halten zum Einpacken' &&
       innen2.sitzt === true && innen2.aufDerBank === true &&
-      innen2.sitzSprite === 'player_sit', JSON.stringify(innen2));
+      /_sit$/.test(innen2.sitzSprite || ''), JSON.stringify(innen2));
     check('Sitzend sagt der Hinweis drinnen dasselbe wie draußen',
       innen2.hinweisSitzend === 'Aufstehen · halten zum Einpacken', JSON.stringify(innen2));
     check('Drinnen denkt sie über das Zimmer nach',
@@ -4584,6 +4584,83 @@ async function run() {
       wand4.grafik === 'travellamp', JSON.stringify(wand4));
     check('Und sie wirft abends wirklich Licht',
       wand4.imLichtkreis === true, JSON.stringify(wand4));
+
+    /* ---- Der Kleiderschrank ---- */
+    const kleid = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { TRACHT_IDS } = await import('/src/game/tracht.js');
+      const { spr, hasSprite } = await import('/src/art/sprites.js');
+      const r = {};
+      const merkOffen = (g.state.trachten || []).slice();
+      const merkAn = g.state.tracht;
+
+      // Am Anfang hängt genau eine im Schrank – und die trägt sie.
+      g.state.trachten = [];
+      g.state.tracht = 'standard';
+      g._trachtAnlegen('standard');
+      r.amAnfang = g.trachten().filter((t) => t.offen).length;
+      r.traegtAmAnfang = g.player.tracht;
+
+      // Verschlossenes lässt sich nicht anziehen. Das ist die Prüfung, die
+      // zählt: Die Zeile steht sichtbar da, und ein Klick darauf darf nichts
+      // tun – sonst wäre der Schrank von Anfang an offen.
+      r.zuBleibtZu = g.waehleTracht('lichter') === false &&
+        g.player.tracht === 'standard';
+
+      // Offenes schon – und die Grafik entsteht dabei.
+      g.state.trachten = ['bluete'];
+      // `hasSprite` und nicht `spr`: Letzteres MELDET einen unbekannten
+      // Namen in der Konsole, und diese Prüfung fragt ja gerade nach einem,
+      // den es noch nicht geben soll. Die eigene Prüfung hat damit die
+      // Konsolenprüfung umgeworfen – zu Recht.
+      r.malteVorher = hasSprite('player_bluete_down_0');
+      r.zog = g.waehleTracht('bluete');
+      r.traegtJetzt = g.player.tracht;
+      r.spriteName = g.player.spriteName();
+      const bild = spr('player_bluete_down_0');
+      r.malteNachher = hasSprite('player_bluete_down_0');
+      // Und zwar in derselben Größe wie die gewohnte, sonst ruckt die Figur
+      // beim Umziehen.
+      const alt = spr('player_standard_down_0');
+      r.gleichGross = !!bild && !!alt && bild.w === alt.w && bild.h === alt.h &&
+        bild.ax === alt.ax && bild.ay === alt.ay;
+
+      // Sie sieht wirklich anders aus. Verglichen werden die Bildpunkte:
+      // Zwei Trachten, die dasselbe Bild ergeben, sind eine.
+      const pixel = (s) => {
+        const c = document.createElement('canvas');
+        c.width = s.w; c.height = s.h;
+        const x = c.getContext('2d');
+        x.drawImage(s.c, 0, 0);
+        return x.getImageData(0, 0, s.w, s.h).data;
+      };
+      const a = pixel(alt);
+      const b = pixel(bild);
+      let anders = 0;
+      for (let i = 0; i < a.length; i += 4) {
+        if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2]) anders++;
+      }
+      r.andersAnteil = anders / (a.length / 4);
+
+      g.state.trachten = merkOffen;
+      g.state.tracht = merkAn;
+      g._trachtAnlegen(merkAn);
+      r.trachtZahl = TRACHT_IDS.length;
+      return r;
+    });
+    check('Am Anfang hängt genau eine Tracht im Schrank',
+      kleid.amAnfang === 1 && kleid.traegtAmAnfang === 'standard',
+      JSON.stringify(kleid));
+    check('Verschlossenes lässt sich nicht anziehen',
+      kleid.zuBleibtZu === true, JSON.stringify(kleid));
+    check('Offenes schon – und die Bilder entstehen erst dabei',
+      kleid.malteVorher === false && kleid.zog === true &&
+      kleid.traegtJetzt === 'bluete' && kleid.malteNachher === true &&
+      kleid.spriteName.indexOf('bluete') >= 0, JSON.stringify(kleid));
+    check('Die neue Tracht ist genauso groß und sitzt am selben Punkt',
+      kleid.gleichGross === true, JSON.stringify(kleid));
+    check('Und sie sieht wirklich anders aus',
+      kleid.andersAnteil > 0.04, JSON.stringify(kleid.andersAnteil));
 
     /* ---- Das Haustier ---- */
     const tier = await page.evaluate(async () => {
@@ -5861,6 +5938,11 @@ async function run() {
       daten.state.coins = 4242;
       daten.state.bagUpgrades = 1;
       daten.day.day = 21;
+      // Und ein Stand, der eine Tracht BEHAUPTET, die er nie bekommen hat.
+      // Der Schrank steht in derselben Datei wie die Muenzen; wer sie
+      // aufmacht, soll sich daran nichts nehmen koennen.
+      daten.state.tracht = 'lichter';
+      delete daten.state.trachten;
       // Farbe wie nach ein paar Wochen Spiel: groß genug für Meilensteine.
       const c = daten.color.filter((s) => s.k === 'campfire')[0];
       if (c) { c.r = 1500; c.t = 1500; }
@@ -5897,6 +5979,9 @@ async function run() {
         verkauf: g.perks().sell,
         neueAdresse: !!window.localStorage.getItem('seli-grove:save:v1'),
         alteAdresse: !!window.localStorage.getItem('cozy-grove:save:v1'),
+        tracht: g.state.tracht,
+        traegt: g.player.tracht,
+        schrank: (g.state.trachten || []).length,
       };
     });
     check('Der Stand zieht dabei auf die heutige Adresse um',
@@ -5912,6 +5997,9 @@ async function run() {
       alt.farbe >= 10 && alt.meilensteine >= 1, JSON.stringify(alt));
     check('Und ihre Wirkung gilt danach auch für ihn',
       alt.meilensteine < 5 || alt.verkauf > 1, JSON.stringify(alt));
+    check('Eine behauptete Tracht zieht der alte Stand wieder aus',
+      alt.tracht === 'standard' && alt.traegt === 'standard' && alt.schrank === 0,
+      JSON.stringify(alt));
   } catch (err) {
     check('Testlauf ohne Ausnahme', false, err && err.message);
     exitCode = 1;

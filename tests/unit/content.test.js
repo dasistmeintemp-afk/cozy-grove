@@ -74,10 +74,14 @@ const SPRITE_NAMES = (function () {
     for (let f = 0; f < 2; f++) names.push(bug.id + '_' + f);
     names.push('icon_' + bug.id);
   }
+  // Nur die erste Tracht wird beim Start gemalt – die uebrigen entstehen
+  // beim Anziehen (siehe `seliBilder`). Geprueft wird deshalb die, die
+  // jeder sieht.
   const dirs = ['down', 'up', 'side'];
   for (let d = 0; d < dirs.length; d++) {
-    for (let f = 0; f < 3; f++) names.push('player_' + dirs[d] + '_' + f);
+    for (let f = 0; f < 3; f++) names.push('player_standard_' + dirs[d] + '_' + f);
   }
+  names.push('player_standard_sit');
   for (let i = 0; i < SPIRIT_IDS.length; i++) {
     for (let f = 0; f < 2; f++) names.push('spirit_' + SPIRIT_IDS[i] + '_' + f);
   }

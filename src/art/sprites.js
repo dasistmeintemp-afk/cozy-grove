@@ -25,6 +25,7 @@ import {
   paintMemory, paintTool, paintButterfly, paintBird,
   paintSeli, paintSpirit, paintFlameSpirit, paintFox,
 } from './painted-camp.js';
+import { trachtFuer, TRACHTEN } from '../game/tracht.js';
 import {
   paintTable, paintChair, paintHammock, paintSwing,
   paintFirebowl, paintStringlights, paintPaperlamp,
@@ -381,15 +382,10 @@ export function initArt() {
   }
 
   /* --- Figuren --- */
-  const dirs = ['down', 'up', 'side'];
-  for (let d = 0; d < dirs.length; d++) {
-    for (let f = 0; f < 3; f++) addArt('player_' + dirs[d] + '_' + f, paintSeli(dirs[d], f));
-  }
-  // Die vierte Haltung: sitzend. Nur ein Bild, kein Schrittzyklus – wer sitzt,
-  // bewegt sich nicht.
-  addArt('player_sit', paintSeli('sit', 0));
-  {
-  }
+  // Nur die erste Tracht wird beim Start gemalt. Alle sechs wären sechzig
+  // Bilder für fünf, die man vielleicht nie anzieht; die übrigen entstehen
+  // beim Wechsel (`ensureSeli`), so wie die Zimmer beim Betreten.
+  seliBilder(TRACHTEN[0].id);
   for (const id in SPIRIT_LOOKS) {
     for (let f = 0; f < 2; f++) {
       addArt('spirit_' + id + '_' + f, paintSpirit(SPIRIT_LOOKS[id], f, { seed: 401 + id.charCodeAt(0) }));
@@ -506,6 +502,33 @@ function buildIcons() {
  *
  * @returns {string} der Name im Register
  */
+/**
+ * Selis zehn Bilder in einer Tracht – drei Richtungen mal drei Schritte,
+ * dazu das Sitzen.
+ *
+ * Die Kennung steht IM Namen, auch bei der ersten Tracht. Naheliegend wäre
+ * gewesen, die gewohnten Namen (`player_down_0`) für die erste zu behalten
+ * und nur den übrigen etwas anzuhängen – dann hätte eine Tracht einen
+ * Sonderfall, und der Sonderfall wäre ausgerechnet die, die jeder sieht.
+ *
+ * @returns {string} der Namensstamm, an den Richtung und Schritt kommen
+ */
+export function seliBilder(trachtId) {
+  const t = trachtFuer(trachtId);
+  const stamm = 'player_' + t.id;
+  if (registry[stamm + '_sit']) return stamm;
+  const dirs = ['down', 'up', 'side'];
+  for (let d = 0; d < dirs.length; d++) {
+    for (let f = 0; f < 3; f++) {
+      addArt(stamm + '_' + dirs[d] + '_' + f, paintSeli(dirs[d], f, { tracht: t }));
+    }
+  }
+  // Die vierte Haltung: sitzend. Nur ein Bild, kein Schrittzyklus – wer sitzt,
+  // bewegt sich nicht.
+  addArt(stamm + '_sit', paintSeli('sit', 0, { tracht: t }));
+  return stamm;
+}
+
 export function ensureRoom(stufe, ausstattungId, index) {
   const i = index | 0;
   const r = raumFuer(stufe, i);

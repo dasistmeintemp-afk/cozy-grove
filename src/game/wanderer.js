@@ -160,6 +160,12 @@ export const SAETZE = {
     'Die hat mich weit getragen. Jetzt du.',
     'Nimm die hier. Ich finde eine neue.',
   ],
+  // Beim vierten Tausch. Er gibt Kleider her, nicht Ausrüstung – deshalb
+  // sagt er auch nichts darüber, wozu sie taugen.
+  tracht: [
+    'Die hier hält Wind aus. Probier sie.',
+    'Zu eng für mich geworden. Dir passt sie.',
+  ],
   // Nach dem Tausch. Nicht „komm morgen wieder" – morgen ist er weg, und ein
   // Satz, der auf einen Termin zeigt, den es nicht gibt, ist eine Lüge.
   satt: [
@@ -196,6 +202,7 @@ export function besuchFuer(seed, tag) {
     satt: randPick(rnd, SAETZE.satt),
     voll: randPick(rnd, SAETZE.voll),
     laterne: randPick(rnd, SAETZE.laterne),
+    tracht: randPick(rnd, SAETZE.tracht),
   };
 }
 
@@ -228,3 +235,38 @@ export function tauschZahl(stand) {
 export function gibtLaterne(stand) {
   return tauschZahl(stand) + 1 === LATERNE_AB;
 }
+
+/**
+ * Was er außer Münzen und Fundstücken diesmal herausrückt.
+ *
+ * Bis hierher gab es genau EIN Andenken, die Laterne beim zweiten Tausch –
+ * und danach war er für immer ein Händler mit wechselndem Sortiment. Wer ihm
+ * zwanzigmal Muscheln brachte, bekam zwanzigmal dasselbe: Münzen und einen
+ * Edelstein.
+ *
+ * Jetzt sind es zwei Stationen, und die zweite ist absichtlich etwas ganz
+ * anderes als die erste: **seine Tracht**. Ein zweites Möbelstück wäre mehr
+ * vom Gleichen gewesen; die Kleider sind das einzige, was er hat und man
+ * nicht kaufen kann.
+ *
+ * Warum nicht mehr als zwei: Jede weitere Station müsste entweder etwas
+ * Neues sein, das nur hier vorkommt – dann wächst das Spiel an seinem Rand
+ * statt in der Mitte –, oder eine Wiederholung, und dann ist die Station
+ * keine. Nach dem vierten Tausch ist er wieder das, was er sein soll: ein
+ * guter Tag, kein Fortschrittsbalken.
+ *
+ * @returns {?object} {art:'ding'|'tracht', id} – oder null
+ */
+export function andenkenFuer(stand) {
+  const naechster = tauschZahl(stand) + 1;
+  for (let i = 0; i < ANDENKEN.length; i++) {
+    if (ANDENKEN[i].ab === naechster) return ANDENKEN[i];
+  }
+  return null;
+}
+
+/** Die Stationen. `ab` ist der wievielte Tausch. */
+export const ANDENKEN = [
+  { ab: LATERNE_AB, art: 'ding', id: MITBRINGSEL },
+  { ab: 4, art: 'tracht', id: 'wanderer' },
+];

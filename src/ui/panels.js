@@ -192,6 +192,10 @@ export class Panels {
         g.waehleAusstattung(t.getAttribute('data-val'));
         this.render();
         break;
+      case 'tracht':
+        g.waehleTracht(t.getAttribute('data-val'));
+        this.render();
+        break;
       case 'petName':
         g.benennePet();
         this.render();
@@ -1073,6 +1077,7 @@ export class Panels {
           '</div>';
       }).join('') +
       '</div>' +
+      this._kleiderschrank() +
       '<p class="empty-note" style="padding:8px 0 0">' +
       'Am Haus <b>E</b> drücken, dann bist du drinnen. Hinstellen wie draußen – ' +
       'aus der Tasche auswählen, auf Sitzmöbel setzt du dich. Bilder und ' +
@@ -1084,6 +1089,45 @@ export class Panels {
           escapeHtml(raeume[1].name) + ' – eigene Möbel, eigene Wand, eigener Boden.'
         : '') +
       '</p>';
+  }
+
+  /**
+   * Der Kleiderschrank.
+   *
+   * Steht im Zimmerfenster und nicht in einem eigenen: Es ist dieselbe Sorte
+   * Entscheidung wie Wand und Boden – kostenlos, folgenlos, nur für dich –
+   * und ein eigenes Fenster für sechs Zeilen wäre ein Fenster mehr im Kopf
+   * des Spielers für nichts.
+   *
+   * **Verschlossenes steht sichtbar da**, mit dem Vermerk, woher es kommt.
+   * Dieselbe Entscheidung wie im Katalog: Wer den Lichtermantel
+   * durchgestrichen sieht, weiß, dass das Lichterfest etwas mitbringt.
+   */
+  _kleiderschrank() {
+    const g = this.game;
+    const trachten = g.trachten();
+    const jetzt = g.state.tracht || 'standard';
+    const offene = trachten.filter(function (t) { return t.offen; }).length;
+
+    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Kleiderschrank · ' +
+      offene + ' von ' + trachten.length + '</h3>' +
+      '<div class="rows" style="margin-top:8px">' +
+      trachten.map(function (t) {
+        const an = t.id === jetzt;
+        return '<div class="row' + (an ? '' : ' dim') + '">' +
+          ico(t.offen ? 'icon_heart' : 'icon_lock', 'lg') +
+          '<div class="grow"><div class="title">' + escapeHtml(t.name) + '</div>' +
+          (t.woher ? '<div class="meta"><span>' + escapeHtml(t.woher) + '</span></div>' : '') +
+          '</div>' +
+          (an
+            ? '<span class="row-btn ghost">' + ico('icon_check') + '</span>'
+            : t.offen
+              ? '<button class="row-btn" data-act="tracht" data-val="' + t.id +
+                '">Anziehen</button>'
+              : '<span class="row-btn ghost">–</span>') +
+          '</div>';
+      }).join('') +
+      '</div>';
   }
 
   /* ---------------- Vorratstruhe ---------------- */

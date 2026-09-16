@@ -420,6 +420,38 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nicht zumachen, nur weil man fertig ist. Die sieben Sätze stehen zum
   Nachlesen im Erinnerungsfenster – eine Sprechblase ist nach acht Sekunden
   weg, und das sind die Sätze, auf die alles zuläuft.
+* **Seli anziehen.** Alles auf dieser Insel richtet sich nach Jahreszeit und
+  Fortschritt – die Farben, die Fische, die Falter, die Weisen. Ausgerechnet
+  die Figur, die man in **jeder Sekunde** ansieht, war das einzige, was sich
+  nie änderte: An Tag 300 sah sie aus wie an Tag 1.
+
+  Jetzt steht im Zimmerfenster ein **Kleiderschrank** mit sechs Trachten –
+  eine je Fest, dazu die gewohnte und die des Wanderers. Umziehen kostet
+  nichts, wie Wand und Boden und aus demselben Grund.
+
+  **Eine Tracht wechselt die Kleider, nicht Seli.** Haar und Augen stehen in
+  keiner davon: Sie ist blond und blauäugig, das ist sie. Durchgesetzt wird
+  das nicht durch Vorsatz, sondern im Maler – der sieht sich nur die
+  Kleiderfarben an, und eine Tracht, die Haarfarbe mitbrächte, würde er
+  schlicht nicht beachten.
+
+  **Verdient, nicht gekauft.** Keine kostet Münzen. Münzen haben mit Truhe
+  und Katalog schon zwei große Ziele, und eine Tracht ist nichts, was man
+  *braucht* – wer sie nicht will, soll nichts verpassen, und wer sie will,
+  soll nicht abwägen müssen. Jede hängt an etwas, das man ohnehin tut, und
+  ist damit die Erinnerung an einen Tag statt ein Posten. Verschlossenes
+  steht sichtbar da, mit dem Vermerk woher – wie im Katalog.
+
+  Gemalt wird erst beim Anziehen: Sechs Trachten beim Start wären sechzig
+  Bilder für fünf, die man vielleicht nie trägt.
+* **Der Wanderer gibt jetzt zweimal etwas Eigenes.** Bis hierher gab es genau
+  ein Andenken – die Reiselaterne beim zweiten Tausch –, und danach war er
+  für immer ein Händler mit wechselndem Sortiment: Wer ihm zwanzigmal
+  Muscheln brachte, bekam zwanzigmal Münzen und einen Edelstein. Beim
+  **vierten** Tausch gibt er nun seine eigene **Wandertracht** her. Absichtlich
+  etwas ganz anderes als die Laterne – ein zweites Möbelstück wäre mehr vom
+  Gleichen gewesen. Danach ist er wieder das, was er sein soll: ein guter
+  Tag, kein Fortschrittsbalken.
 * **Eine Melodie je Jahreszeit – und drinnen wird es leise.** Zwei Löcher im
   Klang, die beide dasselbe Muster hatten: Die Insel richtete sich nach
   Jahreszeit, Wetter und Ort – die Farben, die Fische, die Falter, das
@@ -1124,8 +1156,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 602 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen …
-npm run test:browser   # 361 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 615 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen, die Trachten …
+npm run test:browser   # 367 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

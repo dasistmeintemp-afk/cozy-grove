@@ -33,11 +33,14 @@ import {
 } from './interior.js';
 import {
   wandererAm, besuchFuer, emptyWanderer, heuteGetauscht, heuteGegruesst,
-  tauschZahl, gibtLaterne,
+  tauschZahl, andenkenFuer,
   MITBRINGSEL, SAETZE as WANDER_SAETZE, naechsterBesuch,
 } from './wanderer.js';
 import { naechsterTermin as terminInnerhalb, wannText, heuteIst } from './termine.js';
 import { weiseFuer } from './musik.js';
+import {
+  trachtFuer, trachtZuFest, trachtVomWanderer, trachtenStand, offeneAus, offen as trachtOffen,
+} from './tracht.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
@@ -101,7 +104,7 @@ import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { UI } from '../ui/ui.js';
 import { Panels } from '../ui/panels.js';
-import { ensureRoom } from '../art/sprites.js';
+import { ensureRoom, seliBilder } from '../art/sprites.js';
 import { applyUiScale } from '../ui/uiscale.js';
 import * as storage from '../core/storage.js';
 import * as savefile from '../core/savefile.js';
@@ -447,6 +450,13 @@ export class Game {
     if (!this.state.wanderer || typeof this.state.wanderer !== 'object') {
       this.state.wanderer = emptyWanderer();
     }
+    // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
+    // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
+    this.state.trachten = offeneAus(this.state.trachten);
+    if (!trachtOffen(trachtFuer(this.state.tracht), this.state.trachten)) {
+      this.state.tracht = 'standard';
+    }
+    this._trachtAnlegen(this.state.tracht);
     // Wovon schon Bescheid gesagt wurde. Ein alter Spielstand weiß von
     // nichts – dann wird eben beim nächsten Termin einmal angesagt.
     if (!this.state.termine || typeof this.state.termine !== 'object') {
@@ -1372,9 +1382,13 @@ export class Game {
     }
 
     // 4. Der Tausch – aber erst, wenn er auch ausgeht.
+    //
+    // Ein Andenken kann ein DING oder eine TRACHT sein. Nur das Ding braucht
+    // Platz in der Tasche; die Tracht hängt im Schrank, und ein Schrank ist
+    // nie voll. Deshalb geht nur das Ding in `bekommt`.
     const bekommt = (b.gibt.items || []).slice();
-    const laterne = gibtLaterne(stand);
-    if (laterne) bekommt.push({ id: MITBRINGSEL, n: 1 });
+    const andenken = andenkenFuer(stand);
+    if (andenken && andenken.art === 'ding') bekommt.push({ id: andenken.id, n: 1 });
     if (!this.inventory.passtNach([b.sucht], bekommt)) {
       this._wandererBlase = this.ui.bubble(e.x, e.y - 210, b.voll, [], 3.4);
       this.audio.play('fail');
@@ -1395,14 +1409,23 @@ export class Game {
     stand.tag = tag;
     stand.getauscht = tauschZahl(stand) + 1;
 
+    // Die Tracht wandert in den Schrank statt in die Tasche. `trachtDazu`
+    // meldet sich selbst – die Meldung unten bleibt deshalb den Münzen.
+    if (andenken && andenken.art === 'tracht') this.trachtDazu(andenken.id);
+
+    const satz = andenken
+      ? (andenken.art === 'tracht' ? b.tracht : b.laterne)
+      : b.dank;
     this._wandererBlase =
-      this.ui.bubble(e.x, e.y - 210, laterne ? b.laterne : b.dank, icons, laterne ? 5 : 3.6, true);
-    this.particles.burst('sparkle', e.x, e.y - 90, laterne ? 18 : 10);
+      this.ui.bubble(e.x, e.y - 210, satz, icons, andenken ? 5 : 3.6, true);
+    this.particles.burst('sparkle', e.x, e.y - 90, andenken ? 18 : 10);
     this.audio.play('questDone');
-    if (laterne) {
+    if (andenken && andenken.art === 'ding') {
       this.audio.play('levelup');
       this.ui.toast('Reiselaterne · ' + (gesucht ? gesucht.name : '') + ' getauscht',
         'icon_travellamp', 'good');
+    } else if (andenken) {
+      this.audio.play('levelup');
     } else {
       this.ui.toast('+' + b.gibt.coins + ' Münzen', 'icon_coin', 'good');
     }
@@ -1987,6 +2010,11 @@ export class Game {
     const wer = this.state.feste[e.spiritId];
     if (wer === marke) return false;
     this.state.feste[e.spiritId] = marke;
+
+    // Die Tracht des Festes kommt beim ERSTEN Geist in den Schrank, den man
+    // an diesem Tag anspricht – nicht bei jedem. `trachtDazu` meldet sich nur
+    // beim ersten Mal, sieben Meldungen wären sechs zu viel.
+    this.trachtDazu(trachtZuFest(f.id));
 
     const satz = festSatz(f.id, e.spiritId);
     const gabe = f.gabe || {};
@@ -3965,6 +3993,67 @@ export class Game {
     this.ui.toast(ausstattungFuer(id).name, 'icon_flowerbed', 'good');
     this.invalidate();
     this.save();
+    return true;
+  }
+
+  /* ---------------- Trachten ---------------- */
+
+  /**
+   * Die Tracht anlegen – ohne Meldung, ohne Speichern.
+   *
+   * Steht getrennt von `waehleTracht`, weil sie auch beim LADEN gebraucht
+   * wird: Dort sind ein Klingeln und ein Spielstandschreiben beides falsch.
+   */
+  _trachtAnlegen(id) {
+    const t = trachtFuer(id);
+    this.state.tracht = t.id;
+    // Erst malen, dann anziehen. Andersherum fragte die Figur im nächsten
+    // Bild nach einem Namen, den es im Register noch nicht gibt.
+    seliBilder(t.id);
+    this.player.tracht = t.id;
+    return t;
+  }
+
+  /** Was im Schrank hängt, mit dem Vermerk, was offen ist. */
+  trachten() {
+    return trachtenStand(this.state.trachten || []);
+  }
+
+  /**
+   * Umziehen.
+   *
+   * Kostet nichts – wie die Ausstattung im Zimmer und aus demselben Grund.
+   */
+  waehleTracht(id) {
+    const t = trachtFuer(id);
+    if (!trachtOffen(t, this.state.trachten || [])) return false;
+    if (this.state.tracht === t.id) return false;
+    this._trachtAnlegen(t.id);
+    this.audio.play('ui');
+    this.ui.toast(t.name, 'icon_heart', 'good');
+    this.invalidate();
+    this.save();
+    return true;
+  }
+
+  /**
+   * Eine Tracht kommt in den Schrank.
+   *
+   * Angezogen wird sie NICHT von selbst. Wer gerade den Lichtermantel trägt,
+   * hat ihn ausgesucht; ihn beim nächsten Fest stillschweigend zu wechseln,
+   * wäre ein Eingriff in die einzige Entscheidung, die dieses Stück Spiel
+   * überhaupt kennt.
+   *
+   * @returns {boolean} ob sie neu dazugekommen ist
+   */
+  trachtDazu(id) {
+    if (!id) return false;
+    const t = trachtFuer(id);
+    if (t.id !== id) return false;
+    if (!this.state.trachten) this.state.trachten = [];
+    if (this.state.trachten.indexOf(t.id) >= 0) return false;
+    this.state.trachten.push(t.id);
+    this.ui.toast(t.name + ' hängt im Schrank', 'icon_heart', 'good');
     return true;
   }
 

@@ -42,6 +42,8 @@ export class Player {
     this.animT = 0;
     this.frame = 0;
     this.moving = false;
+    // Was sie anhat. Nur die Kennung – siehe `spriteName`.
+    this.tracht = 'standard';
     this.toolIndex = 0;
     // Stufe 0 = noch nicht gebaut. Nur die Gießkanne beginnt dort.
     this.levels = { hand: 1, axe: 1, pickaxe: 1, shovel: 1, rod: 1, net: 1, can: 0 };
@@ -172,10 +174,19 @@ export class Player {
     return true;
   }
 
+  /**
+   * Welches Bild gerade gilt.
+   *
+   * Die Tracht steckt im Namen, weil sie im REGISTER steckt: Jede hat ihre
+   * zehn eigenen Bilder, und die entstehen beim ersten Anziehen. Die Figur
+   * merkt sich dafür nur die Kennung – welche Farben dahinterstehen und ob
+   * sie schon gemalt sind, ist Sache der Grafik.
+   */
   spriteName() {
-    if (this.sitzt) return 'player_sit';
+    const t = this.tracht || 'standard';
+    if (this.sitzt) return 'player_' + t + '_sit';
     const d = this.dir === 'left' || this.dir === 'right' ? 'side' : this.dir;
-    return 'player_' + d + '_' + this.frame;
+    return 'player_' + t + '_' + d + '_' + this.frame;
   }
 
   flipped() {
