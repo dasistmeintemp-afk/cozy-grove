@@ -322,6 +322,30 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   kürzerem Vorlauf schlicht Pech. Gleichzeitig steht damit an **4 von 5
   Tagen** nichts dort; bei vierzehn Tagen wäre es fast jeder zweite, und was
   so oft dasteht, liest niemand mehr.
+* **Becken und Falterkasten.** Fische und Falter landeten im Fundbuch, in der
+  Küche und in Bitten – und damit **nirgends, wo man sie ansieht**. Die
+  Fanggrößen geben jedem Fang ein Maß in Zentimetern, und diese Zahl lebte
+  danach in einer Liste. Angel und Zimmer berührten einander an keiner Stelle.
+
+  Jetzt gibt es zwei Möbelstücke, die zeigen, was man gefangen hat: das
+  **Becken** (aus dem Katalog) mit deinen drei besten Fischen und den
+  **Falterkasten** (Werkbank) mit deinen drei seltensten Faltern. Drinnen wie
+  draußen aufstellbar, und die Fische ziehen ihre Runden.
+
+  **Sie verlangen keine Verwaltung.** Man wählt nicht aus, was hineinkommt, es
+  gibt kein Einsetzen und kein Herausnehmen – sie zeigen von selbst, was
+  gerade das Beste ist, und ändern sich, sobald du einen größeren Fisch
+  fängst. Ein Fenster mit Auswahllisten wäre mehr Bedienung als Freude, und es
+  gäbe eine Art, sein Becken „falsch" einzurichten. Davon gibt es hier nichts.
+
+  **Der beste Fisch ist nicht der längste.** Gemessen wird, wie nah der Fang
+  an dem war, was diese **Art** hergibt – eine 21-cm-Sardine ist das größere
+  Kunststück als ein mittelmäßiger Wels. Sonst schwämmen für immer dieselben
+  drei Arten im Becken.
+
+  Ein Museum wäre die naheliegende Antwort und steht in den Fanggrößen
+  ausdrücklich als „zu groß für dieses Spiel" verworfen. Das hier ist die
+  kleine Fassung davon.
 * **Die Chronik.** Der Tagesrückblick zeigt einen Tag und ist am nächsten
   Morgen weg; über die ganze Zeit gab es nichts. Ganz unten im
   Aufgabenfenster steht jetzt, wie lange du schon hier bist, wie viel Farbe
@@ -1070,8 +1094,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 574 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer …
-npm run test:browser   # 354 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 586 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer …
+npm run test:browser   # 357 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

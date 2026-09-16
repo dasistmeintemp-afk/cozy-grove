@@ -153,6 +153,8 @@ export const HINTS = {
 
   // Deko
   travellamp: 'Vom Wanderer, beim zweiten Tausch. Aus keiner Werkbank.',
+  aquarium: 'Aus dem Katalog. Zeigt deine drei besten Fänge.',
+  buttercase: 'Werkbank. Zeigt deine drei seltensten Falter.',
   lantern: 'Werkbank – oder beim Händler.',
   moonlamp: 'Werkbank, braucht ein großes Feuer.',
   bench: 'Werkbank.',

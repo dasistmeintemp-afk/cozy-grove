@@ -1467,3 +1467,153 @@ export function paintBookstack(opts) {
   });
   return made(res, w, h, cx, baseY);
 }
+
+/* ------------------------------------------------- Becken und Falterkasten
+ * Zwei Stücke, die etwas ZEIGEN. Deshalb sind beide innen leer gemalt: Was
+ * darin schwimmt und sitzt, hängt am Spielstand und kommt vom Renderer
+ * darüber – siehe `schaukasten.js`. Ein Becken mit eingemaltem Fisch wäre
+ * ein Bild von einem Becken. */
+
+/** Glas und Wasser – heller und kühler als alles andere im Zimmer. */
+const GLAS = {
+  wasser: '#8ec7d4',
+  wasserTief: '#5f9fb2',
+  wasserHell: '#c2e4ea',
+  rahmen: '#a98a5e',
+  rahmenTief: '#836848',
+  kies: '#cbbb96',
+  scheibe: '#eef8fa',
+};
+
+/**
+ * Das Becken.
+ *
+ * Ein Glaskasten auf einem Holzgestell, kniehoch. Die Vorderscheibe bekommt
+ * einen hellen Streifen quer – daran erkennt man auf zehn Pixel Entfernung,
+ * dass da Glas ist und kein offener Kasten.
+ */
+export function paintAquarium(opts) {
+  const o = opts || {};
+  const w = 208;
+  const h = 176;
+  const seed = o.seed || 2201;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  // Gestell: zwei Beine und eine Zarge. `poly`, nicht `blob` – was Ecken
+  // hat, darf keine bekommen.
+  const beinL = poly([[cx - 74, baseY - 46], [cx - 58, baseY - 46],
+    [cx - 58, baseY - 2], [cx - 74, baseY - 2]], 2);
+  const beinR = poly([[cx + 58, baseY - 46], [cx + 74, baseY - 46],
+    [cx + 74, baseY - 2], [cx + 58, baseY - 2]], 2);
+  const zarge = poly([[cx - 80, baseY - 56], [cx + 80, baseY - 56],
+    [cx + 80, baseY - 40], [cx - 80, baseY - 40]], 2);
+
+  const kasten = poly([[cx - 80, baseY - 150], [cx + 80, baseY - 150],
+    [cx + 80, baseY - 54], [cx - 80, baseY - 54]], 2);
+  const wasser = poly([[cx - 73, baseY - 138], [cx + 73, baseY - 138],
+    [cx + 73, baseY - 60], [cx - 73, baseY - 60]], 2);
+  const kies = poly([[cx - 73, baseY - 74], [cx + 73, baseY - 74],
+    [cx + 73, baseY - 60], [cx - 73, baseY - 60]], 2);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.7,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 84, 13, seed, 0.16); },
+    wash: function (g) {
+      wash(g, beinL, GLAS.rahmenTief, { seed: seed + 1 });
+      wash(g, beinR, GLAS.rahmenTief, { seed: seed + 2 });
+      wash(g, zarge, GLAS.rahmen, { seed: seed + 3, scale: 1.02 });
+      wash(g, wasser, GLAS.wasser, { seed: seed + 4, scale: 1.03 });
+      // Tiefer unten, heller oben – wie bei jedem Wasser in diesem Spiel.
+      wash(g, offsetShape(wasser, 0, 26, 0.72), GLAS.wasserTief,
+        { seed: seed + 5, alpha: 0.5 });
+      wash(g, offsetShape(wasser, 0, -28, 0.7), GLAS.wasserHell,
+        { seed: seed + 6, alpha: 0.6 });
+      wash(g, kies, GLAS.kies, { seed: seed + 7, scale: 1.02 });
+    },
+    shape: function (g) {
+      fill(g, beinL); fill(g, beinR); fill(g, zarge); fill(g, kasten);
+    },
+    ink: function (g) {
+      inkStroke(g, wasser, { width: 1.4, vary: 0.3, seed: seed + 20, color: ink.line, alpha: 0.35 });
+      // Die Wasseroberfläche.
+      inkLine(g, cx - 73, baseY - 138, cx + 73, baseY - 138,
+        { width: 2.0, bend: 0.02, seed: seed + 21, color: GLAS.wasserTief, alpha: 0.8 });
+      // Der Lichtstreifen auf der Scheibe – daran sieht man das Glas.
+      inkLine(g, cx - 62, baseY - 128, cx - 24, baseY - 96,
+        { width: 5, bend: 0, seed: seed + 22, color: GLAS.scheibe, alpha: 0.5 });
+      inkLine(g, cx - 48, baseY - 128, cx - 18, baseY - 104,
+        { width: 2.5, bend: 0, seed: seed + 23, color: GLAS.scheibe, alpha: 0.4 });
+      // Zwei Wasserpflanzen hinten, damit es nicht nach Eimer aussieht.
+      inkLine(g, cx + 44, baseY - 74, cx + 50, baseY - 116,
+        { width: 3, bend: 0.3, seed: seed + 24, color: ink.leafDark, alpha: 0.8 });
+      inkLine(g, cx + 54, baseY - 74, cx + 58, baseY - 100,
+        { width: 2.4, bend: -0.25, seed: seed + 25, color: ink.leafDeep, alpha: 0.75 });
+      inkStroke(g, kasten, { width: 2.0, vary: 0.25, seed: seed + 26, color: ink.line, alpha: 0.9 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Der Falterkasten.
+ *
+ * Ein flacher Schaukasten an einem Holzständer – wie er in einer Werkstatt
+ * stünde. Bewusst kleiner als das Becken: Falter sind kleiner als Fische,
+ * und zwei gleich große Kästen nebeneinander sähen aus wie ein Fehler.
+ */
+export function paintButtercase(opts) {
+  const o = opts || {};
+  const w = 184;
+  const h = 156;
+  const seed = o.seed || 2211;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  // Zwei Beine wie beim Becken, nicht ein Pfosten mit Teller: Beim ersten
+  // Anlauf stand er auf einem schmalen Fuß und sah im Bild aus wie ein
+  // Fernseher. Geschwister sollen sich ähneln.
+  const beinL = poly([[cx - 46, baseY - 40], [cx - 32, baseY - 40],
+    [cx - 32, baseY - 2], [cx - 46, baseY - 2]], 2);
+  const beinR = poly([[cx + 32, baseY - 40], [cx + 46, baseY - 40],
+    [cx + 46, baseY - 2], [cx + 32, baseY - 2]], 2);
+  const rahmen = poly([[cx - 66, baseY - 134], [cx + 66, baseY - 134],
+    [cx + 66, baseY - 34], [cx - 66, baseY - 34]], 2);
+  const innen = poly([[cx - 52, baseY - 120], [cx + 52, baseY - 120],
+    [cx + 52, baseY - 48], [cx - 52, baseY - 48]], 2);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.4,
+    outline: 1.7,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 56, 10, seed, 0.15); },
+    wash: function (g) {
+      wash(g, beinL, ink.woodDark, { seed: seed + 1 });
+      wash(g, beinR, ink.woodDark, { seed: seed + 2 });
+      wash(g, rahmen, ink.bark, { seed: seed + 3, scale: 1.02 });
+      wash(g, offsetShape(rahmen, 9, 7, 0.92), ink.barkDark, { seed: seed + 4, alpha: 0.45 });
+      // Heller Grund innen: Ein Schaukasten ist mit Papier ausgeschlagen,
+      // und die Falter sollen sich davon abheben.
+      wash(g, innen, '#f4ecda', { seed: seed + 5, scale: 1.02 });
+    },
+    shape: function (g) {
+      fill(g, beinL); fill(g, beinR); fill(g, rahmen);
+    },
+    ink: function (g) {
+      inkStroke(g, innen, { width: 1.8, vary: 0.25, seed: seed + 20, color: ink.line, alpha: 0.8 });
+      inkStroke(g, rahmen, { width: 2.0, vary: 0.25, seed: seed + 21, color: ink.line, alpha: 0.9 });
+      // Ein Lichtstreifen auf dem Glas, schräg wie beim Becken.
+      inkLine(g, cx - 44, baseY - 112, cx - 16, baseY - 84,
+        { width: 4, bend: 0, seed: seed + 22, color: '#ffffff', alpha: 0.38 });
+      // Eine Sprosse in der Mitte – daran liest man einen verglasten Kasten
+      // statt einer Scheibe.
+      inkLine(g, cx, baseY - 120, cx, baseY - 48,
+        { width: 2.2, bend: 0.01, seed: seed + 23, color: ink.barkDark, alpha: 0.8 });
+      inkLine(g, cx - 32, baseY - 38, cx + 32, baseY - 38,
+        { width: 2.0, bend: 0.01, seed: seed + 24, color: ink.barkDark, alpha: 0.7 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}

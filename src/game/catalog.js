@@ -43,6 +43,10 @@ export const KATALOG = [
   { id: 'wreath', preis: 240, needs: 'fleck' },
   { id: 'trellis', preis: 250, needs: 'fleck' },
   { id: 'bowl', preis: 260, needs: 'werkzeugtag' },
+  // Das Becken zeigt die drei besten Fänge – siehe `schaukasten.js`. Damit
+  // ist es ausdrücklich KEIN stummes Stück über 250: Die Regel „was viel
+  // kostet, tut etwas" gilt weiter.
+  { id: 'aquarium', preis: 280, needs: 'tasche' },
   { id: 'birdbath', preis: 285, needs: 'tasche' },
   { id: 'stonelamp', preis: 310, needs: 'tasche' },
   { id: 'firebowl', preis: 340, needs: 'tasche' },

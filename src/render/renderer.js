@@ -18,6 +18,7 @@ import { getItem } from '../game/items.js';
 import { campfireLevelFor } from '../game/recipes.js';
 import { seasonTint } from '../game/seasons.js';
 import { sitzHoehe } from '../game/rest.js';
+import { plaetzeVon, zeigtWas } from '../game/schaukasten.js';
 import { INK } from '../art/painted.js';
 import { TILE_SIZE } from '../art/tiles.js';
 
@@ -209,7 +210,7 @@ export class Renderer {
       const item = getItem(s.id);
       liste.push({
         y: s.y, flach: !!(item && item.flat),
-        sprite: (item && item.prop) || null, x: s.x,
+        sprite: (item && item.prop) || null, x: s.x, itemId: s.id,
       });
     }
     // Das Tier sortiert sich mit ein – sonst säße es vor dem Tisch, an dem
@@ -239,6 +240,9 @@ export class Renderer {
         selizeichnet = true;
       }
       if (s.sprite) drawSprite(ctx, s.sprite, bx + s.x, by + s.y, false, s.flip ? { flip: true } : null);
+      // Becken und Falterkasten zeigen ihren Inhalt auch drinnen – und der
+      // kommt aus derselben Rechnung wie draußen.
+      if (s.itemId) this._drawSchaukasten(ctx, game, s.itemId, bx + s.x, by + s.y, time);
     }
     if (!selizeichnet) this._drawInnenSeli(ctx, game, bx + px, by + py);
 
@@ -495,6 +499,65 @@ export class Renderer {
     drawSprite(ctx, name, x, y, false, o);
   }
 
+  /**
+   * Was in einem Becken schwimmt und in einem Kasten sitzt.
+   *
+   * Beides wird LEER gemalt; der Inhalt kommt von hier darüber, weil er am
+   * Spielstand hängt und sich ändert, sobald man einen größeren Fisch fängt.
+   * Ein Becken mit eingemaltem Fisch wäre ein Bild von einem Becken.
+   *
+   * Gezeichnet werden die Symbole der Tiere – dieselben, die im Fundbuch und
+   * in der Tasche stehen. Eine zweite Seitenansicht je Fisch wäre schöner und
+   * wären acht Grafiken mehr für etwas, das man in Daumennagelgröße sieht.
+   *
+   * Die Stellen kommen aus `schaukasten.js`: Drinnen und draußen wird
+   * verschieden gezeichnet, und beide sollen denselben Fisch an derselben
+   * Stelle zeigen.
+   */
+  _drawSchaukasten(ctx, game, itemId, x, y, time) {
+    if (!zeigtWas(itemId)) return;
+    const plaetze = plaetzeVon(itemId, {
+      records: game.state.records,
+      found: game.inventory.found,
+    });
+    const schwimmt = zeigtWas(itemId) === 'fisch';
+    for (let i = 0; i < plaetze.length; i++) {
+      const p = plaetze[i];
+      // Fische ziehen langsam hin und her, Falter sitzen still. Ein Falter
+      // im Schaukasten, der zappelt, wäre eine andere Geschichte.
+      const wobX = schwimmt ? Math.sin(time * 0.55 + i * 2.3) * 11 : 0;
+      const wobY = schwimmt ? Math.sin(time * 0.37 + i * 1.7) * 3 : 0;
+      // Und sie drehen sich um, wenn sie am Rand ankommen: Die Grafik zeigt
+      // nach rechts, gespiegelt schwimmt er nach links.
+      const links = schwimmt && Math.cos(time * 0.55 + i * 2.3) < 0;
+      this._drawKleinIcon(ctx, 'icon_' + p.id, x + p.dx + wobX, y + p.dy + wobY,
+        p.groesse, links);
+    }
+  }
+
+  /**
+   * Ein Symbol mittig auf einen Punkt, in einer festen Größe.
+   *
+   * Nicht über `drawSprite(..., {scale})`: Das skaliert das Bild, nicht den
+   * Ankerpunkt, und ein Fisch läge damit je nach Größe woanders im Becken.
+   */
+  _drawKleinIcon(ctx, name, cx, cy, groesse, flip) {
+    const s = spr(name);
+    if (!s) return;
+    const k = groesse / Math.max(s.w, s.h);
+    const w = s.w * k;
+    const h = s.h * k;
+    if (!flip) {
+      ctx.drawImage(s.c, cx - w / 2, cy - h / 2, w, h);
+      return;
+    }
+    ctx.save();
+    ctx.translate(cx, cy - h / 2);
+    ctx.scale(-1, 1);
+    ctx.drawImage(s.c, -w / 2, 0, w, h);
+    ctx.restore();
+  }
+
   _drawEntity(ctx, game, e, time) {
     const def = defOf(e.kind);
     const always = !!ALWAYS_COLOR[e.kind];
@@ -602,6 +665,11 @@ export class Renderer {
     }
     if (always) drawSprite(ctx, name, x, y, false);
     else this._blend(ctx, game, name, x, y);
+    // Und was darin schwimmt. Immer farbig, auch wo die Insel noch blass
+    // ist: Ein Fisch, den man gefangen hat, ist nicht verblasst.
+    if (e.kind === 'decor' && e.itemId) {
+      this._drawSchaukasten(ctx, game, e.itemId, x, y, time);
+    }
   }
 
   _drawPlayer(ctx, game, time) {

@@ -131,6 +131,11 @@ const LIST = [
   // Vorhandenes weiterreicht, wäre ein Händler mit Hut.
   it('travellamp', 'Reiselaterne', CAT.DECOR, 210, 0,
     { prop: 'travellamp', light: 146, charm: 11 }),
+  // Zwei Stücke, die ZEIGEN, was man gefangen hat – siehe `schaukasten.js`.
+  // Bis hierher landeten Fische und Falter im Fundbuch und damit nirgends,
+  // wo man sie ansieht.
+  it('aquarium', 'Becken', CAT.DECOR, 230, 0, { prop: 'aquarium', charm: 10 }),
+  it('buttercase', 'Falterkasten', CAT.DECOR, 150, 0, { prop: 'buttercase', charm: 7 }),
   it('lantern', 'Laterne', CAT.DECOR, 40, 0, { prop: 'lantern', light: 62, charm: 4 }),
   it('moonlamp', 'Mondlaterne', CAT.DECOR, 120, 0, { prop: 'lantern', light: 128, charm: 9 }),
   it('bench', 'Holzbank', CAT.DECOR, 46, 0, { prop: 'bench', charm: 4 }),

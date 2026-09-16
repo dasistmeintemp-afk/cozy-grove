@@ -3603,6 +3603,80 @@ async function run() {
 
 
 
+
+    /* ---- Becken und Falterkasten ---- */
+    const becken = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { FENSTER, plaetzeVon } = await import('/src/game/schaukasten.js');
+      const { spr } = await import('/src/art/sprites.js');
+      const r = {};
+
+      // Das Schaufenster muss INNERHALB der gemalten Grafik liegen. Das ist
+      // die eine Prüfung, die nur hier möglich ist: `schaukasten.js` kennt
+      // die Maße als Zahlen, der Maler malt sie – laufen die beiden
+      // auseinander, schwimmt der Fisch neben dem Becken.
+      r.fenster = {};
+      for (const id in FENSTER) {
+        const f = FENSTER[id];
+        const s = spr(id);
+        if (!s) { r.fenster[id] = 'keine Grafik'; continue; }
+        const links = s.ax - f.w / 2;
+        const rechts = s.ax + f.w / 2;
+        const oben = s.ay + f.cy - f.h / 2;
+        const unten = s.ay + f.cy + f.h / 2;
+        r.fenster[id] = (links >= 0 && rechts <= s.w && oben >= 0 && unten <= s.h)
+          ? 'drin'
+          : 'raus: ' + [links, rechts, oben, unten].map(Math.round).join(',') +
+            ' in ' + s.w + '×' + s.h;
+      }
+
+      // Aufstellen lässt es sich wie jede andere Deko.
+      g.inventory.add('aquarium', 1);
+      g.startPlacing('aquarium');
+      g._updatePlacing();
+      let n = 0;
+      while (g.placing && !g.placing.valid && n++ < 60) {
+        g.player.x += 24;
+        g._updatePlacing();
+      }
+      r.konntePlatzieren = !!(g.placing && g.placing.valid);
+      g.confirmPlacing();
+      const steht = g.world.entities.find((e) => e.itemId === 'aquarium' && !e.gone);
+      r.stehtDraussen = !!steht;
+
+      // Und im Bild ändert sich wirklich etwas, sobald ein Fang darin liegt.
+      const merkRec = g.state.records;
+      const schnapp = () => {
+        g.camera.snapTo(steht.x, steht.y - 40);
+        g.renderer.draw(g, 0);
+        const c = g.renderer.canvas;
+        return c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      };
+      g.state.records = {};
+      const leer = schnapp();
+      g.state.records = { fish_trout: 33, fish_goldcarp: 88, fish_sardine: 21 };
+      const voll = schnapp();
+      let anders = 0;
+      for (let i = 0; i < leer.length; i += 4) {
+        if (leer[i] !== voll[i] || leer[i + 1] !== voll[i + 1] || leer[i + 2] !== voll[i + 2]) anders++;
+      }
+      r.bildAendertSich = anders;
+      r.dreiDrin = plaetzeVon('aquarium', { records: g.state.records }).length;
+
+      g.state.records = merkRec;
+      if (steht) g.pickDecor(steht);
+      return r;
+    });
+    check('Das Schaufenster liegt innerhalb der gemalten Grafik',
+      becken.fenster.aquarium === 'drin' && becken.fenster.buttercase === 'drin',
+      JSON.stringify(becken.fenster));
+    check('Das Becken lässt sich aufstellen wie jede andere Deko',
+      becken.konntePlatzieren === true && becken.stehtDraussen === true,
+      JSON.stringify(becken));
+    check('Mit Fängen darin sieht das Becken anders aus als ohne',
+      becken.dreiDrin === 3 && becken.bildAendertSich > 200,
+      JSON.stringify(becken));
+
     /* ---- Was kommt: der Kalender ---- */
     const termine = await page.evaluate(async () => {
       const g = window.CozyGrove.game;

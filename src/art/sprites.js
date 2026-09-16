@@ -33,6 +33,7 @@ import {
   paintStumpStool, paintStonebench, paintStonelamp, paintTorch,
   paintFlowerbox, paintBonsai, paintHedgehogbox, paintFeeder,
   paintSteppingstones, paintArch, paintClothesline, paintBookstack,
+  paintAquarium, paintButtercase,
 } from './painted-decor.js';
 import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
@@ -299,6 +300,8 @@ export function initArt() {
   /* --- Deko --- */
   addArt('lantern', paintLantern({ seed: 391 }));
   addArt('travellamp', paintTravelLamp({ seed: 2141 }));
+  addArt('aquarium', paintAquarium({ seed: 2201 }));
+  addArt('buttercase', paintButtercase({ seed: 2211 }));
   addArt('bench', paintBench({ seed: 411 }));
   addArt('fence', paintFence({ seed: 431 }));
   addArt('flowerbed', paintFlowerbed({ seed: 451 }));
@@ -428,6 +431,7 @@ function buildIcons() {
     ['boat', 'boat'], ['mailbox', 'mailbox'],
     ['picture', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
     ['hangplant', 'hangplant'], ['travellamp', 'travellamp'],
+    ['aquarium', 'aquarium'], ['buttercase', 'buttercase'],
     ['table', 'table'], ['chair', 'chair'], ['hammock', 'hammock'],
     ['swing', 'swing'], ['firebowl', 'firebowl'],
     ['stringlights', 'stringlights'], ['paperlamp', 'paperlamp'],

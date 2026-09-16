@@ -84,6 +84,12 @@ export const RECIPES = [
     [{ id: 'driftwood', n: 3 }, { id: 'shell', n: 3 }, { id: 'copper_ore', n: 1 }], { ember: 6, fire: 3 }),
   r('stonebench', 'Steinbank', { id: 'stonebench', n: 1 },
     [{ id: 'stone', n: 10 }, { id: 'clay', n: 3 }], { ember: 6, fire: 3 }),
+  // Der Falterkasten. Holz und Harz für den Rahmen, Pflanzenfaser für den
+  // Papiergrund – nichts Seltenes: Er soll dastehen, sobald man ein paar
+  // Falter hat, und nicht als zweites Fernziel neben dem Becken.
+  r('buttercase', 'Falterkasten', { id: 'buttercase', n: 1 },
+    [{ id: 'hardwood', n: 4 }, { id: 'resin', n: 3 }, { id: 'fiber', n: 6 }],
+    { ember: 6, fire: 2 }),
   r('arch', 'Torbogen', { id: 'arch', n: 1 },
     [{ id: 'hardwood', n: 6 }, { id: 'fiber', n: 4 }, { id: 'flower_white', n: 3 }],
     { ember: 8, fire: 3 }),
