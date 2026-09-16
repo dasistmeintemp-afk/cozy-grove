@@ -3602,6 +3602,140 @@ async function run() {
       innen3.zuschlag === innen3.erwartet, JSON.stringify(innen3));
 
 
+
+    /* ---- Was kommt: der Kalender ---- */
+    const termine = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { alleTermine, VORLAUF, wannText } = await import('/src/game/termine.js');
+      const r = {};
+      const alle = alleTermine();
+      r.anzahl = alle.length;
+      r.vorlauf = VORLAUF;
+
+      // Ein Geburtstag mit Lieblingsstück, vier Tage vorher.
+      const geb = alle.find((t) => t.art === 'geburtstag');
+      const jahr = new Date().getFullYear() + 1;
+      const vier = new Date(jahr, geb.monat, geb.tag - 4);
+      const bald = g.naechsterTermin(vier);
+      r.gemeldet = bald ? bald.id : null;
+      r.gemeldetIn = bald ? bald.in : -1;
+      r.text = bald ? wannText(bald.in) : '';
+
+      // Ein Tag weit außerhalb des Fensters meldet ihn nicht.
+      const weit = new Date(jahr, geb.monat, geb.tag - (VORLAUF + 1));
+      const nix = g.naechsterTermin(weit);
+      r.ausserhalb = !nix || nix.id !== geb.id;
+
+      // Die Ansage: einmal je Termin und Jahr, nicht einmal je Tag.
+      g.state.termine = {};
+      const erste = g._terminAnsagen(vier);
+      const zweite = g._terminAnsagen(new Date(jahr, geb.monat, geb.tag - 3));
+      r.sagtAn = !!erste;
+      r.sagtNichtNochmal = zweite === null;
+      r.markeGesetzt = Object.keys(g.state.termine).length;
+      // Nächstes Jahr wieder.
+      const naechstes = g._terminAnsagen(new Date(jahr + 1, geb.monat, geb.tag - 4));
+      r.naechstesJahrWieder = !!naechstes;
+
+      // Und die Zeile steht wirklich im Aufgabenfenster.
+      //
+      // Dafür wird der Tag ERZWUNGEN – wie `forceSeason`, wenn man im Juni
+      // nachsehen will, ob der Schnee richtig fällt. Ohne das läse das
+      // Fenster den echten Kalender, und die Prüfung ginge an 4 von 5 Tagen
+      // im Jahr durch, ohne irgendetwas geprüft zu haben.
+      const { forceHeute } = await import('/src/game/termine.js');
+      forceHeute(vier);
+      g.openPanel('quests');
+      const txt = document.getElementById('panel-body').textContent;
+      r.imFenster = txt.indexOf(wannText(bald.in) + ': ' + bald.name) >= 0;
+      r.nenntLiebling = txt.indexOf('mag am liebsten') >= 0;
+      g.panels.close();
+
+      // Am Tag selbst steht er NICHT mehr in der Vorschau – dafür gibt es
+      // die Zeile „hat heute Geburtstag".
+      forceHeute(new Date(jahr, geb.monat, geb.tag));
+      g.openPanel('quests');
+      const txt2 = document.getElementById('panel-body').textContent;
+      r.heuteKeineVorschau = txt2.indexOf('in 0 Tagen') < 0 &&
+        txt2.indexOf('heute: ') < 0;
+      r.heuteGeburtstag = txt2.indexOf('hat heute Geburtstag') >= 0;
+      g.panels.close();
+
+      forceHeute(null);
+      r.wiederEcht = !!g.naechsterTermin || true;
+      return r;
+    });
+    check('Der Kalender kennt alle elf Termine',
+      termine.anzahl === 11 && termine.vorlauf === 7, JSON.stringify(termine));
+    check('Vier Tage vorher steht der Geburtstag in der Vorschau',
+      termine.gemeldetIn === 4 && termine.text === 'in 4 Tagen', JSON.stringify(termine));
+    check('Weiter draußen steht er nicht',
+      termine.ausserhalb === true, JSON.stringify(termine));
+    check('Angesagt wird einmal je Termin und Jahr – nicht jeden Morgen',
+      termine.sagtAn === true && termine.sagtNichtNochmal === true &&
+      termine.markeGesetzt === 1, JSON.stringify(termine));
+    check('Nächstes Jahr sagt die Insel wieder Bescheid',
+      termine.naechstesJahrWieder === true, JSON.stringify(termine));
+    check('Die Zeile steht im Aufgabenfenster, mit dem Lieblingsstück',
+      termine.imFenster === true && termine.nenntLiebling === true,
+      JSON.stringify(termine));
+    check('Am Tag selbst steht dort „heute Geburtstag" statt der Vorschau',
+      termine.heuteGeburtstag === true && termine.heuteKeineVorschau === true,
+      JSON.stringify(termine));
+
+
+    /* ---- Die Chronik ---- */
+    const chronik = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { zeitSatz } = await import('/src/game/chronik.js');
+      const r = {};
+      const merkTag = g.day.day;
+      const merkFound = g.inventory.found;
+      const merkRec = g.state.records;
+      const merkDone = g.quests.completedBySpirit;
+
+      // Ein Spielstand, der schon eine Weile läuft.
+      g.day.day = 34;
+      g.inventory.found = { wood: 412, stone: 233, fish_trout: 12, shell: 88 };
+      g.state.records = { fish_trout: 33, fish_catfish: 40 };
+      g.quests.completedBySpirit = { flamey: 12, mira: 9, kiesel: 14 };
+
+      g.openPanel('quests');
+      const txt = document.getElementById('panel-body').textContent;
+      r.ueberschrift = txt.indexOf('Seit du hier bist') >= 0;
+      r.satz = txt.indexOf(zeitSatz(34)) >= 0;
+      r.tage = txt.indexOf('34 Tage auf der Insel') >= 0;
+      r.dinge = txt.indexOf('745 Dinge in der Tasche gehabt') >= 0;
+      r.bitten = txt.indexOf('35 Bitten erfüllt') >= 0;
+      // Der größte Fang ist die Forelle (95 % ihrer Spanne), nicht der
+      // größere Wels – dieselbe Regel wie im Unit-Test, hier am echten Text.
+      r.fang = txt.indexOf('33 cm größter Fang: Bachforelle') >= 0;
+      g.panels.close();
+
+      // Ohne Fang fehlt die Zeile ganz.
+      g.state.records = {};
+      g.openPanel('quests');
+      const ohne = document.getElementById('panel-body').textContent;
+      r.ohneFang = ohne.indexOf('größter Fang') < 0;
+      r.trotzdemDa = ohne.indexOf('Seit du hier bist') >= 0;
+      g.panels.close();
+
+      g.day.day = merkTag;
+      g.inventory.found = merkFound;
+      g.state.records = merkRec;
+      g.quests.completedBySpirit = merkDone;
+      return r;
+    });
+    check('Die Chronik steht unten im Aufgabenfenster',
+      chronik.ueberschrift === true && chronik.satz === true, JSON.stringify(chronik));
+    check('Ihre Zahlen kommen aus dem Spielstand, nicht aus einer zweiten Buchführung',
+      chronik.tage === true && chronik.dinge === true && chronik.bitten === true,
+      JSON.stringify(chronik));
+    check('Der größte Fang wird an der Art gemessen, nicht in Zentimetern',
+      chronik.fang === true, JSON.stringify(chronik));
+    check('Ohne einen einzigen Fang fehlt die Zeile, der Rest bleibt',
+      chronik.ohneFang === true && chronik.trotzdemDa === true, JSON.stringify(chronik));
+
     /* ---- Die Kammer: zwei Räume ---- */
     const kammer = await page.evaluate(async () => {
       const g = window.CozyGrove.game;

@@ -36,6 +36,7 @@ import {
   tauschZahl, gibtLaterne,
   MITBRINGSEL, SAETZE as WANDER_SAETZE, naechsterBesuch,
 } from './wanderer.js';
+import { naechsterTermin as terminInnerhalb, wannText, heuteIst } from './termine.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
@@ -283,6 +284,10 @@ export class Game {
     this.syncCosiness(true);
     this.ui.refreshHud();
     this.ui.refreshQuests();
+    // Auch beim Laden, nicht nur beim Aufwachen: Wer mitten in der Woche
+    // weiterspielt, hat keinen Tageswechsel, und der Geburtstag käme sonst
+    // ohne ein Wort.
+    this._terminAnsagen();
     // Eine früher gewählte Datei zurückholen. Steht die Erlaubnis nicht mehr
     // (über `file://` überlebt sie das Schließen nicht), einmal daran
     // erinnern – sonst merkt niemand, dass sein eingerichtetes Speichern
@@ -339,6 +344,7 @@ export class Game {
       wishes: emptyWishes(),
       interior: emptyInterior(),
       wanderer: emptyWanderer(),
+      termine: Object.create(null),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -380,6 +386,7 @@ export class Game {
       feste: emptyFeste(),
       interior: emptyInterior(),
       wanderer: emptyWanderer(),
+      termine: Object.create(null),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -428,6 +435,11 @@ export class Game {
     // mit ihm getauscht – dann ist beim nächsten Mal eben der erste.
     if (!this.state.wanderer || typeof this.state.wanderer !== 'object') {
       this.state.wanderer = emptyWanderer();
+    }
+    // Wovon schon Bescheid gesagt wurde. Ein alter Spielstand weiß von
+    // nichts – dann wird eben beim nächsten Termin einmal angesagt.
+    if (!this.state.termine || typeof this.state.termine !== 'object') {
+      this.state.termine = Object.create(null);
     }
 
     // Ein Spielstand von vor der Stillen Insel kennt nur drei Bereiche. Die
@@ -1385,6 +1397,54 @@ export class Game {
     }
     this.ui.refreshHud();
     this.save();
+  }
+
+  /**
+   * Einmal Bescheid sagen, dass etwas kommt.
+   *
+   * **Einmal je Termin und Jahr, nicht einmal je Tag.** Sieben Morgen
+   * hintereinander „in 6 Tagen Geburtstag", „in 5 Tagen Geburtstag" wäre
+   * kein Hinweis mehr, sondern eine Mahnung – und drinnen wie draußen gilt:
+   * Nichts hier mahnt.
+   *
+   * Gesagt wird es an dem Morgen, an dem man das Fenster zum ersten Mal
+   * erreicht, nicht an einem festen Tag davor. Damit erfährt es auch, wer
+   * nur sonntags spielt: Sieben Tage Vorlauf und einmal die Woche spielen
+   * gehen sich genau aus – siehe `VORLAUF`.
+   *
+   * @returns {object|null} der angesagte Termin
+   */
+  _terminAnsagen(datum) {
+    if (!this.ui) return null;
+    const t = terminInnerhalb(heuteIst(datum));
+    if (!t) return null;
+    if (!this.state.termine || typeof this.state.termine !== 'object') {
+      this.state.termine = Object.create(null);
+    }
+    // Die Marke hängt am Jahr, in dem er STATTFINDET: Am 28. Dezember liegt
+    // Nellys Geburtstag im nächsten, und mit dem heutigen Jahr stünde die
+    // Ansage über Silvester zweimal da.
+    const marke = t.art + ':' + t.id + ':' + t.jahr;
+    if (this.state.termine[marke]) return null;
+    this.state.termine[marke] = 1;
+    const self = this;
+    setTimeout(function () {
+      self.ui.toast(wannText(t.in) + ': ' + t.name, t.icon, 'good');
+    }, 5200);
+    this.save();
+    return t;
+  }
+
+  /**
+   * Was in den nächsten Tagen ansteht – oder null. Für das Fenster.
+   *
+   * `datum` kommt von außen, weil es sonst nicht prüfbar wäre: Die Termine
+   * hängen am echten Kalender, und ein Test, der auf den 21. April wartet,
+   * ist kein Test. Dieselbe Naht wie bei `rollSize`, das seinen Zufall
+   * übergeben bekommt.
+   */
+  naechsterTermin(datum) {
+    return terminInnerhalb(heuteIst(datum));
   }
 
   /** Sein Besuch von heute – oder null. */
@@ -5298,6 +5358,7 @@ export class Game {
         self4.ui.toast('Jemand steht am Strand', 'icon_travellamp', 'good');
       }, 4200);
     }
+    this._terminAnsagen();
     // Der eigentliche Grund, morgens aufzustehen.
     if (frischReif > 0) {
       const self2 = this;

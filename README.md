@@ -304,6 +304,38 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Haus von *außen* handelt. „Draußen ist noch einiges zu tun. Draußen."
   Mitgezählt werden das Möbelstück, auf dem sie sitzt, die Stücke ringsum,
   das Wetter (den Regen hört man auch drinnen) und die Jahreszeit.
+* **Was kommt.** Die Insel hat **elf Termine im Jahr** – sieben Geburtstage
+  und vier Feste – und erzählte von jedem erst an dem Morgen, an dem er da
+  war. Damit lieferte sie nur die Hälfte von dem, was ein Fest sein soll:
+
+  > Ein **Termin**. Etwas, von dem man WEISS, dass es kommt, und auf das man
+  > sich freuen kann.
+
+  Jetzt steht im Aufgabenfenster, was in den nächsten Tagen ansteht – beim
+  Geburtstag samt Lieblingsstück, damit man es suchen gehen kann. Und einmal
+  je Termin sagt die Insel es morgens auch von selbst: einmal, nicht sieben
+  Morgen hintereinander. Nichts davon verlangt etwas.
+
+  **Sieben Tage Vorlauf, und die Zahl ist gemessen.** Sie ist das kleinste
+  Fenster, bei dem niemand durchfällt, der einmal die Woche spielt – die
+  Geburtstage hängen am echten Kalender, und wer sonntags spielt, hätte bei
+  kürzerem Vorlauf schlicht Pech. Gleichzeitig steht damit an **4 von 5
+  Tagen** nichts dort; bei vierzehn Tagen wäre es fast jeder zweite, und was
+  so oft dasteht, liest niemand mehr.
+* **Die Chronik.** Der Tagesrückblick zeigt einen Tag und ist am nächsten
+  Morgen weg; über die ganze Zeit gab es nichts. Ganz unten im
+  Aufgabenfenster steht jetzt, wie lange du schon hier bist, wie viel Farbe
+  zurück ist, wie viele Bitten erfüllt sind, wie vielen Dingen du begegnet
+  bist – und dein größter Fang.
+
+  **Sie zählt nichts Neues mit.** Alle Zahlen liegen längst im Spielstand:
+  Das Fundbuch weiß, wie viel von jeder Sorte je in der Tasche lag, die
+  Fanggrößen kennen jeden Rekord. Eine zweite Buchführung wäre eine zweite
+  Wahrheit, die irgendwann von der ersten abweicht.
+
+  Der größte Fang wird **an der Art** gemessen und nicht in Zentimetern: Ein
+  Wels wird nun einmal länger als eine Sardine, und dann stünde dort für
+  immer derselbe Fisch. Eine 21-cm-Sardine ist das größere Kunststück.
 * **Der Wanderer.** Etwa einmal die Woche steht morgens jemand am Strand, den
   es hier sonst nicht gibt: ein Mensch mit Hut, Umhang, Sack und Stab. Er
   bleibt einen Tag. Am nächsten Morgen ist er weg.
@@ -1038,8 +1070,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 552 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer …
-npm run test:browser   # 343 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 574 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer …
+npm run test:browser   # 354 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 
