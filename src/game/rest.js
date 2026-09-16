@@ -149,6 +149,9 @@ export const DEKO_GEDANKE = {
   flowerbed: 'blumen', planter: 'blumen', trellis: 'blumen',
   windchime: 'windspiel',
   table: 'gedeckt', mat: 'gedeckt', rug: 'gedeckt',
+  // Becken und Kasten teilen sich eine Gruppe: Was darin ist, unterscheidet
+  // sich, aber das Danebensitzen und Zusehen ist dasselbe.
+  aquarium: 'schaukasten', buttercase: 'schaukasten',
 };
 
 /**
@@ -233,6 +236,10 @@ export const GEDANKEN = {
   gedeckt: [
     'Ein Tisch draußen ist einfach etwas anderes.',
     'Es ist alles da. Man muss nur sitzen bleiben.',
+  ],
+  schaukasten: [
+    'Der Kleinste war der schwerste Fang. Man sieht es ihm nicht an.',
+    'Sie ziehen ihre Runden. Ich auch, nur langsamer.',
   ],
 
   /* --- Wetter --- */

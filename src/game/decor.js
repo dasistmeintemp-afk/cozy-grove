@@ -170,6 +170,8 @@ export const WIRKUNG = {
   // Igelhaus, das ausdrücklich Falter anzieht, wäre schlicht falsch.
   hedgehogbox: 'Tiere bleiben lieber in der Nähe.',
   bonsai: 'Beete in der Nähe geben ein Stück mehr her.',
+  aquarium: 'Zeigt deine drei besten Fänge.',
+  buttercase: 'Zeigt deine drei seltensten Falter.',
 };
 
 export function wirkungVon(itemId) {

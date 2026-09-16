@@ -212,7 +212,8 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
 
   **Der Raum wächst mit dem Haus** – Zeltecke (420×300) → Stube → Zimmer →
   Zimmer mit Veranda (960×620), und mit ihm die Zahl der Stücke, die
-  hineinpassen. Ab der Hütte sind es Dielen und eine Bretterwand mit Fenster,
+  hineinpassen. Ab dem großen Haus kommt ein **zweiter Raum** dazu, die
+  Kammer. Ab der Hütte sind es Dielen und eine Bretterwand mit Fenster,
   und das Licht daraus fällt als heller Fleck auf den Boden; die Zeltecke ist
   Stoff und gestampfte Erde.
 
@@ -257,6 +258,34 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   erste nähme dem Zimmer sein Licht, das zweite wäre ein Bild, das man
   aufhängt und nie wieder sieht. Abgenommen wird nah an der Wand mit Blick
   nach oben – sonst hinge man beim Vorbeilaufen Bilder ab.
+* **Zwei Räume ab dem großen Haus.** Oben rechts in der Rückwand geht eine Tür
+  weiter: vom **Zimmer** in die **Kammer** und wieder zurück. Jeder Raum hat
+  eigene Möbel, eigene Wandstücke und eine eigene Ausstattung.
+
+  **Warum nicht einfach ein größeres Zimmer.** Weil das dasselbe getan und
+  weniger gekostet hätte. Der Grund ist ein anderer: Ein Raum hat **einen**
+  Ton. Wer Wand und Boden auf Abendblau stellt, stellt damit alles auf
+  Abendblau, und jedes Stück, das nicht dazu passt, muss weg. Mit zwei Räumen
+  wird aus dem Einrichten zum ersten Mal eine Entscheidung, die man zweimal
+  treffen darf – vorn das Wohnliche, hinten die Werkstatt.
+
+  **Die Kammer ist kleiner**, hat **kein Bett** und **keinen Ausgang**:
+  Geschlafen und hinausgegangen wird vorn. Ein zweiter Ausgang wäre dieselbe
+  Sache an zwei Stellen, und ein zweites Bett auch.
+
+  **Und sie hat kein Fenster.** Ihr Licht fällt durch die Verbindungstür. Das
+  ist kein Sparen: Ein Fenster hätte mitten in einer ohnehin kurzen Wand
+  gestanden und von den Aufhängeplätzen die Hälfte gekostet – gemessen, nicht
+  vermutet. So sind es zwei verschiedene Orte statt zweier Größen desselben.
+
+  Vor der Tür und über ihr bleibt frei, wie am Ausgang auch: Ein zugestellter
+  Durchgang wäre die einzige Sackgasse, die dieses Spiel anbieten könnte, und
+  ein Kranz darüber wäre ein Kranz, durch den man hindurchläuft.
+
+  **Im Spielstand steht jetzt eine Liste von Räumen** statt eines Zimmers mit
+  einem Anhängsel. Ein Stand aus der Zeit davor wird beim Laden zum vorderen
+  Raum – wer sein Zimmer eingerichtet hat, findet es unverändert wieder, und
+  die Kammer kommt leer dazu.
 * **Das Tier kommt mit hinein.** Ist es zahm, folgt es dir durch die Tür,
   läuft dir im Zimmer hinterher und legt sich neben dich, sobald du stehen
   bleibst oder dich hinsetzt. Ein Streuner, der noch am Napf sitzt, folgt
@@ -275,6 +304,62 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   Haus von *außen* handelt. „Draußen ist noch einiges zu tun. Draußen."
   Mitgezählt werden das Möbelstück, auf dem sie sitzt, die Stücke ringsum,
   das Wetter (den Regen hört man auch drinnen) und die Jahreszeit.
+* **Was kommt.** Die Insel hat **elf Termine im Jahr** – sieben Geburtstage
+  und vier Feste – und erzählte von jedem erst an dem Morgen, an dem er da
+  war. Damit lieferte sie nur die Hälfte von dem, was ein Fest sein soll:
+
+  > Ein **Termin**. Etwas, von dem man WEISS, dass es kommt, und auf das man
+  > sich freuen kann.
+
+  Jetzt steht im Aufgabenfenster, was in den nächsten Tagen ansteht – beim
+  Geburtstag samt Lieblingsstück, damit man es suchen gehen kann. Und einmal
+  je Termin sagt die Insel es morgens auch von selbst: einmal, nicht sieben
+  Morgen hintereinander. Nichts davon verlangt etwas.
+
+  **Sieben Tage Vorlauf, und die Zahl ist gemessen.** Sie ist das kleinste
+  Fenster, bei dem niemand durchfällt, der einmal die Woche spielt – die
+  Geburtstage hängen am echten Kalender, und wer sonntags spielt, hätte bei
+  kürzerem Vorlauf schlicht Pech. Gleichzeitig steht damit an **4 von 5
+  Tagen** nichts dort; bei vierzehn Tagen wäre es fast jeder zweite, und was
+  so oft dasteht, liest niemand mehr.
+* **Becken und Falterkasten.** Fische und Falter landeten im Fundbuch, in der
+  Küche und in Bitten – und damit **nirgends, wo man sie ansieht**. Die
+  Fanggrößen geben jedem Fang ein Maß in Zentimetern, und diese Zahl lebte
+  danach in einer Liste. Angel und Zimmer berührten einander an keiner Stelle.
+
+  Jetzt gibt es zwei Möbelstücke, die zeigen, was man gefangen hat: das
+  **Becken** (aus dem Katalog) mit deinen drei besten Fischen und den
+  **Falterkasten** (Werkbank) mit deinen drei seltensten Faltern. Drinnen wie
+  draußen aufstellbar, und die Fische ziehen ihre Runden.
+
+  **Sie verlangen keine Verwaltung.** Man wählt nicht aus, was hineinkommt, es
+  gibt kein Einsetzen und kein Herausnehmen – sie zeigen von selbst, was
+  gerade das Beste ist, und ändern sich, sobald du einen größeren Fisch
+  fängst. Ein Fenster mit Auswahllisten wäre mehr Bedienung als Freude, und es
+  gäbe eine Art, sein Becken „falsch" einzurichten. Davon gibt es hier nichts.
+
+  **Der beste Fisch ist nicht der längste.** Gemessen wird, wie nah der Fang
+  an dem war, was diese **Art** hergibt – eine 21-cm-Sardine ist das größere
+  Kunststück als ein mittelmäßiger Wels. Sonst schwämmen für immer dieselben
+  drei Arten im Becken.
+
+  Ein Museum wäre die naheliegende Antwort und steht in den Fanggrößen
+  ausdrücklich als „zu groß für dieses Spiel" verworfen. Das hier ist die
+  kleine Fassung davon.
+* **Die Chronik.** Der Tagesrückblick zeigt einen Tag und ist am nächsten
+  Morgen weg; über die ganze Zeit gab es nichts. Ganz unten im
+  Aufgabenfenster steht jetzt, wie lange du schon hier bist, wie viel Farbe
+  zurück ist, wie viele Bitten erfüllt sind, wie vielen Dingen du begegnet
+  bist – und dein größter Fang.
+
+  **Sie zählt nichts Neues mit.** Alle Zahlen liegen längst im Spielstand:
+  Das Fundbuch weiß, wie viel von jeder Sorte je in der Tasche lag, die
+  Fanggrößen kennen jeden Rekord. Eine zweite Buchführung wäre eine zweite
+  Wahrheit, die irgendwann von der ersten abweicht.
+
+  Der größte Fang wird **an der Art** gemessen und nicht in Zentimetern: Ein
+  Wels wird nun einmal länger als eine Sardine, und dann stünde dort für
+  immer derselbe Fisch. Eine 21-cm-Sardine ist das größere Kunststück.
 * **Der Wanderer.** Etwa einmal die Woche steht morgens jemand am Strand, den
   es hier sonst nicht gibt: ein Mensch mit Hut, Umhang, Sack und Stab. Er
   bleibt einen Tag. Am nächsten Morgen ist er weg.
@@ -1009,8 +1094,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 541 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer …
-npm run test:browser   # 331 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 586 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer …
+npm run test:browser   # 357 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

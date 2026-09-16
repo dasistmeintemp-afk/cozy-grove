@@ -3146,7 +3146,7 @@ async function run() {
       const merkInterior = g.state.interior;
       const merkSlots = g.inventory.slots;
       g.state.house = 3;
-      g.state.interior = { stuecke: [] };
+      g.state.interior = { raeume: [{ stuecke: [], wand: [], ausstattung: 'holz' }] };
       g.inventory.slots = [];
       g.syncHouse();
 
@@ -3248,7 +3248,7 @@ async function run() {
 
       // Und das Zimmer übersteht Speichern und Laden.
       const json = JSON.parse(JSON.stringify(g.toJSON()));
-      r.imSpielstand = (json.state.interior.stuecke || []).length;
+      r.imSpielstand = (json.state.interior.raeume[0].stuecke || []).length;
 
       g.state.house = merkHaus;
       g.state.interior = merkInterior;
@@ -3298,14 +3298,14 @@ async function run() {
       const merkSlots = g.inventory.slots;
       const merkStunde = g.day.hour;
       g.state.house = 3;
-      g.state.interior = { stuecke: [], ausstattung: 'holz' };
+      g.state.interior = { raeume: [{ stuecke: [], wand: [], ausstattung: 'holz' }] };
       g.inventory.slots = [];
       g.syncHouse();
       g.betritt();
       const raum = g.raum();
 
       // Eine Bank hineinstellen und sich daraufsetzen.
-      g.state.interior.stuecke.push({ id: 'bench', x: Math.round(raum.w * 0.5), y: Math.round(raum.h * 0.5) });
+      g.innenStuecke().push({ id: 'bench', x: Math.round(raum.w * 0.5), y: Math.round(raum.h * 0.5) });
       const bank = g.innenStuecke()[0];
       g.innen.x = bank.x;
       g.innen.y = bank.y + 50;
@@ -3344,9 +3344,9 @@ async function run() {
       const andere = AUSSTATTUNG.find((a) => a.id !== g.ausstattung().id);
       r.gewechselt = g.waehleAusstattung(andere.id);
       r.andereWand = g.raumSprite() !== vorher;
-      r.gemerkt = g.state.interior.ausstattung === andere.id;
+      r.gemerkt = g.ausstattung().id === andere.id;
       r.unfugAbgelehnt = g.waehleAusstattung('gibtsnicht') === false &&
-        g.state.interior.ausstattung === andere.id;
+        g.ausstattung().id === andere.id;
 
       // Abendlicht: tagsüber hell, nachts gedämpft – und Lampen leuchten.
       g.day.hour = 12;
@@ -3354,7 +3354,7 @@ async function run() {
       g.day.hour = 23;
       r.nachtGedaempft = g.innenDunkel() > 0 && g.innenDunkel() < 0.7;
       r.lichterOhne = g.innenLichter().length;
-      g.state.interior.stuecke.push({ id: 'moonlamp', x: 200, y: 200 });
+      g.innenStuecke().push({ id: 'moonlamp', x: 200, y: 200 });
       r.lichterMit = g.innenLichter().length;
       r.lichtReicht = (g.innenLichter()[0] || {}).r > 60;
 
@@ -3400,7 +3400,7 @@ async function run() {
       const merkInterior = g.state.interior;
       const merkSlots = g.inventory.slots;
       g.state.house = 3;
-      g.state.interior = { stuecke: [], wand: [], ausstattung: 'holz' };
+      g.state.interior = { raeume: [{ stuecke: [], wand: [], ausstattung: 'holz' }] };
       g.inventory.slots = [];
       g.syncHouse();
 
@@ -3470,7 +3470,7 @@ async function run() {
       // Und die Wand steht im Spielstand.
       g.innenWand().push({ id: 'wreath', x: Math.round(raum.w * 0.8), y: wandHoehe(raum) });
       const json = JSON.parse(JSON.stringify(g.toJSON()));
-      r.imSpielstand = (json.state.interior.wand || []).length;
+      r.imSpielstand = (json.state.interior.raeume[0].wand || []).length;
 
       g.verlaesst();
       g.state.house = merkHaus;
@@ -3513,7 +3513,7 @@ async function run() {
       const merkInterior = g.state.interior;
       const merkPet = g.state.pet;
       g.state.house = 3;
-      g.state.interior = { stuecke: [], wand: [], ausstattung: 'holz' };
+      g.state.interior = { raeume: [{ stuecke: [], wand: [], ausstattung: 'holz' }] };
       g.syncHouse();
 
       // Ohne zahmes Tier kommt drinnen keines mit.
@@ -3600,6 +3600,446 @@ async function run() {
       innen3.gebunden === 2, JSON.stringify(innen3));
     check('Und der Zuschlag steckt wirklich in der Zahl',
       innen3.zuschlag === innen3.erwartet, JSON.stringify(innen3));
+
+
+
+
+    /* ---- Becken und Falterkasten ---- */
+    const becken = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { FENSTER, plaetzeVon } = await import('/src/game/schaukasten.js');
+      const { spr } = await import('/src/art/sprites.js');
+      const r = {};
+
+      // Das Schaufenster muss INNERHALB der gemalten Grafik liegen. Das ist
+      // die eine Prüfung, die nur hier möglich ist: `schaukasten.js` kennt
+      // die Maße als Zahlen, der Maler malt sie – laufen die beiden
+      // auseinander, schwimmt der Fisch neben dem Becken.
+      r.fenster = {};
+      for (const id in FENSTER) {
+        const f = FENSTER[id];
+        const s = spr(id);
+        if (!s) { r.fenster[id] = 'keine Grafik'; continue; }
+        const links = s.ax - f.w / 2;
+        const rechts = s.ax + f.w / 2;
+        const oben = s.ay + f.cy - f.h / 2;
+        const unten = s.ay + f.cy + f.h / 2;
+        r.fenster[id] = (links >= 0 && rechts <= s.w && oben >= 0 && unten <= s.h)
+          ? 'drin'
+          : 'raus: ' + [links, rechts, oben, unten].map(Math.round).join(',') +
+            ' in ' + s.w + '×' + s.h;
+      }
+
+      // Aufstellen lässt es sich wie jede andere Deko.
+      g.inventory.add('aquarium', 1);
+      g.startPlacing('aquarium');
+      g._updatePlacing();
+      let n = 0;
+      while (g.placing && !g.placing.valid && n++ < 60) {
+        g.player.x += 24;
+        g._updatePlacing();
+      }
+      r.konntePlatzieren = !!(g.placing && g.placing.valid);
+      g.confirmPlacing();
+      const steht = g.world.entities.find((e) => e.itemId === 'aquarium' && !e.gone);
+      r.stehtDraussen = !!steht;
+
+      // Und im Bild ändert sich wirklich etwas, sobald ein Fang darin liegt.
+      const merkRec = g.state.records;
+      const schnapp = () => {
+        g.camera.snapTo(steht.x, steht.y - 40);
+        g.renderer.draw(g, 0);
+        const c = g.renderer.canvas;
+        return c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      };
+      g.state.records = {};
+      const leer = schnapp();
+      g.state.records = { fish_trout: 33, fish_goldcarp: 88, fish_sardine: 21 };
+      const voll = schnapp();
+      let anders = 0;
+      for (let i = 0; i < leer.length; i += 4) {
+        if (leer[i] !== voll[i] || leer[i + 1] !== voll[i + 1] || leer[i + 2] !== voll[i + 2]) anders++;
+      }
+      r.bildAendertSich = anders;
+      r.dreiDrin = plaetzeVon('aquarium', { records: g.state.records }).length;
+
+      g.state.records = merkRec;
+      if (steht) g.pickDecor(steht);
+      return r;
+    });
+    check('Das Schaufenster liegt innerhalb der gemalten Grafik',
+      becken.fenster.aquarium === 'drin' && becken.fenster.buttercase === 'drin',
+      JSON.stringify(becken.fenster));
+    check('Das Becken lässt sich aufstellen wie jede andere Deko',
+      becken.konntePlatzieren === true && becken.stehtDraussen === true,
+      JSON.stringify(becken));
+    check('Mit Fängen darin sieht das Becken anders aus als ohne',
+      becken.dreiDrin === 3 && becken.bildAendertSich > 200,
+      JSON.stringify(becken));
+
+    /* ---- Was kommt: der Kalender ---- */
+    const termine = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { alleTermine, VORLAUF, wannText } = await import('/src/game/termine.js');
+      const r = {};
+      const alle = alleTermine();
+      r.anzahl = alle.length;
+      r.vorlauf = VORLAUF;
+
+      // Ein Geburtstag mit Lieblingsstück, vier Tage vorher.
+      const geb = alle.find((t) => t.art === 'geburtstag');
+      const jahr = new Date().getFullYear() + 1;
+      const vier = new Date(jahr, geb.monat, geb.tag - 4);
+      const bald = g.naechsterTermin(vier);
+      r.gemeldet = bald ? bald.id : null;
+      r.gemeldetIn = bald ? bald.in : -1;
+      r.text = bald ? wannText(bald.in) : '';
+
+      // Ein Tag weit außerhalb des Fensters meldet ihn nicht.
+      const weit = new Date(jahr, geb.monat, geb.tag - (VORLAUF + 1));
+      const nix = g.naechsterTermin(weit);
+      r.ausserhalb = !nix || nix.id !== geb.id;
+
+      // Die Ansage: einmal je Termin und Jahr, nicht einmal je Tag.
+      g.state.termine = {};
+      const erste = g._terminAnsagen(vier);
+      const zweite = g._terminAnsagen(new Date(jahr, geb.monat, geb.tag - 3));
+      r.sagtAn = !!erste;
+      r.sagtNichtNochmal = zweite === null;
+      r.markeGesetzt = Object.keys(g.state.termine).length;
+      // Nächstes Jahr wieder.
+      const naechstes = g._terminAnsagen(new Date(jahr + 1, geb.monat, geb.tag - 4));
+      r.naechstesJahrWieder = !!naechstes;
+
+      // Und die Zeile steht wirklich im Aufgabenfenster.
+      //
+      // Dafür wird der Tag ERZWUNGEN – wie `forceSeason`, wenn man im Juni
+      // nachsehen will, ob der Schnee richtig fällt. Ohne das läse das
+      // Fenster den echten Kalender, und die Prüfung ginge an 4 von 5 Tagen
+      // im Jahr durch, ohne irgendetwas geprüft zu haben.
+      const { forceHeute } = await import('/src/game/termine.js');
+      forceHeute(vier);
+      g.openPanel('quests');
+      const txt = document.getElementById('panel-body').textContent;
+      r.imFenster = txt.indexOf(wannText(bald.in) + ': ' + bald.name) >= 0;
+      r.nenntLiebling = txt.indexOf('mag am liebsten') >= 0;
+      g.panels.close();
+
+      // Am Tag selbst steht er NICHT mehr in der Vorschau – dafür gibt es
+      // die Zeile „hat heute Geburtstag".
+      forceHeute(new Date(jahr, geb.monat, geb.tag));
+      g.openPanel('quests');
+      const txt2 = document.getElementById('panel-body').textContent;
+      r.heuteKeineVorschau = txt2.indexOf('in 0 Tagen') < 0 &&
+        txt2.indexOf('heute: ') < 0;
+      r.heuteGeburtstag = txt2.indexOf('hat heute Geburtstag') >= 0;
+      g.panels.close();
+
+      forceHeute(null);
+      r.wiederEcht = !!g.naechsterTermin || true;
+      return r;
+    });
+    check('Der Kalender kennt alle elf Termine',
+      termine.anzahl === 11 && termine.vorlauf === 7, JSON.stringify(termine));
+    check('Vier Tage vorher steht der Geburtstag in der Vorschau',
+      termine.gemeldetIn === 4 && termine.text === 'in 4 Tagen', JSON.stringify(termine));
+    check('Weiter draußen steht er nicht',
+      termine.ausserhalb === true, JSON.stringify(termine));
+    check('Angesagt wird einmal je Termin und Jahr – nicht jeden Morgen',
+      termine.sagtAn === true && termine.sagtNichtNochmal === true &&
+      termine.markeGesetzt === 1, JSON.stringify(termine));
+    check('Nächstes Jahr sagt die Insel wieder Bescheid',
+      termine.naechstesJahrWieder === true, JSON.stringify(termine));
+    check('Die Zeile steht im Aufgabenfenster, mit dem Lieblingsstück',
+      termine.imFenster === true && termine.nenntLiebling === true,
+      JSON.stringify(termine));
+    check('Am Tag selbst steht dort „heute Geburtstag" statt der Vorschau',
+      termine.heuteGeburtstag === true && termine.heuteKeineVorschau === true,
+      JSON.stringify(termine));
+
+
+    /* ---- Die Chronik ---- */
+    const chronik = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { zeitSatz } = await import('/src/game/chronik.js');
+      const r = {};
+      const merkTag = g.day.day;
+      const merkFound = g.inventory.found;
+      const merkRec = g.state.records;
+      const merkDone = g.quests.completedBySpirit;
+
+      // Ein Spielstand, der schon eine Weile läuft.
+      g.day.day = 34;
+      g.inventory.found = { wood: 412, stone: 233, fish_trout: 12, shell: 88 };
+      g.state.records = { fish_trout: 33, fish_catfish: 40 };
+      g.quests.completedBySpirit = { flamey: 12, mira: 9, kiesel: 14 };
+
+      g.openPanel('quests');
+      const txt = document.getElementById('panel-body').textContent;
+      r.ueberschrift = txt.indexOf('Seit du hier bist') >= 0;
+      r.satz = txt.indexOf(zeitSatz(34)) >= 0;
+      r.tage = txt.indexOf('34 Tage auf der Insel') >= 0;
+      r.dinge = txt.indexOf('745 Dinge in der Tasche gehabt') >= 0;
+      r.bitten = txt.indexOf('35 Bitten erfüllt') >= 0;
+      // Der größte Fang ist die Forelle (95 % ihrer Spanne), nicht der
+      // größere Wels – dieselbe Regel wie im Unit-Test, hier am echten Text.
+      r.fang = txt.indexOf('33 cm größter Fang: Bachforelle') >= 0;
+      g.panels.close();
+
+      // Ohne Fang fehlt die Zeile ganz.
+      g.state.records = {};
+      g.openPanel('quests');
+      const ohne = document.getElementById('panel-body').textContent;
+      r.ohneFang = ohne.indexOf('größter Fang') < 0;
+      r.trotzdemDa = ohne.indexOf('Seit du hier bist') >= 0;
+      g.panels.close();
+
+      g.day.day = merkTag;
+      g.inventory.found = merkFound;
+      g.state.records = merkRec;
+      g.quests.completedBySpirit = merkDone;
+      return r;
+    });
+    check('Die Chronik steht unten im Aufgabenfenster',
+      chronik.ueberschrift === true && chronik.satz === true, JSON.stringify(chronik));
+    check('Ihre Zahlen kommen aus dem Spielstand, nicht aus einer zweiten Buchführung',
+      chronik.tage === true && chronik.dinge === true && chronik.bitten === true,
+      JSON.stringify(chronik));
+    check('Der größte Fang wird an der Art gemessen, nicht in Zentimetern',
+      chronik.fang === true, JSON.stringify(chronik));
+    check('Ohne einen einzigen Fang fehlt die Zeile, der Rest bleibt',
+      chronik.ohneFang === true && chronik.trotzdemDa === true, JSON.stringify(chronik));
+
+    /* ---- Die Kammer: zwei Räume ---- */
+    const kammer = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { innenTuerFuer, anDerInnenTuer, KAMMER_AB, wandHoehe } =
+        await import('/src/game/interior.js');
+      const r = {};
+      const merkHaus = g.state.house;
+      const merkInterior = g.state.interior;
+      const merkSlots = g.inventory.slots;
+
+      // Vor dem großen Haus gibt es nur einen Raum – und keinen Durchgang.
+      g.state.house = 2;
+      g.state.interior = { raeume: [{ stuecke: [], wand: [], ausstattung: 'holz' }] };
+      g.inventory.slots = [];
+      g.syncHouse();
+      g.betritt();
+      r.kleinRaeume = g.raumZahl();
+      const klein = g.raum();
+      const kt = innenTuerFuer(klein);
+      g.innen.x = kt.x + kt.w / 2;
+      g.innen.y = 8;
+      g._innenPrompt();
+      r.kleinHinweis = g.ui._lastPrompt;
+      r.kleinWechsel = g.wechsleRaum();
+      g.verlaesst();
+
+      // Mit dem großen Haus kommt die Kammer.
+      g.state.house = 4;
+      g.state.interior = { raeume: [
+        { stuecke: [], wand: [], ausstattung: 'holz' },
+        { stuecke: [], wand: [], ausstattung: 'holz' },
+      ] };
+      g.syncHouse();
+      g.betritt();
+      r.raeume = g.raumZahl();
+      r.startVorn = g.raumIndex();
+      const vorn = g.raum();
+      r.vornName = vorn.name;
+
+      // Vor die Verbindungstür stellen und hindurchgehen.
+      const t = innenTuerFuer(vorn);
+      g.innen.x = t.x + t.w / 2;
+      g.innen.y = 8;
+      r.anDerTuer = anDerInnenTuer(g.innen.x, g.innen.y, vorn);
+      g._innenPrompt();
+      r.hinweisVorn = g.ui._lastPrompt;
+      g._innenInteract();
+      r.jetztRaum = g.raumIndex();
+      const hinten = g.raum();
+      r.hintenName = hinten.name;
+      r.hintenBild = g.raumSprite();
+      r.vornBild = (function () { const m = g.innen.raum; g.innen.raum = 0;
+        const n = g.raumSprite(); g.innen.raum = m; return n; }());
+      // Man landet nicht IM Durchgang – sonst schickt ein Tastendruck einen
+      // sofort wieder zurück.
+      r.nichtImDurchgang = !anDerInnenTuer(g.innen.x, g.innen.y, hinten);
+      r.stehtImRaum = g._innenBegehbar(g.innen.x, g.innen.y);
+
+      // In der Kammer gibt es kein Bett und keinen Ausgang.
+      g.innen.x = hinten.w / 2;
+      g.innen.y = hinten.h - 10;
+      g._innenPrompt();
+      r.hinweisUnten = g.ui._lastPrompt;
+      g._innenInteract();
+      r.nochDrin = g.drinnen();
+      r.nochHinten = g.drinnen() ? g.raumIndex() : -1;
+      // Und weiter geht es auch dann, wenn diese Prüfung gerade fällt: Ein
+      // Testblock, der beim ersten Fehler abstürzt, sagt nur, DASS etwas
+      // kaputt ist, und verschweigt den Rest.
+      if (!g.drinnen()) { g.betritt(); g.innen.raum = 1; }
+      g.innen.x = hinten.w / 2;
+      g.innen.y = Math.round(hinten.h * 0.5);
+
+      // Eigene Möbel, eigene Wand, eigene Ausstattung.
+      g.inventory.add('bookstack', 1);
+      g.inventory.add('picture', 1);
+      g.innen.x = Math.round(hinten.w * 0.4);
+      g.innen.y = Math.round(hinten.h * 0.6);
+      g.player.dir = 'up';
+      g.startPlacing('bookstack');
+      g._innenPlacingUpdate();
+      g._innenInteract();
+      g.waehleAusstattung('abend');
+      r.hintenStuecke = g.innenStuecke().length;
+      r.hintenAusstattung = g.ausstattung().id;
+      r.vornStuecke = g.innenStuecke(0).length;
+      r.vornAusstattung = g.ausstattung(0).id;
+
+      // Gemütlichkeit zählt beide Räume.
+      const nurHinten = g.wohnPunkte();
+      g.innenStuecke(0).push({ id: 'moonlamp', x: 200, y: 200 });
+      r.beideZaehlen = g.wohnPunkte() > nurHinten;
+      r.summeStimmt = g.wohnPunkte() === nurHinten + 9;
+
+      // Zurück nach vorn.
+      const t2 = innenTuerFuer(hinten);
+      g.innen.x = t2.x + t2.w / 2;
+      g.innen.y = 8;
+      g._innenPrompt();
+      r.hinweisHinten = g.ui._lastPrompt;
+      g._innenInteract();
+      r.wiederVorn = g.raumIndex();
+      r.vornNochDa = g.innenStuecke().length;
+      r.hintenNochDa = g.innenStuecke(1).length;
+
+      // Das Tier kommt mit durch die Tür.
+      //
+      // Diese Prüfung steht hier, weil sie GEFEHLT hat: `_innenPetStart`
+      // setzte das Tier neben die AUSGANGSTÜR, und die gibt es in der Kammer
+      // nicht. Der erste Schritt hinein wäre mit einer Ausnahme geendet –
+      // und zwar nur für Leute mit zahmem Tier, also nicht im Testlauf, wo
+      // das Tier an dieser Stelle noch ein Streuner ist.
+      const merkPet = g.state.pet;
+      const { ZAHM_NOETIG } = await import('/src/game/pet.js');
+      g.state.pet = {
+        art: 'cat', zahm: ZAHM_NOETIG, laune: 2,
+        gefuettertAm: 0, fundAm: 0, name: 'Moos', seit: 1,
+      };
+      g.innen.raum = 0;
+      let tierFehler = '';
+      let vornTier = null;
+      let hintenTier = null;
+      try {
+        g._innenPetStart();
+        vornTier = g.innenPetBild();
+        g.innen.raum = 1;
+        g.innen.x = Math.round(hinten.w * 0.5);
+        g.innen.y = Math.round(hinten.h * 0.5);
+        g._innenPetStart();
+        hintenTier = g.innenPetBild();
+      } catch (e) {
+        // Der Fehler, den es hier einmal gab, war eine AUSNAHME und kein
+        // falscher Wert. Ohne dieses Netz risse er den ganzen Block ab, und
+        // die Meldung hiesse „Testlauf ohne Ausnahme" statt zu sagen, was
+        // kaputt ist.
+        tierFehler = String((e && e.message) || e);
+      }
+      r.tierFehler = tierFehler;
+      r.tierVorn = !!vornTier;
+      r.tierHinten = !!hintenTier;
+      r.tierImRaum = hintenTier
+        ? (hintenTier.x >= 0 && hintenTier.x <= hinten.w &&
+           hintenTier.y >= 0 && hintenTier.y <= hinten.h)
+        : false;
+      r.tierNebenSeli = hintenTier
+        ? Math.round(Math.hypot(hintenTier.x - g.innen.x, hintenTier.y - g.innen.y))
+        : -1;
+      g.state.pet = merkPet;
+      g.innen.raum = 0;
+      g._innenPetStart();
+
+      // Und beides steht im Spielstand.
+      g.save();
+      const json = JSON.parse(window.localStorage.getItem('seli-grove:save:v1'));
+      const rs = json.state.interior.raeume;
+      r.imStand = rs.length;
+      r.standVorn = rs[0].stuecke.length;
+      r.standHinten = rs[1].stuecke.length;
+      r.standAusstattung = rs[0].ausstattung + '/' + rs[1].ausstattung;
+
+      g.verlaesst();
+      g.state.house = merkHaus;
+      g.state.interior = merkInterior;
+      g.inventory.slots = merkSlots;
+      g.syncHouse();
+      r.kammerAb = KAMMER_AB;
+      return r;
+    });
+    check('Vor dem großen Haus gibt es nur einen Raum und keinen Durchgang',
+      kammer.kleinRaeume === 1 && kammer.kleinWechsel === false &&
+      kammer.kleinHinweis !== 'Weiter', JSON.stringify(kammer));
+    check('Mit dem großen Haus kommt die Kammer dazu',
+      kammer.raeume === 2 && kammer.startVorn === 0 && kammer.kammerAb === 3,
+      JSON.stringify(kammer));
+    check('Durch die Verbindungstür geht es in die Kammer',
+      kammer.anDerTuer === true && /^Weiter · /.test(kammer.hinweisVorn) &&
+      kammer.jetztRaum === 1 && kammer.hintenName !== kammer.vornName,
+      JSON.stringify(kammer));
+    check('Man kommt drüben an, statt im Durchgang zu stehen',
+      kammer.nichtImDurchgang === true && kammer.stehtImRaum === true,
+      JSON.stringify(kammer));
+    check('Jeder Raum hat ein eigenes Bild',
+      kammer.vornBild !== kammer.hintenBild, JSON.stringify(kammer));
+    check('Aus der Kammer geht es nicht nach draußen',
+      kammer.hinweisUnten !== 'Hinausgehen' && kammer.nochDrin === true &&
+      kammer.nochHinten === 1, JSON.stringify(kammer));
+    check('Die Kammer hat eigene Möbel und eigene Wandfarbe',
+      kammer.hintenStuecke === 1 && kammer.vornStuecke === 0 &&
+      kammer.hintenAusstattung === 'abend' && kammer.vornAusstattung === 'holz',
+      JSON.stringify(kammer));
+    check('Die Gemütlichkeit zählt beide Räume zusammen',
+      kammer.beideZaehlen === true && kammer.summeStimmt === true,
+      JSON.stringify(kammer));
+    check('Und zurück nach vorn, ohne dass etwas verschwindet',
+      /^Zurück · /.test(kammer.hinweisHinten) && kammer.wiederVorn === 0 &&
+      kammer.vornNochDa === 1 && kammer.hintenNochDa === 1,
+      JSON.stringify(kammer));
+    check('Das zahme Tier kommt mit in die Kammer – und steht dort im Raum',
+      kammer.tierFehler === '' && kammer.tierVorn === true &&
+      kammer.tierHinten === true && kammer.tierImRaum === true &&
+      kammer.tierNebenSeli <= 90,
+      JSON.stringify(kammer));
+    check('Beide Räume stehen im Spielstand',
+      kammer.imStand === 2 && kammer.standVorn === 1 && kammer.standHinten === 1 &&
+      kammer.standAusstattung === 'holz/abend', JSON.stringify(kammer));
+
+    // ---- Ein Spielstand von vor der Kammer ----
+    const altesZimmer = await page.evaluate(async () => {
+      const { interiorAus } = await import('/src/game/interior.js');
+      const r = {};
+      // Die flache Form, wie sie vor der Kammer im Spielstand stand.
+      const flach = {
+        stuecke: [{ id: 'bench', x: 300, y: 300 }, { id: 'table', x: 400, y: 250 }],
+        wand: [{ id: 'picture', x: 150 }],
+        ausstattung: 'sand',
+      };
+      const { getItem } = await import('/src/game/items.js');
+      const gezogen = interiorAus(flach, 4,
+        (id) => !!(getItem(id) && getItem(id).prop));
+      r.raeume = gezogen.raeume.length;
+      r.vorn = gezogen.raeume[0].stuecke.length;
+      r.wand = gezogen.raeume[0].wand.length;
+      r.ausstattung = gezogen.raeume[0].ausstattung;
+      r.hintenLeer = gezogen.raeume[1].stuecke.length;
+      return r;
+    });
+    check('Ein Zimmer aus der Zeit vor der Kammer bleibt vollständig',
+      altesZimmer.raeume === 2 && altesZimmer.vorn === 2 && altesZimmer.wand === 1 &&
+      altesZimmer.ausstattung === 'sand' && altesZimmer.hintenLeer === 0,
+      JSON.stringify(altesZimmer));
 
     /* ---- Der Wanderer ---- */
     const wand1 = await page.evaluate(async () => {

@@ -47,6 +47,59 @@ export const RAEUME = [
 ];
 
 /**
+ * Die Kammer – der zweite Raum, ab dem großen Haus.
+ *
+ * **Warum überhaupt ein zweiter Raum.** Nicht wegen der Fläche. Ein größeres
+ * Zimmer hätte dasselbe getan und weniger gekostet. Der Grund ist ein
+ * anderer: Ein Raum hat **einen** Ton. Wer Wand und Boden auf Abendblau
+ * stellt, stellt damit alles auf Abendblau, und jedes Stück, das nicht dazu
+ * passt, muss weg. Mit zwei Räumen wird aus dem Einrichten zum ersten Mal
+ * eine Entscheidung, die man zweimal treffen darf – vorn das Wohnliche,
+ * hinten die Werkstatt, und beide mit eigener Ausstattung.
+ *
+ * **Sie ist kleiner als das Zimmer davor**, und das ist Absicht. Eine zweite
+ * Halle wäre die doppelte Arbeit für dasselbe Gefühl; eine Kammer ist ein
+ * Ort, den man vollkriegt.
+ *
+ * **Sie kommt erst mit dem großen Haus.** Wer im Zelt wohnt, hat eine Ecke –
+ * eine Tür in eine zweite Zeltecke wäre albern. Und sie hat weder Bett noch
+ * Ausgang: Geschlafen und hinausgegangen wird vorn.
+ */
+export const KAMMERN = [
+  { stufe: 3, name: 'Die Kammer', w: 520, h: 400, wand: 140, bett: false, ausgang: false, fenster: 0 },
+  { stufe: 4, name: 'Die Werkkammer', w: 660, h: 470, wand: 150, bett: false, ausgang: false, fenster: 0 },
+];
+
+/**
+ * Hat dieser Raum ein Bett? Und einen Ausgang nach draußen?
+ *
+ * Gefragt wird auf `!== false`, nicht auf `=== true`: Die vier Zimmer vorn
+ * schreiben es gar nicht hin, und das sollen sie auch nicht müssen. Nur wer
+ * KEINS hat, sagt es – die Ausnahme trägt die Beschriftung, nicht die Regel.
+ */
+export function hatBett(raum) {
+  return !!raum && raum.bett !== false;
+}
+
+export function hatAusgang(raum) {
+  return !!raum && raum.ausgang !== false;
+}
+
+/**
+ * Gibt es hier eine Verbindungstür?
+ *
+ * Aus der Ausbaustufe abgeleitet und nicht an jedem Raum vermerkt: Die Stufe
+ * steht ohnehin an jedem Raum, und zwei Stellen, die dasselbe wissen müssen,
+ * laufen irgendwann auseinander.
+ */
+export function hatVerbindung(raum) {
+  return !!raum && raum.stufe >= KAMMER_AB;
+}
+
+/** Ab welcher Ausbaustufe es die Kammer gibt. */
+export const KAMMER_AB = 3;
+
+/**
  * Wand und Boden, zum Wechseln.
  *
  * Das Stück Animal Crossing, das in einem Zimmer am meisten ausmacht: nicht
@@ -111,12 +164,17 @@ export const TUER_BREITE = 104;
  * quer über dem Fenster wäre genau die Sorte Fehler, die man erst sieht,
  * wenn sie schon im Spielstand steht.
  *
- * Die Zeltecke hat keines – ein Zelt hat kein Fenster.
+ * Die Zeltecke hat keines – ein Zelt hat kein Fenster. Die Kammer auch
+ * nicht, und das ist kein Sparen: Sie ist der Raum HINTER dem Zimmer, ihr
+ * Licht fällt durch die Verbindungstür. Ein Fenster hätte dort mitten in
+ * einer ohnehin kurzen Wand gestanden und von fünf Aufhängepunkten drei
+ * gekostet – gemessen. Und es macht aus den beiden Räumen zwei verschiedene
+ * Orte statt zweier Größen desselben.
  */
 export const FENSTER_B = 92;
 
 export function fensterFuer(raum) {
-  if (raum.stufe <= 1) return [];
+  if (raum.stufe <= 1 || raum.fenster === 0) return [];
   const n = raum.stufe >= 4 ? 2 : 1;
   const h = Math.min(66, raum.wand - 36);
   const y0 = Math.round((raum.wand - h) / 2);
@@ -192,8 +250,15 @@ export function wandPlatzFrei(wand, x, y, raum, ausser) {
   const b = bettFuer(raum);
   // Grosszügig gerechnet: Bei knapperem Abstand schaute die Ecke des
   // Wandbretts hinter dem Kopfteil hervor – halb verdeckt ist schlechter als
-  // gar nicht dort.
-  if (Math.abs(b.x - x) < BETT_BREITE / 2 + WAND_ABSTAND * 0.7) return false;
+  // gar nicht dort. In der Kammer steht kein Bett, dort entfällt die Regel.
+  if (b && Math.abs(b.x - x) < BETT_BREITE / 2 + WAND_ABSTAND * 0.7) return false;
+  // Und nicht über die Verbindungstür. Sie sitzt oben in der Wand, genau
+  // dort, wo sonst Bilder hängen – ein Kranz über der Tür wäre ein Kranz,
+  // durch den man hindurchläuft.
+  if (hatVerbindung(raum)) {
+    const t = innenTuerFuer(raum);
+    if (x > t.x - WAND_ABSTAND * 0.7 && x < t.x + t.w + WAND_ABSTAND * 0.7) return false;
+  }
   const liste = wand || [];
   for (let i = 0; i < liste.length; i++) {
     const s = liste[i];
@@ -239,11 +304,79 @@ export function maxStuecke(raum) {
   return Math.max(12, Math.round((raum.w * raum.h) / 5200));
 }
 
-/** Der Raum zu einer Ausbaustufe. */
-export function raumFuer(stufe) {
+/**
+ * Alle Räume einer Ausbaustufe – vorn zuerst.
+ *
+ * Die Liste ist die Wahrheit über das Zuhause: Wie viele Räume es gibt, wie
+ * sie heißen und wie groß sie sind, steht an genau dieser Stelle. Alles
+ * andere – der Spielstand, das Zeichnen, die Gemütlichkeit – zählt darüber.
+ */
+export function raeumeFuer(stufe) {
   const n = Math.max(1, Math.min(MAX_HOUSE_STAGE, stufe | 0 || 1));
-  for (let i = 0; i < RAEUME.length; i++) if (RAEUME[i].stufe === n) return RAEUME[i];
-  return RAEUME[0];
+  const raus = [];
+  for (let i = 0; i < RAEUME.length; i++) if (RAEUME[i].stufe === n) raus.push(RAEUME[i]);
+  if (!raus.length) raus.push(RAEUME[0]);
+  for (let i = 0; i < KAMMERN.length; i++) if (KAMMERN[i].stufe === n) raus.push(KAMMERN[i]);
+  return raus;
+}
+
+/** Wie viele Räume die Ausbaustufe hergibt. */
+export function raumZahl(stufe) {
+  return raeumeFuer(stufe).length;
+}
+
+/**
+ * Der Raum zu einer Ausbaustufe.
+ *
+ * Ohne zweites Argument der vordere – so, wie es vor der Kammer war. Das ist
+ * kein Zufall, sondern der Grund, warum die Umstellung klein blieb: Wer nur
+ * „das Zimmer" meint, meint weiterhin das Zimmer.
+ */
+export function raumFuer(stufe, index) {
+  const alle = raeumeFuer(stufe);
+  const i = Math.max(0, Math.min(alle.length - 1, index | 0));
+  return alle[i];
+}
+
+/**
+ * Die Verbindungstür – oben in der Rückwand, rechts.
+ *
+ * Oben und nicht an der Seite: Der Raum ist als Rückwand über Boden gemalt,
+ * und eine Seitenwand gibt es gar nicht. Eine Tür in einer Wand, die nicht
+ * da ist, wäre ein Loch im Bildrand.
+ *
+ * Unten in der Mitte liegt der Ausgang nach draußen; die Verbindungstür sitzt
+ * deshalb oben. Das ist auch ohne Beschriftung zu lesen: nach unten hinaus,
+ * nach oben weiter hinein.
+ *
+ * Es gibt sie in BEIDEN Räumen an derselben Stelle – vorn führt sie nach
+ * hinten, hinten führt sie zurück. Zwei verschiedene Türen wären zwei Bilder
+ * und eine Regel mehr, für nichts.
+ */
+export const INNENTUER_BREITE = 96;
+
+export function innenTuerFuer(raum) {
+  // Ganz rechts, hart an den Wandrand.
+  //
+  // Bei 78 % der Breite sah sie besser aus und war trotzdem falsch: Im
+  // Zimmer der dritten Stufe landete sie genau im breitesten freien Stück
+  // Wand und liess von fünfzehn Aufhängepunkten sieben übrig. In der Ecke
+  // kostet sie nur den Rand, den ohnehin niemand nutzt – gemessen, nicht
+  // geschätzt.
+  return {
+    x: Math.max(WAND_RAND, raum.w - WAND_RAND - INNENTUER_BREITE),
+    w: INNENTUER_BREITE,
+  };
+}
+
+/** Wie tief der Streifen vor der Verbindungstür ist. */
+export const INNENTUER_TIEFE = 56;
+
+/** Steht dieser Punkt vor der Verbindungstür? */
+export function anDerInnenTuer(x, y, raum) {
+  if (!hatVerbindung(raum)) return false;
+  const t = innenTuerFuer(raum);
+  return y <= INNENTUER_TIEFE && x >= t.x && x <= t.x + t.w;
 }
 
 /**
@@ -253,6 +386,7 @@ export function raumFuer(stufe) {
  * Zarge: Danach wird gefragt, ob Seli gerade hinausgehen kann.
  */
 export function tuerFuer(raum) {
+  if (!hatAusgang(raum)) return null;
   return {
     x: raum.w / 2 - TUER_BREITE / 2,
     w: TUER_BREITE,
@@ -266,6 +400,7 @@ export const TUER_TIEFE = 64;
 /** Steht dieser Punkt auf der Tür? */
 export function anDerTuer(x, y, raum) {
   const t = tuerFuer(raum);
+  if (!t) return false;
   return y >= raum.h - TUER_TIEFE && x >= t.x && x <= t.x + t.w;
 }
 
@@ -280,6 +415,7 @@ export function anDerTuer(x, y, raum) {
  * fehlt, und der Punkt, an dem es nicht vor der Tür steht.
  */
 export function bettFuer(raum) {
+  if (!hatBett(raum)) return null;
   return {
     x: Math.round(raum.w * 0.2),
     // Nicht weiter nach oben, als die Wand hoch ist. Das Bett ist von seinem
@@ -299,6 +435,7 @@ export const BETT_BREITE = 150;
 /** Steht Seli am Bett? */
 export function amBett(x, y, raum) {
   const b = bettFuer(raum);
+  if (!b) return false;
   const dx = b.x - x;
   const dy = b.y - y;
   return dx * dx + dy * dy <= 78 * 78;
@@ -330,9 +467,15 @@ export function platzFrei(stuecke, x, y, raum, ausser) {
   // Und nicht ins Bett. Es ist fest eingebaut; ein Stuhl darin sähe nicht
   // nur seltsam aus, er versperrte auch die Nacht.
   const b = bettFuer(raum);
-  const bdx = b.x - x;
-  const bdy = b.y - y;
-  if (bdx * bdx + bdy * bdy < 66 * 66) return false;
+  if (b) {
+    const bdx = b.x - x;
+    const bdy = b.y - y;
+    if (bdx * bdx + bdy * bdy < 66 * 66) return false;
+  }
+  // Und nicht vor die Verbindungstür. Dieselbe Regel wie am Ausgang, aus
+  // demselben Grund: Ein zugestellter Durchgang wäre die einzige Sackgasse,
+  // die dieses Spiel anbieten könnte.
+  if (anDerInnenTuer(x, y, raum)) return false;
   const liste = stuecke || [];
   const d2 = STUECK_ABSTAND * STUECK_ABSTAND;
   for (let i = 0; i < liste.length; i++) {
@@ -435,21 +578,33 @@ export function wohnBonus(punkte) {
   return Math.min(WOHN_BONUS_MAX, Math.round(p * 2));
 }
 
-/** Leeres Zimmer – wie `emptyPet` und `emptyFeste`. */
-export function emptyInterior() {
+/** Ein leeres einzelnes Zimmer. */
+export function emptyRaum() {
   return { stuecke: [], wand: [], ausstattung: AUSSTATTUNG[0].id };
 }
 
 /**
- * Ein geladenes Zimmer wieder gerade ziehen.
+ * Ein leeres Zuhause – wie `emptyPet` und `emptyFeste`.
  *
- * Ein Spielstand aus der Zeit vor dem Zimmer hat gar keines; einer, der von
- * Hand bearbeitet wurde, vielleicht Unsinn darin. Beides darf das Spiel nicht
- * zum Stehen bringen – dieselbe Haltung wie bei `Inventory.fromJSON`, das
- * unbekannte Gegenstände still verwirft.
+ * Eine **Liste** von Räumen, auch solange es nur einen gibt. Der erste
+ * Entwurf hatte `stuecke`, `wand` und `ausstattung` flach obenauf, und die
+ * Kammer wäre daneben als zweites Feld dazugekommen – ein Zuhause mit einem
+ * Zimmer und einem Anhängsel. Eine Liste sagt, was wirklich gilt: Das
+ * Zuhause hat Räume, und der vordere ist der erste davon.
  */
-export function interiorAus(roh, raum, kennt) {
-  const leer = emptyInterior();
+export function emptyInterior() {
+  return { raeume: [emptyRaum()] };
+}
+
+/**
+ * Ein einzelnes Zimmer wieder gerade ziehen.
+ *
+ * Ein Spielstand, der von Hand bearbeitet wurde, hat vielleicht Unsinn
+ * darin. Das darf das Spiel nicht zum Stehen bringen – dieselbe Haltung wie
+ * bei `Inventory.fromJSON`, das unbekannte Gegenstände still verwirft.
+ */
+export function raumAus(roh, raum, kennt) {
+  const leer = emptyRaum();
   if (!roh || typeof roh !== 'object' || Array.isArray(roh)) return leer;
   const rein = Array.isArray(roh.stuecke) ? roh.stuecke : [];
   const raus = [];
@@ -464,9 +619,11 @@ export function interiorAus(roh, raum, kennt) {
     // In den Raum ziehen statt verwerfen: Wer das Haus ausbaut, soll seine
     // Möbel behalten – und wer eines Tages wieder kleiner wohnte, auch.
     const p = klemmeInRaum(x, y, raum);
-    // Aber nie vor die Tür. Ein Stück, das nach dem Ziehen im Ausgang steht,
-    // wäre das einzige, was einen in diesem Spiel einsperren könnte.
+    // Aber nie vor eine Tür. Ein Stück, das nach dem Ziehen im Ausgang oder
+    // im Durchgang steht, wäre das einzige, was einen in diesem Spiel
+    // einsperren könnte.
     if (anDerTuer(p.x, p.y, raum)) p.y = raum.h - TUER_TIEFE - STUECK_ABSTAND;
+    if (anDerInnenTuer(p.x, p.y, raum)) p.y = INNENTUER_TIEFE + STUECK_ABSTAND;
     raus.push({ id: s.id, x: p.x, y: Math.max(RAND, p.y) });
   }
   // Die Wand führt eine eigene Liste: Ihre Koordinaten zählen von der
@@ -488,6 +645,43 @@ export function interiorAus(roh, raum, kennt) {
     });
   }
   return { stuecke: raus, wand: wand, ausstattung: ausstattungFuer(roh.ausstattung).id };
+}
+
+/**
+ * Ein geladenes Zuhause wieder gerade ziehen.
+ *
+ * Drei Fälle, und alle drei kommen wirklich vor:
+ *
+ * 1. **Gar keines.** Ein Spielstand aus der Zeit vor dem Zimmer.
+ * 2. **Ein flaches.** Ein Spielstand aus der Zeit vor der Kammer: `stuecke`,
+ *    `wand` und `ausstattung` liegen obenauf. Der wird zum ersten Raum – wer
+ *    sein Zimmer eingerichtet hat, findet es unverändert wieder.
+ * 3. **Eine Liste.** Der heutige Fall. Zu viele Räume werden abgeschnitten
+ *    (wer eines Tages kleiner wohnte), zu wenige aufgefüllt.
+ *
+ * Abgeschnitten wird am Ende und nicht am Anfang: Der vordere Raum ist der,
+ * in dem das Bett steht.
+ */
+export function interiorAus(roh, stufe, kennt) {
+  const formen = raeumeFuer(stufe);
+  const alt = roh && typeof roh === 'object' && !Array.isArray(roh) ? roh : null;
+  // Fall 2: flach. Zu erkennen daran, dass es keine Raumliste gibt, aber
+  // etwas, das nach einem Raum aussieht.
+  const liste = alt && Array.isArray(alt.raeume) ? alt.raeume
+    : alt && (Array.isArray(alt.stuecke) || Array.isArray(alt.wand) || alt.ausstattung)
+      ? [alt]
+      : [];
+  const raeume = [];
+  for (let i = 0; i < formen.length; i++) {
+    raeume.push(raumAus(liste[i], formen[i], kennt));
+  }
+  return { raeume: raeume };
+}
+
+/** Der Stand eines bestimmten Raums – nie undefined. */
+export function raumStand(interior, index) {
+  const liste = interior && Array.isArray(interior.raeume) ? interior.raeume : [];
+  return liste[index | 0] || emptyRaum();
 }
 
 /* ---------------------------------------------------------------- Gruppen */

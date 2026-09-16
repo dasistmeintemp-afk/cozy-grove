@@ -33,6 +33,7 @@ import {
   paintStumpStool, paintStonebench, paintStonelamp, paintTorch,
   paintFlowerbox, paintBonsai, paintHedgehogbox, paintFeeder,
   paintSteppingstones, paintArch, paintClothesline, paintBookstack,
+  paintAquarium, paintButtercase,
 } from './painted-decor.js';
 import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
@@ -42,6 +43,7 @@ import {
 } from './painted-interior.js';
 import {
   RAEUME, TUER_BREITE, raumFuer, ausstattungFuer, fensterFuer,
+  tuerFuer, innenTuerFuer, hatVerbindung,
 } from '../game/interior.js';
 import { BUGS, MEMORY_KINDS } from '../game/items.js';
 import { CROPS, CROP_IDS } from '../game/crops.js';
@@ -298,6 +300,8 @@ export function initArt() {
   /* --- Deko --- */
   addArt('lantern', paintLantern({ seed: 391 }));
   addArt('travellamp', paintTravelLamp({ seed: 2141 }));
+  addArt('aquarium', paintAquarium({ seed: 2201 }));
+  addArt('buttercase', paintButtercase({ seed: 2211 }));
   addArt('bench', paintBench({ seed: 411 }));
   addArt('fence', paintFence({ seed: 431 }));
   addArt('flowerbed', paintFlowerbed({ seed: 451 }));
@@ -427,6 +431,7 @@ function buildIcons() {
     ['boat', 'boat'], ['mailbox', 'mailbox'],
     ['picture', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
     ['hangplant', 'hangplant'], ['travellamp', 'travellamp'],
+    ['aquarium', 'aquarium'], ['buttercase', 'buttercase'],
     ['table', 'table'], ['chair', 'chair'], ['hammock', 'hammock'],
     ['swing', 'swing'], ['firebowl', 'firebowl'],
     ['stringlights', 'stringlights'], ['paperlamp', 'paperlamp'],
@@ -501,15 +506,21 @@ function buildIcons() {
  *
  * @returns {string} der Name im Register
  */
-export function ensureRoom(stufe, ausstattungId) {
-  const r = raumFuer(stufe);
+export function ensureRoom(stufe, ausstattungId, index) {
+  const i = index | 0;
+  const r = raumFuer(stufe, i);
   const a = ausstattungFuer(ausstattungId);
-  const name = 'room_' + r.stufe + '_' + a.id;
+  // Der Raumindex gehört in den Namen: Zimmer und Kammer einer Stufe haben
+  // dieselbe Ausstattung und verschiedene Maße. Ohne ihn bekäme die Kammer
+  // das Bild des Zimmers – in der falschen Größe.
+  const name = 'room_' + r.stufe + '_' + i + '_' + a.id;
   if (registry[name]) return name;
+  const aussen = tuerFuer(r);
   const art = paintRoom({
     w: r.w, h: r.h, wand: r.wand, stufe: r.stufe,
-    tuerX: r.w / 2 - TUER_BREITE / 2, tuerW: TUER_BREITE,
-    seed: 1900 + r.stufe * 7 + a.id.length * 13,
+    tuerX: aussen ? aussen.x : 0, tuerW: aussen ? aussen.w : 0,
+    innenTuer: hatVerbindung(r) ? innenTuerFuer(r) : null,
+    seed: 1900 + r.stufe * 7 + i * 101 + a.id.length * 13,
     farben: a,
     fenster: fensterFuer(r),
   });
