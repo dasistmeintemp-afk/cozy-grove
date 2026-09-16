@@ -26,6 +26,8 @@ import {
   paintSeli, paintSpirit, paintFlameSpirit, paintFox,
 } from './painted-camp.js';
 import { trachtFuer, TRACHTEN } from '../game/tracht.js';
+import { paintInselbild } from './painted-bild.js';
+import { kennung as bildKennung } from '../game/bild.js';
 import {
   paintTable, paintChair, paintHammock, paintSwing,
   paintFirebowl, paintStringlights, paintPaperlamp,
@@ -425,7 +427,7 @@ function buildIcons() {
     ['moonflower', 'moonflower'], ['rainmushroom', 'rainmushroom'],
     ['fogcrystal', 'fogcrystal'], ['moonlamp', 'lantern'],
     ['boat', 'boat'], ['mailbox', 'mailbox'],
-    ['picture', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
+    ['picture', 'picture'], ['islandpic', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
     ['hangplant', 'hangplant'], ['travellamp', 'travellamp'],
     ['aquarium', 'aquarium'], ['buttercase', 'buttercase'],
     ['table', 'table'], ['chair', 'chair'], ['hammock', 'hammock'],
@@ -527,6 +529,23 @@ export function seliBilder(trachtId) {
   // bewegt sich nicht.
   addArt(stamm + '_sit', paintSeli('sit', 0, { tracht: t }));
   return stamm;
+}
+
+/**
+ * Eine Skizze als Bild – einmal gemalt, dann im Register.
+ *
+ * Wie `ensureRoom` und `seliBilder`: Es gibt achtundzwanzig moegliche
+ * Skizzen, und niemand hat alle. Gemalt wird die, die wirklich haengt.
+ *
+ * @returns {?string} der Name im Register
+ */
+export function ensureBild(skizze) {
+  const k = bildKennung(skizze);
+  if (!k) return null;
+  const name = 'bild_' + k.replace(':', '_');
+  if (registry[name]) return name;
+  addArt(name, paintInselbild(skizze));
+  return name;
 }
 
 export function ensureRoom(stufe, ausstattungId, index) {

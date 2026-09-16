@@ -35,10 +35,17 @@ body{margin:0;background:#2a2f28;color:#e8e2d2;font:11px system-ui,sans-serif}
 .cell span{display:block;margin-top:3px;font-size:9px;color:#4a4038;word-break:break-all}
 </style></head><body><div id="wrap"></div>
 <script type="module">
-import { initArt, spr, spriteNames, ensureRoom, seliBilder } from '../src/art/sprites.js';
+import { initArt, spr, spriteNames, ensureRoom, seliBilder, ensureBild } from '../src/art/sprites.js';
 import { raumZahl, AUSSTATTUNG_IDS } from '../src/game/interior.js';
 import { TRACHT_IDS } from '../src/game/tracht.js';
+import { ORT_IDS, JAHRESZEITEN } from '../src/game/bild.js';
 initArt();
+// Und die Skizzen: Auch die entstehen erst, wenn eine wirklich haengt.
+for (const ort of ORT_IDS) {
+  for (const jz of Object.keys(JAHRESZEITEN)) {
+    ensureBild({ ort, jahreszeit: jz, zeit: 'tag', wetter: null });
+  }
+}
 // Dasselbe gilt fuer die Trachten: Beim Start wird nur die erste gemalt.
 for (const t of TRACHT_IDS) seliBilder(t);
 // Zimmer werden erst beim Betreten gemalt (siehe ensureRoom). Fuer den

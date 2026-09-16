@@ -197,6 +197,9 @@ export const HINTS = {
   clothesline: 'Werkbank.',
   // An die Wand im Zimmer.
   picture: 'Werkbank. Hängt an der Zimmerwand.',
+  // Die einzige Deko, die man nicht baut und nicht bestellt: Sie entsteht,
+  // wo man sich hinsetzt (siehe `bild.js`).
+  islandpic: 'Setz dich irgendwo hin und sieh dich um.',
   shelf: 'Werkbank. Hängt an der Zimmerwand.',
   wreath: 'Aus dem Katalog. Hängt an der Zimmerwand.',
   hangplant: 'Aus dem Katalog. Hängt an der Zimmerwand.',

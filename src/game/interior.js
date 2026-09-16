@@ -27,6 +27,7 @@
  * Ausbaustufen zum ersten Mal etwas, das man betreten kann.
  */
 import { MAX_HOUSE_STAGE } from './house.js';
+import { skizzeAusRoh } from './bild.js';
 
 /**
  * Wie groß der Raum je Ausbaustufe ist, in Bildpunkten.
@@ -638,11 +639,20 @@ export function raumAus(roh, raum, kennt) {
     if (kennt && !kennt(s.id)) continue;
     const x = Number(s.x);
     if (!isFinite(x)) continue;
-    wand.push({
+    const eintrag = {
       id: s.id,
       x: Math.max(WAND_RAND, Math.min(raum.w - WAND_RAND, x)),
       y: wandHoehe(raum),
-    });
+    };
+    // Eine Skizze bringt ihren Ort und ihre Jahreszeit mit. Alles andere an
+    // der Wand ist mit seiner Kennung vollstaendig beschrieben; ein Bild von
+    // der Insel nicht - zwei Skizzen sind dasselbe STUECK und trotzdem
+    // verschiedene Bilder. Geprueft wird das hier und nicht beim Malen: Was
+    // durchkommt, geht an den Maler, und der rechnet mit Kennungen, die es
+    // gibt.
+    const skizze = skizzeAusRoh(s.bild);
+    if (skizze) eintrag.bild = skizze;
+    wand.push(eintrag);
   }
   return { stuecke: raus, wand: wand, ausstattung: ausstattungFuer(roh.ausstattung).id };
 }

@@ -420,6 +420,34 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nicht zumachen, nur weil man fertig ist. Die sieben Sätze stehen zum
   Nachlesen im Erinnerungsfenster – eine Sprechblase ist nach acht Sekunden
   weg, und das sind die Sätze, auf die alles zuläuft.
+* **Skizzen von der Insel – an deiner Wand.** Draußen und drinnen berührten
+  einander nur über Möbel: Man trug einen Stuhl hinein. **Was die Insel selbst
+  hergibt – ein Abend an den Klippen, der erste Schnee am Wasser – blieb
+  draußen**, und an der Wand hingen allgemeine Bilder, die überall hätten
+  hängen können.
+
+  Jetzt behält Seli einen Platz, wenn sie sich hinsetzt und **eine Weile
+  umsieht** – erst nachdem sie etwas über ihn gesagt hat, nicht beim
+  Hinsetzen. Wer kurz Platz nimmt und weiterläuft, sammelt nichts ein.
+
+  **Kein Bildschirmfoto.** Gespeichert wird nicht, was zu sehen war, sondern
+  *woraus es bestand*: Ort, Jahreszeit, Tageszeit, Wetter. Gemalt wird daraus
+  beim Aufhängen – in derselben Tusche wie alles andere. Ein festgehaltener
+  Bildausschnitt wäre der einzige Gegenstand im Spiel, der ein Abbild ist
+  statt einer Zeichnung, und er sähe auch so aus: wie ein Foto in einem
+  Aquarell. Nebenbei kostet es vier Angaben im Spielstand statt einer
+  Bilddatei – und der Spielstand soll eine Datei bleiben, die man verschicken
+  kann.
+
+  **Eine je Ort und Jahreszeit.** Nicht je Tag: Sonst hätte man nach drei
+  Wochen vierzig Bilder von derselben Bank. So wird daraus eine Sammlung –
+  wer die Klippen im Winter will, muss im Winter hinauf –, und sie kann nicht
+  überlaufen: sieben Orte mal vier Jahreszeiten, achtundzwanzig Stück.
+
+  Sie gehen **nicht durch die Tasche**: Zwei Skizzen sind dasselbe *Stück* und
+  würden dort zu „Skizze ×2" zusammenfallen – aus zwei Erinnerungen würde
+  eine Zahl. Sie hängen sich aus dem Zettel direkt an die Wand und kommen
+  beim Abnehmen dorthin zurück.
 * **Seli anziehen.** Alles auf dieser Insel richtet sich nach Jahreszeit und
   Fortschritt – die Farben, die Fische, die Falter, die Weisen. Ausgerechnet
   die Figur, die man in **jeder Sekunde** ansieht, war das einzige, was sich
@@ -1156,8 +1184,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 615 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen, die Trachten …
-npm run test:browser   # 367 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 631 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen, die Trachten, die Skizzen …
+npm run test:browser   # 373 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

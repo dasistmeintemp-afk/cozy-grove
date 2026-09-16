@@ -41,6 +41,10 @@ import { weiseFuer } from './musik.js';
 import {
   trachtFuer, trachtZuFest, trachtVomWanderer, trachtenStand, offeneAus, offen as trachtOffen,
 } from './tracht.js';
+import {
+  skizzeAus, schonDa, titel as bildTitel, bilderAus, sortiert as bilderSortiert,
+  kennung as bildKennung, moeglich as bilderMoeglich,
+} from './bild.js';
 import { Shop } from './shop.js';
 import { DayCycle, DEFAULT_DAY_MINUTES } from './daycycle.js';
 import { Fishing, CAST_REACH } from './fishing.js';
@@ -104,7 +108,7 @@ import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { UI } from '../ui/ui.js';
 import { Panels } from '../ui/panels.js';
-import { ensureRoom, seliBilder } from '../art/sprites.js';
+import { ensureRoom, seliBilder, ensureBild } from '../art/sprites.js';
 import { applyUiScale } from '../ui/uiscale.js';
 import * as storage from '../core/storage.js';
 import * as savefile from '../core/savefile.js';
@@ -453,6 +457,9 @@ export class Game {
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
     this.state.trachten = offeneAus(this.state.trachten);
+    // Der Skizzenzettel. Ein alter Spielstand hat keinen – dann fängt er
+    // beim nächsten Mal Sitzen an, sich einen anzulegen.
+    this.state.bilder = bilderAus(this.state.bilder);
     if (!trachtOffen(trachtFuer(this.state.tracht), this.state.trachten)) {
       this.state.tracht = 'standard';
     }
@@ -1712,6 +1719,94 @@ export class Game {
     if (this._ruheZeit < (this._ruheNaechster || ERSTER_GEDANKE)) return;
     this._ruheNaechster = this._ruheZeit + GEDANKE_ALLE;
     this._denkLaut();
+    this._skizzieren();
+  }
+
+  /**
+   * Eine Skizze vom Platz – wenn es die noch nicht gibt.
+   *
+   * Angehängt an den Gedanken und nicht an das Hinsetzen: Erst wenn Seli
+   * etwas über den Platz gesagt hat, hat sie ihn auch angesehen. Wer sich
+   * kurz hinsetzt und weiterläuft, sammelt nichts ein.
+   *
+   * Eine je Ort und Jahreszeit (siehe `bild.js`). Damit kann der Zettel
+   * nicht überlaufen, und wer die Klippen im Winter will, muss im Winter
+   * hinauf.
+   */
+  _skizzieren() {
+    const skizze = skizzeAus(this.ruheLage(), this.day.day);
+    if (!skizze) return false;
+    if (!this.state.bilder) this.state.bilder = [];
+    if (schonDa(this.state.bilder, skizze)) return false;
+    this.state.bilder.push(skizze);
+    this.ui.toast('Skizze: ' + bildTitel(skizze), 'icon_picture', 'good');
+    this.audio.play('questDone');
+    this.save();
+    return true;
+  }
+
+  /** Der Zettel, in der Reihenfolge fürs Fenster. */
+  skizzen() {
+    return bilderSortiert(this.state.bilder || []);
+  }
+
+  /** Wie viele es überhaupt geben kann. */
+  skizzenMoeglich() {
+    return bilderMoeglich();
+  }
+
+  /** Hängt diese Skizze gerade irgendwo? */
+  skizzeHaengt(skizze) {
+    const k = bildKennung(skizze);
+    const raeume = this.raeume();
+    for (let i = 0; i < raeume.length; i++) {
+      const wand = this.innenWand(i);
+      for (let j = 0; j < wand.length; j++) {
+        if (wand[j].bild && bildKennung(wand[j].bild) === k) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Eine Skizze aufhängen.
+   *
+   * Sie geht NICHT durch die Tasche. Zwei Skizzen sind dasselbe Stück und
+   * würden dort zu einem Stapel zusammenfallen – aus zwei Erinnerungen
+   * würde „Skizze ×2". Deshalb hängt sie sich aus dem Zettel direkt an die
+   * nächste freie Stelle.
+   */
+  haengeSkizze(skizze) {
+    if (!this.drinnen()) return false;
+    const k = bildKennung(skizze);
+    if (!k) return false;
+    if (this.skizzeHaengt(skizze)) return false;
+    const raum = this.raum();
+    const wand = this.innenWand();
+    if (wand.length >= maxWandStuecke(raum)) {
+      this.ui.toast('Die Wand ist voll', 'icon_picture');
+      return false;
+    }
+    // Den nächsten freien Platz suchen, von links. Selbst hinzeigen müsste
+    // man beim Aufstellen; ein Bild hängt ohnehin auf fester Höhe, und die
+    // Reihe füllt sich damit von selbst auf.
+    const schritt = 12;
+    for (let x = WAND_RAND; x <= raum.w - WAND_RAND; x += schritt) {
+      if (!wandPlatzFrei(wand, x, wandHoehe(raum), raum)) continue;
+      wand.push({ id: 'islandpic', x: x, y: wandHoehe(raum), bild: skizze });
+      // Gleich malen lassen – wie beim Wechsel von Wand und Boden und aus
+      // demselben Grund: Sonst entstünde das Bild erst im nächsten
+      // Bildaufbau, und man sähe kein Aufhängen, sondern ein Stocken.
+      ensureBild(skizze);
+      this.audio.play('craft');
+      this.ui.toast(bildTitel(skizze), 'icon_picture', 'good');
+      this.syncCosiness();
+      this.invalidate();
+      this.save();
+      return true;
+    }
+    this.ui.toast('Kein Platz an dieser Wand', 'icon_picture');
+    return false;
   }
 
   /** Einen Gedanken zum Platz sagen – leise, über Selis Kopf. */
@@ -4605,6 +4700,20 @@ export class Game {
   _innenEinpacken(s) {
     if (this.player.tool.id !== 'hand') {
       this.ui.toast('Mit der Hand aufheben', 'icon_hand');
+      return;
+    }
+    // Eine Skizze geht nicht in die Tasche zurück, sondern auf den Zettel –
+    // wo sie ohnehin die ganze Zeit stand. In der Tasche fielen zwei
+    // Skizzen zu einem Stapel „Skizze ×2" zusammen, und aus zwei
+    // Erinnerungen würde eine Zahl.
+    if (s.bild) {
+      const wandListe = this.innenWand();
+      const wi = wandListe.indexOf(s);
+      if (wi >= 0) wandListe.splice(wi, 1);
+      this.audio.play('place');
+      this.ui.toast('Zurück auf den Zettel', 'icon_picture');
+      this._innenWirkung();
+      this.save();
       return;
     }
     if (!this.inventory.add(s.id, 1)) {

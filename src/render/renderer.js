@@ -12,7 +12,7 @@
  * der Transformation.
  */
 import { makeCanvas, ctx2d, clamp } from '../core/util.js';
-import { drawSprite, spr } from '../art/sprites.js';
+import { drawSprite, spr, ensureBild } from '../art/sprites.js';
 import { defOf } from '../world/entities.js';
 import { getItem } from '../game/items.js';
 import { campfireLevelFor } from '../game/recipes.js';
@@ -194,7 +194,11 @@ export class Renderer {
     for (let i = 0; i < wandStuecke.length; i++) {
       const s = wandStuecke[i];
       const item = getItem(s.id);
-      if (item && item.prop) drawSprite(ctx, item.prop, ox + s.x, oy + s.y, false);
+      if (!item || !item.prop) continue;
+      // Eine Skizze hat ihr eigenes Bild – gemalt aus dem, was in ihr steht.
+      // Alle anderen Wandstücke teilen sich eines je Kennung.
+      const name = s.bild ? ensureBild(s.bild) : item.prop;
+      drawSprite(ctx, name || item.prop, ox + s.x, oy + s.y, false);
     }
 
     // Stücke und Seli in EINER Liste, nach Tiefe sortiert. Das Bett steht

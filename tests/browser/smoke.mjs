@@ -4585,6 +4585,177 @@ async function run() {
     check('Und sie wirft abends wirklich Licht',
       wand4.imLichtkreis === true, JSON.stringify(wand4));
 
+    /* ---- Die Skizzen ---- */
+    const skizze = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { titel, kennung } = await import('/src/game/bild.js');
+      const { spr, hasSprite } = await import('/src/art/sprites.js');
+      const { maxWandStuecke } = await import('/src/game/interior.js');
+      const r = {};
+      const merkBilder = (g.state.bilder || []).slice();
+      const merkHaus = g.state.house;
+      const merkInterior = g.state.interior;
+
+      // Eine Skizze entsteht beim SITZEN, nicht beim Vorbeilaufen – und nur,
+      // wenn Seli schon etwas über den Platz gesagt hat.
+      g.state.bilder = [];
+      const lage = g.ruheLage();
+      r.hatOrt = !!(lage.orte && lage.orte.length);
+      r.gemacht = g._skizzieren();
+      r.zahl = g.state.bilder.length;
+      const erste = g.state.bilder[0] || null;
+      r.titel = erste ? titel(erste) : null;
+
+      // Und zwar genau eine je Ort und Jahreszeit: noch einmal sitzen gibt
+      // kein zweites Bild.
+      r.nochmal = g._skizzieren();
+      r.zahlDanach = g.state.bilder.length;
+
+      // Sie hat ein eigenes Bild, gemalt aus dem, was in ihr steht.
+      r.malteVorher = erste ? hasSprite('bild_' + kennung(erste).replace(':', '_')) : null;
+
+      // Aufhängen geht nur drinnen.
+      r.draussenNicht = g.haengeSkizze(erste) === false;
+
+      g.state.house = 3;
+      g.state.interior = { raeume: [{ stuecke: [], wand: [], ausstattung: 'holz' }] };
+      g.syncHouse();
+      g.betritt();
+      r.haengt = g.haengeSkizze(erste);
+      const wand = g.innenWand();
+      r.anDerWand = wand.length;
+      const eintrag = wand[0] || null;
+      r.traegtSkizze = !!(eintrag && eintrag.bild && kennung(eintrag.bild) === kennung(erste));
+      // Jetzt gibt es das Bild – und es ist ein ANDERES als das gewöhnliche
+      // Wandbild. Ohne das hinge an der Wand ein Allerweltsbild mit einem
+      // besonderen Namen.
+      const name = 'bild_' + kennung(erste).replace(':', '_');
+      r.malteNachher = hasSprite(name);
+      const meins = hasSprite(name) ? spr(name) : null;
+      const allgemein = spr('picture');
+      r.gleichGross = !!meins && !!allgemein &&
+        meins.w === allgemein.w && meins.h === allgemein.h;
+      if (meins && allgemein) {
+        const pixel = (s) => {
+          const c = document.createElement('canvas');
+          c.width = s.w; c.height = s.h;
+          const x = c.getContext('2d');
+          x.drawImage(s.c, 0, 0);
+          return x.getImageData(0, 0, s.w, s.h).data;
+        };
+        const a = pixel(allgemein);
+        const b = pixel(meins);
+        let anders = 0;
+        for (let i = 0; i < a.length; i += 4) {
+          if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2]) anders++;
+        }
+        r.andersAnteil = anders / (a.length / 4);
+      }
+
+      // Zweimal aufhängen geht nicht – sonst hinge dieselbe Erinnerung
+      // dreimal nebeneinander.
+      r.zweimalNicht = g.haengeSkizze(erste) === false;
+      r.wandX = eintrag ? eintrag.x : null;
+      r.immerNochEins = g.innenWand().length === 1;
+
+      // Abnehmen legt sie auf den Zettel zurück, nicht in die Tasche: Dort
+      // fielen zwei Skizzen zu einem Stapel zusammen.
+      const vorher = g.inventory.count('islandpic');
+      g.player.selectTool(0);
+      g._innenEinpacken(eintrag);
+      r.abgenommen = g.innenWand().length === 0;
+      r.nichtInDieTasche = g.inventory.count('islandpic') === vorher;
+      r.nochAufDemZettel = g.skizzen().length === 1;
+
+      // Und die Wand hat eine Grenze, die auch für Skizzen gilt.
+      r.wandGrenze = maxWandStuecke(g.raum());
+
+      g.verlaesst();
+      g.state.house = merkHaus;
+      g.state.interior = merkInterior;
+      g.state.bilder = merkBilder;
+      g.syncHouse();
+      g.save();
+      return r;
+    });
+    check('Sitzen bringt eine Skizze vom Platz',
+      skizze.hatOrt === true && skizze.gemacht === true && skizze.zahl === 1 &&
+      !!skizze.titel, JSON.stringify(skizze));
+    check('Und zwar genau eine je Ort und Jahreszeit',
+      skizze.nochmal === false && skizze.zahlDanach === 1, JSON.stringify(skizze));
+    check('Aufhängen geht drinnen und nur einmal',
+      skizze.draussenNicht === true && skizze.haengt === true &&
+      skizze.anDerWand === 1 && skizze.traegtSkizze === true &&
+      skizze.zweimalNicht === true && skizze.immerNochEins === true,
+      JSON.stringify(skizze));
+    check('Das Bild entsteht erst beim Aufhängen und ist ein eigenes',
+      skizze.malteVorher === false && skizze.malteNachher === true &&
+      skizze.gleichGross === true && skizze.andersAnteil > 0.05,
+      JSON.stringify(skizze));
+    check('Abgenommen liegt sie auf dem Zettel, nicht in der Tasche',
+      skizze.abgenommen === true && skizze.nichtInDieTasche === true &&
+      skizze.nochAufDemZettel === true, JSON.stringify(skizze));
+
+    // Und die eine Pruefung, die nur hier moeglich ist: Was der MALER an die
+    // Wand bringt. Alles oben rechnet mit dem Register; ob der Renderer die
+    // eigene Grafik der Skizze nimmt oder das Allerweltsbild, sieht man erst
+    // auf der Leinwand. Gegengeprueft war diese Luecke echt: Das Entfernen
+    // von `ensureBild` aus dem Renderer liess alle Pruefungen stehen.
+    const gemalt = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const merkHaus = g.state.house;
+      const merkInterior = g.state.interior;
+      const skizze = { ort: 'klippen', jahreszeit: 'winter', zeit: 'nacht', wetter: 'schnee' };
+
+      g.state.house = 3;
+      g.state.interior = { raeume: [{ stuecke: [], wand: [], ausstattung: 'holz' }] };
+      g.syncHouse();
+      if (!g.drinnen()) g.betritt();
+
+      const leinwand = document.getElementById('game');
+      const lies = () => {
+        const c = document.createElement('canvas');
+        c.width = leinwand.width; c.height = leinwand.height;
+        const x = c.getContext('2d');
+        x.drawImage(leinwand, 0, 0);
+        return x.getImageData(0, 0, c.width, c.height).data;
+      };
+      const zeichne = () => {
+        g.invalidate();
+        g.renderer.drawInterior(g, g.time || 0);
+      };
+
+      const wand = g.innenWand();
+      wand.length = 0;
+      // Erst die Skizze ...
+      wand.push({ id: 'islandpic', x: 200, y: 70, bild: skizze });
+      zeichne();
+      const mitSkizze = lies();
+      // ... dann ein gewoehnliches Bild an genau derselben Stelle.
+      wand.length = 0;
+      wand.push({ id: 'picture', x: 200, y: 70 });
+      zeichne();
+      const mitBild = lies();
+
+      let anders = 0;
+      for (let i = 0; i < mitSkizze.length; i += 4) {
+        if (mitSkizze[i] !== mitBild[i] || mitSkizze[i + 1] !== mitBild[i + 1] ||
+            mitSkizze[i + 2] !== mitBild[i + 2]) anders++;
+      }
+      r.punkteAnders = anders;
+
+      wand.length = 0;
+      g.verlaesst();
+      g.state.house = merkHaus;
+      g.state.interior = merkInterior;
+      g.syncHouse();
+      g.save();
+      return r;
+    });
+    check('An der Wand hängt wirklich die Skizze und nicht das Allerweltsbild',
+      gemalt.punkteAnders > 200, JSON.stringify(gemalt));
+
     /* ---- Der Kleiderschrank ---- */
     const kleid = await page.evaluate(async () => {
       const g = window.CozyGrove.game;

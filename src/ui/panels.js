@@ -6,6 +6,7 @@ import {
   SPIRITS, friendshipLevel, friendshipProgress, birthdayOn,
 } from '../game/spirits.js';
 import { wannText, heuteIst } from '../game/termine.js';
+import { titel as bildTitel, kennung as bildKennung } from '../game/bild.js';
 import { chronikZeilen, zeitSatz, bittenGesamt } from '../game/chronik.js';
 import { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } from '../game/stories.js';
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
@@ -196,6 +197,16 @@ export class Panels {
         g.waehleTracht(t.getAttribute('data-val'));
         this.render();
         break;
+      case 'haengen': {
+        // Ueber die Kennung und nicht ueber den Index: Der Zettel wird
+        // sortiert ausgegeben, und ein Index in eine sortierte Liste zeigt
+        // nach der naechsten Skizze woandershin.
+        const kennung = t.getAttribute('data-val');
+        const sk = g.skizzen().filter(function (b) { return bildKennung(b) === kennung; })[0];
+        if (sk) g.haengeSkizze(sk);
+        this.render();
+        break;
+      }
       case 'petName':
         g.benennePet();
         this.render();
@@ -1077,6 +1088,7 @@ export class Panels {
           '</div>';
       }).join('') +
       '</div>' +
+      this._skizzen() +
       this._kleiderschrank() +
       '<p class="empty-note" style="padding:8px 0 0">' +
       'Am Haus <b>E</b> drücken, dann bist du drinnen. Hinstellen wie draußen – ' +
@@ -1089,6 +1101,52 @@ export class Panels {
           escapeHtml(raeume[1].name) + ' – eigene Möbel, eigene Wand, eigener Boden.'
         : '') +
       '</p>';
+  }
+
+  /**
+   * Der Skizzenzettel.
+   *
+   * Steht über dem Kleiderschrank und unter der Ausstattung: alles drei ist
+   * „was dir gehört", und alles drei kostet nichts.
+   *
+   * **Ohne eine einzige Skizze steht hier nur ein Satz**, nämlich woher sie
+   * kommen. Eine leere Liste mit achtundzwanzig grauen Zeilen wäre eine
+   * Aufgabenliste, und dieses Spiel stellt keine.
+   */
+  _skizzen() {
+    const g = this.game;
+    const liste = g.skizzen();
+    const drinnen = g.drinnen();
+
+    if (!liste.length) {
+      return '<h3 style="font-size:0.95em;margin:18px 0 8px">Skizzen</h3>' +
+        '<p class="empty-note" style="padding:0">' +
+        'Setz dich irgendwo hin und sieh dich eine Weile um – dann behält ' +
+        'Seli den Platz. Eine Skizze je Ort und Jahreszeit; aufhängen kannst ' +
+        'du sie drinnen an der Wand.</p>';
+    }
+
+    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Skizzen · ' +
+      liste.length + ' von ' + g.skizzenMoeglich() + '</h3>' +
+      '<div class="rows" style="margin-top:8px">' +
+      liste.map(function (sk) {
+        const haengt = g.skizzeHaengt(sk);
+        return '<div class="row' + (haengt ? '' : ' dim') + '">' +
+          ico('icon_picture', 'lg') +
+          '<div class="grow"><div class="title">' + escapeHtml(bildTitel(sk)) + '</div>' +
+          (haengt ? '<div class="meta"><span>hängt</span></div>' : '') +
+          '</div>' +
+          (haengt
+            ? '<span class="row-btn ghost">' + ico('icon_check') + '</span>'
+            : drinnen
+              ? '<button class="row-btn" data-act="haengen" data-val="' +
+                escapeHtml(bildKennung(sk)) + '">Aufhängen</button>'
+              : '<span class="row-btn ghost">–</span>') +
+          '</div>';
+      }).join('') +
+      '</div>' +
+      (drinnen ? '' : '<p class="empty-note" style="padding:6px 0 0">' +
+        'Aufhängen geht drinnen.</p>');
   }
 
   /**

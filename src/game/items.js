@@ -120,6 +120,10 @@ const LIST = [
   // An die Wand – nur im Zimmer. `wand` sagt: Das hängt, es steht nicht.
   // Draußen gibt es dafür keinen Platz, und das Spiel sagt es auch.
   it('picture', 'Bild', CAT.DECOR, 64, 0, { prop: 'picture', wand: true, charm: 5 }),
+  // Die Skizzen. Kein Katalogstueck und kein Rezept: Sie entstehen beim
+  // Sitzen (siehe `bild.js`) und haengen sich aus dem Zettel an die Wand.
+  // Der Wert ist null - verkaufen laesst sich eine Erinnerung nicht.
+  it('islandpic', 'Skizze', CAT.DECOR, 0, 0, { prop: 'picture', wand: true, charm: 6 }),
   it('shelf', 'Wandbrett', CAT.DECOR, 58, 0, { prop: 'shelf', wand: true, charm: 4 }),
   it('wreath', 'Kranz', CAT.DECOR, 96, 0, { prop: 'wreath', wand: true, charm: 6 }),
   it('hangplant', 'Hängepflanze', CAT.DECOR, 130, 0, { prop: 'hangplant', wand: true, charm: 7 }),

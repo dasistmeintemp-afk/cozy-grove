@@ -84,6 +84,11 @@ function erreichbar() {
     for (const it of g.items) mark(it.id, 'wanderer');
   }
   mark(WANDER_MITBRINGSEL, 'wanderer');
+  // Die Skizze entsteht beim Sitzen und haengt sich aus dem Zettel an die
+  // Wand - sie kommt weder aus einer Werkbank noch aus dem Katalog. Diese
+  // Zeile steht hier aus demselben Grund wie die Reiselaterne darueber: Das
+  // Verzeichnis soll jede Quelle im Spiel kennen, auch die ungewoehnliche.
+  mark('islandpic', 'sitzen');
   return q;
 }
 
