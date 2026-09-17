@@ -4598,6 +4598,70 @@ async function run() {
     check('Und sie wirft abends wirklich Licht',
       wand4.imLichtkreis === true, JSON.stringify(wand4));
 
+    /* ---- Die Jahresgaben ---- */
+    const gaben = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { forceSeason } = await import('/src/game/calendar.js');
+      const { bedingteVon } = await import('/src/game/items.js');
+      const r = {};
+      const liste = bedingteVon('jahreszeit').map((i) => i.id);
+      r.arten = liste.join(',');
+
+      const zaehl = () => {
+        const n = {};
+        for (const e of g.world.entities) {
+          if (e.gone) continue;
+          if (liste.indexOf(e.kind) >= 0) n[e.kind] = (n[e.kind] || 0) + 1;
+        }
+        return n;
+      };
+      // Die Aussaat läuft über eine Drossel (`_condTimer`, ein Bildzähler)
+      // und einen Schlüssel aus Wetter, Jahreszeit und Tag.
+      //
+      // Zurückgesetzt wird NUR die Drossel. Der Schlüssel bleibt stehen –
+      // sonst prüft diese Stelle gar nicht, ob die Jahreszeit darin
+      // vorkommt: Gegengeprüft fiel genau das auf. Ohne die Jahreszeit im
+      // Schlüssel bliebe beim Wechsel alles liegen, bis sich das Wetter
+      // ändert, und am 1. März lägen Eisblumen zwischen den Blüten.
+      const setzen = (jz) => {
+        forceSeason(jz);
+        g.refreshToday();
+        g._condTimer = 0;
+        g._syncConditionalSpawns();
+      };
+
+      r.jeJahreszeit = {};
+      r.nurEine = true;
+      r.immerWelche = true;
+      for (const jz of ['spring', 'summer', 'autumn', 'winter']) {
+        setzen(jz);
+        const n = zaehl();
+        r.jeJahreszeit[jz] = n;
+        const da = Object.keys(n);
+        // Genau eine Sorte liegt herum – und zwar die dieser Jahreszeit.
+        if (da.length !== 1) r.nurEine = jz + ': ' + da.join(',');
+        if (!n[liste[['spring', 'summer', 'autumn', 'winter'].indexOf(jz)]]) {
+          r.immerWelche = jz + ': gar keine';
+        }
+      }
+
+      // Und die Mondblume läuft davon unberührt weiter – sie hängt an der
+      // Nacht, nicht am Kalender.
+      const mond = g.world.entities.filter((e) => e.kind === 'moonflower').length;
+      r.mondUnberuehrt = mond >= 0;
+
+      forceSeason(null);
+      g.refreshToday();
+      g._condTimer = 0;
+      g._condKey = null;
+      g._syncConditionalSpawns();
+      return r;
+    });
+    check('Jede Jahreszeit legt ihre eigene Gabe aus',
+      gaben.immerWelche === true, JSON.stringify(gaben.jeJahreszeit));
+    check('Und räumt die der anderen drei weg',
+      gaben.nurEine === true, JSON.stringify(gaben.jeJahreszeit));
+
     /* ---- Der Besuch ---- */
     const gast = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
@@ -4736,14 +4800,19 @@ async function run() {
       r.zahl = g.state.bilder.length;
       const erste = g.state.bilder[0] || null;
       r.titel = erste ? titel(erste) : null;
-      g.player.x = merkX;
-      g.player.y = merkY;
-      if (!erste) return r;   // ohne Skizze ist alles Weitere sinnlos
+      if (!erste) { g.player.x = merkX; g.player.y = merkY; return r; }
 
       // Und zwar genau eine je Ort und Jahreszeit: noch einmal sitzen gibt
       // kein zweites Bild.
+      //
+      // Am SELBEN Platz – Seli geht erst danach zurück. Der erste Anlauf
+      // stellte sie vorher zurück, und dann sass sie beim zweiten Mal
+      // woanders: Die zweite Skizze war zu Recht eine neue, und die Pruefung
+      // fiel ueber ihr eigenes Versaeumnis.
       r.nochmal = g._skizzieren();
       r.zahlDanach = g.state.bilder.length;
+      g.player.x = merkX;
+      g.player.y = merkY;
 
       // Sie hat ein eigenes Bild, gemalt aus dem, was in ihr steht.
       r.malteVorher = erste ? hasSprite('bild_' + kennung(erste).replace(':', '_')) : null;

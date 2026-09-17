@@ -1210,12 +1210,22 @@ export class Game {
     const night = this.day.isDark();
     const rain = this.weather.raining;
     const fog = this.weather.foggy;
-    const key = (night ? 'n' : '') + (rain ? 'r' : '') + (fog ? 'f' : '') + ':' + this.day.day;
+    // Die Jahreszeit gehört in den Schlüssel: Ohne sie bliebe die letzte
+    // Jahresgabe bis zum nächsten Wetterwechsel liegen – und am 1. März
+    // lägen Eisblumen zwischen den Blütenblättern.
+    const jahr = this.season();
+    const key = (night ? 'n' : '') + (rain ? 'r' : '') + (fog ? 'f' : '') +
+      ':' + jahr + ':' + this.day.day;
     if (key === this._condKey) return;
     this._condKey = key;
 
     const rng = dailyRng(this.world.seed, this.day.day, 'cond' + key);
+    // Die vier Jahreszeiten stehen hier neben Nacht, Regen und Nebel, weil
+    // sie für `syncConditional` dasselbe sind: eine Bedingung, die gilt oder
+    // nicht. Dass sie drei Monate hält statt einer Nacht, merkt die Mechanik
+    // nicht – und muss sie auch nicht.
     const jetzt = { night: night, rain: rain, fog: fog };
+    jetzt[jahr] = true;
     // In der Sternennacht öffnen sich mehr Mondblumen. Das ist der einzige
     // Weg, an dieser Stelle spürbar mehr zu bekommen, ohne eine zweite
     // Spawn-Mechanik danebenzustellen.

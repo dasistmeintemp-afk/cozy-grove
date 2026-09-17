@@ -420,6 +420,25 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nicht zumachen, nur weil man fertig ist. Die sieben Sätze stehen zum
   Nachlesen im Erinnerungsfenster – eine Sprechblase ist nach acht Sekunden
   weg, und das sind die Sätze, auf die alles zuläuft.
+* **Vier Jahresgaben – was es nur in dieser Jahreszeit gibt.** Man konnte ein
+  ganzes Jahr spielen, ohne je etwas in der Hand zu halten, das es nur jetzt
+  gibt: Die Jahreszeit war eine Farbe, eine Wettermischung und vier Tierarten.
+
+  Jetzt liegt in jeder eine eigene Gabe am Boden – **Blütenblätter** im
+  Frühling, **Sonnensteine** im Sommer, **Ahornblätter** im Herbst,
+  **Eisblumen** im Winter –, und aus jeder wird genau ein **Kranz** für deine
+  Wand. Wer im Januar anfängt, hat nach einem Jahr vier davon und weiß, welcher
+  woher kam.
+
+  Gebaut auf der Mechanik, die es schon gab: Mondblume (nachts), Regenpilz
+  (bei Regen), Nebelkristall (bei Nebel) — dieselbe Bedingung, nur dass sie
+  diesmal drei Monate hält statt einer Nacht.
+
+  **Niemand bittet um einen Blütenkranz im Juli.** Die Regel, die Geister
+  davon abhält, um Wetterabhängiges zu bitten, war eine von Hand geschriebene
+  Liste aus zwei Namen; jetzt leitet sie sich aus der Art der Bedingung ab und
+  fängt die Jahresgaben von selbst mit. Vier Tage Frist auf etwas, das erst in
+  drei Monaten wiederkommt, wäre die stillste Enttäuschung im ganzen Spiel.
 * **Ein Geist kommt zu Besuch.** Das Einrichten hatte eine Lücke am Ende: Der
   Charme deines Zimmers ist eine Zahl, die **nur du siehst**. Man stellt einen
   Tisch hin, legt einen Teppich darunter, hängt ein Bild auf – und niemand
@@ -1206,8 +1225,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 648 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen, die Trachten, die Skizzen, der Besuch …
-npm run test:browser   # 379 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 658 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen, die Trachten, die Skizzen, der Besuch, die Jahresgaben …
+npm run test:browser   # 381 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

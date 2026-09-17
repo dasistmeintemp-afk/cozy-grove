@@ -15,7 +15,7 @@ import { makeRng, dailyRng, makeNoise2D, fbm } from '../../src/core/rng.js';
 import { SPIRITS, SPIRIT_IDS, friendshipLevel, friendshipGift } from '../../src/game/spirits.js';
 import { charmAround, cosyLevel, pointsToNext, cosyRadius, rewardFactor, COSY_STEPS, COSY_MAX, COSY_RADIUS } from '../../src/game/cosiness.js';
 import { weatherFor, WEATHER } from '../../src/render/weather.js';
-import { getItem, ITEM_LIST, CAT } from '../../src/game/items.js';
+import { getItem, ITEM_LIST, CAT, BEDINGUNGEN } from '../../src/game/items.js';
 import { parseSave, SAVE_VERSION } from '../../src/game/game.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
@@ -1057,9 +1057,21 @@ test('Alle Symbole der Ketten verweisen auf angelegte Grafiken', () => {
 
 test('Wetter- und Nachtvorkommen sind sauber definiert', () => {
   const bedingt = ITEM_LIST.filter((i) => i.onlyAt);
-  assert.equal(bedingt.length, 3, 'Mondblume, Regenpilz, Nebelkristall');
-  const arten = bedingt.map((i) => i.onlyAt).sort();
-  assert.deepEqual(arten, ['fog', 'night', 'rain']);
+  // Drei Wetter- und Nachtvorkommen, dazu vier Jahresgaben. Geprueft wird
+  // die SORTE aus `BEDINGUNGEN` und nicht mehr eine feste Zahl: Die Zahl
+  // aenderte sich beim naechsten Zuwachs, die Sorten nicht.
+  const nachSorte = {};
+  for (const i of bedingt) {
+    assert.ok(BEDINGUNGEN[i.onlyAt], i.id + ': unbekannte Bedingung');
+    nachSorte[BEDINGUNGEN[i.onlyAt]] = (nachSorte[BEDINGUNGEN[i.onlyAt]] || 0) + 1;
+  }
+  assert.equal(nachSorte.zeit, 1, 'die Nacht');
+  assert.equal(nachSorte.wetter, 2, 'Regen und Nebel');
+  assert.equal(nachSorte.jahreszeit, 4, 'je Jahreszeit eine');
+  // Und keine zwei teilen sich eine Bedingung – sonst laegen sie immer
+  // gemeinsam da, und eine von beiden waere ueberfluessig.
+  const alle = bedingt.map((i) => i.onlyAt);
+  assert.equal(new Set(alle).size, alle.length, 'zwei Vorkommen mit derselben Bedingung');
   for (const item of bedingt) {
     assert.ok(item.value > 20, item.id + ' soll sich lohnen: ' + item.value);
     assert.ok(ENTITY_DEFS[item.id], item.id + ' braucht eine Objektdefinition');

@@ -7,7 +7,7 @@
  */
 import { SPIRITS, SPIRIT_IDS, friendshipLevel } from './spirits.js';
 import { charmAround } from './cosiness.js';
-import { MEMORY_IDS, getItem, CAT, fishesOf, bugsOf } from './items.js';
+import { MEMORY_IDS, getItem, CAT, fishesOf, bugsOf, BEDINGUNGEN } from './items.js';
 import { inSeason } from './seasons.js';
 import { dailyRng, randInt, randPick } from '../core/rng.js';
 import { makeEntity } from '../world/entities.js';
@@ -83,13 +83,20 @@ export const POOLS = {
  *   Aufgabe, die beim Fischfang schon einmal auffiel: Man läuft sechs Tage
  *   lang los und kann nichts dafür.
  *
- * Deshalb sperrt diese Regel das Wetter aus und die Nachtzeit nicht.
+ *   **Und eine Jahresgabe kommt drei Monate lang gar nicht.** Das ist
+ *   dieselbe Falle, nur zwölfmal so tief: Wer im Juli nach einem Blütenkranz
+ *   gefragt wird, wartet bis März.
+ *
+ * Deshalb sperrt diese Regel Wetter und Jahreszeit aus und die Nachtzeit
+ * nicht. Welche Sorte eine Bedingung hat, steht in `BEDINGUNGEN` – hier
+ * stand vorher eine von Hand geschriebene Liste `{ rain, fog }`, und als die
+ * vier Jahresgaben dazukamen, hätte sie stillschweigend durchgewunken.
  */
-const AUFS_WETTER_WARTEN = { rain: 1, fog: 1 };
-
 export function verlaesslich(itemId) {
   const it = getItem(itemId);
-  return !it || !it.onlyAt || !AUFS_WETTER_WARTEN[it.onlyAt];
+  if (!it || !it.onlyAt) return true;
+  // Nur „zeit" ist verlässlich: Die Nacht kommt jeden Tag.
+  return BEDINGUNGEN[it.onlyAt] === 'zeit';
 }
 
 /** Ob eine ganze Zutatenliste verlässlich zu beschaffen ist. */

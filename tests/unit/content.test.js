@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { BUGS, CONDITIONAL, ITEM_LIST, getItem, CAT, MEMORY_IDS, MEMORY_KINDS, fishesOf, bugsOf } from '../../src/game/items.js';
+import { BUGS, CONDITIONAL, BEDINGUNGEN, ITEM_LIST, getItem, CAT, MEMORY_IDS, MEMORY_KINDS, fishesOf, bugsOf } from '../../src/game/items.js';
 import { TOOLS, TOOL_ART } from '../../src/game/player.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, campfireLevelFor, nextCampfireLevel, missingFor, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
@@ -29,8 +29,10 @@ const SPRITE_NAMES = (function () {
     'bush_berry', 'bush_plain', 'grass_tuft', 'reeds', 'mushroom', 'herb',
     'shell', 'driftwood', 'digspot', 'feather', 'stardust',
     'picture', 'wreath', 'shelf', 'hangplant', 'travellamp',
+    'wreath_spring', 'wreath_summer', 'wreath_autumn', 'wreath_winter',
     'aquarium', 'buttercase',
     'moonflower', 'rainmushroom', 'fogcrystal',
+    'petal', 'sunstone', 'mapleleaf', 'frostflower',
     'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
     'campfire', 'tent', 'stall', 'workbench', 'kitchen', 'boat', 'mailbox', 'chest',
     'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',
@@ -261,9 +263,11 @@ test('Bedingte Gegenstände: Bedingung und Aussaat stehen am Gegenstand', () => 
   // Vorher standen Bedingung und Anzahl doppelt da – einmal am Gegenstand,
   // einmal im Spielkern. Ein vierter hätte stillschweigend nie ausgesät.
   assert.ok(CONDITIONAL.length >= 3, 'es gibt bedingte Gegenstände');
-  const erlaubt = ['night', 'rain', 'fog'];
+  // Die erlaubten Bedingungen stehen im Spiel, nicht hier. Vorher standen
+  // sie als Liste in dieser Prüfung – und als die Jahresgaben dazukamen,
+  // war die Liste an drei Stellen zu ändern statt an einer.
   for (const item of CONDITIONAL) {
-    assert.ok(erlaubt.indexOf(item.onlyAt) >= 0,
+    assert.ok(BEDINGUNGEN[item.onlyAt],
       item.id + ': unbekannte Bedingung „' + item.onlyAt + '"');
     assert.ok(item.spawn > 0, item.id + ' braucht eine Aussaatzahl');
   }

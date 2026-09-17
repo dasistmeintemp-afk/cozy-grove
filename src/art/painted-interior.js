@@ -387,6 +387,17 @@ export function paintWreath(opts) {
   const cy = h / 2;
   const rng = makeRng(seed);
 
+  // Die Farben kommen von außen, sonst ist es der Sommerkranz.
+  //
+  // Dieselbe Entscheidung wie bei den Trachten: EIN Maler, vier Farbsätze.
+  // Vier Kranzmaler nebeneinander wären viermal dasselbe Gesteck mit
+  // vertauschten Farbwerten – und beim fünften hätte einer eine Änderung
+  // nicht mitbekommen.
+  const laub = o.laub || '#8fb26a';
+  const laubHell = o.laubHell || '#a8c47f';
+  const bluete1 = o.bluete1 || ink.petalPink;
+  const bluete2 = o.bluete2 || ink.petalYellow;
+
   const ring = [];
   for (let i = 0; i < 14; i++) {
     const a = (i / 14) * Math.PI * 2;
@@ -408,12 +419,12 @@ export function paintWreath(opts) {
         const a = (i / 22) * Math.PI * 2 + 0.2;
         const r = 28 + (rng() - 0.5) * 6;
         dot(g, null, cx + Math.cos(a) * r, cy + Math.sin(a) * r,
-          7 + rng() * 3, i % 5 === 0 ? '#a8c47f' : '#8fb26a', seed + i);
+          7 + rng() * 3, i % 5 === 0 ? laubHell : laub, seed + i);
       }
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * Math.PI * 2 + 0.9;
         dot(g, null, cx + Math.cos(a) * 28, cy + Math.sin(a) * 28,
-          5, i % 2 ? ink.petalPink : ink.petalYellow, seed + 50 + i);
+          5, i % 2 ? bluete1 : bluete2, seed + 50 + i);
       }
     },
     // GAR KEINE Silhouette: Die Umrisslinie einer geschlossenen Ringform ist

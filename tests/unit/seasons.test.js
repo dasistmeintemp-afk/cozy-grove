@@ -19,7 +19,7 @@ import {
   inSeason, seasonsOf, seasonPhrase, SEASON_REGROW, regrowDays,
 } from '../../src/game/seasons.js';
 import { SEASONS, SEASON_IDS } from '../../src/game/calendar.js';
-import { getItem, fishesOf, bugsOf, ITEM_LIST, CAT, CONDITIONAL } from '../../src/game/items.js';
+import { getItem, fishesOf, bugsOf, ITEM_LIST, CAT, CONDITIONAL, BEDINGUNGEN, bedingteVon } from '../../src/game/items.js';
 import { hintFor } from '../../src/game/collection.js';
 import { weatherFor, WEATHER } from '../../src/render/weather.js';
 import { QuestBook, QTYPE } from '../../src/game/quests.js';
@@ -108,9 +108,13 @@ test('Keine Jahreszeit sperrt etwas aus, das am Wetter hängt', () => {
   // vierzehn Minuten. Wer im Januar spielt, hat Winter – heute, morgen und
   // in vierzig Inseltagen. Eine seltene Bedingung ist damit keine Seltenheit
   // mehr, sondern eine Sperre.
+  // Nur WETTERbedingungen. Die Nacht kommt in jeder Jahreszeit, und eine
+  // Jahresgabe ist drei Monate lang absichtlich nicht da – auf sie
+  // angewandt verböte diese Prüfung genau das Feature, das sie ist.
+  // Welche Sorte eine Bedingung hat, steht in `BEDINGUNGEN` und nicht hier.
   const bedingungen = {};
   for (const it of CONDITIONAL) {
-    if (it.onlyAt === 'night') continue;   // die Nacht kommt in jeder Jahreszeit
+    if (BEDINGUNGEN[it.onlyAt] !== 'wetter') continue;
     bedingungen[it.onlyAt] = it.id;
   }
   assert.ok(Object.keys(bedingungen).length >= 2, 'zu wenige Wetterbedingungen gefunden');
@@ -122,6 +126,24 @@ test('Keine Jahreszeit sperrt etwas aus, das am Wetter hängt', () => {
         + Math.round(p * 100) + ' von 100 Tagen');
     }
   }
+});
+
+test('Jede Jahreszeit hat genau eine eigene Gabe', () => {
+  // Das Gegenstück zur Prüfung darüber: Beim Wetter darf keine Jahreszeit
+  // etwas aussperren – bei den Jahresgaben ist das Aussperren der Sinn, und
+  // dann muss JEDE Jahreszeit eine haben. Drei mit Gabe und eine ohne wären
+  // drei gute Jahreszeiten und eine leere.
+  const gaben = bedingteVon('jahreszeit');
+  const nach = {};
+  for (const g of gaben) {
+    assert.ok(!nach[g.onlyAt], 'zwei Gaben für ' + g.onlyAt);
+    nach[g.onlyAt] = g.id;
+  }
+  for (const id of SEASON_IDS) {
+    assert.ok(nach[id], id + ' hat keine eigene Gabe');
+  }
+  assert.equal(gaben.length, SEASON_IDS.length,
+    'eine Gabe ohne Jahreszeit: ' + gaben.map((g) => g.id).join(', '));
 });
 
 test('Der erste Tag bleibt klar, egal welche Jahreszeit', () => {

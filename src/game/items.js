@@ -117,6 +117,24 @@ const LIST = [
   it('rainmushroom', 'Regenpilz', CAT.FORAGE, 30, 6, { onlyAt: 'rain', spawn: 8 }),
   it('fogcrystal', 'Nebelkristall', CAT.RELIC, 48, 9, { onlyAt: 'fog', spawn: 5 }),
 
+  /**
+   * Die vier Jahresgaben.
+   *
+   * Dieselbe Bauart wie Mondblume, Regenpilz und Nebelkristall darüber:
+   * `onlyAt` sagt, wann es sie gibt, und `syncConditional` legt sie aus und
+   * räumt sie wieder weg. Der Unterschied ist nur, dass die Bedingung
+   * diesmal drei Monate hält statt einer Nacht.
+   *
+   * Sie sind der Grund, überhaupt im Januar hinauszugehen. Bis hierher war
+   * die Jahreszeit eine Farbe, ein Wettermix und vier Tierarten – man konnte
+   * ein ganzes Jahr spielen, ohne je etwas in der Hand zu halten, das es nur
+   * in dieser Jahreszeit gibt.
+   */
+  it('petal', 'Blütenblatt', CAT.FORAGE, 26, 4, { onlyAt: 'spring', spawn: 7 }),
+  it('sunstone', 'Sonnenstein', CAT.RELIC, 44, 8, { onlyAt: 'summer', spawn: 6 }),
+  it('mapleleaf', 'Ahornblatt', CAT.FORAGE, 26, 5, { onlyAt: 'autumn', spawn: 7 }),
+  it('frostflower', 'Eisblume', CAT.FORAGE, 34, 6, { onlyAt: 'winter', spawn: 6 }),
+
   // An die Wand – nur im Zimmer. `wand` sagt: Das hängt, es steht nicht.
   // Draußen gibt es dafür keinen Platz, und das Spiel sagt es auch.
   it('picture', 'Bild', CAT.DECOR, 64, 0, { prop: 'picture', wand: true, charm: 5 }),
@@ -126,6 +144,23 @@ const LIST = [
   it('islandpic', 'Skizze', CAT.DECOR, 0, 0, { prop: 'picture', wand: true, charm: 6 }),
   it('shelf', 'Wandbrett', CAT.DECOR, 58, 0, { prop: 'shelf', wand: true, charm: 4 }),
   it('wreath', 'Kranz', CAT.DECOR, 96, 0, { prop: 'wreath', wand: true, charm: 6 }),
+
+  /**
+   * Vier Jahreskraenze – je einer aus der Gabe seiner Jahreszeit.
+   *
+   * Das ist der Grund, warum die Jahresgaben ueberhaupt etwas wert sind.
+   * Ein Fundstueck, das man nur verkaufen kann, ist Geld mit einem Namen;
+   * eines, aus dem etwas wird, das an der Wand haengen bleibt, macht aus
+   * drei Monaten eine Erinnerung. Wer im Januar anfaengt, hat nach einem
+   * Jahr vier Kraenze und weiss, welcher woher kam.
+   *
+   * Etwas mehr Charme als der gewoehnliche Kranz: Man kann sie nicht
+   * jederzeit bauen.
+   */
+  it('wreath_spring', 'Blütenkranz', CAT.DECOR, 130, 0, { prop: 'wreath_spring', wand: true, charm: 8 }),
+  it('wreath_summer', 'Sonnenkranz', CAT.DECOR, 130, 0, { prop: 'wreath_summer', wand: true, charm: 8 }),
+  it('wreath_autumn', 'Laubkranz', CAT.DECOR, 130, 0, { prop: 'wreath_autumn', wand: true, charm: 8 }),
+  it('wreath_winter', 'Eiskranz', CAT.DECOR, 130, 0, { prop: 'wreath_winter', wand: true, charm: 8 }),
   it('hangplant', 'Hängepflanze', CAT.DECOR, 130, 0, { prop: 'hangplant', wand: true, charm: 7 }),
 
   // Deko (aufstellbar)
@@ -297,7 +332,37 @@ export function fishesOf(water, night, season) {
  * standen sie doppelt da, und ein vierter Gegenstand hätte stillschweigend
  * nie ausgesät.
  */
+/**
+ * Was `onlyAt` bedeuten darf – und zu welcher Sorte es gehört.
+ *
+ * Drei Sorten, und der Unterschied ist keine Spitzfindigkeit:
+ *
+ *   zeit        kommt in jeder Jahreszeit, jeden Tag
+ *   wetter      kommt vielleicht nicht jeden Tag – muss aber in JEDER
+ *               Jahreszeit oft genug vorkommen, sonst ist es dort gesperrt
+ *   jahreszeit  kommt drei Monate lang gar nicht, und das ist der Sinn
+ *
+ * Die Unterscheidung steht hier und nicht in den Prüfungen, weil sie eine
+ * Aussage über das SPIEL ist: „Keine Jahreszeit sperrt etwas aus" gilt fürs
+ * Wetter und darf für eine Jahresgabe gerade nicht gelten. Zwei Listen an
+ * zwei Orten wären beim fünften Eintrag auseinandergelaufen.
+ */
+export const BEDINGUNGEN = {
+  night: 'zeit',
+  rain: 'wetter',
+  fog: 'wetter',
+  spring: 'jahreszeit',
+  summer: 'jahreszeit',
+  autumn: 'jahreszeit',
+  winter: 'jahreszeit',
+};
+
 export const CONDITIONAL = LIST.filter(function (i) { return !!i.onlyAt; });
+
+/** Die bedingten Gegenstände einer Sorte – z. B. alle vier Jahresgaben. */
+export function bedingteVon(sorte) {
+  return CONDITIONAL.filter(function (i) { return BEDINGUNGEN[i.onlyAt] === sorte; });
+}
 
 /** Alle Falter. */
 export const BUGS = LIST.filter(function (i) { return i.cat === CAT.BUG; });

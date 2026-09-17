@@ -27,6 +27,9 @@ import {
 } from './painted-camp.js';
 import { trachtFuer, TRACHTEN } from '../game/tracht.js';
 import { paintInselbild } from './painted-bild.js';
+import {
+  paintPetal, paintSunstone, paintMapleleaf, paintFrostflower,
+} from './painted-saison.js';
 import { kennung as bildKennung } from '../game/bild.js';
 import {
   paintTable, paintChair, paintHammock, paintSwing,
@@ -274,6 +277,11 @@ export function initArt() {
   addArt('moonflower', paintMoonflower({ seed: 811 }));
   addArt('rainmushroom', paintRainmushroom({ seed: 821 }));
   addArt('fogcrystal', paintFogcrystal({ seed: 831 }));
+  // Die vier Jahresgaben – je eine Jahreszeit (siehe `painted-saison.js`).
+  addArt('petal', paintPetal({ seed: 2601 }));
+  addArt('sunstone', paintSunstone({ seed: 2621 }));
+  addArt('mapleleaf', paintMapleleaf({ seed: 2641 }));
+  addArt('frostflower', paintFrostflower({ seed: 2661 }));
   addArt('flower_pink', paintFlower({ seed: 131, petal: INK.petalPink }));
   addArt('flower_yellow', paintFlower({ seed: 137, petal: INK.petalYellow }));
   addArt('flower_violet', paintFlower({ seed: 141, petal: INK.petalViolet }));
@@ -291,6 +299,22 @@ export function initArt() {
   // Was an der Wand hängt. Anker in der Mitte, nicht am Fuß.
   addArt('picture', paintPicture({ seed: 2101 }));
   addArt('wreath', paintWreath({ seed: 2111 }));
+  // Die vier Jahreskränze – ein Maler, vier Farbsätze (siehe `paintWreath`).
+  // Der Frühlingskranz ist blass und rosa, nicht grün: Mit Blattgrün sah er
+  // aus wie der gewöhnliche Kranz mit anderem Namen – im Übersichtsbild
+  // nebeneinander gesehen.
+  addArt('wreath_spring', paintWreath({
+    seed: 2113, laub: '#efc2d2', laubHell: '#f8dde6',
+    bluete1: '#e0899f', bluete2: '#fbf0d4' }));
+  addArt('wreath_summer', paintWreath({
+    seed: 2115, laub: '#7fa85c', laubHell: '#9cc177',
+    bluete1: '#e8a33e', bluete2: '#f7d98a' }));
+  addArt('wreath_autumn', paintWreath({
+    seed: 2117, laub: '#b8813c', laubHell: '#d0a055',
+    bluete1: '#c65a33', bluete2: '#e0b45c' }));
+  addArt('wreath_winter', paintWreath({
+    seed: 2119, laub: '#8fa8a4', laubHell: '#b4c8c4',
+    bluete1: '#e4f0f8', bluete2: '#cfe6f4' }));
   addArt('shelf', paintShelf({ seed: 2121 }));
   addArt('hangplant', paintHangplant({ seed: 2131 }));
   addArt('stall', paintStall({ seed: 351 }));
@@ -426,8 +450,14 @@ function buildIcons() {
     ['bridge_kit', 'bridge'],
     ['moonflower', 'moonflower'], ['rainmushroom', 'rainmushroom'],
     ['fogcrystal', 'fogcrystal'], ['moonlamp', 'lantern'],
+    // Die vier Jahresgaben borgen sich ihre Weltgrafik – sie sind klein
+    // genug, dass ein eigenes Symbol dasselbe Bild zweimal wäre.
+    ['petal', 'petal'], ['sunstone', 'sunstone'],
+    ['mapleleaf', 'mapleleaf'], ['frostflower', 'frostflower'],
     ['boat', 'boat'], ['mailbox', 'mailbox'],
     ['picture', 'picture'], ['islandpic', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
+    ['wreath_spring', 'wreath_spring'], ['wreath_summer', 'wreath_summer'],
+    ['wreath_autumn', 'wreath_autumn'], ['wreath_winter', 'wreath_winter'],
     ['hangplant', 'hangplant'], ['travellamp', 'travellamp'],
     ['aquarium', 'aquarium'], ['buttercase', 'buttercase'],
     ['table', 'table'], ['chair', 'chair'], ['hammock', 'hammock'],

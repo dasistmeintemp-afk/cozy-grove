@@ -180,6 +180,31 @@ export const ENTITY_DEFS = {
     sprite: 'moonflower', solid: false, reachR: 60, tool: TOOL.HAND, hits: 1,
     yield: drop('moonflower', 1, 1), sway: true, category: 'forage',
   },
+
+  /**
+   * Die vier Jahresgaben – je eine Jahreszeit.
+   *
+   * Genau wie die Mondblume darüber gebaut: `syncConditional` legt sie aus,
+   * solange die Bedingung gilt, und räumt sie weg, wenn sie fällt. Kein
+   * `respawn`, weil sie gar nicht erst nachwachsen müssen – es kommen
+   * einfach am nächsten Tag neue.
+   */
+  petal: {
+    sprite: 'petal', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
+    yield: drop('petal', 1, 2), sway: true, category: 'forage',
+  },
+  sunstone: {
+    sprite: 'sunstone', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
+    yield: drop('sunstone', 1, 1), category: 'forage',
+  },
+  mapleleaf: {
+    sprite: 'mapleleaf', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
+    yield: drop('mapleleaf', 1, 2), sway: true, category: 'forage',
+  },
+  frostflower: {
+    sprite: 'frostflower', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
+    yield: drop('frostflower', 1, 1), category: 'forage',
+  },
   rainmushroom: {
     sprite: 'rainmushroom', solid: false, reachR: 60, tool: TOOL.HAND, hits: 1,
     yield: drop('rainmushroom', 1, 1), category: 'forage',

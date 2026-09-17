@@ -95,6 +95,19 @@ export const RECIPES = [
     { ember: 8, fire: 3 }),
   // Aus dem, was nur Nacht, Regen und Nebel hergeben. Sie sind der Grund,
   // an einem anderen Tag oder zu anderer Stunde wiederzukommen.
+  // Die vier Jahreskraenze. Jeder braucht die Gabe SEINER Jahreszeit und ist
+  // damit drei Monate lang nicht zu bauen - das ist der ganze Sinn. Sonst
+  // billig: Wer die Gabe hat, hat den Kranz verdient, und ein zweites
+  // Fernziel neben Truhe und Katalog braucht niemand.
+  r('wreath_spring', 'Blütenkranz', { id: 'wreath_spring', n: 1 },
+    [{ id: 'petal', n: 5 }, { id: 'fiber', n: 3 }]),
+  r('wreath_summer', 'Sonnenkranz', { id: 'wreath_summer', n: 1 },
+    [{ id: 'sunstone', n: 2 }, { id: 'fiber', n: 3 }, { id: 'herb', n: 2 }]),
+  r('wreath_autumn', 'Laubkranz', { id: 'wreath_autumn', n: 1 },
+    [{ id: 'mapleleaf', n: 5 }, { id: 'fiber', n: 3 }]),
+  r('wreath_winter', 'Eiskranz', { id: 'wreath_winter', n: 1 },
+    [{ id: 'frostflower', n: 4 }, { id: 'fiber', n: 3 }, { id: 'hardwood', n: 1 }]),
+
   r('moonlamp', 'Mondlaterne', { id: 'moonlamp', n: 1 },
     [{ id: 'moonflower', n: 3 }, { id: 'fogcrystal', n: 2 }, { id: 'copper_ore', n: 3 }],
     { ember: 14, fire: 3, note: 'Leuchtet doppelt so weit wie eine Laterne.' }),
