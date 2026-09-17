@@ -33,6 +33,8 @@ const SPRITE_NAMES = (function () {
     'aquarium', 'buttercase',
     'moonflower', 'rainmushroom', 'fogcrystal',
     'petal', 'sunstone', 'mapleleaf', 'frostflower',
+    'sapling_oak_0', 'sapling_oak_1', 'sapling_birch_0', 'sapling_birch_1',
+    'sapling_maple_0', 'sapling_maple_1', 'sapling_pine_0', 'sapling_pine_1',
     'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
     'campfire', 'tent', 'stall', 'workbench', 'kitchen', 'boat', 'mailbox', 'chest',
     'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',

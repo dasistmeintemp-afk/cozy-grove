@@ -420,6 +420,29 @@ Am Touchscreen: Joystick links, Aktionstaste rechts.
   nicht zumachen, nur weil man fertig ist. Die sieben Sätze stehen zum
   Nachlesen im Erinnerungsfenster – eine Sprechblase ist nach acht Sekunden
   weg, und das sind die Sätze, auf die alles zuläuft.
+* **Bäume pflanzen.** Die Insel gab Bäume her, und man konnte sie fällen. Was
+  man nicht konnte: **einen setzen.** Damit war jeder Baum hier einer, den der
+  Weltgenerator hingelegt hat – und die Landschaft etwas, das man abräumt, nie
+  etwas, das man anlegt. Das steht quer zur Spielidee: Die Insel liegt als
+  blasse Zeichnung da und bekommt durch dich ihre Farbe zurück.
+
+  Beim Fällen fällt jetzt etwa bei **jedem dritten Baum** ein **Setzling**
+  seiner Art ab. Den setzt du, wo du willst; er wächst über Tage sichtbar
+  hoch und ist eines Morgens ein Baum. Wer drei Bäume fällt, kann einen
+  ersetzen – wer einen Hain will, muss dafür Holz machen.
+
+  **Er wird ein ganz gewöhnlicher Baum.** Das ist die ganze Bauart: Am Ende
+  steht kein „gepflanzter Baum" mit eigenen Regeln, sondern eine Eiche wie
+  jede andere. Damit gilt alles, was es für Bäume ohnehin gibt – fällen,
+  Holz, Nachwuchs, das Rauschen im Klangbett, die Falter, der Waldtest bei
+  den Wunschplätzen –, ohne dass eine Zeile davon etwas von Setzlingen wissen
+  muss.
+
+  **Die Jahreszeit entscheidet, wie lange es dauert** – dieselben Faktoren
+  wie beim Nachwuchs: im Frühling schneller, im Winter langsamer. Fünf bis
+  zehn Tage. Und rund um einen Setzling bleibt so viel Platz frei, wie der
+  *Baum* einmal braucht: Er ist heute ein Steckling, den man übersieht, aber
+  in einer Woche stünde eine Bank mitten darin.
 * **Vier Jahresgaben – was es nur in dieser Jahreszeit gibt.** Man konnte ein
   ganzes Jahr spielen, ohne je etwas in der Hand zu halten, das es nur jetzt
   gibt: Die Jahreszeit war eine Farbe, eine Wettermischung und vier Tierarten.
@@ -1225,8 +1248,8 @@ kostet damit 7 statt 14 ms, und die schlechteste Bildzeit beim Laufen fiel von
 ## Tests
 
 ```bash
-npm test               # 658 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen, die Trachten, die Skizzen, der Besuch, die Jahresgaben …
-npm run test:browser   # 381 Prüfungen im echten Browser, mit Bildschirmfotos
+npm test               # 671 Tests: Welt, Wetter, Jahreszeiten, Deko, Wünsche, Ausruhen, Geplauder, Küche, Feste, der Wanderer, die Weisen, die Trachten, die Skizzen, der Besuch, die Jahresgaben, die Setzlinge …
+npm run test:browser   # 386 Prüfungen im echten Browser, mit Bildschirmfotos
 npm run test:all
 ```
 

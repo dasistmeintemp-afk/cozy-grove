@@ -38,8 +38,11 @@ export const SETS = [
   },
   {
     id: CAT.SEED, name: CAT_NAMES[CAT.SEED],
-    note: 'Vier Saaten – die Mondsaat führt der Laden nur manchmal.',
-    reward: { coins: 150, ember: 10 },
+    // Die Reihe war vier Saaten lang. Mit den vier Setzlingen ist sie doppelt
+    // so lang geworden – und die Belohnung entsprechend größer, sonst wäre
+    // die längste Wartezeit im Spiel die am schlechtesten bezahlte.
+    note: 'Vier Saaten und vier Setzlinge – die Mondsaat führt der Laden nur manchmal.',
+    reward: { coins: 300, ember: 20 },
   },
   {
     id: CAT.FISH, name: CAT_NAMES[CAT.FISH],
@@ -158,6 +161,11 @@ export const HINTS = {
   lantern: 'Werkbank – oder beim Händler.',
   moonlamp: 'Werkbank, braucht ein großes Feuer.',
   // Die vier Jahresgaben und ihre Kränze.
+  // Setzlinge fallen beim Fällen ab – etwa bei jedem dritten Baum.
+  sapling_oak: 'Fällt manchmal ab, wenn du eine Eiche fällst.',
+  sapling_birch: 'Fällt manchmal ab, wenn du eine Birke fällst.',
+  sapling_maple: 'Fällt manchmal ab, wenn du einen Ahorn fällst.',
+  sapling_pine: 'Fällt manchmal ab, wenn du eine Kiefer fällst.',
   petal: 'Im Frühling am Boden, überall wo etwas wächst.',
   sunstone: 'Im Sommer am Boden, überall wo etwas wächst.',
   mapleleaf: 'Im Herbst am Boden, überall wo etwas wächst.',

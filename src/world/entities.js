@@ -189,6 +189,19 @@ export const ENTITY_DEFS = {
    * `respawn`, weil sie gar nicht erst nachwachsen müssen – es kommen
    * einfach am nächsten Tag neue.
    */
+  /**
+   * Ein Setzling. Er waechst ueber Tage und wird dann ein gewoehnlicher Baum
+   * (siehe `game/saplings.js`).
+   *
+   * `tool: HAND` und ein Treffer: Wer ihn versehentlich gesetzt hat, soll
+   * ihn wieder aufheben koennen, ohne die Axt zu holen. Die Ausbeute traegt
+   * `game.js` nach - sie haengt an der Sorte, und die steht am Objekt.
+   */
+  sapling: {
+    sprite: 'sapling_oak_0', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
+    sway: true, category: 'sapling',
+  },
+
   petal: {
     sprite: 'petal', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('petal', 1, 2), sway: true, category: 'forage',

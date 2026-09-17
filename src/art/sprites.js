@@ -28,8 +28,9 @@ import {
 import { trachtFuer, TRACHTEN } from '../game/tracht.js';
 import { paintInselbild } from './painted-bild.js';
 import {
-  paintPetal, paintSunstone, paintMapleleaf, paintFrostflower,
+  paintPetal, paintSunstone, paintMapleleaf, paintFrostflower, paintSapling,
 } from './painted-saison.js';
+import { SETZLINGE, SETZLING_IDS, STUFEN } from '../game/saplings.js';
 import { kennung as bildKennung } from '../game/bild.js';
 import {
   paintTable, paintChair, paintHammock, paintSwing,
@@ -282,6 +283,15 @@ export function initArt() {
   addArt('sunstone', paintSunstone({ seed: 2621 }));
   addArt('mapleleaf', paintMapleleaf({ seed: 2641 }));
   addArt('frostflower', paintFrostflower({ seed: 2661 }));
+  // Die Setzlinge: zwei Stufen je Sorte, ein Maler (siehe `paintSapling`).
+  for (let i = 0; i < SETZLING_IDS.length; i++) {
+    const sl = SETZLINGE[SETZLING_IDS[i]];
+    const kurz = sl.id.replace('sapling_', '');
+    for (let st = 0; st < STUFEN; st++) {
+      addArt('sapling_' + kurz + '_' + st,
+        paintSapling(st, { laub: sl.laub, seed: 2701 + i * 37 + st * 11 }));
+    }
+  }
   addArt('flower_pink', paintFlower({ seed: 131, petal: INK.petalPink }));
   addArt('flower_yellow', paintFlower({ seed: 137, petal: INK.petalYellow }));
   addArt('flower_violet', paintFlower({ seed: 141, petal: INK.petalViolet }));
@@ -454,6 +464,10 @@ function buildIcons() {
     // genug, dass ein eigenes Symbol dasselbe Bild zweimal wäre.
     ['petal', 'petal'], ['sunstone', 'sunstone'],
     ['mapleleaf', 'mapleleaf'], ['frostflower', 'frostflower'],
+    // Die Setzlinge zeigen ihre GROSSE Stufe als Symbol: Der Steckling ist
+    // bei 64 Punkten ein Strich mit drei Punkten daran.
+    ['sapling_oak', 'sapling_oak_1'], ['sapling_birch', 'sapling_birch_1'],
+    ['sapling_maple', 'sapling_maple_1'], ['sapling_pine', 'sapling_pine_1'],
     ['boat', 'boat'], ['mailbox', 'mailbox'],
     ['picture', 'picture'], ['islandpic', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
     ['wreath_spring', 'wreath_spring'], ['wreath_summer', 'wreath_summer'],

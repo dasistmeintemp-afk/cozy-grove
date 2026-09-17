@@ -250,6 +250,23 @@ const LIST = [
   it('seed_flower', 'Blumensaat', CAT.SEED, 12, 0, { plant: 'flower', prop: 'crop_flower_2' }),
   it('seed_moon', 'Mondsaat', CAT.SEED, 40, 0, { plant: 'moon', prop: 'crop_moon_2' }),
 
+  /**
+   * Vier Setzlinge.
+   *
+   * `pflanzt` statt `plant`: Die Saat legt ein BEET an, das man erntet und
+   * das danach weg ist. Ein Setzling wird ein Baum und bleibt stehen. Zwei
+   * verschiedene Dinge, und sie an einem Merkmal aufzuhaengen hiesse, dass
+   * die Erntelogik lernen muesste, dass manche Beete keine sind.
+   *
+   * Sie kommen aus gefaellten Baeumen (siehe `AUS_BAUM`) und aus dem
+   * Katalog. Der Wert ist niedrig: Ein Setzling ist kein Schatz, er ist eine
+   * Moeglichkeit.
+   */
+  it('sapling_oak', 'Eichensetzling', CAT.SEED, 14, 0, { pflanzt: 'sapling_oak', prop: 'sapling_oak_1' }),
+  it('sapling_birch', 'Birkensetzling', CAT.SEED, 14, 0, { pflanzt: 'sapling_birch', prop: 'sapling_birch_1' }),
+  it('sapling_maple', 'Ahornsetzling', CAT.SEED, 16, 0, { pflanzt: 'sapling_maple', prop: 'sapling_maple_1' }),
+  it('sapling_pine', 'Kiefernsetzling', CAT.SEED, 18, 0, { pflanzt: 'sapling_pine', prop: 'sapling_pine_1' }),
+
   // Andenken – das Geschenk am Ende einer Erinnerungskette. Nicht käuflich,
   // nicht herstellbar, nicht verbrennbar: der einzige Weg dahin ist die
   // Geschichte des jeweiligen Geistes.

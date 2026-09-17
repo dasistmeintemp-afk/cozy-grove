@@ -264,3 +264,90 @@ export function paintFrostflower(opts) {
   });
   return made(res, w, h, cx, baseY);
 }
+
+/* ------------------------------------------------------------ Setzling -- */
+
+/**
+ * Ein Schössling – Stufe 0 ein Steckling, Stufe 1 ein Bäumchen.
+ *
+ * Ein Maler für beide Stufen und alle vier Sorten, wie bei den Trachten und
+ * den Kränzen. Vier Setzlingsmaler wären viermal derselbe Stiel mit anderem
+ * Grün gewesen.
+ *
+ * **Klein halten.** Ein Setzling muss von einem Baum unterscheidbar sein,
+ * auch aus zehn Metern – deshalb ist selbst Stufe 1 nur ein Drittel so hoch
+ * wie der kleinste ausgewachsene Baum. Wer beim Vorbeilaufen nicht sieht,
+ * dass da noch etwas wächst, fällt es beim Holzmachen versehentlich.
+ *
+ * @param {number} stufe 0 oder 1
+ * @param {object} opts  {laub, seed}
+ */
+export function paintSapling(stufe, opts) {
+  const o = opts || {};
+  const gross = (stufe | 0) >= 1;
+  // Schmal und hoch. Der erste Entwurf war breiter als hoch und die Blätter
+  // saßen als eine einzige Fläche obendrauf – im Übersichtsbild stand da
+  // ein Kohlkopf auf einem Stiel. Ein Schössling ist ein STRICH mit ein paar
+  // Blättern daran; die Schlankheit ist sein ganzes Kennzeichen.
+  const w = gross ? 44 : 34;
+  const h = gross ? 86 : 52;
+  const seed = o.seed || 2701;
+  const cx = w / 2;
+  const baseY = h - 8;
+  const rnd = makeRng(seed);
+  const laub = o.laub || '#8fb26a';
+  const laubTief = o.laubTief || '#6f9450';
+
+  // Der Stiel: dünn und leicht krumm. Ein gerader Stab sähe gesteckt aus.
+  const hoehe = gross ? 58 : 30;
+  const neigung = (rnd() - 0.5) * 5;
+  const stiel = [[cx, baseY], [cx + neigung * 0.4, baseY - hoehe * 0.5],
+    [cx + neigung, baseY - hoehe]];
+
+  // Die Blätter sitzen EINZELN am oberen Stück des Stiels, abwechselnd
+  // links und rechts – nicht als Krone obendrauf. Eine Krone ist ein Baum;
+  // hier sollen es erkennbar ein paar Blätter an einem Zweig sein.
+  const blaetter = [];
+  const n = gross ? 5 : 3;
+  for (let i = 0; i < n; i++) {
+    const t = i / n;                       // 0 = unten am Blattbereich
+    const seite = i % 2 ? 1 : -1;
+    const sy = baseY - hoehe * (0.5 + t * 0.5);
+    const sx = cx + neigung * (0.5 + t * 0.5);
+    const r = (gross ? 7.5 : 6) + rnd() * 2;
+    blaetter.push(smoothClosed(
+      blob(sx + seite * (r * 0.85), sy, r, r * 0.6, seed + 20 + i, 0.18, 10), 4));
+  }
+  // Ein Blatt an der Spitze – ohne das wirkt der Stiel abgeschnitten.
+  blaetter.push(smoothClosed(
+    blob(cx + neigung, baseY - hoehe - (gross ? 4 : 3),
+      gross ? 7 : 5.5, gross ? 5.5 : 4.5, seed + 19, 0.18, 10), 4));
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.3,
+    outline: 1.4,
+    shadow: function (g) { groundShadow(g, cx, baseY, gross ? 15 : 10, 4, seed + 1, 0.12); },
+    wash: function (g) {
+      for (let i = 0; i < blaetter.length; i++) {
+        wash(g, blaetter[i], i % 3 === 0 ? laubTief : laub,
+          { seed: seed + 30 + i, scale: 1.05 });
+      }
+      for (let i = 0; i < blaetter.length; i += 2) {
+        wash(g, offsetShape(blaetter[i], LIGHT.x * 5, LIGHT.y * 5, 0.45), '#c4dba2',
+          { seed: seed + 40 + i, alpha: 0.5 });
+      }
+    },
+    shape: function (g) { for (let i = 0; i < blaetter.length; i++) fill(g, blaetter[i]); },
+    ink: function (g) {
+      inkLine(g, stiel[0][0], stiel[0][1], stiel[1][0], stiel[1][1],
+        { width: gross ? 2.4 : 1.8, bend: 0.06, seed: seed + 60, color: '#7d6144', alpha: 0.9 });
+      inkLine(g, stiel[1][0], stiel[1][1], stiel[2][0], stiel[2][1],
+        { width: gross ? 1.9 : 1.4, bend: 0.08, seed: seed + 61, color: '#7d6144', alpha: 0.9 });
+      for (let i = 0; i < blaetter.length; i++) {
+        inkStroke(g, blaetter[i], { width: 1.0, vary: 0.35, seed: seed + 70 + i, alpha: 0.55 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}

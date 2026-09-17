@@ -87,6 +87,10 @@ import {
 import { rollSize, noteSize, bestSize, sizeWord, emptyRecords } from './records.js';
 import { regrowDays } from './seasons.js';
 import {
+  setzlingFuer, setzlingVonBaum, tageFuer, stufeVon, spriteVon, tageBis as setzlingTage,
+  SETZLINGE, AUS_BAUM,
+} from './saplings.js';
+import {
   MAX_OFFEN as MAX_WUENSCHE, WUNSCH_MEILENSTEIN, wunschBauen, pruefeWunsch,
   wunschLohn, wunschTitel, wunschIcon, emptyWishes,
   wunschHier, wunschSorteHier, ORTE as WUNSCH_ORTE, GEDULD_TAGE as WUNSCH_GEDULD,
@@ -564,12 +568,22 @@ export class Game {
     const added = [];
     for (let i = 0; i < this.world.entities.length; i++) {
       const e = this.world.entities[i];
-      if (e.kind === 'decor' || e.kind === 'hidden' || e.kind === 'crop') {
+      // `sapling` steht hier, weil ein Setzling ein GESETZTES Objekt ist wie
+      // Deko und Beet – der Weltgenerator legt keinen hin. Ohne diese Zeile
+      // wäre jeder gepflanzte Baum beim nächsten Laden weg, und zwar
+      // lautlos: Die Welt wird aus dem Samen neu gebaut, und was nicht in
+      // `added` steht, hat es nie gegeben.
+      if (e.kind === 'decor' || e.kind === 'hidden' || e.kind === 'crop' ||
+          e.kind === 'sapling') {
         added.push({
           id: e.id, k: e.kind, x: Math.round(e.x), y: Math.round(e.y),
           s: e.sprite, item: e.itemId || null, q: e.questId || null, flat: !!e.flat,
           sp: e.storySpirit || null, st: e.storyStage != null ? e.storyStage : null,
           c: e.cropId || null, gw: e.grown != null ? e.grown : null, wt: e.watered || 0,
+          // Der Setzling: welche Sorte, wie weit, wie lange noch.
+          sl: e.setzling || null,
+          sg: e.gewachsen || 0,
+          sn: e.tageNoetig || 0,
           // Wie oft dieses Beet beim Wachsen gegossen wurde. Zählt bei der
           // Ernte für die Dämmerblume – ein alter Spielstand hat es nicht und
           // fängt bei null an, was höchstens eine Chance kostet.
@@ -640,6 +654,18 @@ export class Game {
         e.id = a.id;
         if (a.wt) e.watered = a.wt;
         if (a.gp) e.gepflegt = a.gp;
+        // Ein Setzling, dessen Sorte es nicht (mehr) gibt, wird gar nicht
+        // erst hingestellt: Er hätte kein Bild und würde nie ein Baum.
+        if (a.k === 'sapling') {
+          const sl = setzlingFuer(a.sl);
+          if (!sl) continue;
+          e.setzling = sl.id;
+          e.gewachsen = a.sg || 0;
+          e.tageNoetig = a.sn || tageFuer(sl, this.season());
+          e.sprite = spriteVon(sl.id, stufeVon(e.gewachsen, e.tageNoetig));
+          this.world.add(e);
+          continue;
+        }
         e.sprite = a.s;
         this.world.add(e);
       }
@@ -1032,6 +1058,23 @@ export class Game {
   _collect(e, def, level) {
     const rng = Math.random;
     const drops = def.yield ? def.yield(level, rng) : [];
+
+    // Ein Setzling gibt sich selbst zurück – seine Sorte steht am OBJEKT und
+    // nicht an der Definition, deshalb kann `def.yield` das nicht wissen.
+    // Wer versehentlich gepflanzt hat, soll ihn wieder aufheben können, ohne
+    // dass etwas verloren geht: „nichts verdirbt" gilt auch für den eigenen
+    // Irrtum.
+    if (e.kind === 'sapling' && e.setzling) drops.push({ id: e.setzling, n: 1 });
+
+    // Und ein gefällter Baum gibt manchmal einen seiner Art. Das ist die
+    // ganze Quelle: Wer drei Bäume fällt, kann einen ersetzen, und wer einen
+    // Hain will, muss dafür Holz machen. Ein Setzling im Katalog wäre
+    // bequemer und hätte das Fällen und das Pflanzen voneinander getrennt.
+    if (def.category === 'tree' && rng() < AUS_BAUM) {
+      const sl = setzlingVonBaum(e.kind);
+      if (sl) drops.push({ id: sl, n: 1 });
+    }
+
     const got = [];
     for (let i = 0; i < drops.length; i++) {
       const d = drops[i];
@@ -3883,6 +3926,61 @@ export class Game {
     return reif;
   }
 
+  /**
+   * Setzlinge einen Tag weiterwachsen lassen.
+   *
+   * Getrennt von `growCrops`, obwohl beides „wächst über Nacht" heißt: Ein
+   * Beet wird reif und geerntet, ein Setzling wird ein anderes OBJEKT und
+   * bleibt stehen. Sie in eine Schleife zu zwingen hieße, dass die
+   * Ernterechnung lernen müsste, dass manche Beete keine sind.
+   *
+   * **Gewachsen wird in Tagen, nicht in Schritten.** Der Regen und die
+   * Gießkanne beschleunigen Beete; einen Baum beschleunigen sie nicht. Das
+   * ist keine Vereinfachung, sondern die Aussage: Ein Baum braucht seine
+   * Zeit, und die einzige Kraft, die daran etwas ändert, ist die Jahreszeit.
+   *
+   * @returns {number} wie viele heute Nacht zu Bäumen geworden sind
+   */
+  growSaplings() {
+    let fertig = 0;
+    for (let i = 0; i < this.world.entities.length; i++) {
+      const e = this.world.entities[i];
+      if (e.kind !== 'sapling' || e.gone) continue;
+      const sl = setzlingFuer(e.setzling);
+      if (!sl) continue;
+      const noetig = e.tageNoetig || tageFuer(sl, this.season());
+      e.gewachsen = (e.gewachsen || 0) + 1;
+      if (e.gewachsen < noetig) {
+        e.sprite = spriteVon(sl.id, stufeVon(e.gewachsen, noetig));
+        continue;
+      }
+      // Fertig: Aus dem Setzling wird ein gewöhnlicher Baum. Kind UND
+      // Sprite werden gewechselt, und die Setzlingsfelder fallen weg –
+      // sonst trüge der Baum für immer mit sich herum, dass er einmal
+      // einer war, und der nächste Spielstand hätte Felder ohne Bedeutung.
+      e.kind = sl.wird;
+      e.sprite = spriteFor(sl.wird, e.x, e.y);
+      const def = defOf(sl.wird);
+      e.hp = def && def.hits ? def.hits : 0;
+      e.setzling = null;
+      e.gewachsen = 0;
+      e.tageNoetig = 0;
+      fertig++;
+    }
+    if (fertig) this.invalidate();
+    return fertig;
+  }
+
+  /** Wie viele Setzlinge stehen – für die Anzeige. */
+  setzlingZahl() {
+    let n = 0;
+    for (let i = 0; i < this.world.entities.length; i++) {
+      const e = this.world.entities[i];
+      if (e.kind === 'sapling' && !e.gone) n++;
+    }
+    return n;
+  }
+
   /** Wie viele Beete stehen, und wie viele davon sind erntereif? */
   cropCount() {
     let gesamt = 0;
@@ -5361,8 +5459,8 @@ export class Game {
     if (this.inventory.count(itemId) <= 0) return;
     // Drinnen wird nicht gesät und nicht gepflastert: Ein Beet im Zimmer
     // hätte keine Sonne, und ein Wegstück endete an der Wand.
-    if (this.innen && (item.plant || item.tile)) {
-      this.ui.toast(item.plant ? 'Das gehört nach draußen' : 'Wege gibt es nur draußen',
+    if (this.innen && (item.plant || item.tile || item.pflanzt)) {
+      this.ui.toast(item.tile ? 'Wege gibt es nur draußen' : 'Das gehört nach draußen',
         item.icon);
       return;
     }
@@ -5385,11 +5483,12 @@ export class Game {
       flat: !!item.flat,
       tile: !!item.tile,
       plant: item.plant || null,
+      pflanzt: item.pflanzt || null,
       // Wandstücke hängen auf einer eigenen Ebene mit eigenen Koordinaten.
       wand: !!(item.wand && this.innen),
     };
-    this.ui.toast(item.plant
-      ? 'Platz wählen · E säen · X abbrechen'
+    this.ui.toast(item.plant || item.pflanzt
+      ? 'Platz wählen · E ' + (item.plant ? 'säen' : 'pflanzen') + ' · X abbrechen'
       : 'Platz wählen · E setzen · X abbrechen', item.icon);
   }
 
@@ -5531,6 +5630,19 @@ export class Game {
         const dy = e.y - y;
         if (dx * dx + dy * dy < 44 * 44) return false;
       }
+      // Und um einen Setzling herum bleibt so viel frei, wie der BAUM
+      // einmal braucht. Er ist heute ein Steckling, den man übersieht –
+      // aber in einer Woche steht dort eine Eiche, und eine Bank, die
+      // vorher danebenpasste, stünde dann darin. Genau derselbe Fall wie
+      // beim gefällten Baum weiter oben, nur andersherum in der Zeit.
+      if (e.kind === 'sapling') {
+        const dx = e.x - x;
+        const dy = e.y - y;
+        const sl = setzlingFuer(e.setzling);
+        const baum = sl ? defOf(sl.wird) : null;
+        const rr = ((baum && baum.blockR) || 24) + 16;
+        if (dx * dx + dy * dy < rr * rr) return false;
+      }
     }
     return true;
   }
@@ -5559,6 +5671,20 @@ export class Game {
       this._note('planted');
       this.ui.toast(crop.name + ' gesetzt · reif in ' + crop.days +
         (crop.days === 1 ? ' Tag' : ' Tagen'), 'icon_' + crop.seed, 'good');
+    } else if (p.pflanzt) {
+      // Ein Setzling. Er wächst über Tage und wird dann ein GEWÖHNLICHER
+      // Baum – siehe `saplings.js`. Deshalb steht hier nichts über Bäume:
+      // Das Objekt merkt sich nur, was es einmal wird.
+      const sl = setzlingFuer(p.pflanzt);
+      const tage = tageFuer(sl, this.season());
+      const e = makeEntity('sapling', p.x, p.y, {
+        setzling: sl.id, gewachsen: 0, tageNoetig: tage, plantedDay: this.day.day,
+      });
+      e.sprite = spriteVon(sl.id, 0);
+      this.world.add(e);
+      this._note('planted');
+      this.ui.toast(sl.name + ' gepflanzt · Baum in ' + tage +
+        (tage === 1 ? ' Tag' : ' Tagen'), 'icon_' + sl.id, 'good');
     } else if (p.tile) {
       const tx = Math.floor(p.x / TILE_SIZE);
       const ty = Math.floor(p.y / TILE_SIZE);
@@ -5687,6 +5813,7 @@ export class Game {
     // doppelt, und das soll der Regen von heute sein, nicht der von gestern.
     this.weather.setDay(this.world.seed, day, this.season());
     const frischReif = this.growCrops(this.weather.kind);
+    const frischeBaeume = this.growSaplings();
     const zurueckgezogen = this.quests.newDay(day, this.world, this);
     this._wuenscheNachfuellen(day);
     this.checkWishes();
@@ -5761,6 +5888,19 @@ export class Game {
         self2.ui.toast(frischReif + (frischReif === 1 ? ' Beet ist reif' : ' Beete sind reif'),
           'icon_seed_berry', 'good');
       }, 2000);
+    }
+    // Und wenn über Nacht ein Setzling zum Baum geworden ist, wird das
+    // gesagt. Sonst wäre die einzige Rückmeldung auf eine Woche Warten,
+    // dass irgendwo auf der Insel ein Baum mehr steht – und wer nicht
+    // zufällig vorbeikommt, merkt es nie.
+    if (frischeBaeume > 0) {
+      const self3 = this;
+      setTimeout(function () {
+        self3.ui.toast(frischeBaeume === 1
+          ? 'Ein Setzling ist über Nacht ein Baum geworden'
+          : frischeBaeume + ' Setzlinge sind über Nacht Bäume geworden',
+        'icon_sapling_oak', 'good');
+      }, 2600);
     }
     this.save();
   }

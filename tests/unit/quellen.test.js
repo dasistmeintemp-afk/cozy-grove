@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 
 import { ITEM_LIST, getItem, CAT } from '../../src/game/items.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
+import { SETZLING_IDS } from '../../src/game/saplings.js';
 import { RECIPES } from '../../src/game/recipes.js';
 import { KATALOG } from '../../src/game/catalog.js';
 import { GERICHTE } from '../../src/game/kitchen.js';
@@ -89,6 +90,10 @@ function erreichbar() {
   // Zeile steht hier aus demselben Grund wie die Reiselaterne darueber: Das
   // Verzeichnis soll jede Quelle im Spiel kennen, auch die ungewoehnliche.
   mark('islandpic', 'sitzen');
+  // Setzlinge fallen beim Faellen ab. Sie stehen in keiner `yield`-Liste,
+  // weil ihre Sorte am OBJEKT haengt und nicht an der Definition - siehe
+  // `_collect`. Dieselbe Zeile aus demselben Grund wie die Reiselaterne.
+  for (const id of SETZLING_IDS) mark(id, 'faellen');
   return q;
 }
 

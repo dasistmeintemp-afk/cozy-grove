@@ -4598,6 +4598,114 @@ async function run() {
     check('Und sie wirft abends wirklich Licht',
       wand4.imLichtkreis === true, JSON.stringify(wand4));
 
+    /* ---- Setzlinge ---- */
+    const setz = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { SETZLINGE, tageFuer } = await import('/src/game/saplings.js');
+      const { defOf } = await import('/src/world/entities.js');
+      const r = {};
+      const sl = SETZLINGE.sapling_oak;
+      // Seli sucht sich unten einen freien Platz und läuft dabei bis zu
+      // 1400 Punkte. Beides wird zurückgesetzt: Die Kamera folgt ihr, und
+      // was danach kommt, soll davon nichts merken.
+      const merkX = g.player.x;
+      const merkY = g.player.y;
+
+      // Hinstellen wie jede Deko – über den echten Weg, nicht über `add`.
+      g.inventory.add('sapling_oak', 1);
+      g.startPlacing('sapling_oak');
+      g._updatePlacing();
+      let n = 0;
+      while (g.placing && !g.placing.valid && n++ < 60) {
+        g.player.x += 24;
+        g._updatePlacing();
+      }
+      r.konnteSetzen = !!(g.placing && g.placing.valid);
+      r.alsPflanzung = !!(g.placing && g.placing.pflanzt === 'sapling_oak');
+      g.confirmPlacing();
+
+      const e = g.world.entities.find((x) => x.kind === 'sapling' && !x.gone);
+      r.steht = !!e;
+      if (!e) return r;
+      r.sorte = e.setzling;
+      r.brauchtTage = e.tageNoetig;
+      r.stimmtMitJahreszeit = e.tageNoetig === tageFuer(sl, g.season());
+      r.spriteAnfang = e.sprite;
+
+      // Um ihn herum bleibt der Platz frei, den der BAUM einmal braucht.
+      //
+      // Gemessen wird der Beitrag DES SETZLINGS und nicht, ob ein Punkt
+      // weiter weg zufällig frei ist – dort kann ein Baum stehen, ein Stein
+      // oder das Lager. Der erste Anlauf prüfte genau das und fiel daran.
+      const baum = defOf(sl.wird);
+      const nah = { x: e.x + 10, y: e.y + 10 };
+      const weit = { x: e.x + baum.blockR + 60, y: e.y };
+      r.platzFrei = g._canPlaceAt(nah.x, nah.y) === false;
+      const weitVorher = g._canPlaceAt(weit.x, weit.y);
+      // Kurz WEGSCHIEBEN statt entfernen: `world.remove` setzt `gone`, und
+      // ein weggeräumter Setzling wächst zu Recht nicht mehr – beim ersten
+      // Anlauf stand danach sechs Tage lang derselbe Steckling da.
+      const wegX = e.x;
+      const wegY = e.y;
+      e.x = -9000;
+      e.y = -9000;
+      r.nahOhneIhn = g._canPlaceAt(nah.x, nah.y);
+      r.weitOhneIhn = g._canPlaceAt(weit.x, weit.y);
+      e.x = wegX;
+      e.y = wegY;
+      // Nah: gesperrt NUR wegen ihm. Weit: er ändert dort nichts.
+      r.sperrtNurEr = r.platzFrei === true && r.nahOhneIhn === true;
+      r.weitUnberuehrt = weitVorher === r.weitOhneIhn;
+
+      // Wachsen lassen – ohne den Tageswechsel, der das halbe Spiel bewegt.
+      const merkId = e.id;
+      let stufen = [e.sprite];
+      for (let i = 0; i < e.tageNoetig - 1; i++) {
+        g.growSaplings();
+        const jetzt = g.world.byId[merkId];
+        if (jetzt.sprite !== stufen[stufen.length - 1]) stufen.push(jetzt.sprite);
+      }
+      r.stufen = stufen.length;
+      r.nochSetzling = g.world.byId[merkId].kind === 'sapling';
+
+      // Der letzte Tag macht den Baum.
+      r.wurdenBaeume = g.growSaplings();
+      const fertig = g.world.byId[merkId];
+      r.jetztArt = fertig.kind;
+      r.jetztSprite = fertig.sprite;
+      // Und zwar ein GEWÖHNLICHER Baum: fällbar, mit Stumpf, mit Trefferzahl.
+      const d = defOf(fertig.kind);
+      r.istBaum = !!d && d.category === 'tree';
+      r.faellbar = fertig.hp === d.hits && d.hits > 0;
+      // Keine Setzlingsfelder mehr – sonst schleppt der Baum für immer mit
+      // sich herum, dass er einmal einer war.
+      r.keineReste = !fertig.setzling && !fertig.tageNoetig;
+      // Und er blockiert jetzt wie jeder andere Baum.
+      r.blocktJetzt = g._canPlaceAt(fertig.x, fertig.y) === false;
+
+      g.world.remove(fertig);
+      g.player.x = merkX;
+      g.player.y = merkY;
+      g.camera.snapTo(merkX, merkY - 6);
+      // Und der Setzling verlässt die Tasche wieder: Er zählt sonst im
+      // Fundbuch mit, und eine Reihe, die eine spätere Prüfung vollmachen
+      // will, wäre plötzlich länger.
+      g.inventory.remove('sapling_oak', g.inventory.count('sapling_oak'));
+      return r;
+    });
+    check('Ein Setzling lässt sich pflanzen wie jede Deko',
+      setz.konnteSetzen === true && setz.alsPflanzung === true && setz.steht === true &&
+      setz.sorte === 'sapling_oak', JSON.stringify(setz));
+    check('Wie lange er braucht, sagt die Jahreszeit',
+      setz.stimmtMitJahreszeit === true && setz.brauchtTage >= 4, JSON.stringify(setz));
+    check('Um ihn herum bleibt der Platz frei, den der Baum braucht',
+      setz.sperrtNurEr === true && setz.weitUnberuehrt === true, JSON.stringify(setz));
+    check('Er verändert sich sichtbar, bevor er fertig ist',
+      setz.stufen >= 2 && setz.nochSetzling === true, JSON.stringify(setz));
+    check('Und wird dann ein gewöhnlicher Baum – nicht ein Sonderfall',
+      setz.wurdenBaeume === 1 && setz.istBaum === true && setz.faellbar === true &&
+      setz.keineReste === true && setz.blocktJetzt === true, JSON.stringify(setz));
+
     /* ---- Die Jahresgaben ---- */
     const gaben = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
@@ -5841,13 +5949,20 @@ async function run() {
       buch.hatHinweis, JSON.stringify(buch.hinweisText));
 
     // Eine volle Reihe zahlt – einmal.
-    const reihe = await page.evaluate(() => {
+    const reihe = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
+      const { itemsOf } = await import('/src/game/collection.js');
       g.state.collected = Object.create(null);
       const muenzenVorher = g.state.coins;
-      // Alle Saaten ins Fundbuch
-      for (const id of ['seed_berry', 'seed_herb', 'seed_flower', 'seed_moon']) {
-        g.inventory.found[id] = (g.inventory.found[id] || 0) + 1;
+      // Die GANZE Reihe ins Fundbuch – aus der Reihe selbst gelesen und
+      // nicht als Namensliste. Vorher standen hier vier Saaten; als die
+      // vier Setzlinge dazukamen, war die Reihe acht lang und diese Prüfung
+      // machte sie nie mehr voll.
+      // `itemsOf` gibt GEGENSTÄNDE heraus, keine Kennungen – mit dem Objekt
+      // als Schlüssel hieße der Eintrag „[object Object]", und die Reihe
+      // bliebe genauso leer wie vorher.
+      for (const it of itemsOf('seed')) {
+        g.inventory.found[it.id] = (g.inventory.found[it.id] || 0) + 1;
       }
       g._knownCount = -1;
       g._checkCollection();
