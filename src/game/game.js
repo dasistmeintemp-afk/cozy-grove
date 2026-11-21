@@ -36,6 +36,10 @@ import {
   tauschZahl, andenkenFuer,
   MITBRINGSEL, SAETZE as WANDER_SAETZE, naechsterBesuch,
 } from './wanderer.js';
+import {
+  emptyKapitel, neueKapitel, jetzigesKapitel, naechstesKapitel,
+  kapitelHat, kapitelStand,
+} from './kapitel.js';
 import { naechsterTermin as terminInnerhalb, wannText, heuteIst } from './termine.js';
 import { weiseFuer } from './musik.js';
 import {
@@ -390,6 +394,7 @@ export class Game {
       interior: emptyInterior(),
       wanderer: emptyWanderer(),
       termine: Object.create(null),
+      kapitel: emptyKapitel(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -432,6 +437,7 @@ export class Game {
       interior: emptyInterior(),
       wanderer: emptyWanderer(),
       termine: Object.create(null),
+      kapitel: emptyKapitel(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -480,6 +486,15 @@ export class Game {
     // mit ihm getauscht – dann ist beim nächsten Mal eben der erste.
     if (!this.state.wanderer || typeof this.state.wanderer !== 'object') {
       this.state.wanderer = emptyWanderer();
+    }
+    // Die Kapitel. Ein alter Spielstand hat keine – und bekommt sie beim
+    // ersten Bild rückwirkend, so wie die Meilensteine: Wer am sechzigsten
+    // Tag weiterspielt, hat vier davon hinter sich und soll nicht bei
+    // „Ankunft" anfangen. `_checkKapitel` holt das von selbst nach, weil der
+    // leere Stand nichts als offen vermerkt hat.
+    if (!this.state.kapitel || typeof this.state.kapitel !== 'object' ||
+        !this.state.kapitel.offen) {
+      this.state.kapitel = emptyKapitel();
     }
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
@@ -794,6 +809,7 @@ export class Game {
     this._shootingStars(dt);
     this._checkVisits(dt);
     this._checkMilestones(dt);
+    this._checkKapitel(dt);
     this._checkCollection();
     this._petSucht();
     this._petRuht(dt);
@@ -2489,6 +2505,91 @@ export class Game {
       if (added > 0) got.push({ id: it.id, n: added });
     }
     if (got.length) this.ui.toastItems(got);
+  }
+
+  /* ---------------- Kapitel ---------------- */
+
+  /**
+   * Ist ein Kapitel aufgegangen?
+   *
+   * Dieselbe Taktung wie bei den Meilensteinen, einmal je Sekunde – aber aus
+   * einem anderen Grund. Die Meilensteine müssen warten, weil `coverage` die
+   * halbe Karte abtastet. Hier ist die Rechnung billig; getaktet wird, damit
+   * ein Kapitel und ein Meilenstein, die am selben Morgen fällig sind, nicht
+   * im selben Bild zwei Meldungen übereinanderlegen.
+   *
+   * Der Anteil kommt aus derselben Quelle wie bei den Meilensteinen. Das ist
+   * Absicht: Der Boden eines Kapitels soll genau das messen, was der
+   * Farbbalken anzeigt, und nicht eine zweite, ähnliche Zahl.
+   */
+  _checkKapitel(dt) {
+    this._kapitelT = (this._kapitelT || 0) - (dt || 0);
+    if (dt && this._kapitelT > 0) return;
+    this._kapitelT = 1;
+
+    if (!this.state.kapitel || !this.state.kapitel.offen) {
+      this.state.kapitel = emptyKapitel();
+    }
+    const anteil = this.colorField.coverage(this.world);
+    const neu = neueKapitel(this.state.kapitel, this.day.day, anteil);
+    if (!neu.length) return;
+
+    for (let i = 0; i < neu.length; i++) {
+      this.state.kapitel.offen[neu[i].id] = this.day.day;
+    }
+
+    // „Ankunft" hat keinen Auftakt: Es ist der Zustand, in dem man anfängt,
+    // und eine Meldung „ein neues Kapitel: Ankunft" im ersten Bild eines
+    // neuen Spiels wäre eine Ansage über nichts.
+    const sagen = neu.filter(function (k) { return !!k.auftakt; });
+    this._note('kapitel', neu.length);
+    if (!sagen.length) { this.save(); return; }
+
+    // Mehrere auf einmal gibt es nur, wenn ein alter Spielstand seine
+    // Kapitel nachholt. Dann ist eine Sammelmeldung ehrlicher als vier
+    // Auftakte hintereinander, von denen keiner zum heutigen Morgen passt.
+    if (sagen.length > 1) {
+      this.ui.toast(sagen.length + ' Kapitel aufgeschlagen', 'icon_star', 'good');
+    } else {
+      this.ui.toast(sagen[0].name + ' · ' + sagen[0].auftakt, sagen[0].icon, 'good');
+    }
+    this.audio.play('levelup');
+    if (this.world.campfire) {
+      this.particles.burst('color', this.world.campfire.x, this.world.campfire.y - 60, 34);
+    }
+    this.ui.refreshHud();
+    this.save();
+  }
+
+  /**
+   * In welchem Kapitel man gerade ist – für das Tagebuch.
+   *
+   * Rechnet aus Tag und Anteil und nicht aus dem Spielstand: So steht dort
+   * auch bei einem alten Stand das Richtige, noch bevor `_checkKapitel` ihn
+   * eine Sekunde später nachgeholt hat.
+   */
+  kapitelJetzt() {
+    return jetzigesKapitel(this.day.day, this.colorField.coverage(this.world));
+  }
+
+  /** Was als nächstes kommt und woran es noch hängt – oder `null`. */
+  kapitelNaechstes() {
+    return naechstesKapitel(this.day.day, this.colorField.coverage(this.world));
+  }
+
+  /** Wie viele Kapitel offen sind: {offen, gesamt}. */
+  kapitelZahl() {
+    return kapitelStand(this.state.kapitel);
+  }
+
+  /**
+   * Gibt es diese Sache auf der Insel schon?
+   *
+   * Die einzige Frage, die das übrige Spiel an die Kapitel stellt. Über die
+   * Sache und nicht über die Kapitelnummer – siehe `kapitelHat`.
+   */
+  hatSache(sache) {
+    return kapitelHat(this.state.kapitel, sache);
   }
 
   /* ---------------- Das Grundstück ---------------- */

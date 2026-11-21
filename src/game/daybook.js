@@ -45,6 +45,7 @@ export const DAYBOOK_ROWS = [
   { key: 'getauscht', icon: 'icon_travellamp', ein: 'Mal mit dem Wanderer getauscht', mehr: 'Mal mit dem Wanderer getauscht' },
   { key: 'sets', icon: 'icon_bookstack', ein: 'Reihe im Fundbuch voll', mehr: 'Reihen im Fundbuch voll' },
   { key: 'milestones', icon: 'icon_star', ein: 'Meilenstein erreicht', mehr: 'Meilensteine erreicht' },
+  { key: 'kapitel', icon: 'icon_map', ein: 'Kapitel aufgeschlagen', mehr: 'Kapitel aufgeschlagen' },
   { key: 'coins', icon: 'icon_coin', ein: 'Münze verdient', mehr: 'Münzen verdient' },
   { key: 'ember', icon: 'icon_ember', ein: 'Glut gesammelt', mehr: 'Glut gesammelt' },
 ];

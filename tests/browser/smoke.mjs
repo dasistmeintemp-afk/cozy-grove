@@ -6474,6 +6474,11 @@ async function run() {
         tracht: g.state.tracht,
         traegt: g.player.tracht,
         schrank: (g.state.trachten || []).length,
+        kapitel: Object.keys((g.state.kapitel || {}).offen || {}),
+        kapitelJetzt: g.kapitelJetzt().id,
+        gezeiten: g.hatSache('gezeiten'),
+        sternbilder: g.hatSache('sternbilder'),
+        naechstesKapitel: g.kapitelNaechstes() ? g.kapitelNaechstes().kapitel.id : null,
       };
     });
     check('Der Stand zieht dabei auf die heutige Adresse um',
@@ -6492,6 +6497,17 @@ async function run() {
     check('Eine behauptete Tracht zieht der alte Stand wieder aus',
       alt.tracht === 'standard' && alt.traegt === 'standard' && alt.schrank === 0,
       JSON.stringify(alt));
+    // Der Stand steht auf Tag 21. Genau zwei Kapitel sind dort fällig:
+    // „Ankunft" ab Tag 1 und „Die niedrige See" ab Tag 12. Das dritte
+    // kommt erst an Tag 30 – und dass es NICHT dabei ist, ist die Hälfte
+    // dieser Prüfung: Ein Stand, der beim Laden gleich alle fünf Kapitel
+    // nachholt, hätte den ganzen Bogen auf einmal verbraucht.
+    check('Ein alter Stand holt genau die fälligen Kapitel nach',
+      alt.kapitel.length === 2 && alt.kapitelJetzt === 'niedrigesee' &&
+      alt.naechstesKapitel === 'klarerhimmel', JSON.stringify(alt.kapitel) + ' ' + alt.kapitelJetzt);
+    check('Und was sie mitbringen, ist für ihn da',
+      alt.gezeiten === true && alt.sternbilder === false,
+      'gezeiten=' + alt.gezeiten + ' sternbilder=' + alt.sternbilder);
   } catch (err) {
     check('Testlauf ohne Ausnahme', false, err && err.message);
     if (err && err.stack) console.error('\n--- Stapel ---\n' + err.stack + '\n');
@@ -6505,6 +6521,15 @@ async function run() {
 
   const failed = checks.filter((c) => !c.ok);
   console.log('\n' + (checks.length - failed.length) + '/' + checks.length + ' Prüfungen bestanden');
+  // Die gefallenen Prüfungen NOCH EINMAL, am Ende und beieinander.
+  //
+  // Das stand vorher nur oben im Protokoll, mitten zwischen 388 Zeilen – und
+  // bei einem Fehler, der nur auf manchen Inseln auftritt, ist genau das die
+  // eine Zeile, die man braucht. Einmal war ein Lauf 387/388, und weil der
+  // Blick aufs Ende des Protokolls nur die Summe zeigte, war nicht mehr
+  // herauszufinden, WELCHE Prüfung es war. Zusammen mit dem Inselsamen
+  // darunter ist ein solcher Lauf jetzt wiederholbar.
+  for (const c of failed) console.log('   FAIL: ' + c.name + (c.detail ? '  (' + c.detail + ')' : ''));
   console.log('Bildschirmfotos: ' + SHOT_DIR);
   if (failed.length) exitCode = 1;
   process.exit(exitCode);
