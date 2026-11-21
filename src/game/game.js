@@ -48,6 +48,11 @@ import {
   emptyDekoreaktion, reaktionFuer, merke as merkeReaktion, reaktionenStand,
 } from './dekoreaktion.js';
 import {
+  NAME as JULE, SAETZE as JULE_SAETZE, LOHN as JULE_LOHN,
+  emptyNachbar, istDa as juleDa, naechsteGeschichte, merke as merkeGeschichte,
+  neueStufe, nachbarStand, heuteSchon as juleHeuteSchon,
+} from './nachbar.js';
+import {
   emptySternbilder, faelligesSternbild, merke as merkeSternbild,
   gefundene as gefundeneSternbilder, sternbilderStand, geistName as sternGeist,
 } from './sternbilder.js';
@@ -313,6 +318,7 @@ export class Game {
     this._placeStoryPieces(this.day.day);
     this._festSchmuck(this.day.day);
     this._wandererSetzen(this.day.day);
+    this._juleSetzen();
 
     // Strichliste für den Rückblick: neu anlegen, wenn es keine gibt oder sie
     // noch von einem früheren Tag stammt (etwa aus einem alten Spielstand).
@@ -415,6 +421,7 @@ export class Game {
       orte: emptyOrte(),
       sternbilder: emptySternbilder(),
       dekoreaktion: emptyDekoreaktion(),
+      nachbar: emptyNachbar(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -462,6 +469,7 @@ export class Game {
       orte: emptyOrte(),
       sternbilder: emptySternbilder(),
       dekoreaktion: emptyDekoreaktion(),
+      nachbar: emptyNachbar(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -542,6 +550,14 @@ export class Game {
     }
     if (!this.state.dekoreaktion || typeof this.state.dekoreaktion !== 'object') {
       this.state.dekoreaktion = emptyDekoreaktion();
+    }
+    // Jule. Ein alter Spielstand kennt sie nicht – und holt sie auch nicht
+    // nach: Ihr Einzug gehört zu einem Kapitel, und das geht auf, wenn es
+    // so weit ist. Jemanden rückwirkend einziehen zu lassen, nähme dem
+    // Einzug genau den Morgen, um den es geht.
+    if (!this.state.nachbar || typeof this.state.nachbar !== 'object' ||
+        !this.state.nachbar.erzaehlt) {
+      this.state.nachbar = emptyNachbar();
     }
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
@@ -1020,6 +1036,7 @@ export class Game {
       const def = t.def;
       if (def.category === 'spirit') { this.talkTo(t.entity); return; }
       if (def.category === 'wanderer') { this.redeMitWanderer(t.entity); return; }
+      if (def.category === 'nachbar') { this.redeMitJule(t.entity); return; }
       if (def.category === 'pet') { this.feedPet(); return; }
       if (def.category === 'fox') { this.openPanel('shop'); return; }
       if (def.category === 'hidden') { this.pickHidden(t.entity); return; }
@@ -2629,6 +2646,10 @@ export class Game {
     for (let i = 0; i < neu.length; i++) {
       this.state.kapitel.offen[neu[i].id] = this.day.day;
     }
+    // Was ein frisch aufgeschlagenes Kapitel mitbringt, muss sofort da sein
+    // und nicht erst nach dem nächsten Schlafen: Der Auftakt sagt „Am Strand
+    // steht Gepäck", und dann soll dort Gepäck stehen.
+    this._juleSetzen();
 
     // „Ankunft" hat keinen Auftakt: Es ist der Zustand, in dem man anfängt,
     // und eine Meldung „ein neues Kapitel: Ankunft" im ersten Bild eines
@@ -2699,6 +2720,180 @@ export class Game {
    */
   hatSache(sache) {
     return kapitelHat(this.state.kapitel, sache);
+  }
+
+  /* ---------------- Jule, die Nachbarin ---------------- */
+
+  /**
+   * Jule hinsetzen, wenn das Kapitel „Der Zuzug" offen ist.
+   *
+   * Anders als beim Wanderer wird hier nichts weggeräumt: Sie bleibt. Genau
+   * das ist der Unterschied zwischen einem Besuch und einem Zuzug, und er
+   * steht auch so in `wanderer.js` („Er bleibt nicht … aus dem Besuch würde
+   * ein Nachbar").
+   *
+   * Ihr Platz hängt am Inselsamen und nicht am Tag: Wer neu lädt, findet sie
+   * dort wieder, wo sie saß.
+   */
+  _juleSetzen() {
+    if (!this.hatSache('nachbar')) return null;
+    const schon = this.juleDort();
+    if (schon) return schon;
+
+    const feuer = this.world.campfire;
+    if (!feuer) return null;
+    const rng = dailyRng(this.world.seed, 0, 'jule-platz');
+    const punkt = this.world.strandPlatz(rng, feuer, WANDERER_WEG,
+      WANDERER_VON_STATION, WANDERER_ABSTAND);
+    if (!punkt) return null;
+
+    const e = makeEntity('nachbar', punkt.x, punkt.y, { phase: rng() * 6.28 });
+    e.sprite = 'nachbar_0';
+    this.world.add(e);
+    if (!this.state.nachbar) this.state.nachbar = emptyNachbar();
+    this.state.nachbar.da = this.day.day;
+    this._juleLager(punkt, rng);
+    return e;
+  }
+
+  /**
+   * Ihr Lager – aus Stücken, die es längst gibt.
+   *
+   * Hier stand zuerst die Absicht, ein Haus für sie zu malen. Dagegen
+   * sprechen zwei Dinge: Ein zweites Gebäude ist die teuerste Grafik im
+   * ganzen Spiel, und es gäbe vier Häuser für zwei Bewohner. Eine Matte,
+   * eine Laterne und ein Bücherstapel sagen dasselbe in einem Bild, das es
+   * schon gibt – und sie sagen es genauer: Sie ist gerade erst angekommen.
+   *
+   * Die Stücke tragen `fest`, damit `pickDecor` sie nicht einsammelt – ihr
+   * Zeug gehört ihr. Dieselbe Regel wie beim Festschmuck.
+   */
+  _juleLager(punkt, rng) {
+    const stuecke = [
+      // Weit genug auseinander, dass sie nicht verdeckt wird. Beim ersten
+      // Anlauf standen Laterne und Bücherstapel so dicht, dass im Spiel von
+      // Jule kaum etwas zu sehen war – ihr eigenes Lager hat sie versteckt.
+      { id: 'mat', dx: -92, dy: 26, flat: true },
+      { id: 'lantern', dx: 86, dy: 10, flat: false },
+      { id: 'bookstack', dx: -78, dy: -22, flat: false },
+    ];
+    for (let i = 0; i < stuecke.length; i++) {
+      const st = stuecke[i];
+      // Jedes Stück zuerst an seinem Platz, sonst gespiegelt: Der Strand ist
+      // schmal, und bei festen Abständen landete die Laterne reihenweise im
+      // Wasser – gemessen an einer Insel, auf der von drei Stücken nur zwei
+      // standen. Passt beides nicht, bleibt es weg; ein Lager darf lückenhaft
+      // sein, eine Laterne auf dem Wasser nicht.
+      let x = punkt.x + st.dx + (rng() - 0.5) * 10;
+      let y = punkt.y + st.dy + (rng() - 0.5) * 10;
+      if (!isWalkable(this.world.tileAt(x, y))) {
+        x = punkt.x - st.dx;
+        y = punkt.y + st.dy;
+        if (!isWalkable(this.world.tileAt(x, y))) continue;
+      }
+      const e = makeEntity('decor', x, y, { itemId: st.id, flat: st.flat });
+      e.sprite = st.id;
+      e.blockR = st.flat ? 0 : 22;
+      e.fest = true;
+      this.world.add(e);
+    }
+  }
+
+  /** Wo sie sitzt – oder `null`. */
+  juleDort() {
+    for (let i = 0; i < this.world.entities.length; i++) {
+      const e = this.world.entities[i];
+      if (e.kind === 'nachbar' && !e.gone) return e;
+    }
+    return null;
+  }
+
+  /**
+   * Mit Jule reden.
+   *
+   * Drei Ausgänge, und alle drei sind in Ordnung – wie beim Wanderer:
+   *
+   *   1. **Beim ersten Mal** sagt sie, wer sie ist. Ohne das stünde dort
+   *      eine Fremde mit einem Fragezeichen.
+   *   2. **Gibt es etwas zu erzählen**, fragt sie danach und schreibt es
+   *      auf. Einmal am Tag.
+   *   3. **Gibt es nichts**, sagt sie einen freundlichen Satz und verlangt
+   *      nichts. Das ist Regel 2 aus `nachbar.js`: Erzählen ist ein
+   *      Angebot, keine Bitte – nichts davon landet im Aufgabenbuch.
+   */
+  redeMitJule(e) {
+    if (!e) return;
+    if (!this.state.nachbar) this.state.nachbar = emptyNachbar();
+    const stand = this.state.nachbar;
+    const self = this;
+
+    if (!stand.gegruesst) {
+      stand.gegruesst = 1;
+      this.ui.bubble(e.x, e.y - 150, JULE_SAETZE.ankunft[0], [{ icon: 'icon_bookstack' }], 5.6, true);
+      this.audio.play('ui');
+      this.save();
+      return;
+    }
+
+    const g = naechsteGeschichte(stand, this.state.momente, this.state.sternbilder,
+      this.state.orte, this.day.day);
+
+    if (!g) {
+      const voll = juleHeuteSchon(stand, this.day.day);
+      const liste = voll ? JULE_SAETZE.satt : JULE_SAETZE.nichts;
+      this.ui.bubble(e.x, e.y - 150, randPick(Math.random, liste), null, 4.2, true);
+      this.audio.play('ui');
+      return;
+    }
+
+    this.state.nachbar = merkeGeschichte(stand, g.art, g.id, this.day.day);
+    this.state.coins += JULE_LOHN;
+    this._note('coins', JULE_LOHN);
+    this.ui.bubble(e.x, e.y - 150,
+      randPick(Math.random, JULE_SAETZE.fragt) + ' – „' + g.titel + "“",
+      [{ icon: 'icon_bookstack' }, { icon: 'icon_coin', n: JULE_LOHN }], 5.4, true);
+    this.audio.play('coin');
+    this._note('erzaehlt', 1);
+
+    // Eine Station kommt NACH der Geschichte, mit etwas Abstand: Zwei
+    // Blasen im selben Bild liest niemand.
+    const stufe = neueStufe(this.state.nachbar);
+    if (stufe) {
+      this.state.nachbar.stufe = stufe.nummer;
+      const gibt = stufe.stufe.gibt;
+      setTimeout(function () {
+        const icons = [{ icon: 'icon_heart' }];
+        if (gibt && gibt.coins) {
+          self.state.coins += gibt.coins;
+          self._note('coins', gibt.coins);
+          icons.push({ icon: 'icon_coin', n: gibt.coins });
+        }
+        const items = (gibt && gibt.items) || [];
+        for (let i = 0; i < items.length; i++) {
+          if (self.inventory.add(items[i].id, items[i].n)) {
+            icons.push({ icon: 'icon_' + items[i].id, n: items[i].n });
+          }
+        }
+        self.ui.bubble(e.x, e.y - 150, stufe.stufe.satz, icons, 6.2, true);
+        self.audio.play('levelup');
+        self.particles.burst('heart', e.x, e.y - 90, 10);
+        self.ui.refreshHud();
+        self.save();
+      }, 2400);
+    }
+    this.ui.refreshHud();
+    this.save();
+  }
+
+  /** Was Jule weiß und was noch offen ist – für die Chronik. */
+  juleStand() {
+    return nachbarStand(this.state.nachbar, this.state.momente,
+      this.state.sternbilder, this.state.orte);
+  }
+
+  /** Ist sie eingezogen? */
+  juleIstDa() {
+    return juleDa(this.state.nachbar) && !!this.juleDort();
   }
 
   /* ---------------- Reaktion auf Deko ---------------- */

@@ -91,7 +91,7 @@ const SPRITE_NAMES = (function () {
   }
   names.push('fox_0', 'fox_1');
   // Der Wanderer – zwei Fassungen wie alles, was atmet.
-  names.push('wanderer_0', 'wanderer_1');
+  names.push('wanderer_0', 'nachbar_0', 'nachbar_1', 'wanderer_1');
   // Symbole für alle Gegenstände
   for (let i = 0; i < ITEM_LIST.length; i++) names.push(ITEM_LIST[i].icon);
   // Symbole der Oberfläche

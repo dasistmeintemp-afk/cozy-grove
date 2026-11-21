@@ -32,6 +32,7 @@ import {
 } from './painted-saison.js';
 import { SETZLINGE, SETZLING_IDS, STUFEN } from '../game/saplings.js';
 import { paintSternbild } from './painted-sternbild.js';
+import { paintNachbar } from './painted-nachbar.js';
 import { STERNBILDER } from '../game/sternbilder.js';
 import { kennung as bildKennung } from '../game/bild.js';
 import {
@@ -445,6 +446,16 @@ export function initArt() {
   // Platz und bleibt dort stehen.
   addArt('wanderer_0', paintWanderer(0, { seed: 2151 }));
   addArt('wanderer_1', paintWanderer(1, { seed: 2151 }));
+  // Jule, die Nachbarin. Zwei Bilder wie bei allen: Im zweiten senkt sich
+  // der Kopf und die Schreibhand rückt vor.
+  //
+  // Etwas größer gezeichnet als gemalt. Im Spiel nebeneinander angesehen
+  // war sie neben Seli ein Kind: Seli ist 168 Punkte hoch und steht, Jules
+  // Figur füllt sitzend nur 120 davon. Ein Sechstel mehr bringt sie auf
+  // etwa fünf Sechstel von Selis Höhe – das ist das Verhältnis, in dem ein
+  // sitzender Mensch neben einem stehenden steht.
+  addArt('nachbar_0', paintNachbar(0, { seed: 4401 }), 1.18);
+  addArt('nachbar_1', paintNachbar(1, { seed: 4401 }), 1.18);
 
   buildIcons();
   ready = true;

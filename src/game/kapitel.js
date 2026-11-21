@@ -125,7 +125,7 @@ export const KAPITEL = [
     bringt: ['sternbilder'],
   },
   {
-    id: 'zuzug', ab: 55, boden: 0.45, inhalt: false,
+    id: 'zuzug', ab: 55, boden: 0.45, inhalt: true,
     name: 'Der Zuzug',
     auftakt: 'Am Strand steht Gepäck. Jemand bleibt.',
     hint: 'Jemand zieht auf die Insel und wohnt von jetzt an hier.',

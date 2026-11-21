@@ -853,6 +853,26 @@ export class Panels {
       html += '</div>';
     }
 
+    // --- Jule ---
+    //
+    // Sie steht hier und nicht bei den Geistern: Die sieben haben
+    // Freundschaftsstufen und Farbkreise, sie hat ein Buch. Was man bei ihr
+    // ablesen will, ist nicht „wie gut mag sie mich", sondern „was weiß sie
+    // schon von meiner Insel".
+    if (g.juleIstDa()) {
+      const j = g.juleStand();
+      html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Jules Buch</h3>';
+      html += '<div class="rows"><div class="row">' + ico('icon_bookstack', 'lg') +
+        '<div class="grow"><div class="title">' + j.erzaehlt +
+        (j.erzaehlt === 1 ? ' Geschichte' : ' Geschichten') + '</div>' +
+        '<div class="meta">' +
+        '<span>' + (j.offen
+          ? j.offen + (j.offen === 1 ? ' wartet noch' : ' warten noch')
+          : 'Sie kennt alles, was du bemerkt hast.') + '</span>' +
+        (j.stufe ? '<span>Kapitel ' + j.stufe + ' von ' + j.stufen + '</span>' : '') +
+        '</div></div></div></div>';
+    }
+
     // --- Eigene Orte ---
     const orte = g.eigeneOrte();
     if (orte.length) {

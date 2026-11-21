@@ -48,6 +48,7 @@ export const DAYBOOK_ROWS = [
   { key: 'kapitel', icon: 'icon_map', ein: 'Kapitel aufgeschlagen', mehr: 'Kapitel aufgeschlagen' },
   { key: 'momente', icon: 'icon_sparkle', ein: 'Moment bemerkt', mehr: 'Momente bemerkt' },
   { key: 'sternbilder', icon: 'icon_star', ein: 'Sternbild gefunden', mehr: 'Sternbilder gefunden' },
+  { key: 'erzaehlt', icon: 'icon_bookstack', ein: 'Geschichte erzählt', mehr: 'Geschichten erzählt' },
   { key: 'coins', icon: 'icon_coin', ein: 'Münze verdient', mehr: 'Münzen verdient' },
   { key: 'ember', icon: 'icon_ember', ein: 'Glut gesammelt', mehr: 'Glut gesammelt' },
 ];

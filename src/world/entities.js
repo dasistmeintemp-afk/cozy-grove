@@ -297,6 +297,11 @@ export const ENTITY_DEFS = {
   // ansprechen will, soll an ihm vorbeigehen können, ohne ihn zu umrunden.
   wanderer: { sprite: 'wanderer_0', solid: false, reachR: 120, category: 'wanderer' },
 
+  // Jule, die Nachbarin. Sie sitzt, deshalb ist sie flacher als der
+  // Wanderer – und sie ist NICHT solide: Wer über ihre Beine stolpert,
+  // nimmt ihr das Gemütliche.
+  nachbar: { sprite: 'nachbar_0', solid: false, reachR: 120, category: 'nachbar' },
+
   // Aufgabengegenstände
   hidden: { solid: false, reachR: 80, tool: TOOL.HAND, hits: 1, category: 'hidden' },
 

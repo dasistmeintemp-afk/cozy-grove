@@ -1028,6 +1028,112 @@ async function run() {
     check('Jeder Ort, den ein Moment verlangt, kommt auf der Insel vor',
       ortDeckung.tot.length === 0, ortDeckung.tot.join(' | '));
 
+    /**
+     * Jule – zieht sie ein, und wird aus der Sammlung ein Gespräch?
+     *
+     * Sie ist die Einlösung des Kapitels „Der Zuzug", das vorher eine leere
+     * Hülle war. Ihr Zweck ist ein Vervielfacher: Die drei Sammlungen des
+     * Spielers waren stumm, und einer Sammlung fehlt genau eine Sache,
+     * damit sie sich lohnt – jemand, dem man davon erzählt.
+     */
+    const jule = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const M = await import('/src/game/momente.js');
+      const aus = {};
+      const vorher = {
+        tag: g.day.day,
+        kapitel: !!g.state.kapitel.offen.zuzug,
+        nachbar: JSON.stringify(g.state.nachbar),
+        momente: JSON.stringify(g.state.momente),
+        muenzen: g.state.coins,
+      };
+      const blasen = [];
+      const echt = g.ui.bubble.bind(g.ui);
+      g.ui.bubble = function (x, y, t, i, d, dk) { blasen.push(t); return echt(x, y, t, i, d, dk); };
+
+      // a) Ohne das Kapitel sitzt dort niemand.
+      delete g.state.kapitel.offen.zuzug;
+      aus.vorKapitel = !!g.juleDort();
+
+      // b) Mit Kapitel zieht sie ein – mitsamt Lager.
+      g.state.kapitel.offen.zuzug = 55;
+      const e = g._juleSetzen();
+      aus.zieht = !!e;
+      aus.lagerStuecke = g.world.entities.filter(function (x) {
+        return x.kind === 'decor' && x.fest && !x.gone;
+      }).length;
+
+      // c) Mehrfaches Setzen gibt keine zweite Jule – sie BLEIBT, also darf
+      // sie sich nicht vermehren, wenn man neu lädt.
+      g._juleSetzen(); g._juleSetzen();
+      aus.wieViele = g.world.entities.filter(function (x) {
+        return x.kind === 'nachbar' && !x.gone;
+      }).length;
+
+      // d) Erstes Wort: sie sagt, wer sie ist.
+      blasen.length = 0;
+      g.redeMitJule(e);
+      aus.gruss = blasen[0] || null;
+
+      // e) Ohne Fund: freundlicher Satz, KEIN Lohn und keine Aufgabe.
+      blasen.length = 0;
+      const vorOhne = g.state.coins;
+      g.redeMitJule(e);
+      aus.ohneFund = blasen[0] || null;
+      aus.lohnOhneFund = g.state.coins - vorOhne;
+      aus.aufgabenDanach = g.quests.openForSpirit ? 0 : 0;
+
+      // f) Mit Fund: sie fragt genau danach und schreibt es auf.
+      g.state.momente = M.merke(M.emptyMomente(), 'nebel_wasser', 9);
+      g.day.day = 600;
+      blasen.length = 0;
+      const vorMit = g.state.coins;
+      g.redeMitJule(e);
+      aus.mitFund = blasen[0] || null;
+      aus.lohn = g.state.coins - vorMit;
+
+      // g) Am selben Tag kein zweites Mal.
+      blasen.length = 0;
+      const vorNochmal = g.state.coins;
+      g.redeMitJule(e);
+      aus.nochmalHeute = blasen[0] || null;
+      aus.lohnNochmal = g.state.coins - vorNochmal;
+      aus.stand = g.juleStand();
+
+      // Zurückdrehen.
+      g.ui.bubble = echt;
+      for (let i = g.world.entities.length - 1; i >= 0; i--) {
+        const o = g.world.entities[i];
+        if (o.kind === 'nachbar' || (o.kind === 'decor' && o.fest)) g.world.remove(o);
+      }
+      if (!vorher.kapitel) delete g.state.kapitel.offen.zuzug;
+      g.state.nachbar = JSON.parse(vorher.nachbar);
+      g.state.momente = JSON.parse(vorher.momente);
+      g.state.coins = vorher.muenzen;
+      g.day.day = vorher.tag;
+      aus.aufgeraeumt = !g.juleDort();
+      return aus;
+    });
+    check('Ohne das Kapitel zieht niemand ein',
+      jule.vorKapitel === false, String(jule.vorKapitel));
+    check('Jule zieht ein und richtet sich ein',
+      jule.zieht === true && jule.lagerStuecke >= 2,
+      JSON.stringify({ zieht: jule.zieht, lager: jule.lagerStuecke }));
+    check('Sie bleibt – und vermehrt sich dabei nicht',
+      jule.wieViele === 1, 'Anzahl: ' + jule.wieViele);
+    check('Beim ersten Mal sagt sie, wer sie ist',
+      /Jule/.test(jule.gruss || ''), String(jule.gruss));
+    check('Ohne Fund bleibt sie freundlich und zahlt nichts',
+      jule.lohnOhneFund === 0 && !!jule.ohneFund, 'Lohn: ' + jule.lohnOhneFund);
+    check('Mit Fund fragt sie genau danach und schreibt es auf',
+      jule.lohn > 0 && /Nebel über dem Wasser/.test(jule.mitFund || ''),
+      'Lohn ' + jule.lohn + ': ' + jule.mitFund);
+    check('Höchstens eine Geschichte am Tag',
+      jule.lohnNochmal === 0 && jule.stand.erzaehlt === 1,
+      JSON.stringify({ lohn: jule.lohnNochmal, stand: jule.stand }));
+    check('Auch die Jule-Prüfung räumt hinter sich auf',
+      jule.aufgeraeumt === true, String(jule.aufgeraeumt));
+
     // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
     // beim Aufwachen erwischt zu haben.
     const tagesZeile = await page.evaluate(() => {
