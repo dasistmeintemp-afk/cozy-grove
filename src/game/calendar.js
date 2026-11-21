@@ -63,41 +63,215 @@ export function seasonOf(date) {
  * besonders.
  */
 export const EVENTS = {
+  // --- Handel ---
   market: {
     id: 'market',
     name: 'Markttag',
     hint: 'Der Händler zahlt heute ein Drittel mehr.',
     icon: 'icon_coin',
+    wirkt: { handel: 1.35 },
   },
+  kauffahrer: {
+    id: 'kauffahrer',
+    name: 'Kauffahrer',
+    hint: 'Ein Schiff liegt vor der Küste. Es zahlt deutlich mehr.',
+    icon: 'icon_coin_pouch',
+    wirkt: { handel: 1.6 },
+  },
+
+  // --- Graben ---
   digs: {
     id: 'digs',
     name: 'Fundtag',
     hint: 'Überall auf der Insel ist frisch gegraben worden.',
     icon: 'icon_shovel',
+    wirkt: { grabstellen: 2 },
   },
-  bloom: {
-    id: 'bloom',
-    name: 'Blütentag',
-    hint: 'Die Insel steht in Blüte.',
-    icon: 'icon_flower_pink',
+  grabungstag: {
+    id: 'grabungstag',
+    name: 'Großer Fundtag',
+    hint: 'So viele Grabstellen wie selten.',
+    icon: 'icon_shovel',
+    wirkt: { grabstellen: 3 },
   },
+
+  // --- Tiere ---
   moths: {
     id: 'moths',
     name: 'Falterzug',
     hint: 'Ungewöhnlich viele Falter unterwegs.',
     icon: 'icon_net',
+    wirkt: { falter: true },
   },
   shoal: {
     id: 'shoal',
     name: 'Fischschwarm',
     hint: 'Ein Schwarm steht vor der Küste.',
     icon: 'icon_rod',
+    wirkt: { schwarm: true },
   },
+
+  // --- Himmel ---
   stars: {
     id: 'stars',
     name: 'Sternennacht',
     hint: 'Heute Nacht fallen Sterne. Mondblumen öffnen sich zahlreicher.',
     icon: 'icon_sparkle',
+    wirkt: {
+      sterne: true,
+      danach: { arten: ['stardust'], boden: 'sand', n: 6, abstand: 90 },
+    },
+  },
+
+  /**
+   * Der Sturm ist die Gegenprobe zum Sternenhimmel – und absichtlich kein
+   * Unwetter.
+   *
+   * „Nichts verdirbt, nichts bestraft" heißt: Ein Sturm, der die Deko umwirft
+   * oder die Beete ruiniert, kommt hier nicht vor. Er zieht nachts durch, man
+   * schläft hindurch, und am Morgen liegt der Saum voll. Das Wetter gibt, es
+   * nimmt nie.
+   */
+  sturmnacht: {
+    id: 'sturmnacht',
+    name: 'Sturmnacht',
+    hint: 'Nachts zieht ein Sturm durch. Morgen liegt der Spülsaum voll.',
+    icon: 'icon_driftwood',
+    wirkt: {
+      danach: { arten: ['driftwood', 'shell', 'reeds'], boden: 'sand', n: 12, abstand: 70 },
+    },
+  },
+
+  // --- Was die Insel hergibt ---
+  pilzmorgen: {
+    id: 'pilzmorgen',
+    name: 'Pilzmorgen',
+    hint: 'Über Nacht sind überall Pilze aufgegangen.',
+    icon: 'icon_mushroom',
+    wirkt: { streut: { arten: ['mushroom'], boden: 'gras', n: 9 } },
+  },
+  kraeutertag: {
+    id: 'kraeutertag',
+    name: 'Kräutertag',
+    hint: 'Es riecht nach Kraut. Davon steht heute viel.',
+    icon: 'icon_herb',
+    wirkt: { streut: { arten: ['herb'], boden: 'gras', n: 9 } },
+  },
+  bloom: {
+    id: 'bloom',
+    name: 'Blütentag',
+    hint: 'Die Insel steht in Blüte.',
+    icon: 'icon_flower_pink',
+    wirkt: {
+      streut: {
+        arten: ['flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'],
+        boden: 'gras', n: 10,
+      },
+    },
+  },
+  federflug: {
+    id: 'federflug',
+    name: 'Federflug',
+    hint: 'Irgendwo ist ein Schwarm aufgestiegen. Federn liegen herum.',
+    icon: 'icon_feather',
+    wirkt: { streut: { arten: ['feather'], boden: 'gras', n: 8 } },
+  },
+  wiesentag: {
+    id: 'wiesentag',
+    name: 'Hohes Gras',
+    hint: 'Das Gras steht hoch. Fasern, soviel man tragen kann.',
+    icon: 'icon_fiber',
+    wirkt: { streut: { arten: ['grass_tuft'], boden: 'gras', n: 10 } },
+  },
+  mondblumen: {
+    id: 'mondblumen',
+    name: 'Mondblumennacht',
+    hint: 'Die Mondblumen stehen dicht heute.',
+    icon: 'icon_moonflower',
+    wirkt: { streut: { arten: ['moonflower'], boden: 'gras', n: 8 } },
+  },
+
+  // --- Was das Wasser bringt ---
+  muschelsaum: {
+    id: 'muschelsaum',
+    name: 'Muschelsaum',
+    hint: 'Die Flut hat Muscheln dagelassen.',
+    icon: 'icon_shell',
+    wirkt: { streut: { arten: ['shell'], boden: 'sand', n: 11, abstand: 70 } },
+  },
+  strandgut: {
+    id: 'strandgut',
+    name: 'Strandgut',
+    hint: 'Treibholz liegt am ganzen Saum.',
+    icon: 'icon_driftwood',
+    wirkt: { streut: { arten: ['driftwood'], boden: 'sand', n: 9, abstand: 70 } },
+  },
+  schilfsaum: {
+    id: 'schilfsaum',
+    name: 'Schilfsaum',
+    hint: 'Am Wasser steht das Schilf dicht.',
+    icon: 'icon_fiber',
+    wirkt: { streut: { arten: ['reeds'], boden: 'sand', n: 9, abstand: 70 } },
+  },
+
+  /**
+   * Der einzige Tag, der auf dem Fels streut.
+   *
+   * Steht hier, weil er etwas anderes tut als die übrigen: Er macht einen
+   * ORT wieder wichtig. Das Hochland besucht man, bis die Geoden geholt
+   * sind, und danach nie wieder – ein Tag, an dem dort etwas wächst, gibt
+   * dem Weg nach oben einen Grund, ohne dass dort etwas Neues stehen muss.
+   */
+  steinkraut: {
+    id: 'steinkraut',
+    name: 'Steinkraut',
+    hint: 'Im Hochland blüht es zwischen den Felsen.',
+    icon: 'icon_herb',
+    // Ohne offenes Hochland gibt es diesen Tag nicht – siehe `taugtHeute`.
+    braucht: 'fels',
+    wirkt: { streut: { arten: ['herb', 'flower_white'], boden: 'fels', n: 8 } },
+  },
+
+  /**
+   * Vier Tage, die es nur in ihrer Jahreszeit gibt – je einer.
+   *
+   * Zwei Gründe. Erstens macht es die Jahreszeiten voneinander
+   * unterscheidbar: Ein Blütenschnee IST der Frühling, und wer im Januar
+   * spielt, bekommt ihn nicht. Zweitens verschenken sie genau die vier
+   * Jahresgaben, die man sonst suchen muss – der Tag ist also nicht nur ein
+   * anderer Name, sondern der ergiebigste Tag des Jahres für dieses Stück.
+   *
+   * Wichtig: `nur` verkleinert den Vorrat an Ereignissen pro Jahreszeit
+   * nicht spürbar, weil nur vier der Ereignisse gebunden sind. Siehe
+   * `eventOf` und den Test, der beides nachrechnet.
+   */
+  bluetenschnee: {
+    id: 'bluetenschnee', nur: 'spring',
+    name: 'Blütenschnee',
+    hint: 'Die Luft ist voller Blütenblätter.',
+    icon: 'icon_petal',
+    wirkt: { streut: { arten: ['petal'], boden: 'gras', n: 11 } },
+  },
+  sonnensteine: {
+    id: 'sonnensteine', nur: 'summer',
+    name: 'Sonnensteine',
+    hint: 'Der heiße Sand gibt Sonnensteine her.',
+    icon: 'icon_sunstone',
+    wirkt: { streut: { arten: ['sunstone'], boden: 'sand', n: 9, abstand: 70 } },
+  },
+  laubfall: {
+    id: 'laubfall', nur: 'autumn',
+    name: 'Laubfall',
+    hint: 'Der Wald wirft sein Laub ab.',
+    icon: 'icon_mapleleaf',
+    wirkt: { streut: { arten: ['mapleleaf'], boden: 'gras', n: 11 } },
+  },
+  frostblueten: {
+    id: 'frostblueten', nur: 'winter',
+    name: 'Frostblüten',
+    hint: 'Über Nacht ist alles angefroren. Eisblumen überall.',
+    icon: 'icon_frostflower',
+    wirkt: { streut: { arten: ['frostflower'], boden: 'gras', n: 9 } },
   },
 };
 
@@ -154,9 +328,30 @@ function tagesZahl(date, tag) {
  * @param {number} tag der Inseltag – ohne ihn wechselt nichts vor Mitternacht
  */
 export function eventOf(date, tag) {
-  const h = tagesZahl(date, tag);
+  const d = date || new Date();
+  const h = tagesZahl(d, tag);
   if ((h & 3) === 0) return null;
-  return EVENTS[EVENT_IDS[(h >>> 4) % EVENT_IDS.length]];
+  const vorrat = vorratFuer(seasonOf(d).id);
+  return EVENTS[vorrat[(h >>> 4) % vorrat.length]];
+}
+
+/**
+ * Welche Ereignisse in dieser Jahreszeit überhaupt vorkommen.
+ *
+ * Vier der Ereignisse tragen ein `nur` und gehören einer Jahreszeit. Der
+ * Vorrat wird je Jahreszeit EINMAL gerechnet und gemerkt: `eventOf` läuft in
+ * der Oberfläche mehrmals je Bild, und eine Filterung über alle Ereignisse
+ * bei jedem Aufruf wäre Arbeit für ein Ergebnis, das sich nie ändert.
+ */
+const VORRAT = Object.create(null);
+
+export function vorratFuer(jahreszeit) {
+  if (VORRAT[jahreszeit]) return VORRAT[jahreszeit];
+  VORRAT[jahreszeit] = EVENT_IDS.filter(function (id) {
+    const nur = EVENTS[id].nur;
+    return !nur || nur === jahreszeit;
+  });
+  return VORRAT[jahreszeit];
 }
 
 /** Welcher Fisch heute im Schwarm steht (Index in einen Vorrat). */

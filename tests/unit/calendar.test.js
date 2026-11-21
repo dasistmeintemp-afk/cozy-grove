@@ -84,7 +84,21 @@ test('Auch der Fischschwarm dreht sich mit dem Inseltag', () => {
 test('Verschiedene Tage bringen verschiedene Ereignisse', () => {
   const gesehen = Object.create(null);
   let ohne = 0;
-  const N = 400;
+  // Zwei Jahre, nicht 400 Tage.
+  //
+  // Hier stand `N = 400` und „jedes Ereignis mehr als zehnmal". Das war
+  // richtig, solange es sechs Ereignisse gab. Vier von ihnen sind jetzt an
+  // eine Jahreszeit gebunden – ein Blütenschnee KANN in 400 Tagen nur in
+  // rund hundert davon vorkommen –, und eine Untergrenze von zehn
+  // Vorkommen hätte damit nicht einen Fehler gemeldet, sondern genau das
+  // Feature verboten, um dessen willen die Tabelle gewachsen ist.
+  //
+  // Was die Prüfung behalten MUSS, ist der Kern: Jedes geschriebene
+  // Ereignis muss der Verteiler auch ziehen. Ein Eintrag, der nie kommt,
+  // ist Inhalt, den niemand sieht. Die Frage, wie OFT eines kommt – die
+  // eigentliche Messung hinter dem Umbau – steht in `ereignisse.test.js`,
+  // weil sie ein ehrliches Fenster braucht.
+  const N = 730;
   for (let i = 0; i < N; i++) {
     const ev = eventOf(new Date(2025, 0, 1 + i, 12), 1 + (i % 17));
     if (!ev) { ohne++; continue; }
@@ -92,7 +106,7 @@ test('Verschiedene Tage bringen verschiedene Ereignisse', () => {
   }
   // Jedes Ereignis kommt vor …
   for (const id of EVENT_IDS) {
-    assert.ok(gesehen[id] > 10, id + ' kommt nur ' + (gesehen[id] || 0) + ' Mal in ' + N + ' Tagen');
+    assert.ok(gesehen[id] > 0, id + ' kommt in ' + N + ' Tagen nie vor');
   }
   // … und ruhige Tage sind ungefähr jeder vierte. Ohne sie wäre nichts mehr
   // besonders.

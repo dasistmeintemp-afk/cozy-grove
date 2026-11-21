@@ -528,7 +528,7 @@ export class World {
    */
   /**
    * @param {number} day Inseltag
-   * @param {object} [ereignis] Tagesereignis: { digs: Faktor, bloom: Anzahl }
+   * @param {object} [ereignis] Tagesereignis: { digs: Faktor, streut: Liste }
    */
   newDay(day, ereignis) {
     const rng = dailyRng(this.seed, day, 'world');
@@ -574,44 +574,96 @@ export class World {
 
     this._respawnDigspots(rng, ev.digs || 1);
     this._featherUnderBirdhouses(rng);
-    if (ev.bloom) this._scatterBloom(rng, ev.bloom);
-    if (ev.stardust) this._scatterStardust(rng, ev.stardust);
+    // Alles, was heute gestreut wird – und was das GESTRIGE Ereignis für
+    // heute Morgen hinterlassen hat. Beides steht in derselben Liste, weil
+    // es für die Insel kein Unterschied ist; den Unterschied macht
+    // `_todayWorldEffects`, das die Liste zusammenstellt.
+    const streut = ev.streut || [];
+    for (let i = 0; i < streut.length; i++) this._streuen(rng, streut[i]);
     return this;
   }
 
   /**
-   * Am Morgen nach einer Sternennacht liegt Sternenstaub am Spülsaum.
+   * Gibt es diesen Boden überhaupt schon?
    *
-   * Die Sternschnuppen selbst bleiben, was sie sind: ein Bild ohne Aufgabe.
-   * Wer nachts hochsieht, muss nichts tun und nichts drücken – genau das
-   * steht als Vorsatz über `_shootingStars`, und daran ändert sich nichts.
+   * Nötig geworden durch einen Tag, der still ins Leere lief: „Steinkraut"
+   * streut auf den Fels, und der Fels liegt im Hochland – das bei einem
+   * neuen Spiel noch gesperrt ist. `_streuen` übersprang den Bereich
+   * korrekt, und das Ergebnis war ein Tag mit Namen und Hinweis
+   * („Im Hochland blüht es zwischen den Felsen"), an dem es kein Hochland
+   * gab und nichts blühte.
    *
-   * Belohnt wird trotzdem, aber am nächsten Morgen und ohne Bedingung: Wer
-   * durchgeschlafen hat, findet dasselbe. Das ist der Unterschied zwischen
-   * „schön, dass du aufgepasst hast" und „du hättest aufpassen müssen".
-   *
-   * Am Sand, weil dort ohnehin Treibholz und Muscheln liegen – die
-   * Morgenrunde am Wasser bekommt damit einen seltenen Tag, keinen neuen Weg.
+   * Das ist dieselbe Falle, vor der oben beim Fischschwarm schon steht:
+   * ein Versprechen ohne Deckung. Gefunden hat es nicht der Test, sondern
+   * der Blick ins laufende Spiel – 21 Ereignisse legten etwas hin, eines
+   * nicht.
    */
-  _scatterStardust(rng, count) {
+  hatBoden(boden) {
+    const passt = boden === 'sand' ? T.SAND : boden === 'fels' ? T.ROCKFLOOR : null;
     const regions = ALL_REGIONS;
     for (let r = 0; r < regions.length; r++) {
       if (!this.unlocked[regions[r]]) continue;
       const spots = walkableTilesOf(this.tiles, regions[r], function (t) {
-        return t === T.SAND;
+        return passt == null ? (t === T.GRASS || t === T.DIRT) : t === passt;
       });
+      if (spots.length) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Ein Tagesereignis streut etwas über die Insel.
+   *
+   * Das waren zwei Funktionen, `_scatterBloom` und `_scatterStardust`, und sie
+   * unterschieden sich in genau drei Dingen: was gestreut wird, auf welchen
+   * Boden, und wie weit die Stücke auseinanderliegen. Alles andere – die
+   * Bereiche durchgehen, einen freien Platz suchen, `fromEvent` setzen – war
+   * zweimal dasselbe.
+   *
+   * Zusammengelegt, weil daran die Breite des Spiels hängt: Solange jedes
+   * Ereignis eine eigene Funktion braucht, kostet ein neues Ereignis Code,
+   * und dann bleiben es sechs. Gemessen ist das der Grund, warum die
+   * Kalender-Achse zu dünn war: In zwei Jahren kommt jedes der sechs rund
+   * 180-mal, und beim fünften Mal ist ein Falterzug keine Besonderheit mehr,
+   * sondern Tapete. Jetzt ist ein neues Ereignis ein Eintrag in einer
+   * Tabelle.
+   *
+   * `fromEvent` räumt alles am nächsten Morgen wieder weg (siehe `newDay`):
+   * Ein Blütentag soll ein Tag sein und kein Zustand – sonst blühte die Insel
+   * nach einer Woche durchgehend, und das Besondere wäre verbraucht.
+   *
+   * @param {object} spec {arten, boden:'sand'|'gras'|'fels', n, abstand}
+   */
+  _streuen(rng, spec) {
+    if (!spec || !spec.arten || !spec.arten.length || !(spec.n > 0)) return;
+    const arten = spec.arten;
+    const self = this;
+    const boden = spec.boden || 'gras';
+    const abstand = spec.abstand || 56;
+    // Welcher Boden. Der Sand ist der Spülsaum (Treibholz, Muscheln,
+    // Sternenstaub), der Fels das Hochland – und die Wiese schließt das
+    // Grundstück aus: Wer dort pflanzt und baut, soll nicht morgens vier
+    // Blumen zwischen seinen Beeten vorfinden.
+    const passt = boden === 'sand' ? function (t) { return t === T.SAND; }
+      : boden === 'fels' ? function (t) { return t === T.ROCKFLOOR; }
+      : function (t, tx, ty) {
+        return (t === T.GRASS || t === T.DIRT) &&
+          !inAnyPlot(tx, ty, self.plotStage, self.islePlotStage);
+      };
+
+    const regions = ALL_REGIONS;
+    for (let r = 0; r < regions.length; r++) {
+      if (!this.unlocked[regions[r]]) continue;
+      const spots = walkableTilesOf(this.tiles, regions[r], passt);
       if (!spots.length) continue;
       let placed = 0;
       let guard = 0;
-      while (placed < count && guard++ < 400) {
-        const s = spots[Math.floor(rng() * spots.length)];
-        const wx = (s.x + 0.5) * TILE_SIZE;
-        const wy = (s.y + 0.5) * TILE_SIZE;
-        if (this._tooClose(wx, wy, 90)) continue;
-        const e = makeEntity('stardust', wx, wy);
-        // `fromEvent` räumt es am nächsten Morgen wieder weg, falls es
-        // liegen bleibt: Sonst läge nach dem zehnten Sternenhimmel überall
-        // Staub, und das Seltene wäre Kulisse.
+      while (placed < spec.n && guard++ < 500) {
+        const sp = spots[Math.floor(rng() * spots.length)];
+        const wx = (sp.x + 0.5) * TILE_SIZE;
+        const wy = (sp.y + 0.5) * TILE_SIZE;
+        if (this._tooClose(wx, wy, abstand)) continue;
+        const e = makeEntity(arten[Math.floor(rng() * arten.length)], wx, wy);
         e.fromEvent = true;
         this.add(e);
         placed++;
@@ -644,37 +696,6 @@ export class World {
       const y = e.y + Math.sin(a) * r;
       if (!isWalkable(this.tileAt(x, y))) continue;
       this.add(makeEntity('feather', x, y));
-    }
-  }
-
-  /**
-   * Blütentag: zusätzliche Blumen über die freigeschalteten Bereiche.
-   *
-   * Sie tragen `fromEvent` und verschwinden am nächsten Morgen wieder – ein
-   * Blütentag soll ein Tag sein, kein dauerhafter Zustand.
-   */
-  _scatterBloom(rng, count) {
-    const arten = ['flower_pink', 'flower_yellow', 'flower_violet', 'flower_white'];
-    const regions = ALL_REGIONS;
-    for (let r = 0; r < regions.length; r++) {
-      if (!this.unlocked[regions[r]]) continue;
-      const self = this;
-      const spots = walkableTilesOf(this.tiles, regions[r], function (t, tx, ty) {
-        return (t === T.GRASS || t === T.DIRT) &&
-          !inAnyPlot(tx, ty, self.plotStage, self.islePlotStage);
-      });
-      let placed = 0;
-      let guard = 0;
-      while (placed < count && guard++ < 500 && spots.length) {
-        const s = spots[Math.floor(rng() * spots.length)];
-        const wx = (s.x + 0.5) * TILE_SIZE;
-        const wy = (s.y + 0.5) * TILE_SIZE;
-        if (this._tooClose(wx, wy, 56)) continue;
-        const e = makeEntity(arten[Math.floor(rng() * arten.length)], wx, wy);
-        e.fromEvent = true;
-        this.add(e);
-        placed++;
-      }
     }
   }
 

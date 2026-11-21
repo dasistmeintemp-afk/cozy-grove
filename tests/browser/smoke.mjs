@@ -384,8 +384,17 @@ async function run() {
     // Beides hängt am Kalender des Rechners. Geprüft wird nicht, WELCHER Tag
     // heute ist – das wäre ein Test, der irgendwann von selbst rot wird –,
     // sondern dass die Wirkung wirklich ankommt.
-    const kalender = await page.evaluate(() => {
+    const kalender = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
+      // Die ECHTEN Ereignisse, nicht nachgebaute.
+      //
+      // Hier stand ein selbstgebautes `{ id, name, hint, icon }`. Das ging
+      // gut, solange das Spiel die Kennung verglich (`ev === 'market'`).
+      // Seit die Wirkung beim Ereignis steht, wirkte der Nachbau nichts –
+      // und drei Prüfungen fielen zu Recht um. Aus der Quelle gelesen
+      // prüft dieser Test jetzt obendrein die Tabelle selbst: Ein Markttag
+      // ohne `handel` fällt hier auf.
+      const KAL = await import('/src/game/calendar.js');
       const r = { heute: g.today ? {
         season: g.today.season.id,
         event: g.today.event ? g.today.event.id : null,
@@ -395,7 +404,7 @@ async function run() {
       const wirkung = {};
       const alt = g.today.event;
       function setze(id) {
-        g.today.event = id ? { id: id, name: id, hint: 'x', icon: 'icon_star' } : null;
+        g.today.event = id ? KAL.EVENTS[id] : null;
         g._applyToday();
       }
       setze(null);
@@ -447,6 +456,62 @@ async function run() {
     check('Der Blütentag blüht – und ist am nächsten Tag vorbei',
       kalender.bluehend > 5 && kalender.blumenDanach === 0,
       JSON.stringify({ am: kalender.bluehend, danach: kalender.blumenDanach }));
+
+    /**
+     * JEDES Ereignis einmal durchspielen, nicht nur die sechs von früher.
+     *
+     * Der Grund steht in `ereignisse.test.js`: Die Tabelle ist von sechs auf
+     * über zwanzig gewachsen, weil jedes der sechs in zwei Jahren rund
+     * 180-mal kam. Ein Eintrag, der nichts bewirkt, wäre ein Tag mit Namen
+     * und ohne Deckung – und genau das war „Steinkraut", bis der Blick ins
+     * laufende Spiel es zeigte. Die Prüfung geht deshalb alle durch und
+     * verlangt von jedem eine messbare Spur.
+     */
+    const alleEv = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const KAL = await import('/src/game/calendar.js');
+      // Die Definitionen, nicht das Objekt: `solid` steht an der Art, nicht
+      // am einzelnen Stück. Erst stand hier `e.solid` – immer undefined,
+      // und die Prüfung war damit zahnlos. Aufgefallen beim Gegentest, als
+      // ein absichtlich eingeschmuggeltes solides Stück durchkam.
+      const DEFS = (await import('/src/world/entities.js')).ENTITY_DEFS;
+      // Alles offen: Ein gesperrter Bereich ist ein ehrlicher Grund, nichts
+      // zu legen, und würde hier als Fehler aussehen.
+      for (let i = 0; i < 4; i++) g.world.unlockRegion(i);
+      const stumm = [];
+      const solide = [];
+      let tag = g.day.day + 50;
+      const alt = g.today.event;
+      for (const id of KAL.EVENT_IDS) {
+        const ev = KAL.EVENTS[id];
+        g.state.lastEvent = id;
+        g.today.event = ev;
+        g.today.season = KAL.SEASONS[ev.nur || g.today.season.id];
+        g._applyToday();
+        const fx = g._todayWorldEffects();
+        g.world.newDay(++tag, fx);
+        const gelegt = g.world.entities.filter((e) => e.fromEvent && !e.gone);
+        // Keine Sperre darf entstehen: Ein solides Stück mitten auf dem Weg
+        // wäre eine Barriere, um die niemand gebeten hat.
+        for (const e of gelegt) {
+          const def = DEFS[e.kind];
+          if (def && def.solid) solide.push(id + ':' + e.kind);
+        }
+        const spur = (g.shop.dayBonus > 1) || g.wildlife.swarm || !!g.fishing.boost ||
+          fx.digs > 1 || fx.stars || gelegt.length > 0;
+        if (!spur) stumm.push(id);
+      }
+      g.today.event = alt;
+      g.state.lastEvent = null;
+      g._applyToday();
+      return { stumm: stumm, solide: solide, zahl: KAL.EVENT_IDS.length };
+    });
+    check('Die Kalender-Achse ist breit genug für Jahre',
+      alleEv.zahl >= 20, alleEv.zahl + ' Ereignisse');
+    check('Jedes Ereignis hinterlässt im Spiel eine Spur',
+      alleEv.stumm.length === 0, 'ohne Wirkung: ' + alleEv.stumm.join(','));
+    check('Kein Ereignis legt ein solides Stück in den Weg',
+      alleEv.solide.length === 0, alleEv.solide.join(','));
 
     // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
     // beim Aufwachen erwischt zu haben.

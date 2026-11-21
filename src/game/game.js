@@ -17,7 +17,7 @@ import {
   CROPS, cropOfSeed, stageOf, daysToRipe, growthPerDay, harvestOf,
   kreuzChance, kreuzungVon, KREUZ_RADIUS,
 } from './crops.js';
-import { todayOf, shoalIndex } from './calendar.js';
+import { todayOf, shoalIndex, EVENTS } from './calendar.js';
 import {
   festOn, festSatz, SCHMUCK_RADIUS, SCHMUCK_ANZAHL, SCHMUCK_ABSTAND, emptyFeste,
 } from './festivals.js';
@@ -1288,7 +1288,7 @@ export class Game {
     // In der Sternennacht öffnen sich mehr Mondblumen. Das ist der einzige
     // Weg, an dieser Stelle spürbar mehr zu bekommen, ohne eine zweite
     // Spawn-Mechanik danebenzustellen.
-    const sterne = !!(this.today && this.today.event && this.today.event.id === 'stars');
+    const sterne = !!this._wirkungHeute().sterne;
     for (let i = 0; i < CONDITIONAL.length; i++) {
       const item = CONDITIONAL[i];
       const n = (item.spawn || 6) * (sterne && item.onlyAt === 'night' ? 3 : 1);
@@ -1304,7 +1304,7 @@ export class Game {
    * wird anstrengend.
    */
   _shootingStars(dt) {
-    if (!this.today || !this.today.event || this.today.event.id !== 'stars') return;
+    if (!this._wirkungHeute().sterne) return;
     if (!this.day.isDark()) return;
     this._starTimer = (this._starTimer || 0) - dt;
     if (this._starTimer > 0) return;
@@ -3637,8 +3637,30 @@ export class Game {
     // wären keine mehr, und der Markttag kommt ohnehin jede Woche wieder.
     this.today.fest = festOn(new Date());
     if (this.today.fest) this.today.event = this.today.fest;
+    // Ein Ereignis, dessen Wirkung heute nirgends landen kann, fällt aus.
+    //
+    // „Steinkraut" streut auf den Fels, und das Hochland ist zu Beginn
+    // gesperrt: Der Tag hätte einen Namen und einen Hinweis gehabt
+    // („Im Hochland blüht es zwischen den Felsen") und keine Deckung. Ein
+    // stiller Tag ist dann die ehrlichere Antwort – ruhige Tage gibt es
+    // ohnehin etwa jeden vierten, einer mehr fällt nicht auf, ein leeres
+    // Versprechen schon.
+    if (!this._ereignisTaugt(this.today.event)) this.today.event = null;
     this._applyToday();
     return this.today.event && this.today.event.id !== vorher;
+  }
+
+  /**
+   * Kann dieses Ereignis heute überhaupt wirken?
+   *
+   * Nur `braucht` wird geprüft, und absichtlich nichts weiter: Jede weitere
+   * Bedingung hier wäre eine Regel, die man beim Schreiben eines neuen
+   * Ereignisses kennen müsste, und genau davon sollte die Tabelle frei
+   * bleiben.
+   */
+  _ereignisTaugt(ev) {
+    if (!ev || !ev.braucht) return true;
+    return this.world.hatBoden(ev.braucht);
   }
 
   /** Welches Fest heute ist – oder null. */
@@ -3824,14 +3846,33 @@ export class Game {
     return { kind: w.kind, name: WETTER_WORT[w.kind] || 'Klar' };
   }
 
+  /**
+   * Was das heutige Ereignis wirkt – oder ein leeres Objekt.
+   *
+   * Eine Stelle, an der alle fragen. Vorher stand in jeder Zeile ein
+   * Vergleich auf eine Kennung (`ev === 'market'`), und genau das hat die
+   * Zahl der Ereignisse bei sechs festgehalten: Ein siebtes hätte eine
+   * siebte Zeile gebraucht, ein zwanzigstes zwanzig. Jetzt steht die Wirkung
+   * beim Ereignis, und die Systeme lesen sie.
+   */
+  _wirkungHeute() {
+    return (this.today && this.today.event && this.today.event.wirkt) || {};
+  }
+
+  /** Die Wirkung des GESTRIGEN Ereignisses – für alles, was am Morgen danach kommt. */
+  _wirkungGestern() {
+    const g = this.state.lastEvent ? EVENTS[this.state.lastEvent] : null;
+    return (g && g.wirkt) || {};
+  }
+
   /** Die Wirkungen des Tagesereignisses an die Systeme weitergeben. */
   _applyToday() {
-    const ev = this.today && this.today.event ? this.today.event.id : null;
+    const w = this._wirkungHeute();
     const js = this.season();
-    this.shop.dayBonus = ev === 'market' ? 1.35 : 1;
-    this.wildlife.swarm = ev === 'moths';
+    this.shop.dayBonus = w.handel || 1;
+    this.wildlife.swarm = !!w.falter;
     this.wildlife.season = js;
-    if (ev === 'shoal') {
+    if (w.schwarm) {
       // Ein Schwarm einer Art, die gerade gar nicht da ist, wäre ein
       // Versprechen ohne Deckung: Der Tag hieße „Fischschwarm", und am Wasser
       // bisse nichts Besonderes.
@@ -3843,18 +3884,26 @@ export class Game {
     }
   }
 
-  /** Was der Tageswechsel an die Welt weiterreicht. */
+  /**
+   * Was der Tageswechsel an die Welt weiterreicht.
+   *
+   * `streut` ist eine Liste, und sie hat zwei Quellen: was das HEUTIGE
+   * Ereignis ausstreut, und was das GESTRIGE für heute Morgen hinterlassen
+   * hat. Der Sternenstaub war der erste Fall dieser Sorte – er liegt am
+   * Morgen nach der Sternennacht am Saum, nicht in der Nacht selbst –, und
+   * die Sturmnacht ist der zweite. Deshalb ist `danach` jetzt ein Feld, das
+   * jedes Ereignis haben kann, statt einer Sonderregel für Sternenstaub.
+   */
   _todayWorldEffects() {
-    const ev = this.today && this.today.event ? this.today.event.id : null;
-    // Der Sternenstaub gehört zum GESTRIGEN Ereignis, nicht zum heutigen:
-    // Er liegt am Morgen DANACH am Strand. Deshalb wird hier die Kennung des
-    // Vortags gelesen, die `_deliverMail` ohnehin schon führt.
-    const gestern = this.state.lastEvent || null;
+    const w = this._wirkungHeute();
+    const gestern = this._wirkungGestern();
+    const streut = [];
+    if (w.streut) streut.push(w.streut);
+    if (gestern.danach) streut.push(gestern.danach);
     return {
-      digs: ev === 'digs' ? 2 : 1,
-      bloom: ev === 'bloom' ? 10 : 0,
-      stars: ev === 'stars',
-      stardust: gestern === 'stars' ? 6 : 0,
+      digs: w.grabstellen || 1,
+      stars: !!w.sterne,
+      streut: streut,
     };
   }
 
