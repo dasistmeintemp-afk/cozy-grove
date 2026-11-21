@@ -112,10 +112,45 @@ test('Eine Skizze merkt sich Ort, Jahreszeit, Tageszeit und Wetter', () => {
   const s = skizzeAus(Object.assign({}, LAGE, { abend: true, wetter: 'regen' }), 42);
   assert.deepEqual(s, {
     ort: 'wald', jahreszeit: 'autumn', zeit: 'abend', wetter: 'regen', tag: 42,
+    // `eigen` ist der selbst gegebene Name des Platzes, falls dort ein
+    // Wegweiser steht – ohne Schild `null`. Er steht hier in der
+    // vollständigen Erwartung und nicht nur als eigene Zusicherung, damit
+    // ein künftiges Feld, das sich unbemerkt in die Skizze schleicht,
+    // genau hier auffällt.
+    eigen: null,
   });
   // Ein Wetter, das es nicht gibt, wird verworfen statt weitergereicht.
   const t = skizzeAus(Object.assign({}, LAGE, { wetter: 'hagel' }), 1);
   assert.equal(t.wetter, null);
+});
+
+test('Ein selbst benannter Platz steht im Titel statt des allgemeinen Namens', () => {
+  // Der ganze Zweck des Benennens: Die Insel spricht zurück, was man ihr
+  // gesagt hat.
+  const lage = Object.assign({}, LAGE, { abend: true });
+  const eigen = skizzeAus(lage, 42, 'Mondgarten');
+  assert.equal(eigen.eigen, 'Mondgarten');
+  assert.equal(titel(eigen), 'Mondgarten, im Herbst, am Abend');
+
+  // Ohne Schild bleibt es beim allgemeinen Namen.
+  assert.equal(titel(skizzeAus(lage, 42)), 'Im Wald, im Herbst, am Abend');
+
+  // Der Name wird MITGESCHRIEBEN: Wer sein Schild später abbaut, behält
+  // die Skizze von damals – eine Erinnerung, die sich rückwirkend ändert,
+  // ist keine.
+  assert.equal(titel(eigen), 'Mondgarten, im Herbst, am Abend');
+
+  // Und er ändert die Kennung NICHT: Sonst bekäme man nach dem Umbenennen
+  // ein zweites Bild vom selben Wald im selben Herbst.
+  assert.equal(kennung(eigen), kennung(skizzeAus(lage, 42)));
+
+  // Auch hier gesäubert – die Skizze kommt aus einer Datei.
+  const roh = skizzeAusRoh({
+    ort: 'wald', jahreszeit: 'autumn', zeit: 'abend', wetter: null, tag: 1,
+    eigen: '<b>Mondgarten</b>',
+  });
+  assert.ok(roh.eigen.indexOf('<') < 0, 'Markup im Titel: ' + roh.eigen);
+  assert.ok(titel(roh).indexOf('<') < 0);
 });
 
 test('Erkannt wird sie an Ort und Jahreszeit – sonst an nichts', () => {

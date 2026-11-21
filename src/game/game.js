@@ -44,6 +44,11 @@ import {
   emptyMomente, lageAus, faelligerMoment, merke as merkeMoment,
   gefundene as gefundeneMomente, momenteStand,
 } from './momente.js';
+import {
+  orteAus, emptyOrte, nameHier, ortAnStelle, nochPlatz,
+  benenne as benenneOrt, vergesse as vergessOrt, orteStand,
+  saeubereOrtsname, MAX as ORTE_MAX, NAME_MAX as ORT_NAME_MAX,
+} from './orte.js';
 import { naechsterTermin as terminInnerhalb, wannText, heuteIst } from './termine.js';
 import { weiseFuer } from './musik.js';
 import {
@@ -400,6 +405,7 @@ export class Game {
       termine: Object.create(null),
       kapitel: emptyKapitel(),
       momente: emptyMomente(),
+      orte: emptyOrte(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -444,6 +450,7 @@ export class Game {
       termine: Object.create(null),
       kapitel: emptyKapitel(),
       momente: emptyMomente(),
+      orte: emptyOrte(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -509,6 +516,12 @@ export class Game {
         !this.state.momente.gefunden) {
       this.state.momente = emptyMomente();
     }
+    // Eigene Ortsnamen. Durch `orteAus` und nicht nur auf „ist ein Feld"
+    // geprüft: Das ist das EINZIGE im Spielstand, was der Spieler selbst
+    // geschrieben hat, und ein Spielstand kann aus einer Datei kommen.
+    // Hier ist die Stelle, an der ein verdorbener Name gesäubert wird –
+    // vor jeder Anzeige, die ihn je zu sehen bekommt.
+    this.state.orte = orteAus(this.state.orte);
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
     this.state.trachten = offeneAus(this.state.trachten);
@@ -998,6 +1011,15 @@ export class Game {
       }
       if (def.category === 'decor') {
         if (istSitzplatz(t.entity.itemId)) { this.setzDich(t.entity); return; }
+        // Ein Wegweiser OHNE Namen wird beschrieben, einer MIT Namen
+        // eingepackt. Eine Regel, die in einen Satz passt – und die
+        // Alternative wäre eine Tipp-oder-Halte-Unterscheidung wie beim
+        // Sitzen gewesen, also eine eigene Zustandsmaschine für ein Schild.
+        if (t.entity.itemId === 'signpost' &&
+            !ortAnStelle(this.state.orte, t.entity.x, t.entity.y)) {
+          this.benenneOrtHier(t.entity);
+          return;
+        }
         this.pickDecor(t.entity);
         return;
       }
@@ -1721,6 +1743,16 @@ export class Game {
       return;
     }
     this.world.remove(e);
+    // Mit dem Schild geht der Name. Ein Ortsname ohne Schild wäre ein Name
+    // ohne Ort – und er läge für immer in der Liste, die auf acht begrenzt
+    // ist.
+    if (e.itemId === 'signpost') {
+      const weg = ortAnStelle(this.state.orte, e.x, e.y);
+      if (weg) {
+        this.state.orte = vergessOrt(this.state.orte, e.x, e.y);
+        this.ui.toast('„' + weg.name + '" heißt jetzt wieder nichts', 'icon_signpost');
+      }
+    }
     this.audio.play('place');
     this.ui.toast(itemName(e.itemId) + ' eingepackt', getItem(e.itemId).icon);
     this.syncCosiness();
@@ -1843,7 +1875,7 @@ export class Game {
    * hinauf.
    */
   _skizzieren() {
-    const skizze = skizzeAus(this.ruheLage(), this.day.day);
+    const skizze = skizzeAus(this.ruheLage(), this.day.day, this.ortsnameHier());
     if (!skizze) return false;
     if (!this.state.bilder) this.state.bilder = [];
     if (schonDa(this.state.bilder, skizze)) return false;
@@ -2449,7 +2481,12 @@ export class Game {
     this._milestoneT = 1;
 
     if (!this.state.milestones) this.state.milestones = Object.create(null);
-    const faellig = dueAt(this.colorField.coverage(this.world), this.state.milestones);
+    // Einmal gerechnet, zweimal gebraucht: `coverage` tastet die halbe
+    // Karte ab, und die Kapitel brauchen genau dieselbe Zahl in derselben
+    // Sekunde. Gemessen hat die zweite Abtastung die Bildrate von 33 auf
+    // 29 gedrückt – unter die Grenze, die die Suite prüft.
+    this._deckung = this.colorField.coverage(this.world);
+    const faellig = dueAt(this._deckung, this.state.milestones);
     if (!faellig.length) return;
 
     for (let i = 0; i < faellig.length; i++) {
@@ -2544,7 +2581,11 @@ export class Game {
     if (!this.state.kapitel || !this.state.kapitel.offen) {
       this.state.kapitel = emptyKapitel();
     }
-    const anteil = this.colorField.coverage(this.world);
+    // Die Zahl, die `_checkMilestones` in derselben Sekunde schon gerechnet
+    // hat. Nur wenn sie fehlt – beim allerersten Bild – wird selbst gerechnet.
+    const anteil = this._deckung != null
+      ? this._deckung
+      : (this._deckung = this.colorField.coverage(this.world));
     const neu = neueKapitel(this.state.kapitel, this.day.day, anteil);
     if (!neu.length) return;
 
@@ -2606,6 +2647,74 @@ export class Game {
     return kapitelHat(this.state.kapitel, sache);
   }
 
+  /* ---------------- Eigene Ortsnamen ---------------- */
+
+  /**
+   * Einen Wegweiser beschriften.
+   *
+   * Der Sinn steht in `orte.js`: Das Spiel gibt hier nichts Neues zu tun –
+   * es nimmt, was der Spieler ohnehin tut, und erkennt es an. Wer eine Ecke
+   * zum „Mondgarten" erklärt, liest danach „Der Mondgarten im Herbst" unter
+   * seiner Skizze statt „Im Wald im Herbst".
+   *
+   * `roh` gibt es für Tests und die Konsole – ohne Angabe wird gefragt, wie
+   * bei `benennePet`.
+   */
+  benenneOrtHier(schild, roh) {
+    if (!schild) return false;
+    const vorhanden = ortAnStelle(this.state.orte, schild.x, schild.y);
+    // Die Grenze gilt für die ANZAHL, nicht fürs Ändern: Ein bestehendes
+    // Schild lässt sich immer umbenennen, auch wenn alle acht vergeben sind.
+    if (!vorhanden && !nochPlatz(this.state.orte)) {
+      this.ui.toast('Mehr als ' + ORTE_MAX + ' Orte kannst du nicht benennen', 'icon_signpost');
+      return false;
+    }
+
+    let eingabe = roh;
+    if (eingabe == null) {
+      eingabe = window.prompt('Was soll auf dem Schild stehen?',
+        vorhanden ? vorhanden.name : '');
+      if (eingabe == null) return false;        // abgebrochen, nichts ändern
+    }
+
+    const name = saeubereOrtsname(eingabe);
+    const neu = benenneOrt(this.state.orte, schild.x, schild.y, eingabe);
+    if (neu == null) return false;
+    this.state.orte = neu;
+
+    if (name) {
+      this.ui.toast('Hier ist jetzt ' + name, 'icon_signpost', 'good');
+    } else if (vorhanden) {
+      this.ui.toast('Das Schild ist wieder leer', 'icon_signpost');
+    }
+    this.audio.play('ui');
+    this.save();
+    return true;
+  }
+
+  /**
+   * Wie dieser Platz heißt – der eigene Name, wenn es einen gibt.
+   *
+   * Die EINE Stelle, an der das übrige Spiel nach einem Ortsnamen fragt.
+   * Gibt `null` heraus, wenn hier kein Schild steht; die Aufrufer setzen
+   * dann ihren eigenen Begriff ein.
+   */
+  ortsnameHier(x, y) {
+    const px = x == null ? this.player.x : x;
+    const py = y == null ? this.player.y : y;
+    return nameHier(this.state.orte, px, py);
+  }
+
+  /** Die benannten Orte – für die Chronik. */
+  eigeneOrte() {
+    return (this.state.orte || []).slice();
+  }
+
+  /** Wie viele Namen vergeben sind: {vergeben, moeglich}. */
+  orteZahl() {
+    return orteStand(this.state.orte);
+  }
+
   /* ---------------- Momente ---------------- */
 
   /**
@@ -2640,6 +2749,12 @@ export class Game {
     // Stillstand mitzählen. Beim Sitzen bewegt sie sich ohnehin nicht –
     // dann ist die Bedingung sofort erfüllt, und das ist gewollt: Wer sich
     // hinsetzt, sieht sich um.
+    // Der billigste Ausweg zuerst: Ist der Moment des Tages gefunden, gibt
+    // es bis morgen nichts zu prüfen – und `ruheLage` fragt die Welt im
+    // Umkreis ab, das soll nicht umsonst passieren.
+    const st = this.state.momente;
+    if (st && st.zuletzt === this.day.day) return;
+
     const dx = p.x - (this._momentX == null ? p.x : this._momentX);
     const dy = p.y - (this._momentY == null ? p.y : this._momentY);
     const weit = Math.sqrt(dx * dx + dy * dy) > Game.MOMENT_WACKEL;
@@ -5941,6 +6056,11 @@ export class Game {
       e.blockR = p.flat ? 0 : 26;
       this.world.add(e);
       this._sagWasEsTut(e);
+      // Ein Wegweiser fragt gleich, was darauf stehen soll. Nicht später
+      // und nicht auf Umwegen: Ein leeres Schild, das man erst anfassen
+      // muss, um zu erfahren, dass es beschreibbar ist, würde kaum jemand
+      // je beschreiben.
+      if (e.itemId === 'signpost') this.benenneOrtHier(e);
     }
     this.audio.play('place');
     this._note('decor');

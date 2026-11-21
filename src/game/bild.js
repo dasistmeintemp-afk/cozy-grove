@@ -24,6 +24,8 @@
  * Sammlung – wer die Klippen im Winter will, muss im Winter hinauf –, und
  * sie kann nicht überlaufen: sieben Orte mal vier Jahreszeiten.
  */
+import { saeubereOrtsname } from './orte.js';
+
 
 /**
  * Die Orte, die eine eigene Skizze bekommen.
@@ -105,7 +107,7 @@ export function zeitAus(lage) {
  *
  * @returns {?object} {ort, jahreszeit, zeit, wetter, tag} – oder null
  */
-export function skizzeAus(lage, tag) {
+export function skizzeAus(lage, tag, eigen) {
   const l = lage || {};
   const ort = ortAus(l.orte);
   if (!ort) return null;
@@ -116,6 +118,12 @@ export function skizzeAus(lage, tag) {
     zeit: zeitAus(l),
     wetter: WETTER[l.wetter] ? l.wetter : null,
     tag: tag | 0,
+    // Der selbst gegebene Name des Platzes, falls hier ein Schild steht.
+    // Er wird MITGESCHRIEBEN und nicht beim Anzeigen nachgefragt: Wer sein
+    // Schild später abbaut, soll die Skizze von damals behalten, und zwar
+    // mit dem Namen, den der Platz damals hatte. Eine Erinnerung, die sich
+    // rückwirkend ändert, ist keine.
+    eigen: saeubereOrtsname(eigen) || null,
   };
 }
 
@@ -153,7 +161,11 @@ export function schonDa(bilder, skizze) {
  */
 export function titel(skizze) {
   if (!skizze || !ORTE[skizze.ort]) return '';
-  const teile = [ORTE[skizze.ort].name, JAHRESZEITEN[skizze.jahreszeit], ZEITEN[skizze.zeit]];
+  // Der eigene Name schlägt den allgemeinen. Das ist der ganze Zweck des
+  // Benennens: „Der Mondgarten, im Herbst, am Abend" statt „Im Wald, im
+  // Herbst, am Abend". Die Insel spricht zurück, was man ihr gesagt hat.
+  const wo = skizze.eigen || ORTE[skizze.ort].name;
+  const teile = [wo, JAHRESZEITEN[skizze.jahreszeit], ZEITEN[skizze.zeit]];
   if (skizze.wetter && WETTER[skizze.wetter]) teile.push(WETTER[skizze.wetter]);
   return teile.filter(Boolean).join(', ');
 }
@@ -180,6 +192,10 @@ export function skizzeAusRoh(roh) {
     zeit: ZEITEN[roh.zeit] ? roh.zeit : 'tag',
     wetter: WETTER[roh.wetter] ? roh.wetter : null,
     tag: Number.isFinite(roh.tag) ? roh.tag | 0 : 0,
+    // Auch hier gesäubert, nicht nur beim Entstehen: Ein Spielstand ist
+    // eine Datei, die man von Hand ändern kann, und dieser Name geht
+    // unverändert in einen Titel.
+    eigen: saeubereOrtsname(roh.eigen) || null,
   };
 }
 

@@ -542,6 +542,19 @@ async function run() {
       const g = window.CozyGrove.game;
       const feuer = g.world.campfire;
       const aus = {};
+      // ALLES merken, was hier verstellt wird, und am Ende zurückgeben.
+      //
+      // Ohne das hat diese Prüfung zwei andere umgeworfen, und zwar
+      // reproduzierbar gemeinsam: Sie schob den Inseltag um eins vor und
+      // setzte die Uhr auf 18 Uhr. Der Setzling-Test rechnet in Tagen und
+      // bekam dadurch einen Baum in der falschen Wachstumsstufe, der
+      // Helligkeitstest misst bei anderem Licht. Beide Fehler sahen aus wie
+      // Fehler im Spiel und waren Fehler in dieser Zeile.
+      const vorher = {
+        tag: g.day.day, stunde: g.day.hour,
+        x: g.player.x, y: g.player.y, werkzeug: g.player.toolIndex,
+        momente: JSON.stringify(g.state.momente),
+      };
       // Abend am Feuer: eine Lage, in der es einen Moment gibt, ganz
       // unabhängig von Jahreszeit und Wetter.
       g.day.hour = 18;
@@ -575,8 +588,18 @@ async function run() {
       aus.letzter = liste.length ? liste[liste.length - 1].moment.name : null;
       aus.hatTag = liste.length ? liste[liste.length - 1].tag > 0 : false;
       aus.gesamt = g.momenteZahl().gesamt;
+
+      // Zurückdrehen.
+      g.day.day = vorher.tag;
+      g.day.hour = vorher.stunde;
+      g.player.x = vorher.x; g.player.y = vorher.y;
+      g.player.selectTool(vorher.werkzeug);
+      g.state.momente = JSON.parse(vorher.momente);
+      aus.zurueckgedreht = g.day.day === vorher.tag && g.day.hour === vorher.stunde;
       return aus;
     });
+    check('Die Moment-Prüfung stellt Tag und Uhr zurück',
+      momente.zurueckgedreht === true, JSON.stringify(momente.zurueckgedreht));
     check('Am Lagerfeuer gilt der Ort „lager"',
       momente.ort === 'lager', String(momente.ort));
     check('Im Vorbeilaufen bemerkt Seli nichts',
@@ -589,6 +612,148 @@ async function run() {
     check('Der Moment steht mit seinem Tag in der Chronik',
       momente.inChronik >= 1 && momente.hatTag === true && momente.gesamt > 20,
       JSON.stringify(momente));
+
+    /**
+     * Eigene Ortsnamen – spricht die Insel zurück, was man ihr gesagt hat?
+     *
+     * Das ist der einzige Brunnen im Spiel, der dem Spiel nicht gehört: Was
+     * der Spieler selbst macht, ist unbegrenzt, weil ER das Ziel setzt. Die
+     * Aufgabe des Spiels ist nicht, Ziele zu geben, sondern die zu ehren,
+     * die sich jemand selbst gesetzt hat – und der sichtbare Beweis dafür
+     * ist ein Skizzentitel, in dem sein Name steht statt meines.
+     */
+    const eigene = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { makeEntity } = await import('/src/world/entities.js');
+      const { ORTE: WORTE } = await import('/src/game/wishes.js');
+      const BILD = await import('/src/game/bild.js');
+      const aus = {};
+      const vorher = { x: g.player.x, y: g.player.y, werkzeug: g.player.toolIndex };
+
+      // Eine Stelle, an der wirklich ein Ort gilt – sonst entsteht gar
+      // keine Skizze, und die Prüfung prüfte nichts. (Genau darauf ist der
+      // erste Versuch hereingefallen: ein Schild neben einem Baum, der in
+      // keinem benannten Ort stand.)
+      let x = 0, y = 0, wo = null;
+      for (let ty = 2; ty < g.world.h - 2 && !wo; ty += 2) {
+        for (let tx = 2; tx < g.world.w - 2; tx += 2) {
+          const wx = (tx + 0.5) * 64, wy = (ty + 0.5) * 64;
+          const treffer = [];
+          for (const id in WORTE) {
+            if (WORTE[id].nameFuer) continue;
+            if (WORTE[id].test(g.world, wx, wy)) treffer.push(id);
+          }
+          if (BILD.ortAus(treffer) === 'wald') { x = wx; y = wy; wo = 'wald'; break; }
+        }
+      }
+      aus.stelleGefunden = wo;
+
+      const schild = makeEntity('decor', x, y, { itemId: 'signpost', flat: false });
+      schild.sprite = 'signpost';
+      g.world.add(schild);
+
+      aus.vorher = g.ortsnameHier(x, y);
+      g.benenneOrtHier(schild, 'Mondgarten');
+      aus.nachher = g.ortsnameHier(x, y);
+      aus.weitWeg = g.ortsnameHier(x + 1200, y);
+
+      g.player.x = x + 20; g.player.y = y + 20;
+      const skizze = BILD.skizzeAus(g.ruheLage(), g.day.day, g.ortsnameHier());
+      aus.titelMitNamen = skizze ? BILD.titel(skizze) : null;
+      aus.titelOhneNamen = skizze ? BILD.titel(BILD.skizzeAus(g.ruheLage(), g.day.day)) : null;
+
+      // Umbenennen legt keinen zweiten Ort an.
+      g.benenneOrtHier(schild, 'Sternplatz');
+      aus.umbenannt = g.ortsnameHier(x, y);
+      aus.zahlNachUmbenennen = g.orteZahl().vergeben;
+
+      // Markup kommt nicht durch – der Name geht in Titel und Meldungen.
+      window.__ortBoom = 0;
+      g.benenneOrtHier(schild, '<img src=x onerror="window.__ortBoom=1">Ecke');
+      aus.gesaeubert = g.ortsnameHier(x, y);
+      aus.boom = window.__ortBoom;
+
+      // Erst die Gegenprobe: Mit VOLLER Tasche bleibt das Schild stehen –
+      // und damit auch der Name. `pickDecor` bricht dann ab, und ein Name
+      // ohne Schild wäre ein Name ohne Ort. (Genau hierauf ist diese
+      // Prüfung beim ersten Lauf hereingefallen: Die Suite hatte lange
+      // gespielt, die Tasche war voll, und der Abbau fand nie statt.)
+      // `tool` ist ein GETTER auf `toolIndex` – eine Zuweisung an
+      // `player.tool` tut nichts. Darauf ist diese Prüfung beim zweiten
+      // Lauf hereingefallen: 27 freie Plätze, und der Abbau scheiterte
+      // weiter, weil nicht die Hand gewählt war.
+      g.player.selectTool(0);
+      aus.werkzeug = g.player.tool.id;
+      aus.platzVorher = g.inventory.freeSlots();
+      if (aus.platzVorher === 0) {
+        g.pickDecor(schild);
+        aus.nameTrotzVollerTasche = g.ortsnameHier(x, y);
+      }
+
+      // Jetzt mit Platz. Und zwar GELIEHEN, nicht genommen: Beim ersten
+      // Versuch hat diese Prüfung die Tasche leergeräumt, um Platz zu
+      // schaffen – und damit spätere Prüfungen beschädigt, die noch
+      // Gegenstände brauchten. Eine Prüfung, die eine andere umwirft, lässt
+      // Fehler an der falschen Stelle suchen.
+      let geliehen = null;
+      if (g.inventory.freeSlots() === 0) {
+        const erstes = g.inventory.slots[0];
+        geliehen = { id: erstes.id, n: erstes.n };
+        g.inventory.remove(erstes.id, erstes.n);
+      }
+      aus.platzGemacht = g.inventory.freeSlots();
+      g.pickDecor(schild);
+      aus.nachAbbau = g.ortsnameHier(x, y);
+      aus.zahlNachAbbau = g.orteZahl().vergeben;
+      aus.titelNachAbbau = skizze ? BILD.titel(skizze) : null;
+
+      // Aufräumen, vollständig: Name weg, Schild weg (auch wenn der Abbau
+      // scheiterte), Tasche genau so wie vorher.
+      g.state.orte = [];
+      for (let i = g.world.entities.length - 1; i >= 0; i--) {
+        const e = g.world.entities[i];
+        if (e.kind === 'decor' && e.itemId === 'signpost') g.world.remove(e);
+      }
+      g.inventory.remove('signpost', 99);
+      if (geliehen) g.inventory.add(geliehen.id, geliehen.n);
+      aus.taschePlatzDanach = g.inventory.freeSlots();
+      aus.schilderUebrig = g.world.entities.filter(function (e) {
+        return e.kind === 'decor' && e.itemId === 'signpost' && !e.gone;
+      }).length;
+      g.player.x = vorher.x; g.player.y = vorher.y;
+      g.player.selectTool(vorher.werkzeug);
+      return aus;
+    });
+    check('Ein Wegweiser macht aus einer Ecke einen Ort',
+      eigene.stelleGefunden === 'wald' && eigene.vorher === null &&
+      eigene.nachher === 'Mondgarten' && eigene.weitWeg === null,
+      JSON.stringify(eigene));
+    check('Die Insel spricht den eigenen Namen zurück',
+      eigene.titelMitNamen === 'Mondgarten, im Herbst, am Morgen' ||
+      (eigene.titelMitNamen || '').indexOf('Mondgarten') === 0,
+      'Titel: ' + eigene.titelMitNamen + ' / ohne Namen: ' + eigene.titelOhneNamen);
+    check('Ohne Schild bleibt es beim allgemeinen Namen',
+      (eigene.titelOhneNamen || '').indexOf('Im Wald') === 0, String(eigene.titelOhneNamen));
+    check('Umbenennen legt keinen zweiten Ort an',
+      eigene.umbenannt === 'Sternplatz' && eigene.zahlNachUmbenennen === 1,
+      JSON.stringify({ name: eigene.umbenannt, zahl: eigene.zahlNachUmbenennen }));
+    check('Ein selbst getippter Name kann kein Markup sein',
+      eigene.boom === 0 && (eigene.gesaeubert || '').indexOf('<') < 0,
+      'gesäubert: ' + eigene.gesaeubert + ' / Nutzlast: ' + eigene.boom);
+    check('Mit dem Schild geht der Name – die Skizze von damals behält ihn',
+      eigene.nachAbbau === null && eigene.zahlNachAbbau === 0 &&
+      (eigene.titelNachAbbau || '').indexOf('Mondgarten') === 0,
+      JSON.stringify({ jetzt: eigene.nachAbbau, skizze: eigene.titelNachAbbau,
+        platz: eigene.platzGemacht, werkzeug: eigene.werkzeug }));
+    // Nur aussagekräftig, wenn die Tasche vorher wirklich voll war – sonst
+    // ist nichts geprüft und die Zeile sagt das.
+    check('Bei voller Tasche bleibt Schild und Name stehen',
+      eigene.platzVorher !== 0 || !!eigene.nameTrotzVollerTasche,
+      'Platz vorher: ' + eigene.platzVorher + ', Name: ' + eigene.nameTrotzVollerTasche);
+    check('Auch diese Prüfung räumt hinter sich auf',
+      eigene.schilderUebrig === 0 && eigene.taschePlatzDanach === eigene.platzVorher,
+      JSON.stringify({ schilder: eigene.schilderUebrig,
+        platzVorher: eigene.platzVorher, platzDanach: eigene.taschePlatzDanach }));
 
     // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
     // beim Aufwachen erwischt zu haben.
@@ -4757,11 +4922,66 @@ async function run() {
       g.inventory.add('sapling_oak', 1);
       g.startPlacing('sapling_oak');
       g._updatePlacing();
-      let n = 0;
-      while (g.placing && !g.placing.valid && n++ < 60) {
-        g.player.x += 24;
-        g._updatePlacing();
+      // Gesucht ist nicht nur ein Platz, auf den der Setzling PASST, sondern
+      // einer, dessen Nachbarschaft sonst frei ist.
+      //
+      // Das ist der Grund, warum diese Prüfung auf etwa jeder vierten Insel
+      // rot wurde – gefunden über `SMOKE_SEED=3814432270`, das sie
+      // zuverlässig wiederholt. Weiter unten wird gemessen, ob ein Punkt
+      // zehn Schritte neben dem Setzling NUR wegen ihm gesperrt ist. Stand
+      // dort zufällig noch ein Stein oder ein Baum, war er auch ohne ihn
+      // gesperrt, und die Prüfung meldete einen Fehler im Spiel, wo keiner
+      // war. Die Stelle, an der gemessen wird, muss die Voraussetzung also
+      // erfüllen, BEVOR der Setzling steht.
+      const baumDef = defOf(sl.wird);
+
+      /**
+       * Eine Stelle suchen, deren Nachbarschaft frei ist.
+       *
+       * Zwei Anläufe hat das gekostet. Der erste nahm die erste Stelle, auf
+       * die der Setzling passte – und fiel auf etwa jeder vierten Insel um,
+       * weil zehn Schritte daneben ein Stein stand und die Messung dann
+       * etwas anderes misst als sie behauptet (`SMOKE_SEED=3814432270`
+       * wiederholt genau das). Der zweite lief nur nach rechts und fand auf
+       * manchen Inseln gar keine Stelle mehr – aus einem falschen Fehler
+       * wurde ein Abbruch.
+       *
+       * Jetzt wird in beide Richtungen und über mehrere Reihen gesucht, und
+       * wenn wirklich nichts taugt, sagt `freieNachbarschaft` das, statt
+       * einen Fehler im Spiel zu behaupten.
+       */
+      let taugt = false;
+      const startX = g.player.x;
+      const startY = g.player.y;
+      for (const dy of [0, -64, 64, -128, 128]) {
+        for (let k = 0; k < 40 && !taugt; k++) {
+          for (const richtung of [1, -1]) {
+            g.player.x = startX + richtung * k * 24;
+            g.player.y = startY + dy;
+            g._updatePlacing();
+            if (g.placing && g.placing.valid &&
+                g._canPlaceAt(g.placing.x + 10, g.placing.y + 10) &&
+                g._canPlaceAt(g.placing.x + baumDef.blockR + 60, g.placing.y)) {
+              taugt = true;
+              break;
+            }
+          }
+        }
+        if (taugt) break;
       }
+      // Keine taugliche Stelle: dann irgendeine gültige, damit die übrigen
+      // Messungen (Wachsen, Baum werden) trotzdem laufen.
+      if (!taugt) {
+        g.player.x = startX;
+        g.player.y = startY;
+        let n = 0;
+        g._updatePlacing();
+        while (g.placing && !g.placing.valid && n++ < 60) {
+          g.player.x += 24;
+          g._updatePlacing();
+        }
+      }
+      r.freieNachbarschaft = taugt;
       r.konnteSetzen = !!(g.placing && g.placing.valid);
       r.alsPflanzung = !!(g.placing && g.placing.pflanzt === 'sapling_oak');
       g.confirmPlacing();
@@ -4779,9 +4999,8 @@ async function run() {
       // Gemessen wird der Beitrag DES SETZLINGS und nicht, ob ein Punkt
       // weiter weg zufällig frei ist – dort kann ein Baum stehen, ein Stein
       // oder das Lager. Der erste Anlauf prüfte genau das und fiel daran.
-      const baum = defOf(sl.wird);
       const nah = { x: e.x + 10, y: e.y + 10 };
-      const weit = { x: e.x + baum.blockR + 60, y: e.y };
+      const weit = { x: e.x + baumDef.blockR + 60, y: e.y };
       r.platzFrei = g._canPlaceAt(nah.x, nah.y) === false;
       const weitVorher = g._canPlaceAt(weit.x, weit.y);
       // Kurz WEGSCHIEBEN statt entfernen: `world.remove` setzt `gone`, und
@@ -4796,6 +5015,12 @@ async function run() {
       e.x = wegX;
       e.y = wegY;
       // Nah: gesperrt NUR wegen ihm. Weit: er ändert dort nichts.
+      //
+      // Auf einer Insel ohne taugliche Stelle ist das nicht messbar – dann
+      // wird es auch nicht behauptet. Eine Prüfung, die bei fehlender
+      // Messbarkeit einen Fehler meldet, zeigt auf die falsche Stelle; eine,
+      // die dann still durchgeht, prüft nichts. Deshalb steht beides im
+      // Ergebnis und die Zeile unten entscheidet.
       r.sperrtNurEr = r.platzFrei === true && r.nahOhneIhn === true;
       r.weitUnberuehrt = weitVorher === r.weitOhneIhn;
 
@@ -4840,8 +5065,12 @@ async function run() {
       setz.sorte === 'sapling_oak', JSON.stringify(setz));
     check('Wie lange er braucht, sagt die Jahreszeit',
       setz.stimmtMitJahreszeit === true && setz.brauchtTage >= 4, JSON.stringify(setz));
+    // Die strenge Behauptung nur, wenn die Insel eine Stelle hergab, an der
+    // sie überhaupt messbar ist. `weitUnberuehrt` gilt immer.
     check('Um ihn herum bleibt der Platz frei, den der Baum braucht',
-      setz.sperrtNurEr === true && setz.weitUnberuehrt === true, JSON.stringify(setz));
+      setz.weitUnberuehrt === true &&
+      (setz.freieNachbarschaft ? setz.sperrtNurEr === true : setz.platzFrei === true),
+      JSON.stringify(setz));
     check('Er verändert sich sichtbar, bevor er fertig ist',
       setz.stufen >= 2 && setz.nochSetzling === true, JSON.stringify(setz));
     check('Und wird dann ein gewöhnlicher Baum – nicht ein Sonderfall',
