@@ -45,6 +45,10 @@ import {
   gefundene as gefundeneMomente, momenteStand,
 } from './momente.js';
 import {
+  emptySternbilder, faelligesSternbild, merke as merkeSternbild,
+  gefundene as gefundeneSternbilder, sternbilderStand, geistName as sternGeist,
+} from './sternbilder.js';
+import {
   orteAus, emptyOrte, nameHier, ortAnStelle, nochPlatz,
   benenne as benenneOrt, vergesse as vergessOrt, orteStand,
   saeubereOrtsname, MAX as ORTE_MAX, NAME_MAX as ORT_NAME_MAX,
@@ -406,6 +410,7 @@ export class Game {
       kapitel: emptyKapitel(),
       momente: emptyMomente(),
       orte: emptyOrte(),
+      sternbilder: emptySternbilder(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -451,6 +456,7 @@ export class Game {
       kapitel: emptyKapitel(),
       momente: emptyMomente(),
       orte: emptyOrte(),
+      sternbilder: emptySternbilder(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -522,6 +528,13 @@ export class Game {
     // Hier ist die Stelle, an der ein verdorbener Name gesäubert wird –
     // vor jeder Anzeige, die ihn je zu sehen bekommt.
     this.state.orte = orteAus(this.state.orte);
+    // Die Sternbilder. Wie die Momente rückwirkend NICHT nachgeholt: Zu
+    // behaupten, jemand habe den Funken schon am Himmel gesehen, nimmt ihm
+    // genau den Abend weg, um den es geht.
+    if (!this.state.sternbilder || typeof this.state.sternbilder !== 'object' ||
+        !this.state.sternbilder.gefunden) {
+      this.state.sternbilder = emptySternbilder();
+    }
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
     this.state.trachten = offeneAus(this.state.trachten);
@@ -837,6 +850,7 @@ export class Game {
     this._checkMilestones(dt);
     this._checkKapitel(dt);
     this._momentPruefen(dt);
+    this._sternbildPruefen(dt);
     this._checkCollection();
     this._petSucht();
     this._petRuht(dt);
@@ -2645,6 +2659,67 @@ export class Game {
    */
   hatSache(sache) {
     return kapitelHat(this.state.kapitel, sache);
+  }
+
+  /* ---------------- Sternbilder ---------------- */
+
+  /**
+   * Sieht Seli heute Nacht ein Sternbild?
+   *
+   * Der Grund steht in `sternbilder.js`: Die 28 Erzählschritte des Spiels
+   * sind nach rund 180 Aufträgen durch, und danach erzählt niemand mehr
+   * etwas. Jedes Sternbild ist ein fünfter Schritt für einen Geist – und es
+   * kommt erst, wenn seine vier erzählt sind.
+   *
+   * Dieselbe Taktung und dieselbe Stillstandsbedingung wie bei den Momenten:
+   * Wer durchläuft, sieht nichts. Nach oben sieht man, wenn man stehen
+   * bleibt.
+   */
+  _sternbildPruefen(dt) {
+    // Ohne das Kapitel gibt es den klaren Himmel noch nicht.
+    if (!this.hatSache('sternbilder')) return;
+    const st = this.state.sternbilder;
+    if (st && st.zuletzt === this.day.day) return;
+    // Billig vorweg: tagsüber ist nichts zu sehen, und `ruheLage` fragt die
+    // Welt im Umkreis ab.
+    if (!this.day.isDark()) return;
+    if ((this._momentStill || 0) < Game.MOMENT_STILL) return;
+
+    this._sternT = (this._sternT || 0) - (dt || 0);
+    if (dt && this._sternT > 0) return;
+    this._sternT = 1;
+
+    if (!st || !st.gefunden) this.state.sternbilder = emptySternbilder();
+    const self = this;
+    const sb = faelligesSternbild(
+      this.state.sternbilder, this.ruheLage(), this.day.day,
+      function (geist) { return self.stories.isComplete(geist); }
+    );
+    if (!sb) return;
+
+    this.state.sternbilder = merkeSternbild(this.state.sternbilder, sb.id, this.day.day);
+    // Erst der Name – anders als beim Moment. Ein Sternbild SIEHT man
+    // zuerst und hört dann, was es bedeutet; ein Moment ist umgekehrt
+    // erst der Gedanke und dann sein Name.
+    this.ui.toast('Sternbild: ' + sb.name, 'icon_sparkle', 'good');
+    const p = this.player;
+    setTimeout(function () {
+      self.ui.bubble(p.x, p.y - 108, sternGeist(sb) + ': „' + sb.satz + '"', null, 6.4, true);
+    }, 1400);
+    this.audio.play('star');
+    this.particles.burst('color', p.x, p.y - 80, 16);
+    this._note('sternbilder', 1);
+    this.save();
+  }
+
+  /** Welche Sternbilder gefunden sind – für die Chronik. */
+  sternbilder() {
+    return gefundeneSternbilder(this.state.sternbilder);
+  }
+
+  /** Wie viele: {gefunden, gesamt}. */
+  sternbilderZahl() {
+    return sternbilderStand(this.state.sternbilder);
   }
 
   /* ---------------- Eigene Ortsnamen ---------------- */

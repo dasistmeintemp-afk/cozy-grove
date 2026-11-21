@@ -755,6 +755,104 @@ async function run() {
       JSON.stringify({ schilder: eigene.schilderUebrig,
         platzVorher: eigene.platzVorher, platzDanach: eigene.taschePlatzDanach }));
 
+    /**
+     * Sternbilder – der fünfte Erzählschritt.
+     *
+     * Das Spiel hat 28 Erzählschritte, und das ist die ganze geschriebene
+     * Geschichte; nach rund 180 Aufträgen erzählt niemand mehr etwas. Jedes
+     * Sternbild hängt deshalb an EINEM Geist und kommt erst, wenn dessen
+     * vier Schritte erzählt sind. Diese Kopplung ist leicht zu verlieren –
+     * ohne sie bekommt jemand alle sieben Sätze, bevor er die Geister
+     * überhaupt kennt – und deshalb wird sie hier im laufenden Spiel
+     * geprüft und nicht nur in der Rechnung.
+     */
+    const sterne = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const aus = {};
+      const vorher = {
+        tag: g.day.day, stunde: g.day.hour,
+        wetter: g.weather.kind, staerke: g.weather.level,
+        kapitel: !!g.state.kapitel.offen.klarerhimmel,
+        sternbilder: JSON.stringify(g.state.sternbilder),
+        istFertig: g.stories.isComplete,
+      };
+      function klareNacht() {
+        g.day.hour = 23; g.weather.kind = 'clear'; g.weather.level = 0;
+      }
+      function stillstehen() { g._momentStill = 99; g._sternT = 0; }
+
+      // Alle Geschichten als erzählt ausgeben – sonst ist nichts fällig.
+      g.stories.isComplete = function () { return true; };
+
+      // a) Ohne das Kapitel passiert nichts, auch wenn alles andere stimmt.
+      delete g.state.kapitel.offen.klarerhimmel;
+      klareNacht(); stillstehen(); g.day.day = 500;
+      g._sternbildPruefen(0.016);
+      aus.ohneKapitel = g.sternbilderZahl().gefunden;
+
+      g.state.kapitel.offen.klarerhimmel = 1;
+      aus.hatSache = g.hatSache('sternbilder');
+
+      // b) Regen, Tag, Vorbeilaufen: jeweils nichts.
+      g.weather.kind = 'rain'; g.weather.level = 1;
+      stillstehen(); g.day.day = 501; g._sternbildPruefen(0.016);
+      aus.beiRegen = g.sternbilderZahl().gefunden;
+
+      g.weather.kind = 'clear'; g.weather.level = 0; g.day.hour = 13;
+      stillstehen(); g.day.day = 502; g._sternbildPruefen(0.016);
+      aus.amTag = g.sternbilderZahl().gefunden;
+
+      klareNacht(); g.day.day = 503; g._momentStill = 0; g._sternT = 0;
+      g._sternbildPruefen(0.016);
+      aus.imLaufen = g.sternbilderZahl().gefunden;
+
+      // c) Und ohne erzählte Geschichte ebenfalls nichts – die Kopplung.
+      g.stories.isComplete = function () { return false; };
+      klareNacht(); stillstehen(); g.day.day = 504;
+      g._sternbildPruefen(0.016);
+      aus.ohneGeschichte = g.sternbilderZahl().gefunden;
+
+      // d) Jetzt klare Nächte: eines je Nacht, nie zwei.
+      g.stories.isComplete = function () { return true; };
+      let zweiInEinerNacht = 0;
+      for (let n = 510; n < 525; n++) {
+        klareNacht(); g.day.day = n; stillstehen();
+        const vor = g.sternbilderZahl().gefunden;
+        g._sternbildPruefen(0.016);
+        const nach = g.sternbilderZahl().gefunden;
+        g._sternT = 0; g._sternbildPruefen(0.016);
+        if (g.sternbilderZahl().gefunden > nach) zweiInEinerNacht++;
+      }
+      aus.zweiInEinerNacht = zweiInEinerNacht;
+      aus.stand = g.sternbilderZahl();
+      aus.inChronik = g.sternbilder().length;
+      aus.grafiken = g.sternbilder().every(function (e) {
+        return window.CozyGrove.art.has('sternbild_' + e.sternbild.id);
+      });
+
+      // Zurückdrehen – siehe die Moment-Prüfung: Wer hier etwas stehen
+      // lässt, lässt spätere Prüfungen an der falschen Stelle suchen.
+      g.day.day = vorher.tag; g.day.hour = vorher.stunde;
+      g.weather.kind = vorher.wetter; g.weather.level = vorher.staerke;
+      if (!vorher.kapitel) delete g.state.kapitel.offen.klarerhimmel;
+      g.state.sternbilder = JSON.parse(vorher.sternbilder);
+      g.stories.isComplete = vorher.istFertig;
+      return aus;
+    });
+    check('Ohne das Kapitel gibt es keine Sternbilder',
+      sterne.ohneKapitel === 0 && sterne.hatSache === true, JSON.stringify(sterne));
+    check('Regen, Tag und Vorbeilaufen zeigen keinen Himmel',
+      sterne.beiRegen === 0 && sterne.amTag === 0 && sterne.imLaufen === 0,
+      JSON.stringify({ regen: sterne.beiRegen, tag: sterne.amTag, laufen: sterne.imLaufen }));
+    check('Ein Sternbild kommt erst nach der Geschichte seines Geistes',
+      sterne.ohneGeschichte === 0, 'gefunden: ' + sterne.ohneGeschichte);
+    check('Sieben klare Nächte bringen sieben Sternbilder, nie zwei auf einmal',
+      sterne.stand.gefunden === sterne.stand.gesamt && sterne.zweiInEinerNacht === 0,
+      JSON.stringify(sterne.stand) + ' doppelt: ' + sterne.zweiInEinerNacht);
+    check('Jedes gefundene Sternbild hat eine gemalte Grafik',
+      sterne.grafiken === true && sterne.inChronik === sterne.stand.gesamt,
+      JSON.stringify({ grafiken: sterne.grafiken, chronik: sterne.inChronik }));
+
     // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
     // beim Aufwachen erwischt zu haben.
     const tagesZeile = await page.evaluate(() => {

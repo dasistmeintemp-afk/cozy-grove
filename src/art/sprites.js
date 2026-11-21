@@ -31,6 +31,8 @@ import {
   paintPetal, paintSunstone, paintMapleleaf, paintFrostflower, paintSapling,
 } from './painted-saison.js';
 import { SETZLINGE, SETZLING_IDS, STUFEN } from '../game/saplings.js';
+import { paintSternbild } from './painted-sternbild.js';
+import { STERNBILDER } from '../game/sternbilder.js';
 import { kennung as bildKennung } from '../game/bild.js';
 import {
   paintTable, paintChair, paintHammock, paintSwing,
@@ -283,6 +285,13 @@ export function initArt() {
   addArt('sunstone', paintSunstone({ seed: 2621 }));
   addArt('mapleleaf', paintMapleleaf({ seed: 2641 }));
   addArt('frostflower', paintFrostflower({ seed: 2661 }));
+  // Die Sternbilder – eines je Geist (siehe `sternbilder.js`). Die Lagen
+  // stehen dort, hier wird nur gemalt; jedes bekommt einen eigenen Samen,
+  // damit sich der Strich nicht wiederholt.
+  for (let i = 0; i < STERNBILDER.length; i++) {
+    const sb = STERNBILDER[i];
+    addArt('sternbild_' + sb.id, paintSternbild(sb, { seed: 7700 + i * 37 }));
+  }
   // Die Setzlinge: zwei Stufen je Sorte, ein Maler (siehe `paintSapling`).
   for (let i = 0; i < SETZLING_IDS.length; i++) {
     const sl = SETZLINGE[SETZLING_IDS[i]];
