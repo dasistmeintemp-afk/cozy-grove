@@ -48,6 +48,10 @@ import {
   emptyDekoreaktion, reaktionFuer, merke as merkeReaktion, reaktionenStand,
 } from './dekoreaktion.js';
 import {
+  niedrigAm, naechstesNiedrig, BREITE as WATT_BREITE,
+  FUNDE as WATT_FUNDE, GRABSTELLEN as WATT_GRABEN,
+} from './gezeiten.js';
+import {
   NAME as JULE, SAETZE as JULE_SAETZE, LOHN as JULE_LOHN,
   emptyNachbar, istDa as juleDa, naechsteGeschichte, merke as merkeGeschichte,
   neueStufe, nachbarStand, heuteSchon as juleHeuteSchon,
@@ -319,6 +323,7 @@ export class Game {
     this._festSchmuck(this.day.day);
     this._wandererSetzen(this.day.day);
     this._juleSetzen();
+    this._gezeitenNachfuehren();
 
     // Strichliste für den Rückblick: neu anlegen, wenn es keine gibt oder sie
     // noch von einem früheren Tag stammt (etwa aus einem alten Spielstand).
@@ -2650,6 +2655,7 @@ export class Game {
     // und nicht erst nach dem nächsten Schlafen: Der Auftakt sagt „Am Strand
     // steht Gepäck", und dann soll dort Gepäck stehen.
     this._juleSetzen();
+    this._gezeitenNachfuehren();
 
     // „Ankunft" hat keinen Auftakt: Es ist der Zustand, in dem man anfängt,
     // und eine Meldung „ein neues Kapitel: Ankunft" im ersten Bild eines
@@ -2720,6 +2726,94 @@ export class Game {
    */
   hatSache(sache) {
     return kapitelHat(this.state.kapitel, sache);
+  }
+
+  /* ---------------- Die Gezeiten ---------------- */
+
+  /**
+   * Das Wasser dem heutigen Tag anpassen.
+   *
+   * Aufgerufen beim Laden, beim Tageswechsel und in dem Augenblick, in dem
+   * das Kapitel aufgeht – an allen drei Stellen, weil an allen drei der Tag
+   * ein anderer sein kann als der, zu dem das Wasser gerade steht.
+   *
+   * Der Wechsel selbst ist billig: `gezeitenSetzen` tauscht ein paar hundert
+   * Kacheln, und zwar nur die, die noch nicht stimmen.
+   */
+  _gezeitenNachfuehren() {
+    if (!this.hatSache('gezeiten')) return false;
+    const niedrig = niedrigAm(this.world.seed, this.day.day);
+    const vorher = this.world.wattOffen();
+    const getauscht = this.world.gezeitenSetzen(niedrig, WATT_BREITE);
+
+    // Den gezeichneten Boden wegwerfen, sonst sieht man nichts.
+    //
+    // Das war der teuerste Fehler an den Gezeiten, und er war unsichtbar:
+    // Kollision, Funde und Kacheln stimmten alle, nur das BILD blieb das
+    // alte. Der Boden wird in Stücken zwischengespeichert, und `setTile`
+    // allein sagt dem Zwischenspeicher nichts – beim Steinweg steht deshalb
+    // schon seit jeher ein `markTileDirty` daneben. Zwei nebeneinander
+    // aufgenommene Bilder, Ebbe und Flut, waren Pixel für Pixel gleich.
+    //
+    // Hier wird alles geleert statt Stück für Stück: Die Tide tauscht über
+    // tausend Kacheln quer über die halbe Küste, und das passiert einmal
+    // beim Tageswechsel.
+    if (getauscht && this.ground) this.ground.clear();
+    if (niedrig !== vorher) this._freiStellen();
+    return niedrig;
+  }
+
+  /**
+   * Seli aus dem Wasser holen, falls sie darin steht.
+   *
+   * Die einzige Stelle, an der die Gezeiten gefährlich werden könnten, und
+   * deshalb ausdrücklich:
+   *
+   * `canStand` prüft ausschließlich Kacheln. Steht die Figur auf einer
+   * Kachel, die gerade wieder Wasser geworden ist, ist JEDE Richtung
+   * gesperrt – sie kann sich keinen Schritt mehr bewegen, und es gibt
+   * nichts, was der Spieler dagegen tun könnte. Das wäre die schlimmste
+   * Sorte Strafe in einem Spiel, dessen Vorsatz „nichts verdirbt, nichts
+   * bestraft" lautet.
+   *
+   * Normalerweise kann das nicht passieren: Das Wasser wechselt nur beim
+   * Tageswechsel, und der findet im Schlaf statt. Übrig bleiben die Fälle,
+   * an die man beim Entwerfen nicht denkt – ein Spielstand, der mitten im
+   * Watt gespeichert und an einem anderen Tag geladen wird; ein Kapitel,
+   * das aufgeht, während sie am Ufer steht. Für die ist das hier da.
+   *
+   * Gesucht wird in Ringen nach außen, damit sie am nächstgelegenen Ufer
+   * herauskommt und nicht quer über die Insel versetzt wird.
+   */
+  _freiStellen() {
+    const p = this.player;
+    if (!p || this.world.canStand(p.x, p.y)) return false;
+    for (let r = 1; r <= 14; r++) {
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const x = p.x + Math.cos(a) * r * TILE_SIZE;
+        const y = p.y + Math.sin(a) * r * TILE_SIZE;
+        if (!this.world.canStand(x, y)) continue;
+        p.x = x;
+        p.y = y;
+        p.prevX = x;
+        p.prevY = y;
+        this.camera.snapTo(x, y - 6);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Liegt der Grund heute frei? */
+  niedrigwasser() {
+    return this.hatSache('gezeiten') && this.world.wattOffen();
+  }
+
+  /** Der nächste Tag mit Niedrigwasser – oder 0. */
+  naechsteEbbe() {
+    if (!this.hatSache('gezeiten')) return 0;
+    return naechstesNiedrig(this.world.seed, this.day.day);
   }
 
   /* ---------------- Jule, die Nachbarin ---------------- */
@@ -4477,6 +4571,14 @@ export class Game {
     const streut = [];
     if (w.streut) streut.push(w.streut);
     if (gestern.danach) streut.push(gestern.danach);
+    // Am Tag der Ebbe liegt im Watt etwas. Nichts Eigenes – Muscheln und
+    // Treibholz gibt es am Strand auch; der Unterschied ist die Menge und
+    // der Ort. Ein Fund, den es nur alle fünf Tage gäbe, wäre ein Grund, auf
+    // die Ebbe zu WARTEN, und Warten ist das Gegenteil von dem, was dieses
+    // Spiel will.
+    if (this.hatSache('gezeiten') && niedrigAm(this.world.seed, this.day.day)) {
+      streut.push(WATT_FUNDE);
+    }
     return {
       digs: w.grabstellen || 1,
       stars: !!w.sterne,
@@ -6540,6 +6642,14 @@ export class Game {
     // Der Kalender kann sich über Nacht gedreht haben – wer bis nach
     // Mitternacht spielt, bekommt dann auch das Ereignis von morgen.
     this.refreshToday();
+    // VOR `newDay`, nicht danach.
+    //
+    // `newDay` streut aus, und was ins Watt gelegt wird, braucht Kacheln,
+    // die schon Watt sind. Stand der Aufruf dahinter, war der Grund beim
+    // Streuen noch Wasser – am ersten Ebbe-Morgen lag dann nichts draußen,
+    // und der Tag hielt nicht, was er ankündigte. Gefunden erst, als die
+    // Prüfung die ECHTE Reihenfolge nachspielte statt einer bequemen.
+    this._gezeitenNachfuehren();
     this.world.newDay(day, this._todayWorldEffects());
     // Erst das Wetter des neuen Tages, dann wachsen lassen: Regen zählt
     // doppelt, und das soll der Regen von heute sein, nicht der von gestern.
@@ -6611,6 +6721,16 @@ export class Game {
       setTimeout(function () {
         self4.ui.toast('Jemand steht am Strand', 'icon_travellamp', 'good');
       }, 4200);
+    }
+    // Dass der Grund heute frei liegt, muss man erfahren. Wer nicht zufällig
+    // am Wasser vorbeikommt, läuft sonst einen ganzen Tag an einer offenen
+    // Tür vorbei – und das Kapitel hätte etwas versprochen, das niemand
+    // findet.
+    if (this.niedrigwasser()) {
+      const self5 = this;
+      setTimeout(function () {
+        self5.ui.toast('Niedrigwasser · Der Grund liegt frei', 'icon_shell', 'good');
+      }, 4800);
     }
     this._terminAnsagen();
     // Der eigentliche Grund, morgens aufzustehen.

@@ -584,6 +584,130 @@ export class World {
   }
 
   /**
+   * Welche Kacheln bei Niedrigwasser frei liegen.
+   *
+   * Flaches Wasser (`T.WATER`, nie `WATER_DEEP`) innerhalb weniger Kacheln
+   * vom begehbaren Ufer. Zwei Bedingungen, und beide sind wichtig:
+   *
+   *   Nur flaches Wasser – damit nie ein Weg über die offene See entsteht.
+   *   Nur in Ufernähe – damit das Watt ein Saum bleibt und keine zweite
+   *   Insel, über die man minutenlang läuft.
+   *
+   * Das Ergebnis hängt allein an der erzeugten Karte und wird deshalb EINMAL
+   * gerechnet und gemerkt: Die Abtastung geht über alle 9216 Kacheln und je
+   * Kachel über ihre Umgebung, und das Ergebnis ändert sich nie.
+   *
+   * @param {number} breite Reichweite in Kacheln vom Ufer
+   */
+  wattKacheln(breite) {
+    const r = Math.max(1, breite | 0);
+    if (this._watt && this._wattBreite === r) return this._watt;
+
+    const kandidaten = new Set();
+    const self = this;
+    for (let y = 0; y < MAP_H; y++) {
+      for (let x = 0; x < MAP_W; x++) {
+        if (this.tileAtTile(x, y) !== T.WATER) continue;
+        // Liegt begehbarer Grund in Reichweite?
+        let amUfer = false;
+        for (let dy = -r; dy <= r && !amUfer; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (dx * dx + dy * dy > r * r) continue;
+            if (isWalkable(this.tileAtTile(x + dx, y + dy))) { amUfer = true; break; }
+          }
+        }
+        if (amUfer) kandidaten.add(x + ',' + y);
+      }
+    }
+
+    /**
+     * Nur, was vom Lagerfeuer aus zu Fuß zu erreichen ist.
+     *
+     * Zwei Anläufe hat das gekostet, und beide Messungen stehen hier, weil
+     * die Zahl die Begründung ist:
+     *
+     *   Ohne jede Prüfung waren 658 von 1262 Wattkacheln unerreichbar.
+     *   Flaches Wasser gibt es auch rund um vorgelagerte Felsen, und dort
+     *   entstand bei Ebbe eine Fläche mitten im Meer – im Bild ein sauberes
+     *   Rechteck trockenen Grundes, zu dem kein Weg führt.
+     *
+     *   Mit einer Prüfung auf „liegt an begehbarem Land" blieben 265 übrig.
+     *   Denn dieses Land konnte selbst eine Felseninsel sein, die niemand
+     *   betritt.
+     *
+     * Deshalb jetzt eine Füllung vom LAGERFEUER aus, über Land und Watt
+     * zugleich – also genau der Weg, den die Figur gehen würde. Was sie
+     * nicht erreicht, bleibt Wasser. Begehbar aussehender Boden, den
+     * niemand betreten kann, ist schlimmer als gar keiner: Er sieht nach
+     * einem Weg aus, den man übersehen hat.
+     */
+    const raus = [];
+    const start = this.campfire
+      ? [Math.floor(this.campfire.x / TILE_SIZE), Math.floor(this.campfire.y / TILE_SIZE)]
+      : null;
+    if (!start) {
+      // Ohne Lagerfeuer (sehr früh beim Aufbau) lieber gar kein Watt als
+      // eines, dessen Erreichbarkeit niemand geprüft hat.
+      this._watt = raus;
+      this._wattBreite = r;
+      return raus;
+    }
+    const erreicht = new Set([start[0] + ',' + start[1]]);
+    const stapel = [start];
+    while (stapel.length) {
+      const p = stapel.pop();
+      const k = p[0] + ',' + p[1];
+      if (kandidaten.has(k)) raus.push([p[0], p[1]]);
+      const nach = [[p[0] + 1, p[1]], [p[0] - 1, p[1]], [p[0], p[1] + 1], [p[0], p[1] - 1]];
+      for (let i = 0; i < nach.length; i++) {
+        const nk = nach[i][0] + ',' + nach[i][1];
+        if (erreicht.has(nk)) continue;
+        // Gelaufen wird über Land UND über das künftige Watt.
+        if (!isWalkable(this.tileAtTile(nach[i][0], nach[i][1])) && !kandidaten.has(nk)) continue;
+        erreicht.add(nk);
+        stapel.push(nach[i]);
+      }
+    }
+
+    this._watt = raus;
+    this._wattBreite = r;
+    return raus;
+  }
+
+  /**
+   * Das Wasser zurückziehen oder zurückholen.
+   *
+   * Es werden wirklich die KACHELN getauscht und keine zweite
+   * Begehbarkeitsregel danebengestellt. Das ist die ganze Bauart: `canStand`
+   * fragt ausschließlich `isWalkable(tileAt(...))`, also stimmen Kollision,
+   * Pfade, Vorkommen und Bild ohne eine einzige neue Zeile. Eine Ausnahme in
+   * der Kollision hätte an jeder Stelle gefehlt, die sie nicht kennt.
+   *
+   * @returns {number} wie viele Kacheln getauscht wurden
+   */
+  gezeitenSetzen(aktiv, breite) {
+    const watt = this.wattKacheln(breite);
+    const ziel = aktiv ? T.TIDEFLAT : T.WATER;
+    const von = aktiv ? T.WATER : T.TIDEFLAT;
+    let n = 0;
+    for (let i = 0; i < watt.length; i++) {
+      const tx = watt[i][0];
+      const ty = watt[i][1];
+      if (this.tileAtTile(tx, ty) !== von) continue;
+      this.setTile(tx, ty, ziel);
+      n++;
+    }
+    return n;
+  }
+
+  /** Liegt der Grund gerade frei? */
+  wattOffen() {
+    const watt = this._watt;
+    if (!watt || !watt.length) return false;
+    return this.tileAtTile(watt[0][0], watt[0][1]) === T.TIDEFLAT;
+  }
+
+  /**
    * Gibt es diesen Boden überhaupt schon?
    *
    * Nötig geworden durch einen Tag, der still ins Leere lief: „Steinkraut"
@@ -599,7 +723,10 @@ export class World {
    * nicht.
    */
   hatBoden(boden) {
-    const passt = boden === 'sand' ? T.SAND : boden === 'fels' ? T.ROCKFLOOR : null;
+    const passt = boden === 'sand' ? T.SAND
+      : boden === 'fels' ? T.ROCKFLOOR
+      : boden === 'watt' ? T.TIDEFLAT
+      : null;
     const regions = ALL_REGIONS;
     for (let r = 0; r < regions.length; r++) {
       if (!this.unlocked[regions[r]]) continue;
@@ -646,6 +773,7 @@ export class World {
     // Blumen zwischen seinen Beeten vorfinden.
     const passt = boden === 'sand' ? function (t) { return t === T.SAND; }
       : boden === 'fels' ? function (t) { return t === T.ROCKFLOOR; }
+      : boden === 'watt' ? function (t) { return t === T.TIDEFLAT; }
       : function (t, tx, ty) {
         return (t === T.GRASS || t === T.DIRT) &&
           !inAnyPlot(tx, ty, self.plotStage, self.islePlotStage);

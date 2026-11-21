@@ -109,7 +109,7 @@ export const KAPITEL = [
     bringt: [],
   },
   {
-    id: 'niedrigesee', ab: 12, boden: 0.08, inhalt: false,
+    id: 'niedrigesee', ab: 12, boden: 0.08, inhalt: true,
     name: 'Die niedrige See',
     auftakt: 'Das Wasser steht heute tiefer als sonst. Da hinten liegt Grund frei.',
     hint: 'Bei Niedrigwasser ist der Meeresboden begehbar.',

@@ -308,6 +308,7 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
   const pebbles = [];
   const fronds = [];
   const swell = [];
+  const rippel = [];
   const pathStones = [];
   const planks = [];
 
@@ -354,6 +355,33 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
           const y = (ty + rng()) * TILE_SIZE;
           swell.push([(tx - 0.3) * TILE_SIZE, y, (tx + 1.3) * TILE_SIZE, y + (rng() - 0.5) * 14]);
         }
+      } else if (t === T.TIDEFLAT) {
+        /**
+         * Rippelmarken – das Einzige, woran man das Watt erkennt.
+         *
+         * Gemessen: Die Grundfarbe der Kachel macht im Bild KEINEN
+         * Unterschied. Vier Farben von hell bis dunkel ergaben denselben
+         * Pixelwert, weil die Farbschicht unkoloriert fast vollständig
+         * unter dem Papierschleier verschwindet – dasselbe Problem, das
+         * beim Steinweg weiter unten schon einmal beschrieben ist. Im
+         * Spiel stand Seli damit scheinbar auf dem Wasser.
+         *
+         * Also Tinte statt Farbe, und zwar das Zeichen, das ein trocken
+         * gefallener Meeresboden wirklich trägt: drei lange, wellige Züge
+         * je Kachel, quer zum Ufer. Dichter als die Rippel im Sand (dort
+         * eine mit 40 % Wahrscheinlichkeit) – der Unterschied zwischen
+         * Strand und Watt muss man SEHEN, nicht erraten.
+         */
+        for (let k = 0; k < 3; k++) {
+          const y = (ty + (k + 0.5) / 3 + (rng() - 0.5) * 0.12) * TILE_SIZE;
+          rippel.push([
+            (tx - 0.15) * TILE_SIZE, y,
+            (tx + 1.15) * TILE_SIZE, y + (rng() - 0.5) * 7,
+            4 + rng() * 5,
+          ]);
+        }
+        // Dazwischen liegt, was das Wasser liegen gelassen hat.
+        if (rng() < 0.35) pebbles.push([bx, by, 2.5 + rng() * 1.5]);
       } else if (t === T.ROCKFLOOR) {
         if (rng() < 0.45) scratches.push([bx - 9, by, bx + 10, by - 4]);
         if (rng() < 0.3) pebbles.push([bx + 6, by + 12, 3 + rng() * 2]);
@@ -435,6 +463,21 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
       const b = scratches[i];
       g.moveTo(b[0], b[1]);
       g.quadraticCurveTo((b[0] + b[2]) / 2, (b[1] + b[3]) / 2 + 4, b[2], b[3]);
+    }
+    g.stroke();
+  }
+
+  if (rippel.length) {
+    // Etwas kräftiger als die Rippel im Sand (0,35 / 1,5): Das Watt ist
+    // nass, und nasse Rinnen zeichnen sich schärfer ab als trockener Sand.
+    g.strokeStyle = INK.lineSoft;
+    g.globalAlpha = 0.42;
+    g.lineWidth = 1.7;
+    g.beginPath();
+    for (let i = 0; i < rippel.length; i++) {
+      const b = rippel[i];
+      g.moveTo(b[0], b[1]);
+      g.quadraticCurveTo((b[0] + b[2]) / 2, (b[1] + b[3]) / 2 + b[4], b[2], b[3]);
     }
     g.stroke();
   }

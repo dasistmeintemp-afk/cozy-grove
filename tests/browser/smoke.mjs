@@ -1134,6 +1134,218 @@ async function run() {
     check('Auch die Jule-Prüfung räumt hinter sich auf',
       jule.aufgeraeumt === true, String(jule.aufgeraeumt));
 
+    /**
+     * Die Gezeiten – neuer Raum, der wirklich betretbar und wirklich zu
+     * sehen ist.
+     *
+     * Drei Fehler steckten hier, und keiner davon fiel in einer Rechnung
+     * auf. Deshalb stehen alle drei als eigene Zeile:
+     *
+     *   Mehr als die Hälfte des Watts war unerreichbar – trockener Grund
+     *   mitten im Meer, um vorgelagerte Felsen herum.
+     *
+     *   Die Tide war UNSICHTBAR. Kacheln, Kollision und Funde stimmten,
+     *   nur das Bild blieb das alte: Der Boden wird in Stücken
+     *   zwischengespeichert, und `setTile` sagt dem Zwischenspeicher
+     *   nichts. Zwei Bilder, Ebbe und Flut, waren Pixel für Pixel gleich.
+     *
+     *   Und die Funde landeten nicht im Watt, weil `newDay` vor dem
+     *   Wasserwechsel lief.
+     */
+    const tide = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const G = await import('/src/game/gezeiten.js');
+      const { T, isWalkable } = await import('/src/art/tiles.js');
+      const w = g.world;
+      const aus = {};
+      const vorher = {
+        tag: g.day.day,
+        kapitel: !!g.state.kapitel.offen.niedrigesee,
+        offen: w.unlocked.slice(),
+        x: g.player.x, y: g.player.y,
+      };
+
+      // a) Ohne Kapitel bleibt das Wasser, wo es ist.
+      delete g.state.kapitel.offen.niedrigesee;
+      aus.ohneKapitel = g._gezeitenNachfuehren();
+      aus.wattOhneKapitel = w.wattOffen();
+
+      g.state.kapitel.offen.niedrigesee = 12;
+      for (let i = 0; i < 4; i++) w.unlockRegion(i);
+
+      // b) Einen Ebbe-Tag finden und setzen.
+      let ebbe = 0;
+      for (let t = G.FRUEHESTENS; t < G.FRUEHESTENS + 40; t++) {
+        if (G.niedrigAm(w.seed, t)) { ebbe = t; break; }
+      }
+      aus.ebbeGefunden = ebbe > 0;
+      g.day.day = ebbe;
+      g._gezeitenNachfuehren();
+      const watt = w.wattKacheln(G.BREITE);
+      aus.wattKacheln = watt.length;
+
+      // c) JEDE Wattkachel muss vom Lagerfeuer aus zu Fuß erreichbar sein.
+      const start = [Math.floor(w.campfire.x / 64), Math.floor(w.campfire.y / 64)];
+      const gesehen = new Set([start[0] + ',' + start[1]]);
+      const stapel = [start];
+      while (stapel.length) {
+        const p = stapel.pop();
+        const nach = [[p[0] + 1, p[1]], [p[0] - 1, p[1]], [p[0], p[1] + 1], [p[0], p[1] - 1]];
+        for (const n of nach) {
+          const k = n[0] + ',' + n[1];
+          if (gesehen.has(k) || !isWalkable(w.tileAtTile(n[0], n[1]))) continue;
+          gesehen.add(k);
+          stapel.push(n);
+        }
+      }
+      aus.unerreichbar = watt.filter(function (k) {
+        return w.tileAtTile(k[0], k[1]) === T.TIDEFLAT && !gesehen.has(k[0] + ',' + k[1]);
+      }).length;
+
+      // d) Nur flaches Wasser wird frei – nie die offene See.
+      aus.tiefesWasserImWatt = watt.filter(function (k) {
+        return w.tileAtTile(k[0], k[1]) === T.WATER_DEEP;
+      }).length;
+
+      // e) Die Funde landen WIRKLICH im Watt (Reihenfolge!).
+      const fx = g._todayWorldEffects();
+      w.newDay(ebbe, fx);
+      aus.funde = w.entities.filter(function (e) {
+        return e.fromEvent && !e.gone && w.tileAt(e.x, e.y) === T.TIDEFLAT;
+      }).length;
+
+      // f) DIE Sicherung: Figur ins Watt, dann Flut – sie darf nicht
+      //    feststecken.
+      const probe = watt[Math.floor(watt.length / 2)];
+      g.player.x = (probe[0] + 0.5) * 64;
+      g.player.y = (probe[1] + 0.5) * 64;
+      g.player.prevX = g.player.x;
+      g.player.prevY = g.player.y;
+      let flut = 0;
+      for (let t = ebbe + 1; t < ebbe + 20; t++) {
+        if (!G.niedrigAm(w.seed, t)) { flut = t; break; }
+      }
+      g.day.day = flut;
+      g._gezeitenNachfuehren();
+      aus.kachelNachFlut = w.tileAtTile(probe[0], probe[1]);
+      aus.stehtFrei = w.canStand(g.player.x, g.player.y);
+
+      // Aufräumen.
+      g.day.day = vorher.tag;
+      g._gezeitenNachfuehren();
+      for (let i = w.entities.length - 1; i >= 0; i--) {
+        if (w.entities[i].fromEvent) w.remove(w.entities[i]);
+      }
+      if (!vorher.kapitel) delete g.state.kapitel.offen.niedrigesee;
+      for (let i = 0; i < vorher.offen.length; i++) w.unlocked[i] = vorher.offen[i];
+      g.player.x = vorher.x; g.player.y = vorher.y;
+      g.player.prevX = vorher.x; g.player.prevY = vorher.y;
+      return aus;
+    });
+    check('Ohne das Kapitel bleibt das Wasser, wo es ist',
+      tide.ohneKapitel === false && tide.wattOhneKapitel === false, JSON.stringify(tide));
+    check('Bei Ebbe liegt ein Saum Meeresboden frei',
+      tide.ebbeGefunden === true && tide.wattKacheln > 100, 'Kacheln: ' + tide.wattKacheln);
+    check('Jede Wattkachel ist zu Fuß erreichbar',
+      tide.unerreichbar === 0, tide.unerreichbar + ' unerreichbare Kacheln');
+    check('Die offene See bleibt See',
+      tide.tiefesWasserImWatt === 0, 'tiefes Wasser im Watt: ' + tide.tiefesWasserImWatt);
+    check('Im Watt liegt etwas – die Gezeiten laufen vor dem Streuen',
+      tide.funde > 0, 'Funde im Watt: ' + tide.funde);
+    check('Kommt das Wasser zurück, steckt niemand fest',
+      tide.stehtFrei === true && tide.kachelNachFlut !== 8,
+      JSON.stringify({ kachel: tide.kachelNachFlut, frei: tide.stehtFrei }));
+
+    /**
+     * Und man SIEHT es. Zwei Aufnahmen derselben Stelle, Flut und Ebbe.
+     *
+     * Die eigentliche Falle an dieser Prüfung: Kacheln, Kollision und Funde
+     * können alle stimmen, während das Bild unverändert bleibt. Deshalb
+     * wird hier nicht der Zustand gemessen, sondern das gezeichnete Bild.
+     */
+    const tideBild = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const G = await import('/src/game/gezeiten.js');
+      const { T } = await import('/src/art/tiles.js');
+      const w = g.world;
+      const vorher = { x: g.player.x, y: g.player.y, offen: w.unlocked.slice(),
+        kapitel: !!g.state.kapitel.offen.niedrigesee, tag: g.day.day };
+      g.state.kapitel.offen.niedrigesee = 12;
+      for (let i = 0; i < 4; i++) w.unlockRegion(i);
+
+      w.gezeitenSetzen(true, G.BREITE);
+      g.ground.clear();
+      const watt = w.wattKacheln(G.BREITE);
+      // Die Stelle mit dem meisten Watt in Sichtweite.
+      let beste = watt[0], best = -1;
+      for (const [tx, ty] of watt) {
+        if (tx < 12 || ty < 12 || tx > w.w - 12 || ty > w.h - 12) continue;
+        let n = 0;
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            if (w.tileAtTile(tx + dx, ty + dy) === T.TIDEFLAT) n++;
+          }
+        }
+        if (n > best) { best = n; beste = [tx, ty]; }
+      }
+      const px = (beste[0] + 0.5) * 64;
+      const py = (beste[1] + 0.5) * 64;
+
+      function bild() {
+        const c = document.querySelector('canvas');
+        const ctx = c.getContext('2d');
+        const dpr = c.width / c.clientWidth;
+        const sx = Math.max(0, Math.round((px - g.camera.ox - 90) * dpr));
+        const sy = Math.max(0, Math.round((py - g.camera.oy - 60) * dpr));
+        const bw = Math.min(180, c.width - sx);
+        const bh = Math.min(120, c.height - sy);
+        if (bw < 20 || bh < 20) return null;
+        const d = ctx.getImageData(sx, sy, bw, bh).data;
+        let summe = 0;
+        for (let i = 0; i < d.length; i += 4) summe += d[i] + d[i + 1] + d[i + 2];
+        return { summe: summe, n: d.length / 4, roh: Array.from(d.slice(0, 2000)) };
+      }
+
+      function stelle(niedrig) {
+        w.gezeitenSetzen(niedrig, G.BREITE);
+        g.ground.clear();
+        g.player.x = px; g.player.y = py;
+        g.player.prevX = px; g.player.prevY = py;
+        g.camera.snapTo(px, py);
+      }
+
+      stelle(false);
+      await new Promise(function (r) { setTimeout(r, 900); });
+      const flut = bild();
+      stelle(true);
+      await new Promise(function (r) { setTimeout(r, 900); });
+      const ebbe = bild();
+
+      // Aufräumen.
+      g.day.day = vorher.tag;
+      g._gezeitenNachfuehren();
+      g.ground.clear();
+      if (!vorher.kapitel) delete g.state.kapitel.offen.niedrigesee;
+      for (let i = 0; i < vorher.offen.length; i++) w.unlocked[i] = vorher.offen[i];
+      g.player.x = vorher.x; g.player.y = vorher.y;
+      g.player.prevX = vorher.x; g.player.prevY = vorher.y;
+
+      if (!flut || !ebbe) return { gemessen: false };
+      let anders = 0;
+      for (let i = 0; i < flut.roh.length; i += 4) {
+        if (Math.abs(flut.roh[i] - ebbe.roh[i]) > 6) anders++;
+      }
+      return {
+        gemessen: true,
+        anteilAnders: anders / (flut.roh.length / 4),
+        wattInSicht: best,
+      };
+    });
+    check('Der Unterschied zwischen Ebbe und Flut ist zu SEHEN',
+      tideBild.gemessen === true && tideBild.wattInSicht > 4 &&
+      tideBild.anteilAnders > 0.15,
+      JSON.stringify(tideBild));
+
     // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
     // beim Aufwachen erwischt zu haben.
     const tagesZeile = await page.evaluate(() => {
@@ -7252,19 +7464,29 @@ async function run() {
     // kommt erst an Tag 30 – und dass es NICHT dabei ist, ist die Hälfte
     // dieser Prüfung: Ein Stand, der beim Laden gleich alle fünf Kapitel
     // nachholt, hätte den ganzen Bogen auf einmal verbraucht.
-    // Der Stand steht auf Tag 21. Fällig ist dort genau „Ankunft": Das
-    // nächste GEBAUTE Kapitel ist „Der klare Himmel" ab Tag 30, und die
-    // Kapitel ohne Inhalt gehen gar nicht erst auf (siehe `inhalt` in
-    // `kapitel.js`). Dass hier nicht alles auf einmal nachgeholt wird, ist
-    // die Hälfte dieser Prüfung.
+    // Der Stand steht auf Tag 21. Fällig sind dort „Ankunft" (ab Tag 1) und
+    // „Die niedrige See" (ab Tag 12) – aber NICHT „Der klare Himmel", den
+    // es erst ab Tag 30 gibt. Dass hier nicht alles auf einmal nachgeholt
+    // wird, ist die Hälfte dieser Prüfung.
     check('Ein alter Stand holt genau die fälligen Kapitel nach',
-      alt.kapitel.length === 1 && alt.kapitelJetzt === 'ankunft' &&
+      alt.kapitel.length === 2 && alt.kapitelJetzt === 'niedrigesee' &&
       alt.naechstesKapitel === 'klarerhimmel', JSON.stringify(alt.kapitel) + ' ' + alt.kapitelJetzt);
-    check('Und was ein noch zukünftiges Kapitel brächte, hat er nicht',
-      alt.gezeiten === false && alt.sternbilder === false,
+    check('Was ein fälliges Kapitel bringt, hat er – was später kommt, nicht',
+      alt.gezeiten === true && alt.sternbilder === false,
       'gezeiten=' + alt.gezeiten + ' sternbilder=' + alt.sternbilder);
   } catch (err) {
-    check('Testlauf ohne Ausnahme', false, err && err.message);
+    // Die zuletzt bestandene Prüfung mitnennen.
+    //
+    // Ein seltener Absturz („Cannot read properties of undefined") trat
+    // über mehrere Sitzungen etwa jeden zehnten Lauf auf und war nie
+    // einzuordnen: Die Ausnahme sagt, WAS schiefging, aber nicht, WO im
+    // Ablauf. Mit dem Namen der letzten bestandenen Prüfung und dem
+    // Inselsamen darunter ist der Lauf wiederholbar – dieselbe Überlegung,
+    // die schon bei der Samenausgabe und der Fehlerliste am Ende geholfen
+    // hat.
+    const zuletzt = checks.length ? checks[checks.length - 1].name : '(noch keine)';
+    check('Testlauf ohne Ausnahme', false,
+      (err && err.message) + '  [nach: ' + zuletzt + ']');
     if (err && err.stack) console.error('\n--- Stapel ---\n' + err.stack + '\n');
     exitCode = 1;
   }

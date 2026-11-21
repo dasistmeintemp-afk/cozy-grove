@@ -54,7 +54,7 @@ test('was gestreut wird, gibt es wirklich – und es ist nie solide', function (
         // je nach Werkzeugstufe eine, die er noch nicht wegräumen kann.
         assert.ok(!def.solid, id + ': streut „' + art + '", und das ist solide');
       }
-      assert.ok(['sand', 'gras', 'fels'].indexOf(spec.boden || 'gras') >= 0,
+      assert.ok(['sand', 'gras', 'fels', 'watt'].indexOf(spec.boden || 'gras') >= 0,
         id + ': Boden „' + spec.boden + '" kennt `_streuen` nicht');
     }
   }
@@ -78,7 +78,7 @@ test('ein Ereignis auf dem Fels sagt, dass es das Hochland braucht', function ()
     // Und umgekehrt darf nichts verlangt werden, was nicht geprüft werden
     // kann: `hatBoden` kennt genau diese drei.
     if (ev.braucht) {
-      assert.ok(['sand', 'gras', 'fels'].indexOf(ev.braucht) >= 0,
+      assert.ok(['sand', 'gras', 'fels', 'watt'].indexOf(ev.braucht) >= 0,
         id + ': `braucht` „' + ev.braucht + '" kennt `hatBoden` nicht');
     }
   }
