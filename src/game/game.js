@@ -45,6 +45,9 @@ import {
   gefundene as gefundeneMomente, momenteStand,
 } from './momente.js';
 import {
+  emptyDekoreaktion, reaktionFuer, merke as merkeReaktion, reaktionenStand,
+} from './dekoreaktion.js';
+import {
   emptySternbilder, faelligesSternbild, merke as merkeSternbild,
   gefundene as gefundeneSternbilder, sternbilderStand, geistName as sternGeist,
 } from './sternbilder.js';
@@ -411,6 +414,7 @@ export class Game {
       momente: emptyMomente(),
       orte: emptyOrte(),
       sternbilder: emptySternbilder(),
+      dekoreaktion: emptyDekoreaktion(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -457,6 +461,7 @@ export class Game {
       momente: emptyMomente(),
       orte: emptyOrte(),
       sternbilder: emptySternbilder(),
+      dekoreaktion: emptyDekoreaktion(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -534,6 +539,9 @@ export class Game {
     if (!this.state.sternbilder || typeof this.state.sternbilder !== 'object' ||
         !this.state.sternbilder.gefunden) {
       this.state.sternbilder = emptySternbilder();
+    }
+    if (!this.state.dekoreaktion || typeof this.state.dekoreaktion !== 'object') {
+      this.state.dekoreaktion = emptyDekoreaktion();
     }
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
@@ -2212,6 +2220,13 @@ export class Game {
       }
     }
 
+    // Was du hingestellt hast, bemerkt er – einmal je Sache.
+    //
+    // Absichtlich HIER: nach Fest und Geburtstag (die gehören dem Tag) und
+    // vor dem Tagesgeschäft. Dahinter wäre es nie zu hören, weil fast immer
+    // eine Bitte offen ist; davor hätte es den Geburtstag verdrängt.
+    if (this._dekoReaktion(e)) return;
+
     // Abgegeben wird, was hierher gehört: die eigenen Bitten dieses Geistes
     // und die Botengänge, die ein anderer hierher schickt.
     const hier = this.quests.openAtSpirit(e.spiritId);
@@ -2659,6 +2674,57 @@ export class Game {
    */
   hatSache(sache) {
     return kapitelHat(this.state.kapitel, sache);
+  }
+
+  /* ---------------- Reaktion auf Deko ---------------- */
+
+  /**
+   * Sagt dieser Geist etwas zu dem, was du neben ihn gestellt hast?
+   *
+   * Der Grund steht in `dekoreaktion.js`: Von den Brunnen, die ein Spiel
+   * lange tragen, ist nur einer unbegrenzt – was der Spieler selbst macht.
+   * Einrichten gab es hier längst, bemerkt hat es nur niemand. Einrichten
+   * ohne Reaktion ist Dekorieren; mit Reaktion ist es ein Gespräch.
+   *
+   * Derselbe Umkreis wie bei der Gemütlichkeit (`WIRK_RADIUS`) und kein
+   * eigener: Was für den Farbkreis zählt, soll auch das sein, worüber
+   * geredet wird. Zwei Reichweiten nebeneinander liefen auseinander, und
+   * dann lobte ein Geist eine Bank, die seinem Farbkreis nichts bringt.
+   *
+   * @returns {boolean} true, wenn etwas gesagt wurde
+   */
+  _dekoReaktion(e) {
+    if (this.settings.talk === 'off') return false;
+    if (!this.state.dekoreaktion) this.state.dekoreaktion = emptyDekoreaktion();
+
+    // Die Stücke in seiner Nähe, in fester Reihenfolge: `queryNear` gibt
+    // sie in der Reihenfolge der Welt heraus, und die ändert sich nicht.
+    const nah = this.world.queryNear(e.x, e.y, WIRK_RADIUS);
+    const stuecke = [];
+    const r2 = WIRK_RADIUS * WIRK_RADIUS;
+    for (let i = 0; i < nah.length; i++) {
+      const o = nah[i];
+      if (o.gone || o.kind !== 'decor' || !o.itemId) continue;
+      const dx = o.x - e.x;
+      const dy = o.y - e.y;
+      if (dx * dx + dy * dy > r2) continue;
+      if (stuecke.indexOf(o.itemId) < 0) stuecke.push(o.itemId);
+    }
+    if (!stuecke.length) return false;
+
+    const r = reaktionFuer(this.state.dekoreaktion, e.spiritId, stuecke);
+    if (!r) return false;
+
+    this.state.dekoreaktion = merkeReaktion(this.state.dekoreaktion, e.spiritId, r.gruppe);
+    this.ui.bubble(e.x, e.y - 190, r.satz, [{ icon: 'icon_heart' }], 5.0, true);
+    this.audio.play('ghost');
+    this.save();
+    return true;
+  }
+
+  /** Wie viele Sachen die Geister schon bemerkt haben. */
+  dekoReaktionenZahl() {
+    return reaktionenStand(this.state.dekoreaktion);
   }
 
   /* ---------------- Sternbilder ---------------- */

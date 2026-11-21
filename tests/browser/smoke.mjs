@@ -853,6 +853,104 @@ async function run() {
       sterne.grafiken === true && sterne.inChronik === sterne.stand.gesamt,
       JSON.stringify({ grafiken: sterne.grafiken, chronik: sterne.inChronik }));
 
+    /**
+     * Reaktion auf Deko – bemerkt wirklich jemand, was man hinstellt?
+     *
+     * Die fehlende Hälfte des einzigen unbegrenzten Brunnens: Einrichten
+     * gab es hier längst, bemerkt hat es niemand. Geprüft wird, dass der
+     * Geist das KONKRETE Stück nennt, dass er es nur einmal tut, und dass
+     * ein Stück außer Reichweite nicht zählt – sonst lobte er eine Bank,
+     * die zweitausend Punkte entfernt steht.
+     */
+    const dreaktion = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { makeEntity } = await import('/src/world/entities.js');
+      const aus = {};
+      const geist = g.world.entities.find(function (e) {
+        return e.kind === 'spirit' && !e.gone;
+      });
+      if (!geist) return { keinGeist: true };
+      aus.geist = geist.spiritId;
+      const vorherStand = JSON.stringify(g.state.dekoreaktion);
+
+      // Blasen mitschreiben, statt sie vom Bildschirm zu lesen.
+      const blasen = [];
+      const echt = g.ui.bubble.bind(g.ui);
+      g.ui.bubble = function (x, y, text, icons, dauer, denk) {
+        blasen.push(text);
+        return echt(x, y, text, icons, dauer, denk);
+      };
+
+      // Erst alle Deko in seiner Nähe wegräumen, damit der Ausgangszustand
+      // steht – die Suite hat vorher schon einiges aufgestellt.
+      const weggeraeumt = [];
+      for (let i = g.world.entities.length - 1; i >= 0; i--) {
+        const o = g.world.entities[i];
+        if (o.kind !== 'decor' || o.gone) continue;
+        const dx = o.x - geist.x, dy = o.y - geist.y;
+        if (dx * dx + dy * dy > 200 * 200) continue;
+        weggeraeumt.push({ x: o.x, y: o.y, itemId: o.itemId, sprite: o.sprite, flat: o.flat });
+        g.world.remove(o);
+      }
+      g.state.dekoreaktion = {};
+      aus.ohneDeko = g._dekoReaktion(geist);
+
+      // Eine Bank daneben: er sagt etwas, und zwar über das Sitzen.
+      const bank = makeEntity('decor', geist.x + 60, geist.y + 40,
+        { itemId: 'bench', flat: false });
+      bank.sprite = 'bench';
+      g.world.add(bank);
+      blasen.length = 0;
+      aus.mitBank = g._dekoReaktion(geist);
+      aus.satzBank = blasen[blasen.length - 1] || null;
+
+      // Dieselbe Sache ein zweites Mal: nichts.
+      aus.nochmal = g._dekoReaktion(geist);
+
+      // Eine Laterne: eine andere Sache, also wieder etwas – und ein
+      // anderer Satz als zur Bank.
+      const lampe = makeEntity('decor', geist.x - 50, geist.y + 30,
+        { itemId: 'lantern', flat: false });
+      lampe.sprite = 'lantern';
+      g.world.add(lampe);
+      blasen.length = 0;
+      aus.mitLampe = g._dekoReaktion(geist);
+      aus.satzLampe = blasen[blasen.length - 1] || null;
+
+      // Weit weg zählt nicht.
+      const weit = makeEntity('decor', geist.x + 2000, geist.y,
+        { itemId: 'pond', flat: true });
+      weit.sprite = 'pond';
+      g.world.add(weit);
+      aus.weitWeg = g._dekoReaktion(geist);
+      aus.paare = g.dekoReaktionenZahl();
+
+      // Aufräumen: die drei eigenen Stücke weg, die alten zurück, Stand
+      // zurück, Blasenfunktion zurück.
+      g.world.remove(bank); g.world.remove(lampe); g.world.remove(weit);
+      for (const alt of weggeraeumt) {
+        const e2 = makeEntity('decor', alt.x, alt.y, { itemId: alt.itemId, flat: alt.flat });
+        e2.sprite = alt.sprite;
+        g.world.add(e2);
+      }
+      g.state.dekoreaktion = JSON.parse(vorherStand);
+      g.ui.bubble = echt;
+      return aus;
+    });
+    check('Ohne Deko in der Nähe sagt niemand etwas dazu',
+      dreaktion.ohneDeko === false, JSON.stringify(dreaktion));
+    check('Eine Bank daneben – und er nennt das konkrete Stück',
+      dreaktion.mitBank === true && /sitzen|Bank|setz/i.test(dreaktion.satzBank || ''),
+      'Satz: ' + dreaktion.satzBank);
+    check('Dieselbe Sache kommentiert er nur einmal',
+      dreaktion.nochmal === false, 'nochmal: ' + dreaktion.nochmal);
+    check('Eine andere Sache bringt einen anderen Satz',
+      dreaktion.mitLampe === true && dreaktion.satzLampe !== dreaktion.satzBank,
+      'Lampe: ' + dreaktion.satzLampe);
+    check('Was weit weg steht, zählt nicht',
+      dreaktion.weitWeg === false && dreaktion.paare === 2,
+      JSON.stringify({ weit: dreaktion.weitWeg, paare: dreaktion.paare }));
+
     // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
     // beim Aufwachen erwischt zu haben.
     const tagesZeile = await page.evaluate(() => {
