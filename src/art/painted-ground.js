@@ -137,6 +137,76 @@ export function paintGroundChunk(world, ctx0, cty0) {
     }
   }
 
+  // Wiesenfelder: sehr große, sehr blasse Flächen in einem anderen Grün.
+  //
+  // Gemessen und angesehen: Die kleinen Lasuren geben der Wiese zwar eine
+  // Körnung, aber über das ganze Bild hinweg bleibt sie EIN Grünton. In der
+  // Vorlage besteht der Boden aus Zonen – hier ein trockeneres, dort ein
+  // sattes Stück –, und genau das macht aus einer Fläche eine Landschaft.
+  // Die Felder sind vier bis sieben Kacheln groß, also deutlich größer als
+  // der sichtbare Ausschnitt körnig ist, und liegen auf einem groben Raster,
+  // dessen Zellen nur von ihrer eigenen Nummer abhängen – sonst fiele an
+  // jeder Stückgrenze eine gerade Kante auf.
+  const FELD = 6;
+  const c0 = Math.floor((tx0 - ring) / FELD) - 1;
+  const c1 = Math.floor((tx0 + CHUNK_TILES + ring) / FELD) + 1;
+  const d0 = Math.floor((ty0 - ring) / FELD) - 1;
+  const d1 = Math.floor((ty0 + CHUNK_TILES + ring) / FELD) + 1;
+  for (let cy = d0; cy <= d1; cy++) {
+    for (let cx = c0; cx <= c1; cx++) {
+      const r = makeRng(hashString('feld' + cx + ':' + cy));
+      if (r() > 0.62) continue;
+      const mx = (cx * FELD + r() * FELD) * TILE_SIZE;
+      const my = (cy * FELD + r() * FELD) * TILE_SIZE;
+      const rx = TILE_SIZE * (2.2 + r() * 1.6);
+      const ry = TILE_SIZE * (1.8 + r() * 1.5);
+      const ton = r();
+      // Felder, die dieses Stück gar nicht berühren, werden übersprungen.
+      // Das grobe Raster reicht absichtlich über den Rand hinaus, damit an
+      // der Stückgrenze keine gerade Kante entsteht – ohne diese Prüfung
+      // wurde aber rund die Hälfte der Flächen umsonst gefüllt, und große
+      // halbdurchsichtige Flächen sind das Teuerste am ganzen Bodenmaler.
+      if (mx + rx < originX || mx - rx > originX + size
+        || my + ry < originY || my - ry > originY + size) continue;
+      // Nur auf Gras. Ein Feld, das über das Meer liefe, wäre ein Schleier
+      // auf dem Wasser – deshalb wird auf die Graskacheln im Umkreis
+      // zugeschnitten, statt die Form einfach hinzumalen.
+      const kx0 = Math.floor((mx - rx) / TILE_SIZE);
+      const kx1 = Math.ceil((mx + rx) / TILE_SIZE);
+      const ky0 = Math.floor((my - ry) / TILE_SIZE);
+      const ky1 = Math.ceil((my + ry) / TILE_SIZE);
+      // Erst zählen, dann zuschneiden. Der Zuschnitt auf hundert einzelne
+      // Kachelrechtecke ist der teure Teil – im Inselinneren liegt ein Feld
+      // aber fast immer vollständig auf Gras, und dort kann er entfallen.
+      // Ohne diese Unterscheidung kostete der Boden neun Prozent Bildrate.
+      let kacheln = 0;
+      let fremd = 0;
+      for (let ky = ky0; ky <= ky1; ky++) {
+        for (let kx = kx0; kx <= kx1; kx++) {
+          if (world.tileAtTile(kx, ky) === T.GRASS) kacheln++; else fremd++;
+        }
+      }
+      if (!kacheln) continue;
+      wctx.save();
+      if (fremd) {
+        wctx.beginPath();
+        for (let ky = ky0; ky <= ky1; ky++) {
+          for (let kx = kx0; kx <= kx1; kx++) {
+            if (world.tileAtTile(kx, ky) !== T.GRASS) continue;
+            wctx.rect(kx * TILE_SIZE, ky * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+          }
+        }
+        wctx.clip();
+      }
+      wctx.globalAlpha = 0.2 + r() * 0.16;
+      wctx.fillStyle = ton < 0.4 ? INK.grassDark : ton < 0.75 ? INK.grassDry : INK.grassLight;
+      pathFrom(wctx, smoothClosed(blob(mx, my, rx, ry,
+        hashString('fb' + cx + ':' + cy), 0.2, 16), 6), true);
+      wctx.fill();
+      wctx.restore();
+    }
+  }
+
   // Malerische Unruhe: größere, halbdurchsichtige Lasuren.
   // Wichtig: Ort und Aussehen hängen nur an der Kachel, nicht am Stück – sonst
   // würde dieselbe Lasur im Nachbarstück anders ausfallen und die Schnittkante
@@ -164,11 +234,19 @@ export function paintGroundChunk(world, ctx0, cty0) {
 
       // Zweite, kleinere Lasur: das Gras bekommt dadurch die fleckige
       // Buntheit der Vorlage statt einer glatten Fläche.
+      //
+      // Die Mischung war vorher zu blass. `moss` (#a4b96e) ist ein helles,
+      // gelbliches Oliv; in jeder zweiten Lasur, über einer ersten mit
+      // `grassLight`, ergab das ausgebleichte Flecken statt einer Wiese –
+      // im Bild sah der Rasen aus, als hätte jemand Farbe herausgewaschen.
+      // Jetzt liegt der Schwerpunkt auf den beiden echten Grüntönen, und
+      // das Oliv kommt nur noch in einem Fünftel der Fälle dazu.
       if (water || r() > 0.5) continue;
       wctx.save();
       wctx.globalAlpha = 0.16 + r() * 0.16;
+      const w2 = r();
       wctx.fillStyle = t === T.GRASS
-        ? (r() < 0.55 ? INK.grassLight : INK.moss)
+        ? (w2 < 0.45 ? INK.grassDark : w2 < 0.8 ? INK.grassLight : INK.moss)
         : t === T.SAND ? INK.sand : INK.dirtDark;
       pathFrom(wctx, smoothClosed(blob(
         (tx + r()) * TILE_SIZE, (ty + r()) * TILE_SIZE,
@@ -319,20 +397,27 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
       const bx = (tx + 0.2 + rng() * 0.6) * TILE_SIZE;
       const by = (ty + 0.2 + rng() * 0.6) * TILE_SIZE;
       if (t === T.GRASS) {
-        // Zwei Büschel je Kachel statt einem: die Wiese der Vorlage ist
-        // durchgehend bewachsen, nicht stellenweise.
-        for (let k = 0; k < 2; k++) {
-          if (rng() > 0.72) continue;
+        // Vier Büschel je Kachel. Vorher waren es zwei, von denen eines
+        // oft ausfiel – rund vier Halme auf 64 mal 64 Bildpunkte. Die
+        // Wiese war dadurch über weite Strecken eine glatte Fläche, auf
+        // der nur die Lasuren lagen, und genau das sah nach Farbe statt
+        // nach Zeichnung aus. Alle Halme landen ohnehin in EINEM
+        // Sammelpfad, die Zahl kostet also kaum etwas.
+        for (let k = 0; k < 4; k++) {
+          if (rng() > 0.82) continue;
           const gx = (tx + rng()) * TILE_SIZE;
           const gy = (ty + rng()) * TILE_SIZE;
           const blades = 2 + ((rng() * 3) | 0);
+          // Kurze und lange Büschel gemischt: gleich hohe Halme überall
+          // ergeben einen Kamm, keinen Rasen.
+          const hoch = 0.55 + rng() * 0.85;
           for (let i = 0; i < blades; i++) {
             const x = gx + (i - (blades - 1) / 2) * 6;
-            grass.push([x, gy + 7, x + (rng() - 0.5) * 11, gy - 8 - rng() * 11]);
+            grass.push([x, gy + 7, x + (rng() - 0.5) * 11, gy + 7 - (15 + rng() * 11) * hoch]);
           }
         }
         // Farnwedel: ein Bogen mit Fiedern, gibt der Wiese Struktur
-        if (rng() < 0.16) fronds.push([bx, by, rng() < 0.5 ? -1 : 1]);
+        if (rng() < 0.2) fronds.push([bx, by, rng() < 0.5 ? -1 : 1]);
       } else if (t === T.SAND) {
         if (rng() < 0.5) {
           pebbles.push([bx, by, 3.5 + rng() * 1.5]);

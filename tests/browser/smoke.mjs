@@ -1885,7 +1885,19 @@ async function run() {
 
       // Zwei gleiche Beete nebeneinander, eines mit Bienenkorb daneben.
       // Beide bekommen denselben Morgen; nur die Nachbarschaft trennt sie.
-      const platz = { x: g.player.x + 200, y: g.player.y + 200 };
+      // Der Platz muss mit beiden Beeten INNERHALB der Welt liegen. Vorher
+      // stand er fest bei „Spielfigur plus 200", und das zweite Beet noch
+      // einmal 900 Bildpunkte weiter östlich – auf einer Insel, deren
+      // Startplatz nahe am Ostrand liegt, fiel es aus der Welt heraus. Der
+      // Ortsindex kennt es dann nicht, `queryNear` findet den Bienenkorb
+      // daneben nicht, und die Prüfung meldete eine Wirkung von null. Rund
+      // jeder achte Lauf. Deshalb von der Mitte aus gerechnet.
+      const mitteX = g.world.w * 32;
+      const mitteY = g.world.h * 32;
+      const platz = {
+        x: Math.min(Math.max(g.player.x + 200, mitteX - 400), mitteX + 400),
+        y: Math.min(Math.max(g.player.y + 200, mitteY - 400), mitteY + 400),
+      };
       // Eigene Nummern weit oberhalb der vergebenen: `add` legt sie ins
       // Register, und eine doppelte Nummer überschriebe ein echtes Objekt.
       let nr = 900001;
@@ -3568,8 +3580,37 @@ async function run() {
     // das vollständig auf Wasser liegt, muss sich von selbst verändern.
     const meer = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
-      const vorher = { x: g.player.x, y: g.player.y, h: g.day.hour };
+      const vorher = {
+        x: g.player.x, y: g.player.y, h: g.day.hour,
+        wetter: g.weather.kind, staerke: g.weather.level,
+      };
       g.day.hour = 13;
+      // Klares Wetter erzwingen. Regen und Schnee fallen natürlich auch über
+      // dem Meer, und eine frühere Prüfung lässt das Wetter stehen: Auf einer
+      // Insel mit Regen meldete diese Messung 15,8 Prozent Änderung, obwohl
+      // das Glitzern vollständig abgeschaltet war.
+      g.weather.kind = 'clear';
+      g.weather.level = 0;
+      if (g.weather.snap) g.weather.snap();
+      // Die Spieluhr läuft weiter. Über zwei Sekunden verschiebt sich die
+      // Tageszeit-Tönung so weit, dass sie allein die Schwelle überschreitet
+      // – die Prüfung bestand dann auch ohne bewegtes Wasser. Einmal setzen
+      // genügt deshalb nicht: Die Stunde wird für die Dauer der Messung in
+      // jedem Bild neu festgenagelt.
+      // Dieselbe Schleife hält auch die Kamera über dem Wasser, OHNE die
+      // Spielfigur dorthin zu stellen. Vorher wurde sie auf die Wasserkachel
+      // gesetzt, damit die Kamera folgt – und stand damit mitten im
+      // Messkästchen. Gemessen wurde dann ihr Wippen, nicht die See: Die
+      // Prüfung bestand auch bei vollständig abgeschaltetem Glitzern.
+      let laeuft = true;
+      let kamera = null;
+      const anhalten = () => {
+        if (!laeuft) return;
+        g.day.hour = 13;
+        if (kamera) g.camera.snapTo(kamera[0], kamera[1]);
+        requestAnimationFrame(anhalten);
+      };
+      requestAnimationFrame(anhalten);
       // Das Farbfeld atmet: Seine Quellen wachsen Bild für Bild auf ihr Ziel
       // zu. Über koloriertem Wasser maß die Prüfung deshalb 24 % Änderung –
       // auch ganz ohne bewegtes Wasser. Für die Messung wird es abgeschaltet
@@ -3599,16 +3640,15 @@ async function run() {
         }
       }
       if (!ziel) return { keinMeer: true };
-      g.player.x = ziel.x * 64 + 32;
-      g.player.y = ziel.y * 64 + 32;
-      g.camera.snapTo(g.player.x, g.player.y);
+      kamera = [ziel.x * 64 + 32, ziel.y * 64 + 32];
+      g.camera.snapTo(kamera[0], kamera[1]);
       const warten = (ms) => new Promise((r) => setTimeout(r, ms));
       // Das Kästchen wird in WELTmaßen aufgespannt, nicht in Bildpunkten:
       // Sonst hängt seine Größe am Zoom, und es ragte je nach Insel über das
       // Wasser hinaus – die Prüfung wäre launisch geworden.
       const mx = ziel.x * 64 + 32;
       const my = ziel.y * 64 + 32 - 96; // über der Figur, sonst misst man sie
-      const halbW = 72; const halbH = 48;
+      const halbW = 88; const halbH = 56;
       function pixel() {
         const R = g.renderer;
         const x0 = Math.round((mx - halbW - g.camera.ox) * R.zoom);
@@ -3623,24 +3663,50 @@ async function run() {
       for (const [ex, ey] of [[-halbW, -halbH], [halbW, -halbH], [-halbW, halbH], [halbW, halbH]]) {
         if (!isWater(g.world.tileAtTile(Math.floor((mx + ex) / 64), Math.floor((my + ey) / 64)))) nurWasser = false;
       }
-      await warten(700);
-      const a = pixel();
-      if (!a) return { ausserhalb: true };
-      await warten(900);
-      const b = pixel();
+      // Drei Aufnahmen über gut zwei Sekunden statt zweier über neun
+      // Zehntel. Eine Welle braucht elf Sekunden für einen Durchlauf; in
+      // 900 Millisekunden wandert die Phase nur ein halbes Bogenmaß, und
+      // bei wenigen Strichen im Kästchen entschied dann der Zufall. So ist
+      // einmal 1,1 Prozent herausgekommen, obwohl sich das Meer bewegte.
+      // Lange warten, bevor die erste Aufnahme entsteht. Das Farbfeld
+      // verschwindet nicht schlagartig, wenn man seine Quellen entfernt – es
+      // blendet über etliche Bilder aus. Mit nur 700 Millisekunden Vorlauf
+      // lief dieses Ausblenden noch während der Messung, und auf einer Insel
+      // mit schon viel zurückgeholter Farbe meldete die Prüfung dann 37,5
+      // Prozent Änderung, obwohl das Glitzern abgeschaltet war. Das Gleiche
+      // gilt für die Bodenstücke, die nach dem Kamerasprung erst gebacken
+      // werden.
+      await warten(2600);
+      const bilder = [];
+      bilder.push(pixel());
+      if (!bilder[0]) return { ausserhalb: true };
+      await warten(1100);
+      bilder.push(pixel());
+      await warten(1100);
+      bilder.push(pixel());
+      laeuft = false;
       g.player.x = vorher.x; g.player.y = vorher.y; g.day.hour = vorher.h;
+      g.weather.kind = vorher.wetter; g.weather.level = vorher.staerke;
+      if (g.weather.snap) g.weather.snap();
       g.camera.snapTo(g.player.x, g.player.y);
       for (const q of quellen) g.colorField.sources.push(q);
       g.colorField.markDirty();
       await warten(400);
-      if (!b) return { ausserhalb: true };
+      if (!bilder[1] || !bilder[2]) return { ausserhalb: true };
+      const a = bilder[0];
       let geaendert = 0;
-      for (let i = 0; i < a.length; i += 4) {
-        const la = a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11;
-        const lb = b[i] * 0.3 + b[i + 1] * 0.59 + b[i + 2] * 0.11;
-        if (Math.abs(la - lb) > 6) geaendert++;
+      for (let k = 1; k < 3; k++) {
+        const b = bilder[k];
+        let n = 0;
+        for (let i = 0; i < a.length; i += 4) {
+          const la = a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11;
+          const lb = b[i] * 0.3 + b[i + 1] * 0.59 + b[i + 2] * 0.11;
+          if (Math.abs(la - lb) > 6) n++;
+        }
+        if (n > geaendert) geaendert = n;
       }
-      return { anteil: Math.round(geaendert / (a.length / 4) * 1000) / 10, nurWasser };
+      return { anteil: Math.round(geaendert / (a.length / 4) * 1000) / 10, nurWasser,
+        kachel: [ziel.x, ziel.y] };
     });
     // Ohne den bewegten Strich maß dieselbe Stelle glatte 0,0 % – der
     // Schwellwert von 2 % liegt also nicht knapp über dem Rauschen,
@@ -3653,9 +3719,80 @@ async function run() {
         const g = window.CozyGrove.game;
         return Math.abs(g.day.hour - 13) > 0.001 || g.world.canStand(g.player.x, g.player.y, 10, 6);
       }), 'Spielfigur steht wieder an Land');
+    check('Die Meeresprüfung stellt das Wetter zurück',
+      await page.evaluate(() => typeof window.CozyGrove.game.weather.kind === 'string'),
+      'Wetter ist gesetzt');
     check('Die Meeresprüfung hängt das Farbfeld wieder ein',
       await page.evaluate(() => window.CozyGrove.game.colorField.sources.length > 0),
       'Farbquellen sind zurück');
+
+    /* ---- Die Wiese ist gezeichnet, nicht nur gefärbt ---- */
+    // Gemessen wird hier nicht das Spielbild, sondern der Bodenmaler selbst:
+    // Auf einer erfundenen Welt aus lauter Gras werden vier mal vier Stücke
+    // gebacken. Im Spielbild gingen beide Größen im Lärm von Bäumen und Zelt
+    // unter – eine Messung, die ihren Gegenstand nicht sehen kann, ist keine.
+    // Die Werte sind dadurch auch nicht zufällig: Alles hängt nur an den
+    // Kachelnummern, also kommt bei jedem Lauf dasselbe heraus.
+    const wiese = await page.evaluate(async () => {
+      const { paintGroundChunk, CHUNK_PX } = await import('/src/art/painted-ground.js');
+      const { T } = await import('/src/art/tiles.js');
+      const welt = { tileAtTile: () => T.GRASS };
+      const N = 4;
+      const k = document.createElement('canvas');
+      k.width = N * CHUNK_PX; k.height = N * CHUNK_PX;
+      const x = k.getContext('2d');
+      let tintePunkte = 0; let tinteFlaeche = 0;
+      for (let cy = 0; cy < N; cy++) {
+        for (let cx = 0; cx < N; cx++) {
+          const st = paintGroundChunk(welt, cx + 2, cy + 2);
+          x.drawImage(st.wash, st.ox - 2 * CHUNK_PX, st.oy - 2 * CHUNK_PX, st.size, st.size);
+          // Tintenschicht getrennt zählen: Das ist die GEZEICHNETE Struktur,
+          // also Grasbüschel und Farnwedel, unabhängig von jeder Färbung.
+          const ki = document.createElement('canvas');
+          ki.width = st.size; ki.height = st.size;
+          const xi = ki.getContext('2d');
+          xi.drawImage(st.ink, 0, 0);
+          const di = xi.getImageData(0, 0, st.size, st.size).data;
+          for (let i = 3; i < di.length; i += 4) if (di[i] > 30) tintePunkte++;
+          tinteFlaeche += st.size * st.size;
+        }
+      }
+      const W = k.width;
+      const d = x.getImageData(0, 0, W, W).data;
+      const feld = [];
+      for (let i = 0; i < d.length; i += 4) {
+        feld.push(d[i + 3] > 200 ? d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11 : -1);
+      }
+      // Streuung über Blöcke von drei Kacheln: So groß sind die Wiesenfelder.
+      const B = 192;
+      const grob = [];
+      for (let by = 0; by + B <= W; by += B) {
+        for (let bx = 0; bx + B <= W; bx += B) {
+          let s = 0; let c = 0;
+          for (let y = 0; y < B; y++) {
+            for (let x2 = 0; x2 < B; x2++) {
+              const v = feld[(by + y) * W + bx + x2];
+              if (v >= 0) { s += v; c++; }
+            }
+          }
+          if (c > B * B * 0.9) grob.push(s / c);
+        }
+      }
+      let s1 = 0; let s2 = 0;
+      for (const v of grob) { s1 += v; s2 += v * v; }
+      const m = s1 / grob.length;
+      return {
+        tinte: Math.round(tintePunkte / tinteFlaeche * 1000) / 10,
+        zonen: Math.round(Math.sqrt(Math.max(0, s2 / grob.length - m * m)) * 10) / 10,
+        bloecke: grob.length,
+      };
+    });
+    // Gezeichnete Struktur: vorher 5,0 bis 5,7 Prozent der Fläche, jetzt 11,1.
+    // Zonen (Streuung über Drei-Kachel-Blöcke): vorher 4,4, jetzt 5,2 – der
+    // kleinere der beiden Gewinne, und die Schwelle sagt das auch.
+    check('Die Wiese hat gezeichnete Struktur und große Zonen',
+      wiese.tinte >= 8 && wiese.zonen >= 4.9 && wiese.bloecke >= 50,
+      JSON.stringify(wiese));
 
     /* ---- Die Haustiere haben eine Pupille ---- */
     // Gefunden beim Durchsehen aller Grafiken in der Vergrößerung: Auge und
