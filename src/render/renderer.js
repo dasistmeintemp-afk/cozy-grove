@@ -381,6 +381,9 @@ export class Renderer {
     // Das Meer bewegt sich. Über dem Boden, weil der gebacken ist.
     this._wasserGlitzern(ctx, game, camX, camY, time);
 
+    // Wolkenschatten ziehen über Land und Wasser.
+    this._wolkenSchatten(ctx, game, camX, camY, time);
+
     // Die Grenze liegt AUF dem Boden, unter allem, was darauf steht – sonst
     // liefe eine gestrichelte Linie quer über Zelt und Bäume.
     this._drawPlot(ctx, game, camX, camY);
@@ -587,6 +590,130 @@ export class Renderer {
       }
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  /**
+   * Die Wolkendecke – einmal gemalt, dann nur noch verschoben.
+   *
+   * Das Bild hatte keinen Himmel. Oben herum zieht nichts, und am Boden
+   * ändert sich deshalb auch das Licht nie: Eine Lichtung sieht um zwei Uhr
+   * genauso aus wie um drei. In beiden Vorbildern wandern Schatten über das
+   * Gras, und das ist der Unterschied zwischen einer Kulisse und einem Tag.
+   *
+   * **Warum eine gebackene Kachel und keine Verläufe.** Ein paar große
+   * `createRadialGradient`-Flächen je Bild kosten Füllrate, und zwar jedes
+   * Bild aufs Neue. Hier entsteht die Decke EINMAL als 512er Kachel, und
+   * danach ist jedes Bild eine einzige Füllung mit einem Muster. Damit die
+   * Kachel nahtlos aneinanderstößt, wird jeder Fleck neunmal gemalt – auf
+   * seinem Platz und auf allen acht Nachbarplätzen.
+   *
+   * Die Decke liegt über dem Boden und unter den Objekten: Ein Schatten, der
+   * auch über Seli und die Bäume liefe, müsste mit deren Höhe verrechnet
+   * werden, und ohne das sieht er aus wie ein Schleier vor der Kamera.
+   */
+  _wolkenKachel() {
+    if (this._wolken) return this._wolken;
+    const N = 512;
+    const c = makeCanvas(N, N);
+    const g = ctx2d(c);
+    // Fester Startwert: Die Decke soll auf jeder Insel dieselbe sein, sonst
+    // hinge das Wetterbild am Zufall der Weltnummer.
+    let z = 0x5eed1;
+    const rnd = () => {
+      z = (z * 1664525 + 1013904223) >>> 0;
+      return z / 4294967296;
+    };
+    for (let i = 0; i < 7; i++) {
+      const cx = rnd() * N;
+      const cy = rnd() * N;
+      const rx = 90 + rnd() * 110;
+      const ry = 60 + rnd() * 80;
+      const a = 0.5 + rnd() * 0.5;
+      for (let oy = -1; oy <= 1; oy++) {
+        for (let ox = -1; ox <= 1; ox++) {
+          const x = cx + ox * N;
+          const y = cy + oy * N;
+          // Grob aussortieren, was diese Kachel nicht berührt
+          if (x + rx < 0 || x - rx > N || y + ry < 0 || y - ry > N) continue;
+          // Der Verlauf wird NACH dem Verschieben erzeugt, um den Nullpunkt
+          // herum. Andersherum – erst der Verlauf bei (x,y), dann die
+          // Verschiebung um (x,y) – landet er beim Doppelten und damit weit
+          // neben seinem Fleck: Die Kachel war zu 94 Prozent leer, und im
+          // Bild war von Wolken nichts zu sehen.
+          const rad = Math.max(rx, ry);
+          g.save();
+          g.translate(x, y);
+          g.scale(1, ry / rad);
+          const gr = g.createRadialGradient(0, 0, 0, 0, 0, rad);
+          gr.addColorStop(0, 'rgba(0,0,0,' + a.toFixed(3) + ')');
+          gr.addColorStop(0.55, 'rgba(0,0,0,' + (a * 0.55).toFixed(3) + ')');
+          gr.addColorStop(1, 'rgba(0,0,0,0)');
+          g.fillStyle = gr;
+          g.beginPath();
+          g.arc(0, 0, rad, 0, 6.2832);
+          g.fill();
+          g.restore();
+        }
+      }
+    }
+    this._wolken = c;
+    return c;
+  }
+
+  _wolkenSchatten(ctx, game, camX, camY, time) {
+    const kachel = this._wolkenKachel();
+    // Bei Regen und Schnee hängt die Decke ohnehin zu; dann wären einzelne
+    // Schatten darin Unsinn. Sie schwächt sich dafür ab, statt zu verschwinden.
+    const wetter = game.weather && game.weather.kind;
+    const zu = wetter === 'rain' || wetter === 'snow' ? 0.35 : 1;
+
+    // **Warum fertige Kacheln und kein Muster.** Der erste Versuch füllte den
+    // sichtbaren Weltausschnitt mit `createPattern`. Das kostete dreizehn
+    // Bilder je Sekunde – von 47 auf 34 –, weil der Kontext an dieser Stelle
+    // auf die Welt verschoben UND auf den Zoom skaliert ist: Das Muster wird
+    // dann in jedem Bild neu abgetastet statt nur kopiert. Jetzt wird für die
+    // Wolken kurz auf Bildschirmmaße zurückgeschaltet, und die Kachel wird
+    // schlicht nebeneinander gezeichnet. Dass die Schatten damit am
+    // Bildschirm hängen statt an der Weltgröße, fällt nicht auf – der Zoom
+    // ändert sich im Spiel nicht.
+    //
+    // Langsam: eine Wolke braucht gut zwei Minuten, um die Breite des
+    // Bildschirms zu überqueren. Schneller sähe sie nach Vogelschwarm aus.
+    const N = kachel.width;
+    const z = this.zoom || 1;
+    const vx = (-camX * z + time * 7) % N;
+    const vy = (-camY * z + time * 2.4) % N;
+    const ox = vx < 0 ? vx + N : vx;
+    const oy = vy < 0 ? vy + N : vy;
+
+    // Sechs Kachelkopien je Bild kosteten acht Bilder je Sekunde; eine
+    // einzige bildschirmgroße Kopie kostet zwei. Deshalb wird die Decke in
+    // einem eigenen Bild zwischengespeichert und nur dann neu gelegt, wenn
+    // sie sich um mehr als zwei Bildpunkte verschoben hat. Im Stehen – also
+    // immer dann, wenn man den Wolken überhaupt zusieht – ist das etwa
+    // viermal je Sekunde statt fünfzigmal.
+    if (!this._wolkenSchirm || this._wolkenSchirm.width !== this.w
+      || this._wolkenSchirm.height !== this.h) {
+      this._wolkenSchirm = makeCanvas(this.w, this.h);
+      this._wolkenSchirmCtx = ctx2d(this._wolkenSchirm);
+      this._wolkenOx = null;
+    }
+    if (this._wolkenOx == null
+      || Math.abs(ox - this._wolkenOx) > 2 || Math.abs(oy - this._wolkenOy) > 2) {
+      const sc = this._wolkenSchirmCtx;
+      sc.setTransform(1, 0, 0, 1, 0, 0);
+      sc.clearRect(0, 0, this.w, this.h);
+      for (let y = oy - N; y < this.h; y += N) {
+        for (let x = ox - N; x < this.w; x += N) sc.drawImage(kachel, x, y);
+      }
+      this._wolkenOx = ox;
+      this._wolkenOy = oy;
+    }
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 0.14 * zu;
+    ctx.drawImage(this._wolkenSchirm, 0, 0);
     ctx.restore();
   }
 

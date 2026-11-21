@@ -3726,6 +3726,113 @@ async function run() {
       await page.evaluate(() => window.CozyGrove.game.colorField.sources.length > 0),
       'Farbquellen sind zurück');
 
+    /* ---- Jeder Schatten zeigt dieselbe Lichtrichtung ---- */
+    // Die Bodenschatten lagen fast mittig unter ihren Objekten. Damit hatte
+    // die Szene keine Lichtrichtung – eine Lichtung sah aus wie bei
+    // bedecktem Himmel. Gemessen wird das Band direkt unter dem Fußpunkt:
+    // Rechts davon (vom Licht weg) muss deutlich mehr Schatten liegen als
+    // links. Eine schwache Prüfung, das sei gesagt – von vier Grafiken fiel
+    // vorher nur der Baumstumpf durch (1,11; jetzt 1,45). Ihr Zweck ist, die
+    // gemeinsame Lichtrichtung festzuhalten, nicht einen Fehler zu finden.
+    const lichtseite = await page.evaluate(async () => {
+      const { spr } = await import('/src/art/sprites.js');
+      const out = {};
+      for (const name of ['tree_oak_0', 'tree_pine_0', 'rock_big', 'stump']) {
+        const s = spr(name);
+        if (!s) { out[name] = -1; continue; }
+        const c = document.createElement('canvas');
+        c.width = s.w; c.height = s.h;
+        const x = c.getContext('2d');
+        x.drawImage(s.c, 0, 0);
+        const d = x.getImageData(0, 0, s.w, s.h).data;
+        let li = 0;
+        let re = 0;
+        const y0 = Math.round(s.ay) + 2;
+        const y1 = Math.min(s.h - 1, Math.round(s.ay) + 16);
+        for (let y = y0; y < y1; y++) {
+          for (let px = 0; px < s.w; px++) {
+            const a = d[(y * s.w + px) * 4 + 3];
+            if (a < 8) continue;
+            if (px < s.ax) li += a; else re += a;
+          }
+        }
+        out[name] = li ? Math.round(re / li * 100) / 100 : -1;
+      }
+      return out;
+    });
+    check('Die Schatten liegen alle auf derselben Seite',
+      Object.keys(lichtseite).every((k) => lichtseite[k] >= 1.3),
+      JSON.stringify(lichtseite));
+
+    /* ---- Wolkenschatten ziehen über den Boden ---- */
+    // Zwei Fehler sind beim Bauen passiert, und beide prüft das hier.
+    //
+    // Erstens wurde der Verlauf jedes Flecks VOR dem Verschieben erzeugt und
+    // landete dadurch beim Doppelten – weit neben seinem Fleck. Die Kachel
+    // war zu 94 Prozent leer, und im Bild war von Wolken nichts zu sehen,
+    // ohne dass irgendetwas einen Fehler gemeldet hätte. Dagegen steht die
+    // Deckung.
+    //
+    // Zweitens muss die Kachel nahtlos aneinanderstoßen, sonst zöge ein
+    // Gitter aus Kanten über die Insel. Gemessen wird der Sprung zwischen
+    // letzter und erster Spalte – im gekachelten Bild liegen sie
+    // nebeneinander – im Vergleich zum Sprung zwischen zwei beliebigen
+    // Nachbarspalten.
+    const wolken = await page.evaluate(() => {
+      const R = window.CozyGrove.game.renderer;
+      const k = R._wolkenKachel();
+      const N = k.width;
+      const c = document.createElement('canvas');
+      c.width = N; c.height = N;
+      const x = c.getContext('2d');
+      x.drawImage(k, 0, 0);
+      const d = x.getImageData(0, 0, N, N).data;
+      const al = (px, py) => d[(py * N + px) * 4 + 3];
+      let deck = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 10) deck++;
+      let naht = 0;
+      let innen = 0;
+      for (let y = 0; y < N; y++) naht += Math.abs(al(0, y) - al(N - 1, y));
+      for (let x2 = 0; x2 < N; x2++) naht += Math.abs(al(x2, 0) - al(x2, N - 1));
+      for (let y = 0; y < N; y += 3) {
+        for (let x2 = 0; x2 + 1 < N; x2 += 3) innen += Math.abs(al(x2, y) - al(x2 + 1, y));
+      }
+      return {
+        deckung: Math.round(deck / (N * N) * 100),
+        naht: Math.round(naht / (2 * N) * 100) / 100,
+        innen: Math.round(innen / ((N / 3) * (N / 3)) * 100) / 100,
+      };
+    });
+    // Gemessen: Deckung 67 Prozent (mit dem Fehler waren es 6), Naht 0,99
+    // gegen 0,67 im Inneren – also kein Sprung, sondern derselbe Schritt.
+    check('Die Wolkendecke ist dicht und stößt nahtlos aneinander',
+      wolken.deckung >= 40 && wolken.naht < wolken.innen * 3 + 1,
+      JSON.stringify(wolken));
+
+    // Und sie zieht. Statt zu warten wird dasselbe Bild zweimal gezeichnet,
+    // einmal mit einem Zeitsprung: Alles andere an der Welt ist dabei
+    // identisch, also kann der Unterschied nur von der Decke kommen.
+    const zug = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      const R = g.renderer;
+      const hol = () => {
+        const s = R._wolkenSchirm;
+        const c = document.createElement('canvas');
+        c.width = s.width; c.height = s.height;
+        c.getContext('2d').drawImage(s, 0, 0);
+        return c.getContext('2d').getImageData(0, 0, s.width, s.height).data;
+      };
+      R.draw(g, 1000);
+      const a = hol();
+      R.draw(g, 1040);
+      const b = hol();
+      let anders = 0;
+      for (let i = 3; i < a.length; i += 4) if (Math.abs(a[i] - b[i]) > 8) anders++;
+      return { anteil: Math.round(anders / (a.length / 4) * 1000) / 10 };
+    });
+    check('Die Wolkendecke zieht weiter',
+      zug.anteil >= 10, JSON.stringify(zug));
+
     /* ---- Die Wiese ist gezeichnet, nicht nur gefärbt ---- */
     // Gemessen wird hier nicht das Spielbild, sondern der Bodenmaler selbst:
     // Auf einer erfundenen Welt aus lauter Gras werden vier mal vier Stücke

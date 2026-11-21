@@ -667,19 +667,30 @@ export const LIGHT = { x: -0.6, y: -0.8 };
  */
 export function groundShadow(ctx, cx, cy, rx, ry, seed, alpha) {
   const a = alpha == null ? 0.16 : alpha;
-  const ox = -LIGHT.x * rx * 0.20;
-  const oy = -LIGHT.y * ry * 0.26;
+  // Der Schatten lag fast mittig unter dem Objekt und war kaum größer als
+  // dessen Fuß. Damit hatte die Szene keine Lichtrichtung: Eine Lichtung sah
+  // aus, als stünden die Bäume bei bedecktem Himmel. Jetzt liegt er
+  // deutlicher vom Licht weg und ist in dessen Richtung etwas gestreckt.
+  //
+  // Hier und nicht an den dreißig Aufrufstellen: Eine Lichtrichtung ist
+  // nichts, was ein Baum für sich hat – sie gilt für die ganze Insel, und
+  // einzeln gepflegt liefe sie über kurz oder lang auseinander.
+  const ox = -LIGHT.x * rx * 0.40;
+  const oy = -LIGHT.y * ry * 0.50;
   const s = seed || 11;
   ctx.save();
   ctx.fillStyle = '#6f7a5c';
 
   ctx.globalAlpha = a;
-  pathFrom(ctx, smoothClosed(blob(cx + ox, cy + oy, rx, ry, s, 0.16, 14), 4), true);
+  pathFrom(ctx, smoothClosed(
+    blob(cx + ox, cy + oy, rx * 1.16, ry * 1.1, s, 0.16, 14), 4), true);
   ctx.fill();
 
+  // Der Kernschatten bleibt dicht am Fuß. Ohne ihn verlöre das Objekt den
+  // Bodenkontakt und schwebte über seinem eigenen Schatten.
   ctx.globalAlpha = a * 1.45;
   pathFrom(ctx, smoothClosed(
-    blob(cx + ox * 0.35, cy + oy * 0.35, rx * 0.58, ry * 0.62, s + 3, 0.2, 12), 4), true);
+    blob(cx + ox * 0.22, cy + oy * 0.22, rx * 0.58, ry * 0.62, s + 3, 0.2, 12), 4), true);
   ctx.fill();
   ctx.restore();
 }
