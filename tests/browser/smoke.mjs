@@ -1497,6 +1497,90 @@ async function run() {
       jahrZwei.momentOhne === null && !!jahrZwei.momentMit,
       JSON.stringify({ ohne: jahrZwei.momentOhne, mit: jahrZwei.momentMit }));
 
+    /**
+     * Die Nacht ist blau, und am Feuer ist es warm.
+     *
+     * Beides war messbar NICHT so, und beides sah man erst im Bild:
+     *
+     *   Der Nachtton war ein sattes Marineblau – aber über einer warmen
+     *   Szene reichte seine Deckung nicht, um sie zu überschreiben.
+     *   Gemessen kam (124,116,97) heraus, also Grau mit Rotstich. Die
+     *   Nacht sah aus wie ein bedeckter Nachmittag.
+     *
+     *   Und die Lichtquellen stanzten nur ein Loch in den Nachtton, statt
+     *   zu leuchten: Die Fläche am Lagerfeuer war sechs Punkte heller als
+     *   der Bildrand und sonst gleich. Ein Feuer, um das herum es aussieht
+     *   wie überall, ist kein Feuer.
+     *
+     * Deshalb werden hier Farben gemessen und nicht Einstellungen: Ein
+     * richtig gewählter Ton, der auf dem Schirm nicht ankommt, bestünde
+     * jede Prüfung auf seine Zahlen.
+     */
+    const nachtbild = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const vorher = { stunde: g.day.hour, x: g.player.x, y: g.player.y };
+      const c = document.querySelector('canvas');
+      const ctx = c.getContext('2d');
+      const dpr = c.width / c.clientWidth;
+
+      // Neben das Lagerfeuer stellen, damit es sicher im Bild ist.
+      const f = g.world.campfire;
+      g.player.x = f.x + 30; g.player.y = f.y + 150;
+      g.player.prevX = g.player.x; g.player.prevY = g.player.y;
+      g.camera.snapTo(g.player.x, g.player.y);
+
+      function feld(x, y, w, h) {
+        const sx = Math.max(0, Math.min(c.width - w, Math.round(x)));
+        const sy = Math.max(0, Math.min(c.height - h, Math.round(y)));
+        const d = ctx.getImageData(sx, sy, w, h).data;
+        let r = 0, gg = 0, b = 0, n = 0;
+        for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++; }
+        return [r / n, gg / n, b / n];
+      }
+      async function bei(stunde) {
+        g.day.hour = stunde;
+        await new Promise(function (r) { setTimeout(r, 700); });
+        const feuerX = (f.x - g.camera.ox) * dpr;
+        const feuerY = (f.y - g.camera.oy) * dpr;
+        return {
+          // Der Bildrand liegt weit von der Figur und damit außerhalb
+          // aller Lichtkreise.
+          rand: feld(4, 4, 90, 70),
+          feuer: feld(feuerX - 45, feuerY - 45, 90, 90),
+        };
+      }
+      const tag = await bei(13);
+      const nacht = await bei(23);
+
+      g.day.hour = vorher.stunde;
+      g.player.x = vorher.x; g.player.y = vorher.y;
+      g.player.prevX = vorher.x; g.player.prevY = vorher.y;
+      g.camera.snapTo(vorher.x, vorher.y);
+
+      const waerme = function (p) { return p[0] - p[2]; };   // Rot minus Blau
+      const hell = function (p) { return (p[0] + p[1] + p[2]) / 3; };
+      return {
+        tagRand: tag.rand.map(Math.round),
+        nachtRand: nacht.rand.map(Math.round),
+        nachtFeuer: nacht.feuer.map(Math.round),
+        kuehleNacht: -waerme(nacht.rand),
+        waermeTag: waerme(tag.rand),
+        dunkler: 1 - hell(nacht.rand) / hell(tag.rand),
+        feuerWaermer: waerme(nacht.feuer) - waerme(nacht.rand),
+        feuerHeller: hell(nacht.feuer) - hell(nacht.rand),
+      };
+    });
+    check('Die Nacht wird dunkler als der Tag',
+      nachtbild.dunkler > 0.25, 'nur ' + Math.round(nachtbild.dunkler * 100) + '% dunkler');
+    check('Die Nacht wird BLAU, nicht grau',
+      nachtbild.kuehleNacht > 8,
+      'Blau minus Rot nachts: ' + Math.round(nachtbild.kuehleNacht) +
+      ' (tags warm: ' + Math.round(nachtbild.waermeTag) + ') ' + JSON.stringify(nachtbild.nachtRand));
+    check('Am Lagerfeuer ist es nachts wärmer und heller als am Bildrand',
+      nachtbild.feuerWaermer > 10 && nachtbild.feuerHeller > 10,
+      JSON.stringify({ waermer: Math.round(nachtbild.feuerWaermer),
+        heller: Math.round(nachtbild.feuerHeller), feuer: nachtbild.nachtFeuer }));
+
     // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
     // beim Aufwachen erwischt zu haben.
     const tagesZeile = await page.evaluate(() => {

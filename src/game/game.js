@@ -6973,15 +6973,18 @@ export class Game {
     const c = this.world.campfire;
     if (c) {
       const flicker = 1 + Math.sin(time * 7.3) * 0.03 + Math.sin(time * 3.1) * 0.02;
-      out.push({ x: c.x, y: c.y - 34, r: fire.light * this.perks().fire * flicker, a: 0.98 });
+      out.push({ x: c.x, y: c.y - 34, r: fire.light * this.perks().fire * flicker, a: 0.98, warm: 1 });
     }
+    // Seli selbst trägt kein Leuchten – sie macht nur die Nacht um sich
+    // herum lesbar. Ein Schein um die eigene Figur sähe aus, als hielte
+    // sie eine Fackel, die es nicht gibt.
     out.push({ x: this.player.x, y: this.player.y - 42, r: 170, a: 0.6 });
 
     // Das eigene Fenster. Erst ab der Hütte – ein Zelt leuchtet nicht.
     const hausLicht = houseLight(this.state.house || 1);
     const haus = this.world.tent;
     if (hausLicht > 0 && haus) {
-      out.push({ x: haus.x, y: haus.y - 110, r: hausLicht, a: 0.82 });
+      out.push({ x: haus.x, y: haus.y - 110, r: hausLicht, a: 0.82, warm: 0.8 });
     }
 
     const near = this.world.queryRect(
@@ -6994,10 +6997,10 @@ export class Game {
       if (e.kind === 'decor' && e.itemId) {
         const item = getItem(e.itemId);
         if (item && item.light) {
-          out.push({ x: e.x, y: e.y - 58, r: item.light * (1 + Math.sin(time * 5 + e.phase) * 0.02), a: 0.9 });
+          out.push({ x: e.x, y: e.y - 58, r: item.light * (1 + Math.sin(time * 5 + e.phase) * 0.02), a: 0.9, warm: 0.9 });
         }
       } else if (e.kind === 'spirit') {
-        out.push({ x: e.x, y: e.y - 58, r: 128, a: 0.5 });
+        out.push({ x: e.x, y: e.y - 58, r: 128, a: 0.5, kuehl: 0.7 });
       } else if (e.kind === 'hidden') {
         out.push({ x: e.x, y: e.y - 26, r: 96, a: 0.7 });
       }

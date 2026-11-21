@@ -13,9 +13,27 @@ const KEYS = [
   { h: 16, color: '#ffffff', a: 0.00 },
   { h: 18, color: '#f0a55c', a: 0.18 },
   { h: 20, color: '#8a5f8c', a: 0.30 },
-  { h: 21.5, color: '#2f3a68', a: 0.44 },
-  { h: 24, color: '#161d3a', a: 0.56 },
-  { h: 26, color: '#111739', a: 0.60 },
+  /**
+   * Die Nacht ist blau, nicht grau – und das ist eine Messung.
+   *
+   * Hier stand `#2f3a68` / `#161d3a` mit 0,44 und 0,56. Der Ton war
+   * richtig gewählt (ein sattes Marineblau), das Ergebnis auf dem Schirm
+   * aber nicht: gemessen (124,116,97) – also neutralgrau mit ROTSTICH.
+   * Die Nacht sah aus wie ein bedeckter Nachmittag.
+   *
+   * Der Grund steckt in der Rechnung einer halbdurchsichtigen Lasur. Die
+   * Szene ist warm (Rot 206 gegen Blau 141, Abstand 65). Für Blau > Rot
+   * muss gelten: -65 + (65 + 44)·a > 0, also a > 0,60. Mit 0,56 konnte der
+   * Ton die Wärme nur neutralisieren, nie überschreiben.
+   *
+   * Durchgemessen wurden sieben Kombinationen aus Ton und Deckung. Diese
+   * hier ergibt Blau-minus-Rot von +25 bei einer Helligkeit von 120 – klar
+   * nächtlich und trotzdem hell genug, dass man etwas erkennt. Dunklere
+   * Kandidaten waren weniger blau, nicht mehr.
+   */
+  { h: 21.5, color: '#31487f', a: 0.57 },
+  { h: 24, color: '#1a3576', a: 0.74 },
+  { h: 26, color: '#152c66', a: 0.76 },
 ];
 
 export class DayCycle {

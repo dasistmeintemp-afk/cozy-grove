@@ -156,13 +156,25 @@ export function drawSprite(ctx, name, x, y, line, opts) {
     ctx.rotate(o.rotate);
     ctx.scale(o.flip ? -1 : 1, 1);
     ctx.drawImage(img, -s.ax, -s.ay);
-  } else if (o.flip) {
-    ctx.translate(x, py);
-    ctx.scale(-1, 1);
-    ctx.drawImage(img, -(s.w - s.ax), 0);
-  } else {
+  } else if (o.flip || o.scale) {
+    /**
+     * Spiegeln UND Skalieren – und zwar um den Ankerpunkt.
+     *
+     * Vorher waren das zwei Zweige, die einander ausschlossen: Wer `flip`
+     * angab, bekam keine Größe, wer `scale` angab, keine Spiegelung. Und
+     * `scale` ließ die OBERE LINKE Ecke stehen, nicht den Anker – ein auf
+     * 0,9 verkleinerter Baum schwebte damit über seinem eigenen Fuß.
+     *
+     * Jetzt wird um (x, y) gerechnet, also um den Punkt, an dem das Objekt
+     * auf dem Boden steht. Ein kleinerer Baum ist dann einfach kleiner und
+     * steht weiter an derselben Stelle.
+     */
     const sc = o.scale || 1;
-    ctx.drawImage(img, px, py, s.w * sc, s.h * sc);
+    ctx.translate(x, y);
+    ctx.scale(o.flip ? -sc : sc, sc);
+    ctx.drawImage(img, -s.ax, -s.ay);
+  } else {
+    ctx.drawImage(img, px, py);
   }
   ctx.restore();
 }

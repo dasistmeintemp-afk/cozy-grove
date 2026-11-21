@@ -29,6 +29,44 @@ const REFERENCE_W = 1560;
 const REFERENCE_H = 880;
 const MAX_PIXELS = 2100000;
 
+/**
+ * Welche Arten je Exemplar ein wenig anders aussehen dürfen.
+ *
+ * Nur Gewachsenes und Gewordenes. Nicht die Deko: Was der Spieler selbst
+ * hinstellt, soll genau so dastehen, wie er es hingestellt hat – eine Bank,
+ * die von sich aus gespiegelt ist, wäre ein Möbelstück mit eigenem Willen.
+ * Nicht die Stationen, nicht die Beete, nicht die Figuren.
+ */
+const STREU_ARTEN = { tree: 1, bush: 1, rock: 1, stump: 1 };
+
+/**
+ * Ein bisschen Unordnung je Exemplar: Spiegelung und Größe.
+ *
+ * Es gibt drei gemalte Fassungen je Baumart (siehe `sprites.js`), und das
+ * ist viel – trotzdem standen im Bild acht Bäume, die wie derselbe Stempel
+ * aussahen. Der Grund: Jede Instanz DERSELBEN Fassung ist pixelgleich, und
+ * die drei Fassungen unterscheiden sich in der Breite nur um ±14 %.
+ *
+ * Spiegeln und Größe streuen kosten nichts und vervielfachen die
+ * Unterschiede: Aus drei Fassungen werden sechs Silhouetten, und keine zwei
+ * Bäume nebeneinander sind mehr gleich hoch.
+ *
+ * Alles hängt am ORT und nicht an der Nummer des Objekts: Ein Baum, der
+ * gefällt wird und drei Tage später nachwächst, sieht danach wieder genauso
+ * aus. Dasselbe Prinzip wie bei `variantAt` in `entities.js`.
+ */
+function wuchsStreuung(e, def) {
+  if (!def || !STREU_ARTEN[def.category]) return undefined;
+  const h = (Math.round(e.x) * 374761393) ^ (Math.round(e.y) * 668265263);
+  const u = ((h >>> 5) & 1023) / 1023;
+  return {
+    flip: ((h >>> 2) & 1) === 1,
+    // 0,90 bis 1,10. Mehr sähe nach verschiedenen Arten aus, weniger
+    // sieht man nicht.
+    scale: 0.9 + u * 0.2,
+  };
+}
+
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -671,8 +709,9 @@ export class Renderer {
       const hitAge = time - e.lastHit;
       if (hitAge < 0.25) x += Math.sin(hitAge * 60) * 5;
     }
-    if (always) drawSprite(ctx, name, x, y, false);
-    else this._blend(ctx, game, name, x, y);
+    const streu = wuchsStreuung(e, def);
+    if (always) drawSprite(ctx, name, x, y, false, streu);
+    else this._blend(ctx, game, name, x, y, streu);
     // Und was darin schwimmt. Immer farbig, auch wo die Insel noch blass
     // ist: Ein Fisch, den man gefangen hat, ist nicht verblasst.
     if (e.kind === 'decor' && e.itemId) {
@@ -778,6 +817,48 @@ export class Renderer {
     lc.drawImage(this._vignetteLayer(), 0, 0);
     this._screen(ctx);
     ctx.drawImage(this.lightCanvas, 0, 0);
+
+    /**
+     * Und jetzt leuchten die Lichter wirklich.
+     *
+     * Bis hierher haben sie nur ein LOCH in den Nachtton gestanzt
+     * (`destination-out`). Das macht die Stelle heller, aber nicht wärmer:
+     * Gemessen war die Fläche am Lagerfeuer nachts (130,123,107) und die
+     * Ecke des Bildes (124,116,97) – sechs Punkte Unterschied. Ein Feuer,
+     * um das herum es genauso aussieht wie überall, ist kein Feuer.
+     *
+     * Deshalb kommt oben drauf ein additiver Schein in der Farbe der
+     * Quelle. Er liegt VOR der Randabdunklung und wird mit `lighter`
+     * gezeichnet – so addiert sich Licht, statt Farbe zu ersetzen, und
+     * zwei Laternen nebeneinander sind heller als eine.
+     *
+     * Die Stärken sind klein gehalten (0,22 im Kern). Ein Schein, der die
+     * Farben darunter ausbleicht, ist kein Licht mehr, sondern ein Fleck –
+     * und das Aquarell darunter soll sichtbar bleiben.
+     */
+    if (game.day.isDark()) {
+      const lichter = game.lightSources(time);
+      this._world(ctx, camX, camY);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < lichter.length; i++) {
+        const L = lichter[i];
+        const warm = L.warm || 0;
+        const kuehl = L.kuehl || 0;
+        if (!warm && !kuehl) continue;
+        if (L.x + L.r < camX || L.x - L.r > camX + this.viewW) continue;
+        if (L.y + L.r < camY || L.y - L.r > camY + this.viewH) continue;
+        const farbe = warm ? [255, 186, 104] : [168, 206, 236];
+        const kraft = (warm || kuehl) * 0.22;
+        const grad = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, L.r);
+        grad.addColorStop(0, 'rgba(' + farbe[0] + ',' + farbe[1] + ',' + farbe[2] + ',' + kraft.toFixed(3) + ')');
+        grad.addColorStop(0.45, 'rgba(' + farbe[0] + ',' + farbe[1] + ',' + farbe[2] + ',' + (kraft * 0.45).toFixed(3) + ')');
+        grad.addColorStop(1, 'rgba(' + farbe[0] + ',' + farbe[1] + ',' + farbe[2] + ',0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(L.x - L.r, L.y - L.r, L.r * 2, L.r * 2);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      this._screen(ctx);
+    }
     // Tropfen und Schwaden zuletzt und im Bildschirmraum: sie liegen vor
     // allem, auch vor der Randabdunklung.
     if (game.weather) game.weather.draw(ctx, this.w, this.h);
