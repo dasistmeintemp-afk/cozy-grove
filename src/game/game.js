@@ -40,6 +40,10 @@ import {
   emptyKapitel, neueKapitel, jetzigesKapitel, naechstesKapitel,
   kapitelHat, kapitelStand,
 } from './kapitel.js';
+import {
+  emptyMomente, lageAus, faelligerMoment, merke as merkeMoment,
+  gefundene as gefundeneMomente, momenteStand,
+} from './momente.js';
 import { naechsterTermin as terminInnerhalb, wannText, heuteIst } from './termine.js';
 import { weiseFuer } from './musik.js';
 import {
@@ -395,6 +399,7 @@ export class Game {
       wanderer: emptyWanderer(),
       termine: Object.create(null),
       kapitel: emptyKapitel(),
+      momente: emptyMomente(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -438,6 +443,7 @@ export class Game {
       wanderer: emptyWanderer(),
       termine: Object.create(null),
       kapitel: emptyKapitel(),
+      momente: emptyMomente(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -495,6 +501,13 @@ export class Game {
     if (!this.state.kapitel || typeof this.state.kapitel !== 'object' ||
         !this.state.kapitel.offen) {
       this.state.kapitel = emptyKapitel();
+    }
+    // Die Momente. Ein alter Spielstand hat noch keinen gefunden – und das
+    // ist richtig so: Rückwirkend zu behaupten, er habe den Nebel über dem
+    // Wasser schon gesehen, nimmt ihm genau den Fund weg.
+    if (!this.state.momente || typeof this.state.momente !== 'object' ||
+        !this.state.momente.gefunden) {
+      this.state.momente = emptyMomente();
     }
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
@@ -810,6 +823,7 @@ export class Game {
     this._checkVisits(dt);
     this._checkMilestones(dt);
     this._checkKapitel(dt);
+    this._momentPruefen(dt);
     this._checkCollection();
     this._petSucht();
     this._petRuht(dt);
@@ -2590,6 +2604,87 @@ export class Game {
    */
   hatSache(sache) {
     return kapitelHat(this.state.kapitel, sache);
+  }
+
+  /* ---------------- Momente ---------------- */
+
+  /**
+   * Wie lange Seli stehen bleiben muss, bis sie etwas bemerkt.
+   *
+   * Ein Moment, der im Vorbeilaufen kommt, ist eine Meldung; einer, der
+   * kommt, wenn man stehen bleibt, ist eine Beobachtung. Zwei Sekunden sind
+   * gemessen das Maß, bei dem es sich nach „kurz hingesehen" anfühlt und
+   * nicht nach Warten: Wer durch den Wald läuft, löst nichts aus, wer am
+   * Ufer anhält, schon.
+   */
+  static get MOMENT_STILL() { return 2.0; }
+
+  /** Wie weit sie sich dabei bewegen darf, in Pixeln. */
+  static get MOMENT_WACKEL() { return 24; }
+
+  /**
+   * Bemerkt Seli hier und jetzt etwas?
+   *
+   * Der ganze Grund für diese Mechanik steht in `momente.js`: Das Spiel hat
+   * 28 Erzählschritte und rund 1764 unterscheidbare Lagen, in denen Seli
+   * stehen kann – und benannte davon keine einzige.
+   *
+   * Hier wird nur entschieden, WANN gefragt wird. Alles andere – welcher
+   * Moment, wie selten, einmal im Spielleben, höchstens einer am Tag – steht
+   * in `momente.js` und ist ohne Browser prüfbar.
+   */
+  _momentPruefen(dt) {
+    const p = this.player;
+    if (!p) return;
+
+    // Stillstand mitzählen. Beim Sitzen bewegt sie sich ohnehin nicht –
+    // dann ist die Bedingung sofort erfüllt, und das ist gewollt: Wer sich
+    // hinsetzt, sieht sich um.
+    const dx = p.x - (this._momentX == null ? p.x : this._momentX);
+    const dy = p.y - (this._momentY == null ? p.y : this._momentY);
+    const weit = Math.sqrt(dx * dx + dy * dy) > Game.MOMENT_WACKEL;
+    this._momentX = p.x;
+    this._momentY = p.y;
+    if (weit) { this._momentStill = 0; return; }
+    this._momentStill = (this._momentStill || 0) + (dt || 0);
+    if (this._momentStill < Game.MOMENT_STILL) return;
+
+    // Danach einmal je Sekunde: `ruheLage` fragt die Welt im Umkreis ab,
+    // und das muss nicht in jedem Bild passieren.
+    this._momentT = (this._momentT || 0) - (dt || 0);
+    if (dt && this._momentT > 0) return;
+    this._momentT = 1;
+
+    if (!this.state.momente || !this.state.momente.gefunden) {
+      this.state.momente = emptyMomente();
+    }
+    const ereignis = this.today && this.today.event ? this.today.event.id : null;
+    const lage = lageAus(this.ruheLage(), ereignis);
+    const m = faelligerMoment(this.state.momente, lage, this.day.day);
+    if (!m) return;
+
+    this.state.momente = merkeMoment(this.state.momente, m.id, this.day.day);
+    // Erst der Satz, dann der Name. In dieser Reihenfolge, weil der Satz
+    // der Inhalt ist und der Name nur die Quittung – und weil „Die graue
+    // Bucht" vor dem Satz die Pointe wegnimmt.
+    this.ui.bubble(p.x, p.y - 108, m.satz, null, 5.6, true);
+    const self = this;
+    setTimeout(function () {
+      self.ui.toast('Moment: ' + m.name, 'icon_sparkle', 'good');
+    }, 1800);
+    this.audio.play('chime');
+    this._note('momente', 1);
+    this.save();
+  }
+
+  /** Was Seli bisher bemerkt hat – für die Chronik. Nur Gefundenes. */
+  momente() {
+    return gefundeneMomente(this.state.momente);
+  }
+
+  /** Wie viele Momente gefunden sind: {gefunden, gesamt}. */
+  momenteZahl() {
+    return momenteStand(this.state.momente);
   }
 
   /* ---------------- Das Grundstück ---------------- */

@@ -477,6 +477,14 @@ async function run() {
       const DEFS = (await import('/src/world/entities.js')).ENTITY_DEFS;
       // Alles offen: Ein gesperrter Bereich ist ein ehrlicher Grund, nichts
       // zu legen, und würde hier als Fehler aussehen.
+      //
+      // Der Stand wird gemerkt und am Ende zurückgedreht. Ohne das hat
+      // diese Prüfung spätere verdorben: Sie ließ die Insel mit offenen
+      // Bereichen und voller gestreuter Stücke zurück, und der Test für
+      // den Setzling fand um seinen Setzling keinen freien Platz mehr.
+      // Eine Prüfung, die eine andere umwirft, sucht Fehler an der
+      // falschen Stelle.
+      const warOffen = g.world.unlocked.slice();
       for (let i = 0; i < 4; i++) g.world.unlockRegion(i);
       const stumm = [];
       const solide = [];
@@ -504,7 +512,13 @@ async function run() {
       g.today.event = alt;
       g.state.lastEvent = null;
       g._applyToday();
-      return { stumm: stumm, solide: solide, zahl: KAL.EVENT_IDS.length };
+      // Aufräumen: alles Gestreute weg, die Bereiche wieder wie vorher.
+      for (let i = g.world.entities.length - 1; i >= 0; i--) {
+        if (g.world.entities[i].fromEvent) g.world.remove(g.world.entities[i]);
+      }
+      for (let i = 0; i < warOffen.length; i++) g.world.unlocked[i] = warOffen[i];
+      const uebrig = g.world.entities.filter(function (e) { return e.fromEvent && !e.gone; }).length;
+      return { stumm: stumm, solide: solide, zahl: KAL.EVENT_IDS.length, uebrig: uebrig };
     });
     check('Die Kalender-Achse ist breit genug für Jahre',
       alleEv.zahl >= 20, alleEv.zahl + ' Ereignisse');
@@ -512,6 +526,69 @@ async function run() {
       alleEv.stumm.length === 0, 'ohne Wirkung: ' + alleEv.stumm.join(','));
     check('Kein Ereignis legt ein solides Stück in den Weg',
       alleEv.solide.length === 0, alleEv.solide.join(','));
+    check('Die Prüfung räumt hinter sich auf',
+      alleEv.uebrig === 0, alleEv.uebrig + ' gestreute Stücke blieben liegen');
+
+    /**
+     * Benannte Momente – bemerkt Seli etwas, und zwar nur beim Stehenbleiben?
+     *
+     * Hier steckt der Unterschied zwischen einer Beobachtung und einer
+     * Meldung: Ein Moment, der im Vorbeilaufen kommt, ist das Zweite. Und
+     * die Grenze „höchstens einer am Tag" ist die, ohne die eine lange
+     * Sitzung zehn Momente auf einmal ausschüttet – dann ist der zehnte
+     * nichts mehr wert.
+     */
+    const momente = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const feuer = g.world.campfire;
+      const aus = {};
+      // Abend am Feuer: eine Lage, in der es einen Moment gibt, ganz
+      // unabhängig von Jahreszeit und Wetter.
+      g.day.hour = 18;
+      g.player.sitzt = null;
+      g.player.x = feuer.x + 20; g.player.y = feuer.y + 20;
+      aus.ort = (await import('/src/game/bild.js')).ortAus(g.ruheLage().orte);
+
+      // a) Im Vorbeilaufen: nichts.
+      g._momentStill = 0; g._momentX = null; g._momentY = null;
+      const vorLauf = g.momenteZahl().gefunden;
+      for (let i = 0; i < 12; i++) { g.player.x += 60; g._momentPruefen(0.3); }
+      aus.imLaufen = g.momenteZahl().gefunden - vorLauf;
+
+      // b) Stehen bleiben: einer.
+      g.player.x = feuer.x + 20; g.player.y = feuer.y + 20;
+      g.day.day = g.day.day + 1;
+      g._momentStill = 0; g._momentX = g.player.x; g._momentY = g.player.y;
+      // Erst muss die Stillstandszeit zusammenkommen – vorher nichts.
+      g._momentPruefen(0.5);
+      aus.nachHalberSekunde = g.momenteZahl().gefunden - vorLauf;
+      g._momentPruefen(2.0);
+      aus.nachZweiSekunden = g.momenteZahl().gefunden - vorLauf;
+
+      // c) Am selben Tag kein zweiter, auch nicht nach langem Stehen.
+      for (let i = 0; i < 10; i++) { g._momentT = 0; g._momentPruefen(1.0); }
+      aus.selberTag = g.momenteZahl().gefunden - vorLauf;
+
+      // d) Und was bemerkt wurde, steht in der Chronik – mit Tag.
+      const liste = g.momente();
+      aus.inChronik = liste.length;
+      aus.letzter = liste.length ? liste[liste.length - 1].moment.name : null;
+      aus.hatTag = liste.length ? liste[liste.length - 1].tag > 0 : false;
+      aus.gesamt = g.momenteZahl().gesamt;
+      return aus;
+    });
+    check('Am Lagerfeuer gilt der Ort „lager"',
+      momente.ort === 'lager', String(momente.ort));
+    check('Im Vorbeilaufen bemerkt Seli nichts',
+      momente.imLaufen === 0, 'im Laufen: ' + momente.imLaufen);
+    check('Erst nach kurzem Stehenbleiben bemerkt sie etwas',
+      momente.nachHalberSekunde === 0 && momente.nachZweiSekunden === 1,
+      JSON.stringify({ halb: momente.nachHalberSekunde, zwei: momente.nachZweiSekunden }));
+    check('Höchstens ein Moment am Tag',
+      momente.selberTag === 1, 'am selben Tag: ' + momente.selberTag);
+    check('Der Moment steht mit seinem Tag in der Chronik',
+      momente.inChronik >= 1 && momente.hatTag === true && momente.gesamt > 20,
+      JSON.stringify(momente));
 
     // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
     // beim Aufwachen erwischt zu haben.
