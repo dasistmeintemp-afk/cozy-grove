@@ -165,9 +165,22 @@ export function paintPet(kind, pose, opts) {
     ink: function (g) {
       inkStroke(g, kopf, { width: 1.6, vary: 0.3, seed: seed + 30, color: ink.line, alpha: 0.45 });
       inkStroke(g, schnauze, { width: 1.5, vary: 0.3, seed: seed + 31, color: ink.line, alpha: 0.6 });
-      // Auge und Nase – die zwei Punkte, an denen ein Tier lebendig wird
-      dot(null, g, kopfX + 4, kopfY - 4, 3.4, ink.line, seed + 32);
-      dot(null, g, kopfX + A.kopfR * 1.1, kopfY + 5, 3.0, ink.line, seed + 33);
+      // Auge und Nase – die zwei Punkte, an denen ein Tier lebendig wird.
+      //
+      // Und genau die fehlten: `dot(null, g, …)` zeichnet nur die Kontur, ohne
+      // Füllung. Katze wie Hund hatten dadurch einen leeren Ring im Gesicht
+      // statt einer Pupille – in der Vergrößerung sieht das aus wie ein Loch.
+      // Die Geister machen es richtig vor: gefüllte Pupille, darin oben links
+      // ein Lichtpunkt. Ohne ihn bleibt der Blick ein schwarzer Fleck.
+      g.save();
+      g.fillStyle = ink.line;
+      fill(g, smoothClosed(blob(kopfX + 4, kopfY - 4, 4.4, 5.0, seed + 32, 0.08, 10), 4));
+      fill(g, smoothClosed(blob(kopfX + A.kopfR * 1.1, kopfY + 5, 4.0, 3.2, seed + 33, 0.08, 10), 4));
+      g.fillStyle = '#fffdf6';
+      g.beginPath();
+      g.arc(kopfX + 2.6, kopfY - 5.8, 1.4, 0, 6.2832);
+      g.fill();
+      g.restore();
       // Maul
       inkLine(g, kopfX + A.kopfR * 0.7, kopfY + 12, kopfX + A.kopfR * 1.05, kopfY + 11,
         { width: 1.4, bend: 0.4, seed: seed + 34, alpha: 0.7 });

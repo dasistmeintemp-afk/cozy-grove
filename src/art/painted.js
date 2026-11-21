@@ -200,28 +200,77 @@ export function dot(gWash, gInk, x, y, r, color, seed) {
  */
 export function leafClumps(g, cx, cy, rx, ry, seed, color) {
   const rng = makeRng(seed >>> 0);
-  const n = 16;
+  // Vorher: 16 große Bögen, alle gleich herum geöffnet, gleichmäßig verstreut.
+  // Das Ergebnis war in der Vergrößerung nicht zu übersehen – zwei Bögen oben
+  // und einer darunter lasen sich als Augenbrauen und Mund. Jeder Baum hatte
+  // ein Gesicht. Die Abhilfe ist dieselbe wie beim Zeichnen von Hand: mehr und
+  // kleinere Zeichen, und jedes dreht sich mit der Wölbung der Krone mit,
+  // statt überall gleich zu stehen.
+  const n = 34;
   g.save();
   g.lineCap = 'round';
   g.lineJoin = 'round';
   g.strokeStyle = color || ink.leafDeep;
   for (let i = 0; i < n; i++) {
-    // Gleichmäßig über die Fläche, nicht geballt in der Mitte
     const a = rng() * Math.PI * 2;
-    const r = Math.sqrt(rng()) * 0.88;
+    // Nach außen gewichtet: Am Rand sitzt das Laub, in der Mitte die Masse.
+    const r = 0.3 + Math.sqrt(rng()) * 0.62;
     const x = cx + Math.cos(a) * rx * r;
     const y = cy + Math.sin(a) * ry * r;
     // Zum Licht hin blasser, vom Licht weg kräftiger
     const lit = (Math.cos(a) * LIGHT.x + Math.sin(a) * LIGHT.y) * r;
-    g.globalAlpha = 0.34 + Math.max(0, -lit) * 0.4 + rng() * 0.12;
-    const wdt = rx * (0.15 + rng() * 0.11);
-    g.lineWidth = 1.6 + rng() * 1.0;
+    g.globalAlpha = 0.3 + Math.max(0, -lit) * 0.36 + rng() * 0.12;
+    const wdt = rx * (0.075 + rng() * 0.085);
+    g.lineWidth = 1.3 + rng() * 0.9;
+    // Die Wölbung zeigt nach außen, mit etwas Spiel. Nahe der Mitte gibt es
+    // keine Außenrichtung, dort darf der Bogen frei stehen.
+    const dreh = a + Math.PI / 2 + (rng() - 0.5) * (r > 0.45 ? 0.9 : 6.28);
+    g.save();
+    g.translate(x, y);
+    g.rotate(dreh);
     g.beginPath();
-    g.moveTo(x - wdt, y);
-    g.quadraticCurveTo(x, y - wdt * 0.95, x + wdt, y);
+    g.moveTo(-wdt, 0);
+    g.quadraticCurveTo(0, -wdt * (0.8 + rng() * 0.5), wdt, 0);
+    // Jeder dritte Bogen bekommt eine zweite Zacke – eine Blattgruppe hat
+    // selten genau eine Wölbung, und die Wiederholung fällt sonst auf.
+    if (i % 3 === 0) g.quadraticCurveTo(wdt * 1.6, -wdt * 0.6, wdt * 2.1, 0);
     g.stroke();
+    g.restore();
   }
   g.restore();
+}
+
+/**
+ * Ein Stück vom Rand einer geschlossenen Form – der Teil, der in eine
+ * bestimmte Richtung zeigt.
+ *
+ * Gebraucht für die Kronenlappen: Wenn nur der Umriss der ganzen Krone
+ * gezeichnet ist, bleibt sie eine einzige Wolke. Zeichnet man zusätzlich die
+ * obere Kante der inneren Lappen, schieben sich die Büschel sichtbar
+ * voreinander, und aus der Fläche wird eine geschichtete Masse.
+ */
+export function randstueck(pts, von, bis) {
+  let mx = 0; let my = 0;
+  for (let i = 0; i < pts.length; i++) { mx += pts[i][0]; my += pts[i][1]; }
+  mx /= pts.length; my /= pts.length;
+  const drin = (p) => {
+    let a = Math.atan2(p[1] - my, p[0] - mx);
+    while (a < von) a += Math.PI * 2;
+    return a <= bis;
+  };
+  // Anfang suchen: der erste Punkt im Fenster, dessen Vorgänger draußen liegt.
+  let start = -1;
+  for (let i = 0; i < pts.length; i++) {
+    if (drin(pts[i]) && !drin(pts[(i - 1 + pts.length) % pts.length])) { start = i; break; }
+  }
+  if (start < 0) return [];
+  const out = [];
+  for (let k = 0; k < pts.length; k++) {
+    const p = pts[(start + k) % pts.length];
+    if (!drin(p)) break;
+    out.push(p);
+  }
+  return out;
 }
 
 /**
@@ -355,13 +404,33 @@ export function paintTree(opts) {
       leafClumps(g, cx, canopyY + 10, 58 * sx, 50, seed + 500, o.leafDeep || ink.leafDeep);
     },
     ink: function (g) {
-      // Kronenlappen nur andeuten, keine vollen Umrisse
-      inkLine(g, cx - 46 * sx, canopyY + 16, cx - 14 * sx, canopyY + 34,
-        { width: 2.1, bend: 0.3, seed: seed + 60, alpha: 0.7 });
-      inkLine(g, cx + 48 * sx, canopyY + 12, cx + 16 * sx, canopyY + 32,
-        { width: 2.0, bend: -0.3, seed: seed + 61, alpha: 0.65 });
-      inkLine(g, cx - 26 * sx, canopyY + 56, cx + 26 * sx, canopyY + 52,
-        { width: 1.9, bend: 0.22, seed: seed + 62, alpha: 0.55 });
+      // Die Lappen voreinander schieben. Vorher standen hier drei lange, fast
+      // waagerechte Striche quer durch die Krone – gedacht als Andeutung der
+      // Lappen, gelesen als Mund und Brauen. Jetzt wird stattdessen die obere
+      // Kante der unteren Lappen nachgezogen, also genau die Linie, an der in
+      // einer Zeichnung ein Büschel vor dem anderen liegt. Nur ein Stück
+      // davon, mit auslaufenden Enden: ein geschlossener Umriss machte aus
+      // jedem Lappen eine eigene Kugel.
+      const kanten = [
+        [lobes[1], -2.5, -0.5, 0.52],
+        [lobes[2], -2.7, -0.7, 0.48],
+        [lobes[3], -2.3, -0.9, 0.44],
+      ];
+      for (let i = 0; i < kanten.length; i++) {
+        const st = randstueck(kanten[i][0], kanten[i][1], kanten[i][2]);
+        if (st.length > 2) {
+          inkStroke(g, st, {
+            closed: false, width: 1.9, vary: 0.35,
+            seed: seed + 60 + i, alpha: kanten[i][3], color: ink.line,
+          });
+        }
+      }
+      // Zwei Äste, die aus dem Stamm in die Krone laufen. Ohne sie saß die
+      // Krone wie ein Hut auf einem Stock.
+      inkLine(g, cx - 5, canopyY + 62, cx - 30 * sx, canopyY + 30,
+        { width: 2.2, bend: 0.22, seed: seed + 70, alpha: 0.4 });
+      inkLine(g, cx + 5, canopyY + 66, cx + 27 * sx, canopyY + 36,
+        { width: 2.0, bend: -0.2, seed: seed + 71, alpha: 0.34 });
       if (o.birchMarks) {
         for (let i = 0; i < 4; i++) {
           const y = baseY - 20 - i * 22;

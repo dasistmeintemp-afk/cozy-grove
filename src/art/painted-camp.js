@@ -1446,6 +1446,19 @@ export function paintTool(kind, opts) {
 
 /* ------------------------------------------------------------- Kleintiere -- */
 
+/**
+ * Falter.
+ *
+ * Vorher: je Seite EIN Klecks, dazwischen ein dunkler Körper, der unter dem
+ * weichen Pinsel zu einem Schmierfleck wurde. Das war das am häufigsten
+ * sichtbare Tier im Spiel – bis zu sechzehn gleichzeitig in einem Schwarm –
+ * und zugleich das am wenigsten gezeichnete.
+ *
+ * Jetzt hat jede Seite Vorder- und Hinterflügel, einen hellen Saum und zwei
+ * Augenflecken, und der Körper besteht aus drei Gliedern statt aus einem
+ * Strich. Die Fühler enden in einem Knopf – daran erkennt man einen Falter
+ * auch dann noch, wenn er nur zwanzig Bildpunkte groß über den Weg flattert.
+ */
 export function paintButterfly(frame, opts) {
   const o = opts || {};
   const w = 64;
@@ -1454,23 +1467,73 @@ export function paintButterfly(frame, opts) {
   const cx = w / 2;
   const cy = h / 2;
   const spread = frame === 0 ? 1 : 0.42;
-  const wingL = smoothClosed(blob(cx - 15 * spread, cy - 4, 15 * spread, 17, seed, 0.14, 14), 5);
-  const wingR = smoothClosed(blob(cx + 15 * spread, cy - 4, 15 * spread, 17, seed + 1, 0.14, 14), 5);
-  const body = smoothClosed(blob(cx, cy, 4, 15, seed + 2, 0.08, 12), 5);
+  const farbe = o.color || ink.warm;
+  // Vorderflügel oben und weiter außen, Hinterflügel kleiner und tiefer –
+  // die Silhouette, an der man einen Falter von einer Motte unterscheidet.
+  const vorneL = smoothClosed(blob(cx - 14 * spread, cy - 9, 14 * spread, 12.5, seed, 0.14, 14), 5);
+  const vorneR = smoothClosed(blob(cx + 14 * spread, cy - 9, 14 * spread, 12.5, seed + 1, 0.14, 14), 5);
+  const hintenL = smoothClosed(blob(cx - 10 * spread, cy + 8, 11 * spread, 9.5, seed + 2, 0.16, 12), 5);
+  const hintenR = smoothClosed(blob(cx + 10 * spread, cy + 8, 11 * spread, 9.5, seed + 3, 0.16, 12), 5);
+  const fluegel = [hintenL, hintenR, vorneL, vorneR];
+  const leib = smoothClosed(blob(cx, cy, 3.2, 11, seed + 4, 0.06, 12), 5);
+  // Augenflecken: je einer auf Vorder- und Hinterflügel, gespiegelt.
+  const flecken = [
+    [cx - 15 * spread, cy - 10], [cx + 15 * spread, cy - 10],
+    [cx - 10 * spread, cy + 9], [cx + 10 * spread, cy + 9],
+  ];
 
   const res = paintObject(w, h, {
     seed: seed,
     blur: 1.0,
     outline: 1.3,
     wash: function (g) {
-      wash(g, wingL, o.color || ink.warm, { seed: seed + 5 });
-      wash(g, wingR, o.color || ink.warm, { seed: seed + 6 });
-      wash(g, body, '#5b4a38', { seed: seed + 7 });
+      for (let i = 0; i < fluegel.length; i++) {
+        wash(g, fluegel[i], farbe, { seed: seed + 5 + i });
+      }
+      // Heller Saum außen: Ein Flügel aus einer einzigen Farbe bleibt ein
+      // Fleck. Der Saum gibt ihm eine Kante, auch ohne Linie.
+      const saum = [
+        offsetShape(vorneL, -5, 1, 0.72), offsetShape(vorneR, 5, 1, 0.72),
+        offsetShape(hintenL, -4, 3, 0.7), offsetShape(hintenR, 4, 3, 0.7),
+      ];
+      for (let i = 0; i < saum.length; i++) {
+        wash(g, saum[i], '#fdf6e6', { seed: seed + 15 + i, alpha: 0.5 });
+      }
     },
-    shape: function (g) { fill(g, wingL); fill(g, wingR); fill(g, body); },
+    shape: function (g) {
+      for (let i = 0; i < fluegel.length; i++) fill(g, fluegel[i]);
+      fill(g, leib);
+    },
     ink: function (g) {
-      inkLine(g, cx - 2, cy - 14, cx - 8, cy - 24, { width: 1.3, bend: 0.2, seed: seed + 10 });
-      inkLine(g, cx + 2, cy - 14, cx + 8, cy - 24, { width: 1.3, bend: -0.2, seed: seed + 11 });
+      // Die Naht zwischen Vorder- und Hinterflügel, sonst sind es vier Kleckse.
+      inkLine(g, cx - 4, cy + 1, cx - 24 * spread, cy - 3,
+        { width: 1.2, bend: 0.25, seed: seed + 20, alpha: 0.4 });
+      inkLine(g, cx + 4, cy + 1, cx + 24 * spread, cy - 3,
+        { width: 1.2, bend: -0.25, seed: seed + 21, alpha: 0.4 });
+      g.save();
+      g.fillStyle = '#5b4a38';
+      // Drei Glieder statt eines Strichs. Gefüllt, nicht gewaschen: Der weiche
+      // Pinsel machte aus dem Körper vorher einen verwischten Schatten.
+      fill(g, smoothClosed(blob(cx, cy - 10, 3.0, 3.4, seed + 30, 0.06, 10), 4));
+      fill(g, smoothClosed(blob(cx, cy - 3, 3.4, 4.4, seed + 31, 0.06, 10), 4));
+      fill(g, smoothClosed(blob(cx, cy + 5, 2.5, 4.8, seed + 32, 0.06, 10), 4));
+      g.globalAlpha = 0.55;
+      for (let i = 0; i < flecken.length; i++) {
+        g.beginPath();
+        g.arc(flecken[i][0], flecken[i][1], 2.1, 0, 6.2832);
+        g.fill();
+      }
+      g.restore();
+      // Fühler mit Knopf am Ende
+      inkLine(g, cx - 2, cy - 12, cx - 8, cy - 23, { width: 1.2, bend: 0.22, seed: seed + 10 });
+      inkLine(g, cx + 2, cy - 12, cx + 8, cy - 23, { width: 1.2, bend: -0.22, seed: seed + 11 });
+      g.save();
+      g.fillStyle = ink.line;
+      g.beginPath();
+      g.arc(cx - 8.4, cy - 23.4, 1.5, 0, 6.2832);
+      g.arc(cx + 8.4, cy - 23.4, 1.5, 0, 6.2832);
+      g.fill();
+      g.restore();
     },
   });
   return made(res, w, h, cx, cy);

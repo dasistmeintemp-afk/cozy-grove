@@ -3657,6 +3657,51 @@ async function run() {
       await page.evaluate(() => window.CozyGrove.game.colorField.sources.length > 0),
       'Farbquellen sind zurück');
 
+    /* ---- Die Haustiere haben eine Pupille ---- */
+    // Gefunden beim Durchsehen aller Grafiken in der Vergrößerung: Auge und
+    // Nase wurden mit `dot(null, g, …)` gezeichnet – das malt NUR die Kontur,
+    // ohne Füllung. Katze wie Hund hatten dadurch einen leeren Ring im
+    // Gesicht, der aussah wie ein Loch. Gemessen wird deshalb die Füllung:
+    // Ein voller Block aus vier mal vier dunklen Bildpunkten kann von einer
+    // knapp zwei Punkte breiten Konturlinie gar nicht stammen.
+    const pupille = await page.evaluate(async () => {
+      const { spr } = await import('/src/art/sprites.js');
+      const out = {};
+      for (const name of ['pet_dog_0', 'pet_cat_0', 'pet_dog_sit', 'pet_cat_sit']) {
+        const s = spr(name);
+        if (!s) { out[name] = -1; continue; }
+        const c = document.createElement('canvas');
+        c.width = s.w; c.height = s.h;
+        const x = c.getContext('2d');
+        x.drawImage(s.c, 0, 0);
+        const d = x.getImageData(0, 0, s.w, s.h).data;
+        const dunkel = (px, py) => {
+          const i = (py * s.w + px) * 4;
+          if (d[i + 3] < 200) return false;
+          return d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11 < 95;
+        };
+        let voll = 0;
+        // Nur die obere Hälfte: Dort sitzt der Kopf.
+        for (let py = 2; py < s.h * 0.6; py++) {
+          for (let px = 2; px < s.w - 5; px++) {
+            let ganz = true;
+            for (let a = 0; a < 4 && ganz; a++) {
+              for (let b = 0; b < 4; b++) if (!dunkel(px + b, py + a)) { ganz = false; break; }
+            }
+            if (ganz) voll++;
+          }
+        }
+        out[name] = voll;
+      }
+      return out;
+    });
+    // Ohne Füllung meldet dieselbe Messung 1 bis 2, mit Füllung 11 bis 13.
+    // Die Schwelle liegt also zwischen zwei weit auseinander liegenden Werten,
+    // nicht knapp über dem Rauschen.
+    check('Hund und Katze haben eine gefüllte Pupille',
+      Object.keys(pupille).every((k) => pupille[k] >= 6),
+      JSON.stringify(pupille));
+
     /* ---- Fundstücke fallen auf ---- */
     // Die Karte zeigt ein Flämmchen. Am Ort stand ein blassgelber Kreis, den
     // man auf Papier nicht sah.
