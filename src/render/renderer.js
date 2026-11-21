@@ -20,7 +20,7 @@ import { seasonTint } from '../game/seasons.js';
 import { sitzHoehe } from '../game/rest.js';
 import { plaetzeVon, zeigtWas } from '../game/schaukasten.js';
 import { INK } from '../art/painted.js';
-import { TILE_SIZE } from '../art/tiles.js';
+import { TILE_SIZE, isWater } from '../art/tiles.js';
 
 /** Diese Wesen behalten immer ihre Farbe – sie sind ja nicht verblasst. */
 const ALWAYS_COLOR = { spirit: 1, fox: 1, hidden: 1, wanderer: 1 };
@@ -378,6 +378,9 @@ export class Renderer {
     const sources = game.colorField.visibleSources(camX, camY, this.viewW, this.viewH);
     if (sources.length) this._drawColorPass(ctx, game, sources, camX, camY);
 
+    // Das Meer bewegt sich. Über dem Boden, weil der gebacken ist.
+    this._wasserGlitzern(ctx, game, camX, camY, time);
+
     // Die Grenze liegt AUF dem Boden, unter allem, was darauf steht – sonst
     // liefe eine gestrichelte Linie quer über Zelt und Bäume.
     this._drawPlot(ctx, game, camX, camY);
@@ -507,6 +510,86 @@ export class Renderer {
    * darauf steht. Untereinander bleiben die Teppiche nach Tiefe sortiert,
    * damit sich zwei überlappende sinnvoll schichten.
    */
+  /**
+   * Lichter, die über das Wasser wandern.
+   *
+   * Gemessen hatte das Bild ein Stillstandsproblem: Zwischen zwei Bildern
+   * im Abstand einer Viertelsekunde änderten sich **1,6 bis 2,7 Prozent**
+   * der Fläche. Achtzehn Pflanzenarten wiegen sich zwar im Wind, und Falter
+   * fliegen – aber das Meer, das an der Küste die halbe Ansicht füllt, ist
+   * Teil des gebackenen Bodens und stand deshalb vollkommen still. Ein
+   * stilles Meer ist das, was ein Bild zu einem Bild macht statt zu einem
+   * Ort.
+   *
+   * Deshalb hier und nicht im Boden: Was sich bewegt, kann nicht
+   * zwischengespeichert werden.
+   *
+   * **Warum es so billig ist.** Nicht hundert einzelne `stroke()`-Aufrufe –
+   * genau daran ist die Bildrate schon einmal gestorben, und im
+   * Bodenzeichner steht die Lehre daraus. Alle Striche einer Helligkeit
+   * landen in EINEM Pfad, also drei Striche je Bild für die ganze See.
+   *
+   * Die Striche hängen am Ort der Kachel und an der Zeit, nicht am Zufall:
+   * Dasselbe Wasser kräuselt sich an derselben Stelle immer gleich, und
+   * nichts flackert beim Scrollen.
+   */
+  _wasserGlitzern(ctx, game, camX, camY, time) {
+    const world = game.world;
+    const t0 = Math.floor(camX / TILE_SIZE) - 1;
+    const t1 = Math.ceil((camX + this.viewW) / TILE_SIZE) + 1;
+    const r0 = Math.floor(camY / TILE_SIZE) - 1;
+    const r1 = Math.ceil((camY + this.viewH) / TILE_SIZE) + 1;
+
+    // Drei Helligkeiten, drei Sammelpfade. Mehr Stufen sähe man nicht,
+    // weniger ließe das Glitzern im Takt blinken.
+    const bahnen = [[], [], []];
+    for (let ty = r0; ty < r1; ty++) {
+      for (let tx = t0; tx < t1; tx++) {
+        if (!isWater(world.tileAtTile(tx, ty))) continue;
+        // Drei Striche je Kachel, versetzt – einer allein ergibt ein Raster.
+        for (let k = 0; k < 3; k++) {
+          const h = ((tx * 73856093) ^ (ty * 19349663) ^ (k * 83492791)) >>> 0;
+          const phase = (h % 1000) / 1000 * Math.PI * 2;
+          // Langsam: eine volle Welle dauert gut zehn Sekunden. Schnelles
+          // Glitzern sieht nach Strom aus, nicht nach Wasser.
+          const w = Math.sin(time * 0.55 + phase);
+          const hell = (w + 1) / 2;
+          if (hell < 0.35) continue;
+          const stufe = hell > 0.8 ? 2 : hell > 0.58 ? 1 : 0;
+          const x = (tx + 0.18 + ((h >>> 11) % 100) / 100 * 0.5) * TILE_SIZE
+            + Math.sin(time * 0.4 + phase) * 16;
+          const y = (ty + 0.12 + ((h >>> 19) % 100) / 100 * 0.76) * TILE_SIZE;
+          const lang = 26 + ((h >>> 7) % 26);
+          bahnen[stufe].push(x, y, lang);
+        }
+      }
+    }
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    // Tinte, nicht Weiß. Unkoloriertes Wasser liegt unter dem Papierschleier
+    // fast bei Weiß – ein weißer Glanzstrich darauf war im Bild buchstäblich
+    // nicht zu sehen (nachgemessen: die Bildänderung blieb bei 1,6 %).
+    // Auf diesem Papier trägt nur die Linie.
+    const staerken = [0.16, 0.26, 0.38];
+    const breiten = [1.5, 1.9, 2.3];
+    for (let s = 0; s < 3; s++) {
+      const b = bahnen[s];
+      if (!b.length) continue;
+      ctx.globalAlpha = staerken[s];
+      ctx.lineWidth = breiten[s];
+      ctx.strokeStyle = INK.lineSoft;
+      ctx.beginPath();
+      for (let i = 0; i < b.length; i += 3) {
+        const x = b[i], y = b[i + 1], lang = b[i + 2];
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + lang / 2, y - 3.2, x + lang, y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   _drawEntities(ctx, game, list, time) {
     for (let i = 0; i < list.length; i++) {
       if (list[i].flat) this._drawEntity(ctx, game, list[i], time);

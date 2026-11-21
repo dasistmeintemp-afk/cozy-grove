@@ -3434,6 +3434,11 @@ async function run() {
       g.colorField.sources.push({ x: px, y: py, r: 620, target: 620, key: 'a' });
       g.colorField.sources.push({ x: px + 1500, y: py, r: 300, target: 300, key: 'b' });
       g.colorField.markDirty();
+      // Einmal ausruhen lassen, bevor gemessen wird. Das Feld wird über
+      // mehrere Bilder hinweg aufgebaut; die erste Messung traf es sonst
+      // gelegentlich noch leer und meldete einen Sprung von 0 auf 255 –
+      // das ist der Aufbau, nicht der gesuchte Sprung beim Vorbeigehen.
+      await new Promise((r) => setTimeout(r, 600));
 
       function deckung(wx, wy) {
         const R = g.renderer;
@@ -3554,6 +3559,103 @@ async function run() {
     check('Gelegter Steinweg hebt sich vom Boden ab',
       !weg.keinPlatz && weg.anteilGeaendert >= 25 && weg.mittlereAenderung >= 8,
       JSON.stringify(weg));
+
+    /* ---- Das Meer bewegt sich ---- */
+    // Gemessen hatte das Bild ein Stillstandsproblem: Zwischen zwei Bildern
+    // änderten sich keine zwei Prozent der Fläche, und der größte stille
+    // Anteil war das Meer – es steckt im zwischengespeicherten Boden. Diese
+    // Prüfung misst am GEZEICHNETEN Bild, nicht am Zustand: Ein Kästchen,
+    // das vollständig auf Wasser liegt, muss sich von selbst verändern.
+    const meer = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const vorher = { x: g.player.x, y: g.player.y, h: g.day.hour };
+      g.day.hour = 13;
+      // Das Farbfeld atmet: Seine Quellen wachsen Bild für Bild auf ihr Ziel
+      // zu. Über koloriertem Wasser maß die Prüfung deshalb 24 % Änderung –
+      // auch ganz ohne bewegtes Wasser. Für die Messung wird es abgeschaltet
+      // und danach wieder eingehängt, sonst misst man das Falsche.
+      const quellen = g.colorField.sources.slice();
+      g.colorField.sources.length = 0;
+      g.colorField.markDirty();
+      const { isWater } = await import('/src/art/tiles.js');
+      // Eine Kachel suchen, um die herum im Umkreis von 2 Kacheln nur Wasser
+      // liegt – sonst misst man schaukelndes Schilf am Ufer statt der See.
+      // Die Stelle muss nahe der Inselmitte liegen, nicht am Kartenrand: Am
+      // Rand klemmt die Kamera, und das Messkästchen landete dann irgendwo –
+      // die Prüfung bestand daraufhin auch ohne bewegtes Wasser. Genau so ist
+      // sie einmal zahnlos durchgelaufen.
+      let ziel = null; let nah = 1e9;
+      for (let ty = 6; ty < 90; ty++) {
+        for (let tx = 6; tx < 90; tx++) {
+          const d = (tx - 48) * (tx - 48) + (ty - 48) * (ty - 48);
+          if (d >= nah) continue;
+          let alles = true;
+          for (let dy = -3; dy <= 3 && alles; dy++)
+            for (let dx = -3; dx <= 3; dx++)
+              if (!isWater(g.world.tileAtTile(tx + dx, ty + dy))) { alles = false; break; }
+          if (!alles) continue;
+          if (g.world.queryNear(tx * 64 + 32, ty * 64 + 32, 220).filter((e) => !e.gone).length) continue;
+          ziel = { x: tx, y: ty }; nah = d;
+        }
+      }
+      if (!ziel) return { keinMeer: true };
+      g.player.x = ziel.x * 64 + 32;
+      g.player.y = ziel.y * 64 + 32;
+      g.camera.snapTo(g.player.x, g.player.y);
+      const warten = (ms) => new Promise((r) => setTimeout(r, ms));
+      // Das Kästchen wird in WELTmaßen aufgespannt, nicht in Bildpunkten:
+      // Sonst hängt seine Größe am Zoom, und es ragte je nach Insel über das
+      // Wasser hinaus – die Prüfung wäre launisch geworden.
+      const mx = ziel.x * 64 + 32;
+      const my = ziel.y * 64 + 32 - 96; // über der Figur, sonst misst man sie
+      const halbW = 72; const halbH = 48;
+      function pixel() {
+        const R = g.renderer;
+        const x0 = Math.round((mx - halbW - g.camera.ox) * R.zoom);
+        const y0 = Math.round((my - halbH - g.camera.oy) * R.zoom);
+        const bw = Math.round(halbW * 2 * R.zoom);
+        const bh = Math.round(halbH * 2 * R.zoom);
+        if (x0 < 4 || y0 < 4 || x0 + bw > R.w - 4 || y0 + bh > R.h - 4) return null;
+        return R.ctx.getImageData(x0, y0, bw, bh).data;
+      }
+      // Gegenprobe, dass das Kästchen wirklich nur auf Wasser liegt.
+      let nurWasser = true;
+      for (const [ex, ey] of [[-halbW, -halbH], [halbW, -halbH], [-halbW, halbH], [halbW, halbH]]) {
+        if (!isWater(g.world.tileAtTile(Math.floor((mx + ex) / 64), Math.floor((my + ey) / 64)))) nurWasser = false;
+      }
+      await warten(700);
+      const a = pixel();
+      if (!a) return { ausserhalb: true };
+      await warten(900);
+      const b = pixel();
+      g.player.x = vorher.x; g.player.y = vorher.y; g.day.hour = vorher.h;
+      g.camera.snapTo(g.player.x, g.player.y);
+      for (const q of quellen) g.colorField.sources.push(q);
+      g.colorField.markDirty();
+      await warten(400);
+      if (!b) return { ausserhalb: true };
+      let geaendert = 0;
+      for (let i = 0; i < a.length; i += 4) {
+        const la = a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11;
+        const lb = b[i] * 0.3 + b[i + 1] * 0.59 + b[i + 2] * 0.11;
+        if (Math.abs(la - lb) > 6) geaendert++;
+      }
+      return { anteil: Math.round(geaendert / (a.length / 4) * 1000) / 10, nurWasser };
+    });
+    // Ohne den bewegten Strich maß dieselbe Stelle glatte 0,0 % – der
+    // Schwellwert von 2 % liegt also nicht knapp über dem Rauschen,
+    // sondern über dem Stillstand.
+    check('Das Meer bewegt sich von selbst',
+      !meer.keinMeer && !meer.ausserhalb && meer.nurWasser === true && meer.anteil >= 2,
+      JSON.stringify(meer));
+    check('Die Meeresprüfung räumt hinter sich auf',
+      await page.evaluate(() => {
+        const g = window.CozyGrove.game;
+        return Math.abs(g.day.hour - 13) > 0.001 || g.world.canStand(g.player.x, g.player.y, 10, 6);
+      }), 'Spielfigur steht wieder an Land');
+    check('Die Meeresprüfung hängt das Farbfeld wieder ein',
+      await page.evaluate(() => window.CozyGrove.game.colorField.sources.length > 0),
+      'Farbquellen sind zurück');
 
     /* ---- Fundstücke fallen auf ---- */
     // Die Karte zeigt ein Flämmchen. Am Ort stand ein blassgelber Kreis, den
