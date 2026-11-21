@@ -42,7 +42,26 @@ export const ORTE = {
   insel: { name: 'Auf der Stillen Insel', rang: 4 },
   lager: { name: 'Am Lagerfeuer', rang: 0 },
   zuhause: { name: 'Zuhause', rang: 5 },
-  abseits: { name: 'Weit weg von allem', rang: 6 },
+  /**
+   * „Weit weg von allem" ist KEIN Skizzenplatz – und das ist eine Messung,
+   * keine Meinung.
+   *
+   * Der Ort hat den letzten Rang, und `ortAus` gibt immer den vordersten
+   * heraus. Jede Kachel weit vom Lagerfeuer liegt zugleich am Wasser, im
+   * Wald oder an den Klippen, und die gewinnen. Auf einer erzeugten Insel
+   * nachgezählt: EINE von 3531 begehbaren Kacheln ergibt „abseits".
+   *
+   * Damit waren vier der achtundzwanzig möglichen Skizzen – eine je
+   * Jahreszeit – praktisch nicht zu bekommen, und der Zettel zeigte
+   * trotzdem „von 28". Ein Zähler, dessen Höchststand niemand erreichen
+   * kann, ist schlimmer als ein kleinerer: Er sagt dem Spieler, er habe
+   * etwas übersehen, und das stimmt nicht.
+   *
+   * Für WÜNSCHE bleibt der Ort, was er war: Die prüfen mit `ORTE[].test`
+   * direkt und nicht über den Rang, und dort erfüllen ihn rund zwei Drittel
+   * der Insel. Nur das Zeichnen und das Bemerken kennen ihn nicht.
+   */
+  abseits: { name: 'Weit weg von allem', rang: 6, keinBild: true },
 };
 
 export const ORT_IDS = Object.keys(ORTE);
@@ -82,7 +101,7 @@ export function ortAus(orte) {
   let beste = null;
   for (let i = 0; i < liste.length; i++) {
     const o = ORTE[liste[i]];
-    if (!o) continue;
+    if (!o || o.keinBild) continue;
     if (!beste || o.rang < ORTE[beste].rang) beste = liste[i];
   }
   return beste;
@@ -171,8 +190,10 @@ export function titel(skizze) {
 }
 
 /** Wie viele es überhaupt geben kann. */
+export const BILD_ORTE = ORT_IDS.filter(function (id) { return !ORTE[id].keinBild; });
+
 export function moeglich() {
-  return ORT_IDS.length * Object.keys(JAHRESZEITEN).length;
+  return BILD_ORTE.length * Object.keys(JAHRESZEITEN).length;
 }
 
 /**

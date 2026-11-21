@@ -657,10 +657,19 @@ async function run() {
       aus.nachher = g.ortsnameHier(x, y);
       aus.weitWeg = g.ortsnameHier(x + 1200, y);
 
-      g.player.x = x + 20; g.player.y = y + 20;
+      // GENAU auf die gefundene Kachel, nicht zwanzig Punkte daneben: Der
+      // Versatz hat die Figur gelegentlich in den Rang von „Am Wasser"
+      // geschoben, und die Prüfung meldete dann einen Fehler, wo keiner war.
+      g.player.x = x; g.player.y = y;
       const skizze = BILD.skizzeAus(g.ruheLage(), g.day.day, g.ortsnameHier());
       aus.titelMitNamen = skizze ? BILD.titel(skizze) : null;
-      aus.titelOhneNamen = skizze ? BILD.titel(BILD.skizzeAus(g.ruheLage(), g.day.day)) : null;
+      const ohne = skizze ? BILD.skizzeAus(g.ruheLage(), g.day.day) : null;
+      aus.titelOhneNamen = ohne ? BILD.titel(ohne) : null;
+      // Der erwartete allgemeine Name kommt aus den Daten, nicht aus einer
+      // festen Zeichenkette – sonst prüft der Test die Insel und nicht das
+      // Benennen.
+      aus.ortJetzt = ohne ? ohne.ort : null;
+      aus.ortName = ohne ? BILD.ORTE[ohne.ort].name : null;
 
       // Umbenennen legt keinen zweiten Ort an.
       g.benenneOrtHier(schild, 'Sternplatz');
@@ -729,11 +738,12 @@ async function run() {
       eigene.nachher === 'Mondgarten' && eigene.weitWeg === null,
       JSON.stringify(eigene));
     check('Die Insel spricht den eigenen Namen zurück',
-      eigene.titelMitNamen === 'Mondgarten, im Herbst, am Morgen' ||
-      (eigene.titelMitNamen || '').indexOf('Mondgarten') === 0,
+      (eigene.titelMitNamen || '').indexOf('Mondgarten') === 0 &&
+      eigene.titelMitNamen !== eigene.titelOhneNamen,
       'Titel: ' + eigene.titelMitNamen + ' / ohne Namen: ' + eigene.titelOhneNamen);
     check('Ohne Schild bleibt es beim allgemeinen Namen',
-      (eigene.titelOhneNamen || '').indexOf('Im Wald') === 0, String(eigene.titelOhneNamen));
+      !!eigene.ortName && (eigene.titelOhneNamen || '').indexOf(eigene.ortName) === 0,
+      eigene.titelOhneNamen + ' (erwartet: ' + eigene.ortName + ')');
     check('Umbenennen legt keinen zweiten Ort an',
       eigene.umbenannt === 'Sternplatz' && eigene.zahlNachUmbenennen === 1,
       JSON.stringify({ name: eigene.umbenannt, zahl: eigene.zahlNachUmbenennen }));
@@ -872,6 +882,8 @@ async function run() {
       if (!geist) return { keinGeist: true };
       aus.geist = geist.spiritId;
       const vorherStand = JSON.stringify(g.state.dekoreaktion);
+      const vorherTag = g.day.day;
+      const vorherGesagt = JSON.stringify(g.state.dekoGesagt || {});
 
       // Blasen mitschreiben, statt sie vom Bildschirm zu lesen.
       const blasen = [];
@@ -904,24 +916,33 @@ async function run() {
       aus.mitBank = g._dekoReaktion(geist);
       aus.satzBank = blasen[blasen.length - 1] || null;
 
-      // Dieselbe Sache ein zweites Mal: nichts.
-      aus.nochmal = g._dekoReaktion(geist);
+      // Noch am selben Tag: nichts mehr. Das ist die Tagesgrenze – ohne
+      // sie sagt ein Geist, neben dem fünf Sorten stehen, bei fünf
+      // Ansprachen fünf Sätze hintereinander.
+      aus.nochmalHeute = g._dekoReaktion(geist);
 
-      // Eine Laterne: eine andere Sache, also wieder etwas – und ein
-      // anderer Satz als zur Bank.
+      // Eine Laterne, am nächsten Tag: eine andere Sache, also wieder
+      // etwas – und ein anderer Satz als zur Bank.
       const lampe = makeEntity('decor', geist.x - 50, geist.y + 30,
         { itemId: 'lantern', flat: false });
       lampe.sprite = 'lantern';
       g.world.add(lampe);
+      g.day.day = g.day.day + 1;
       blasen.length = 0;
       aus.mitLampe = g._dekoReaktion(geist);
       aus.satzLampe = blasen[blasen.length - 1] || null;
+
+      // Und die Bank, die er schon kennt, kommentiert er auch morgen nicht
+      // noch einmal.
+      g.day.day = g.day.day + 1;
+      aus.bankNochmal = g._dekoReaktion(geist);
 
       // Weit weg zählt nicht.
       const weit = makeEntity('decor', geist.x + 2000, geist.y,
         { itemId: 'pond', flat: true });
       weit.sprite = 'pond';
       g.world.add(weit);
+      g.day.day = g.day.day + 1;
       aus.weitWeg = g._dekoReaktion(geist);
       aus.paare = g.dekoReaktionenZahl();
 
@@ -934,6 +955,8 @@ async function run() {
         g.world.add(e2);
       }
       g.state.dekoreaktion = JSON.parse(vorherStand);
+      g.state.dekoGesagt = JSON.parse(vorherGesagt);
+      g.day.day = vorherTag;
       g.ui.bubble = echt;
       return aus;
     });
@@ -942,14 +965,68 @@ async function run() {
     check('Eine Bank daneben – und er nennt das konkrete Stück',
       dreaktion.mitBank === true && /sitzen|Bank|setz/i.test(dreaktion.satzBank || ''),
       'Satz: ' + dreaktion.satzBank);
-    check('Dieselbe Sache kommentiert er nur einmal',
-      dreaktion.nochmal === false, 'nochmal: ' + dreaktion.nochmal);
+    check('Höchstens ein Deko-Satz je Geist und Tag',
+      dreaktion.nochmalHeute === false, 'nochmal heute: ' + dreaktion.nochmalHeute);
+    check('Dieselbe Sache kommentiert er auch an anderen Tagen nicht noch einmal',
+      dreaktion.bankNochmal === false, 'Bank nochmal: ' + dreaktion.bankNochmal);
     check('Eine andere Sache bringt einen anderen Satz',
       dreaktion.mitLampe === true && dreaktion.satzLampe !== dreaktion.satzBank,
       'Lampe: ' + dreaktion.satzLampe);
     check('Was weit weg steht, zählt nicht',
       dreaktion.weitWeg === false && dreaktion.paare === 2,
       JSON.stringify({ weit: dreaktion.weitWeg, paare: dreaktion.paare }));
+
+    /**
+     * Kommt jeder Ort, den ein Moment verlangt, auf der Insel überhaupt vor?
+     *
+     * Eine reine Rechnung kann das nicht prüfen: In den Daten ist „abseits"
+     * ein Ort wie jeder andere. Erst auf einer erzeugten Insel zeigt sich,
+     * dass `ortAus` ihn so gut wie nie herausgibt – er hat den letzten Rang,
+     * und jede Kachel weit vom Feuer liegt zugleich am Wasser, im Wald oder
+     * an den Klippen. Zwei Momente hingen daran und waren damit tot: Der
+     * Spieler konnte sie nie bekommen, und nichts im Spiel hätte es gesagt.
+     */
+    const ortDeckung = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { ORTE: WORTE } = await import('/src/game/wishes.js');
+      const { ortAus } = await import('/src/game/bild.js');
+      const { isWalkable } = await import('/src/art/tiles.js');
+      const { MOMENTE } = await import('/src/game/momente.js');
+      const warOffen = g.world.unlocked.slice();
+      for (let i = 0; i < 4; i++) g.world.unlockRegion(i);
+
+      const w = g.world;
+      const zahl = Object.create(null);
+      let begehbar = 0;
+      // Jede zweite Kachel reicht: Es geht um Vorkommen, nicht um Fläche.
+      for (let y = 0; y < w.h; y += 2) {
+        for (let x = 0; x < w.w; x += 2) {
+          if (!isWalkable(w.tiles[y * w.w + x])) continue;
+          begehbar++;
+          const wx = (x + 0.5) * 64, wy = (y + 0.5) * 64;
+          const treffer = [];
+          for (const id in WORTE) {
+            if (WORTE[id].nameFuer) continue;
+            if (WORTE[id].test(w, wx, wy)) treffer.push(id);
+          }
+          const ort = ortAus(treffer);
+          zahl[ort || '(keiner)'] = (zahl[ort || '(keiner)'] || 0) + 1;
+        }
+      }
+      for (let i = 0; i < warOffen.length; i++) w.unlocked[i] = warOffen[i];
+
+      // Welcher von einem Moment verlangte Ort kommt praktisch nie vor?
+      const schwelle = Math.max(3, Math.round(begehbar * 0.01));
+      const tot = [];
+      for (const m of MOMENTE) {
+        const o = m.wenn.ort;
+        if (!o) continue;
+        if ((zahl[o] || 0) < schwelle) tot.push(m.id + ' braucht „' + o + '" (' + (zahl[o] || 0) + ')');
+      }
+      return { zahl: zahl, begehbar: begehbar, tot: tot, ohneOrt: zahl['(keiner)'] || 0 };
+    });
+    check('Jeder Ort, den ein Moment verlangt, kommt auf der Insel vor',
+      ortDeckung.tot.length === 0, ortDeckung.tot.join(' | '));
 
     // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
     // beim Aufwachen erwischt zu haben.
@@ -7069,11 +7146,16 @@ async function run() {
     // kommt erst an Tag 30 – und dass es NICHT dabei ist, ist die Hälfte
     // dieser Prüfung: Ein Stand, der beim Laden gleich alle fünf Kapitel
     // nachholt, hätte den ganzen Bogen auf einmal verbraucht.
+    // Der Stand steht auf Tag 21. Fällig ist dort genau „Ankunft": Das
+    // nächste GEBAUTE Kapitel ist „Der klare Himmel" ab Tag 30, und die
+    // Kapitel ohne Inhalt gehen gar nicht erst auf (siehe `inhalt` in
+    // `kapitel.js`). Dass hier nicht alles auf einmal nachgeholt wird, ist
+    // die Hälfte dieser Prüfung.
     check('Ein alter Stand holt genau die fälligen Kapitel nach',
-      alt.kapitel.length === 2 && alt.kapitelJetzt === 'niedrigesee' &&
+      alt.kapitel.length === 1 && alt.kapitelJetzt === 'ankunft' &&
       alt.naechstesKapitel === 'klarerhimmel', JSON.stringify(alt.kapitel) + ' ' + alt.kapitelJetzt);
-    check('Und was sie mitbringen, ist für ihn da',
-      alt.gezeiten === true && alt.sternbilder === false,
+    check('Und was ein noch zukünftiges Kapitel brächte, hat er nicht',
+      alt.gezeiten === false && alt.sternbilder === false,
       'gezeiten=' + alt.gezeiten + ' sternbilder=' + alt.sternbilder);
   } catch (err) {
     check('Testlauf ohne Ausnahme', false, err && err.message);

@@ -219,6 +219,10 @@ html, body {
 }
 .ico.lg { width: calc(34px * var(--ui-scale)); height: calc(34px * var(--ui-scale)); }
 .ico.xl { width: calc(48px * var(--ui-scale)); height: calc(48px * var(--ui-scale)); }
+/* Sternbilder sind Karten, keine Symbole: Eine Sternkarte auf 34 Punkte
+   geschrumpft ist ein Fleck mit vier Pünktchen. Das Seitenverhältnis
+   folgt dem Maler (96 x 80 in `painted-sternbild.js`). */
+.ico.karte { width: calc(72px * var(--ui-scale)); height: calc(60px * var(--ui-scale)); }
 
 /* ---------- Aufgabenleiste (ikonisch) ---------- */
 

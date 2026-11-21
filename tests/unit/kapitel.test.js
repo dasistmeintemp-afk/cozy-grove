@@ -17,16 +17,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import {
   KAPITEL, KAPITEL_IDS,
   kapitelVon, offenAm, offeneKapitel, jetzigesKapitel, naechstesKapitel,
   emptyKapitel, neueKapitel, kapitelSteht, kapitelHat, sachenAus, kapitelStand,
 } from '../../src/game/kapitel.js';
 
-/** Ein Stand, in dem die ersten `n` Kapitel offen sind. */
+/**
+ * Die Kapitel, deren Inhalt wirklich gebaut ist.
+ *
+ * Fast alles hier rechnet mit DIESER Liste und nicht mit `KAPITEL`: Ein
+ * Kapitel ohne Inhalt geht nicht auf (siehe `inhalt` in `kapitel.js`), und
+ * eine Prüfung, die trotzdem alle fünf erwartet, prüft eine Welt, die es
+ * nicht gibt.
+ */
+const GEBAUT = KAPITEL.filter(function (k) { return k.inhalt; });
+
+/** Ein Stand, in dem die ersten `n` gebauten Kapitel offen sind. */
 function standMit(n) {
   const s = emptyKapitel();
-  for (let i = 0; i < n; i++) s.offen[KAPITEL[i].id] = 1 + i;
+  for (let i = 0; i < n && i < GEBAUT.length; i++) s.offen[GEBAUT[i].id] = 1 + i;
   return s;
 }
 
@@ -49,10 +63,11 @@ test('die Zeit ist die Achse, nicht der Fortschritt', function () {
 });
 
 test('Kapitel legen sich übereinander und nehmen nichts weg', function () {
-  // Regel 2. Am Tag des letzten Kapitels müssen ALLE offen sein.
-  const letztes = KAPITEL[KAPITEL.length - 1];
+  // Regel 2. Am Tag des letzten gebauten Kapitels müssen ALLE gebauten
+  // offen sein.
+  const letztes = GEBAUT[GEBAUT.length - 1];
   const alle = offeneKapitel(letztes.ab, 1);
-  assert.equal(alle.length, KAPITEL.length);
+  assert.equal(alle.length, GEBAUT.length);
 
   // Und auf dem Weg dorthin wächst die Zahl nur, sie fällt nie.
   let vorher = 0;
@@ -61,11 +76,11 @@ test('Kapitel legen sich übereinander und nehmen nichts weg', function () {
     assert.ok(n >= vorher, 'Tag ' + tag + ': von ' + vorher + ' auf ' + n + ' gefallen');
     vorher = n;
   }
-  assert.equal(vorher, KAPITEL.length);
+  assert.equal(vorher, GEBAUT.length);
 
   // Dasselbe für die Sachen: Was ein Kapitel gebracht hat, bleibt da.
   let hatte = 0;
-  for (let n = 1; n <= KAPITEL.length; n++) {
+  for (let n = 1; n <= GEBAUT.length; n++) {
     const jetzt = sachenAus(standMit(n)).length;
     assert.ok(jetzt >= hatte, 'Kapitel ' + n + ': Sachen von ' + hatte + ' auf ' + jetzt + ' gefallen');
     hatte = jetzt;
@@ -111,6 +126,65 @@ test('neueKapitel verändert den Stand nicht', function () {
   assert.equal(Object.keys(stand.offen).length, 0);
 });
 
+test('was ein offenes Kapitel verspricht, löst das Spiel auch ein', function () {
+  // Die Prüfung, die gefehlt hat – und der teuerste Fehler dieser ganzen
+  // Reihe. Fünf Kapitel standen in der Liste, alle fünf gingen auf, aber
+  // nur eines hatte gebauten Inhalt. Das Spiel meldete an Tag 12 „Das
+  // Wasser steht heute tiefer als sonst. Da hinten liegt Grund frei", und
+  // es gab keine Gezeiten; an Tag 55 „Am Strand steht Gepäck. Jemand
+  // bleibt", und es kam niemand.
+  //
+  // Eine Prüfung auf die Daten allein hätte das nie gefunden: In den Daten
+  // war alles in Ordnung. Deshalb liest diese hier die QUELLEN und hält
+  // beide Seiten gegeneinander – was ein offenes Kapitel mitbringt, muss
+  // irgendwo im Spiel abgefragt werden.
+  const wurzel = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'src');
+  let quelle = '';
+  (function sammle(verzeichnis) {
+    for (const eintrag of readdirSync(verzeichnis, { withFileTypes: true })) {
+      const pfad = join(verzeichnis, eintrag.name);
+      if (eintrag.isDirectory()) sammle(pfad);
+      else if (eintrag.name.endsWith('.js')) quelle += readFileSync(pfad, 'utf8');
+    }
+  })(wurzel);
+
+  for (const k of KAPITEL) {
+    for (const sache of k.bringt) {
+      const gefragt = quelle.indexOf("hatSache('" + sache + "')") >= 0;
+      if (k.inhalt) {
+        assert.ok(gefragt,
+          k.id + ' ist offen und verspricht „' + sache + '", aber nichts im Spiel fragt danach');
+      } else {
+        // Umgekehrt genauso wichtig: Steht der Inhalt schon im Spiel, soll
+        // das Kapitel auch aufgehen. Sonst baut jemand die Gezeiten und
+        // wundert sich, warum sie nie erscheinen.
+        assert.ok(!gefragt,
+          k.id + ': „' + sache + '" wird im Spiel abgefragt – dann setze `inhalt: true`');
+      }
+    }
+  }
+});
+
+test('ein Kapitel ohne Inhalt bleibt zu und wird nicht angekündigt', function () {
+  // Die Gegenprobe zur Regel oben: Ein unfertiges Kapitel darf weder
+  // aufgehen noch als „bald" in der Anzeige stehen. Ein „in 0 Tagen", das
+  // nie eintritt, ist dieselbe Lüge in klein.
+  const ohne = KAPITEL.filter(function (k) { return !k.inhalt; });
+  for (const k of ohne) {
+    assert.equal(offenAm(k, 99999, 1), false, k.id + ' geht auf, obwohl es keinen Inhalt hat');
+  }
+  const offen = offeneKapitel(99999, 1);
+  for (const k of offen) {
+    assert.ok(k.inhalt, k.id + ' ist offen ohne Inhalt');
+  }
+  // Nach dem letzten GEBAUTEN Kapitel wird nichts mehr angekündigt.
+  const letztesGebaute = KAPITEL.filter(function (k) { return k.inhalt; }).pop();
+  assert.equal(naechstesKapitel(letztesGebaute.ab + 1, 1), null,
+    'es wird noch etwas angekündigt, das es nicht gibt');
+  // Und mindestens eines muss es geben, sonst prüft der Rest der Datei nichts.
+  assert.ok(offen.length >= 2, 'nur ' + offen.length + ' Kapitel mit Inhalt');
+});
+
 test('jedes Kapitel bringt etwas, was es vorher nicht gab', function () {
   // Regel 3. „Ankunft" ist der Zustand am Anfang und darf leer sein; jedes
   // weitere muss eine Sache mitbringen, sonst ist es ein Zwischentitel.
@@ -128,29 +202,33 @@ test('jedes Kapitel bringt etwas, was es vorher nicht gab', function () {
 test('kapitelHat fragt nach der Sache, nicht nach der Nummer', function () {
   // Die Abfrage muss das Umsortieren der Liste überleben – deshalb über die
   // Sache. Geprüft, indem genau das Kapitel offen ist, das sie bringt.
-  const mitGezeiten = KAPITEL.find(function (k) { return k.bringt.indexOf('gezeiten') >= 0; });
-  assert.ok(mitGezeiten, 'kein Kapitel bringt die Gezeiten');
-  const n = KAPITEL.indexOf(mitGezeiten) + 1;
+  // Am Beispiel der Sternbilder – also an einem Kapitel, das es WIRKLICH
+  // gibt. Vorher standen hier die Gezeiten, und als deren Kapitel still
+  // zuging, prüfte der Test eine Sache, die niemand mehr bekommen kann.
+  const sache = 'sternbilder';
+  const mitSache = GEBAUT.find(function (k) { return k.bringt.indexOf(sache) >= 0; });
+  assert.ok(mitSache, 'kein gebautes Kapitel bringt „' + sache + '"');
+  const n = GEBAUT.indexOf(mitSache) + 1;
 
-  assert.equal(kapitelHat(standMit(n), 'gezeiten'), true);
-  assert.equal(kapitelHat(standMit(n - 1), 'gezeiten'), false);
+  assert.equal(kapitelHat(standMit(n), sache), true);
+  assert.equal(kapitelHat(standMit(n - 1), sache), false);
   // Eine Sache, die kein Kapitel bringt, gibt es nie.
-  assert.equal(kapitelHat(standMit(KAPITEL.length), 'drachen'), false);
+  assert.equal(kapitelHat(standMit(GEBAUT.length), 'drachen'), false);
   // Und ohne Stand ist nichts da, statt zu krachen.
-  assert.equal(kapitelHat(null, 'gezeiten'), false);
-  assert.equal(kapitelHat(emptyKapitel(), 'gezeiten'), false);
+  assert.equal(kapitelHat(null, sache), false);
+  assert.equal(kapitelHat(emptyKapitel(), sache), false);
 });
 
 test('naechstesKapitel nennt den ehrlichen Grund', function () {
   // Am Tag 1 fehlen Tage, kein Fortschritt.
   const a = naechstesKapitel(1, 1);
   assert.ok(a);
-  assert.equal(a.kapitel.id, KAPITEL[1].id);
-  assert.equal(a.tage, KAPITEL[1].ab - 1);
+  assert.equal(a.kapitel.id, GEBAUT[1].id);
+  assert.equal(a.tage, GEBAUT[1].ab - 1);
   assert.equal(a.fehltAnteil, 0);
 
   // Am Tag des Kapitels mit zu wenig Farbe fehlen keine Tage, aber Anteil.
-  const k = KAPITEL[1];
+  const k = GEBAUT[1];
   const b = naechstesKapitel(k.ab, 0);
   assert.equal(b.kapitel.id, k.id);
   assert.equal(b.tage, 0);
@@ -162,9 +240,11 @@ test('naechstesKapitel nennt den ehrlichen Grund', function () {
 });
 
 test('der Stand zählt in Kapiteln, nicht in Prozent', function () {
-  const s = kapitelStand(standMit(3));
-  assert.equal(s.offen, 3);
-  assert.equal(s.gesamt, KAPITEL.length);
+  const s = kapitelStand(standMit(2));
+  assert.equal(s.offen, 2);
+  // Gezählt wird nur, was es gibt: Sonst stünde dort für immer „2 von 5"
+  // und die fehlenden drei wären ein Versprechen in Zahlenform.
+  assert.equal(s.gesamt, GEBAUT.length);
   assert.equal(kapitelStand(emptyKapitel()).offen, 0);
   assert.equal(kapitelStand(null).offen, 0);
 });

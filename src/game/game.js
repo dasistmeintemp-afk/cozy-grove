@@ -2220,13 +2220,6 @@ export class Game {
       }
     }
 
-    // Was du hingestellt hast, bemerkt er – einmal je Sache.
-    //
-    // Absichtlich HIER: nach Fest und Geburtstag (die gehören dem Tag) und
-    // vor dem Tagesgeschäft. Dahinter wäre es nie zu hören, weil fast immer
-    // eine Bitte offen ist; davor hätte es den Geburtstag verdrängt.
-    if (this._dekoReaktion(e)) return;
-
     // Abgegeben wird, was hierher gehört: die eigenen Bitten dieses Geistes
     // und die Botengänge, die ein anderer hierher schickt.
     const hier = this.quests.openAtSpirit(e.spiritId);
@@ -2240,6 +2233,21 @@ export class Game {
     // Mitbringsel bringt einen weiter. Ein Herz über dem Geist zeigt vorher an,
     // dass gerade etwas Passendes in der Tasche liegt.
     if (this.wantsGift(e.spiritId) && this.giveGiftTo(e)) return;
+
+    // Was du hingestellt hast, bemerkt er – aber erst, wenn nichts Wichtiges
+    // ansteht.
+    //
+    // Das stand zuerst VOR der Abgabe, gleich hinter dem Geburtstag, damit
+    // es überhaupt gehört wird. Der Preis war zu hoch: Wer mit einer
+    // fertigen Bitte ankam, bekam stattdessen „Da kann man sitzen" – und
+    // bei fünf Deko-Sorten in seiner Nähe hätte man sechsmal drücken
+    // müssen, um etwas abzugeben. Ein Satz über eine Bank darf nie zwischen
+    // dem Spieler und seiner erledigten Arbeit stehen.
+    //
+    // Hier unten wird er trotzdem gehört: Die meisten Besuche bei einem
+    // Geist enden ohnehin mit „Noch nicht".
+    if (this._dekoReaktion(e)) return;
+
     // „Noch nicht" sagt ein Geist auch zu dem Botengang, den er selbst
     // aufgegeben hat – sonst stünde er stumm da, bis man zurück ist.
     const open = hier.length ? hier : this.quests.openForSpirit(e.spiritId);
@@ -2653,12 +2661,29 @@ export class Game {
    * eine Sekunde später nachgeholt hat.
    */
   kapitelJetzt() {
-    return jetzigesKapitel(this.day.day, this.colorField.coverage(this.world));
+    return jetzigesKapitel(this.day.day, this._deckungJetzt());
   }
 
   /** Was als nächstes kommt und woran es noch hängt – oder `null`. */
   kapitelNaechstes() {
-    return naechstesKapitel(this.day.day, this.colorField.coverage(this.world));
+    return naechstesKapitel(this.day.day, this._deckungJetzt());
+  }
+
+  /**
+   * Der Farbanteil – aus der Zwischenablage, nicht neu gerechnet.
+   *
+   * `coverage` tastet die halbe Karte ab. `_checkMilestones` rechnet die
+   * Zahl ohnehin einmal je Sekunde; hier wird sie nur gelesen.
+   *
+   * Nötig geworden, weil das Aufgabenfenster beide Kapitel-Auskünfte
+   * nebeneinander anzeigt und damit bei JEDEM Neuzeichnen zwei volle
+   * Abtastungen auslöste. Dasselbe hatte `_checkKapitel` schon einmal
+   * getan und die Bildrate halbiert – ein Fehler, den man nur an der
+   * Bildrate sieht und nie an einer falschen Zahl.
+   */
+  _deckungJetzt() {
+    if (this._deckung == null) this._deckung = this.colorField.coverage(this.world);
+    return this._deckung;
   }
 
   /** Wie viele Kapitel offen sind: {offen, gesamt}. */
@@ -2696,6 +2721,11 @@ export class Game {
   _dekoReaktion(e) {
     if (this.settings.talk === 'off') return false;
     if (!this.state.dekoreaktion) this.state.dekoreaktion = emptyDekoreaktion();
+    // Höchstens einer je Geist und Tag. Ohne das sagt ein Geist, neben dem
+    // fünf Sorten stehen, bei fünf Ansprachen hintereinander fünf Sätze –
+    // und aus der Beobachtung wird ein Spruchband.
+    if (!this.state.dekoGesagt) this.state.dekoGesagt = Object.create(null);
+    if (this.state.dekoGesagt[e.spiritId] === this.day.day) return false;
 
     // Die Stücke in seiner Nähe, in fester Reihenfolge: `queryNear` gibt
     // sie in der Reihenfolge der Welt heraus, und die ändert sich nicht.
@@ -2716,6 +2746,7 @@ export class Game {
     if (!r) return false;
 
     this.state.dekoreaktion = merkeReaktion(this.state.dekoreaktion, e.spiritId, r.gruppe);
+    this.state.dekoGesagt[e.spiritId] = this.day.day;
     this.ui.bubble(e.x, e.y - 190, r.satz, [{ icon: 'icon_heart' }], 5.0, true);
     this.audio.play('ghost');
     this.save();

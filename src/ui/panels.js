@@ -8,6 +8,7 @@ import {
 import { wannText, heuteIst } from '../game/termine.js';
 import { titel as bildTitel, kennung as bildKennung } from '../game/bild.js';
 import { chronikZeilen, zeitSatz, bittenGesamt } from '../game/chronik.js';
+import { geistName as sternGeist } from '../game/sternbilder.js';
 import { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } from '../game/stories.js';
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
 import { canLink, linkedName, pendingLinkName, requestLinkPermission, linkNew, linkExisting, unlink, openFile, suggestName } from '../core/savefile.js';
@@ -750,7 +751,124 @@ export class Panels {
         '<span class="row-btn ghost">' + Math.round(friendshipProgress(doneN) * 100) + '%</span></div>';
     }
     html += '</div>';
+    html += this._entdeckt();
     html += this._chronik();
+    return html;
+  }
+
+  /**
+   * Was du bemerkt hast – Kapitel, Momente, Sternbilder, eigene Orte.
+   *
+   * Diese vier Systeme hatten nach dem Bauen **keine einzige Oberfläche**.
+   * Man fand einen Moment, bekam einen Satz und eine Meldung – und konnte
+   * danach nie wieder nachsehen, was man gefunden hatte. In den
+   * Dokumentationszeilen von `momente.js` steht wörtlich „danach in der
+   * Chronik", und die Chronik gab es nicht. Eine Sammlung ohne Schaufenster
+   * ist keine Sammlung, sondern eine Folge von Meldungen.
+   *
+   * **Gezeigt wird nur das Gefundene, nie das Fehlende.** Das ist Regel 4
+   * der Momente: Eine Liste mit Lücken wäre eine Aufgabenliste mit anderem
+   * Namen, und dann stünde jemand mit dem Wetterbericht am Klippenrand.
+   * Die Zahl dahinter („7 von 36") steht trotzdem da – sie sagt, dass es
+   * weitergeht, ohne zu sagen, wo.
+   */
+  /**
+   * Warum das nächste Kapitel noch nicht da ist – der EHRLICHE Grund.
+   *
+   * Hier stand zuerst nur „Nächstes in N Tagen". Bei einem Spielstand mit
+   * wenig Farbe hieß das „Nächstes in 0 Tagen", und zwar für immer: Die
+   * Tage waren um, es fehlte der Anteil. Genau davor warnt der Absatz über
+   * `naechstesKapitel` in `kapitel.js` – die Funktion gibt `fehltAnteil`
+   * heraus, damit die Anzeige den wirklichen Grund nennen kann, und meine
+   * erste Fassung hat ihn einfach weggelassen.
+   *
+   * Zuerst die Tage, dann die Farbe: Wartezeit kann man nicht beeinflussen,
+   * Farbe schon. Wer beides vor sich hat, soll das Machbare zuletzt lesen.
+   */
+  _kapitelGrund(naechst) {
+    if (!naechst) return '';
+    const teile = [];
+    if (naechst.tage > 0) {
+      teile.push('noch ' + naechst.tage + (naechst.tage === 1 ? ' Tag' : ' Tage'));
+    }
+    if (naechst.fehltAnteil > 0) {
+      teile.push('noch ' + Math.ceil(naechst.fehltAnteil * 100) + '% Farbe');
+    }
+    if (!teile.length) return '';
+    return 'Nächstes Kapitel: ' + teile.join(' und ');
+  }
+
+  _entdeckt() {
+    const g = this.game;
+    let html = '';
+
+    // --- Kapitel: wo man im langen Bogen steht ---
+    const kap = g.kapitelJetzt();
+    const kz = g.kapitelZahl();
+    const naechst = g.kapitelNaechstes();
+    html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Kapitel</h3>';
+    html += '<div class="rows"><div class="row">' + ico(kap.icon || 'icon_map', 'lg') +
+      '<div class="grow"><div class="title">' + escapeHtml(kap.name) + '</div>' +
+      '<div class="meta"><span>' + escapeHtml(kap.hint) + '</span>' +
+      '<span>' + kz.offen + ' von ' + kz.gesamt + '</span>' +
+      (this._kapitelGrund(naechst)
+        ? '<span>' + escapeHtml(this._kapitelGrund(naechst)) + '</span>'
+        : '') +
+      '</div></div></div></div>';
+
+    // --- Momente ---
+    const momente = g.momente();
+    const mz = g.momenteZahl();
+    if (momente.length) {
+      html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Bemerkt · ' +
+        mz.gefunden + ' von ' + mz.gesamt + '</h3>';
+      html += '<div class="rows">';
+      // Die jüngsten zuerst: Was man gerade gefunden hat, will man sehen;
+      // was vor vierzig Tagen war, sucht man gezielt.
+      for (let i = momente.length - 1; i >= 0; i--) {
+        const e = momente[i];
+        html += '<div class="row">' + ico('icon_sparkle', 'lg') +
+          '<div class="grow"><div class="title">' + escapeHtml(e.moment.name) + '</div>' +
+          '<div class="meta"><span>„' + escapeHtml(e.moment.satz) + '"</span>' +
+          '<span>Tag ' + e.tag + '</span></div></div></div>';
+      }
+      html += '</div>';
+    }
+
+    // --- Sternbilder ---
+    const sterne = g.sternbilder();
+    if (sterne.length) {
+      const sz = g.sternbilderZahl();
+      html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Am Himmel · ' +
+        sz.gefunden + ' von ' + sz.gesamt + '</h3>';
+      html += '<div class="rows">';
+      for (let i = 0; i < sterne.length; i++) {
+        const e = sterne[i];
+        html += '<div class="row">' + ico('sternbild_' + e.sternbild.id, 'karte') +
+          '<div class="grow"><div class="title">' + escapeHtml(e.sternbild.name) + '</div>' +
+          '<div class="meta"><span>' + escapeHtml(sternGeist(e.sternbild)) + ': „' +
+          escapeHtml(e.sternbild.satz) + '"</span>' +
+          '<span>Tag ' + e.tag + '</span></div></div></div>';
+      }
+      html += '</div>';
+    }
+
+    // --- Eigene Orte ---
+    const orte = g.eigeneOrte();
+    if (orte.length) {
+      const oz = g.orteZahl();
+      html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Deine Orte · ' +
+        oz.vergeben + ' von ' + oz.moeglich + '</h3>';
+      html += '<div class="rows">';
+      for (let i = 0; i < orte.length; i++) {
+        html += '<div class="row">' + ico('icon_signpost', 'lg') +
+          '<div class="grow"><div class="title">' + escapeHtml(orte[i].name) + '</div>' +
+          '<div class="meta"><span>So heißt diese Ecke, weil du es gesagt hast.</span>' +
+          '</div></div></div>';
+      }
+      html += '</div>';
+    }
+
     return html;
   }
 

@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import {
   ORTE, ORT_IDS, ZEITEN, JAHRESZEITEN, WETTER,
   ortAus, zeitAus, skizzeAus, kennung, schonDa, titel,
-  moeglich, skizzeAusRoh, bilderAus, sortiert,
+  moeglich, BILD_ORTE, skizzeAusRoh, bilderAus, sortiert,
 } from '../../src/game/bild.js';
 import { ORT_FORM, ZEIT_FARBEN, JAHRES_FARBEN, WASSER_FARBEN } from '../../src/art/painted-bild.js';
 import { ORTE as WUNSCH_ORTE } from '../../src/game/wishes.js';
@@ -199,12 +199,31 @@ test('Alle Titel sind verschieden', () => {
   assert.equal(alle.size, erwartet, 'zwei gleiche Titel');
 });
 
-test('Der Zettel kann nicht überlaufen', () => {
-  // Sieben Orte mal vier Jahreszeiten. Eine Zahl, kein Gefühl: Ohne sie
-  // wäre irgendwann die Frage, was passiert, wenn er voll ist – und jede
-  // Antwort darauf („die älteste fällt raus") verdirbt etwas.
-  assert.equal(moeglich(), ORT_IDS.length * Object.keys(JAHRESZEITEN).length);
-  assert.equal(moeglich(), 28);
+test('Der Zettel kann nicht überlaufen – und sein Höchststand ist erreichbar', () => {
+  // Hier stand `ORT_IDS.length * 4 === 28`. Die Rechnung stimmte, die Zahl
+  // war trotzdem falsch: „Weit weg von allem" hat in `ortAus` den letzten
+  // Rang, und jede Kachel weit vom Feuer liegt zugleich am Wasser, im Wald
+  // oder an den Klippen. Auf einer erzeugten Insel nachgezählt ergibt EINE
+  // von 3531 Kacheln diesen Ort. Vier der achtundzwanzig Skizzen – eine je
+  // Jahreszeit – waren also praktisch nicht zu bekommen, und der Zettel
+  // zeigte trotzdem „von 28".
+  //
+  // Ein Zähler, dessen Höchststand niemand erreicht, sagt dem Spieler, er
+  // habe etwas übersehen. Das ist schlimmer als ein kleinerer Zähler.
+  assert.equal(moeglich(), BILD_ORTE.length * Object.keys(JAHRESZEITEN).length);
+  assert.equal(moeglich(), 24);
+
+  // Und jeder gezählte Ort muss auch einer sein, den `ortAus` herausgeben
+  // kann – sonst wandert die Lücke nur weiter.
+  for (const id of BILD_ORTE) {
+    assert.equal(ortAus([id]), id, id + ' wird von ortAus nie herausgegeben');
+  }
+  // Der ausgenommene dagegen nicht, und er zählt auch nicht mit.
+  const raus = ORT_IDS.filter(function (id) { return BILD_ORTE.indexOf(id) < 0; });
+  assert.deepEqual(raus, ['abseits']);
+  assert.equal(ortAus(['abseits']), null);
+  // Er darf aber keinen anderen Ort verdrängen.
+  assert.equal(ortAus(['wasser', 'abseits']), 'wasser');
 });
 
 test('Ein Spielstand kann keine erfundene Skizze einschmuggeln', () => {

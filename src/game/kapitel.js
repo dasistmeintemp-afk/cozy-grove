@@ -67,6 +67,22 @@
  * `bringt`  Kennungen der Sachen, die dieses Kapitel dauerhaft hinzufügt;
  *           das Spiel fragt damit ab, ob eine Sache schon existiert
  *           (siehe `kapitelHat`)
+ * `inhalt`  ob es die Sache im Spiel WIRKLICH schon gibt
+ *
+ * **Zu `inhalt`, und warum es dieses Feld gibt.** Die fünf Kapitel standen
+ * zuerst alle in dieser Liste, und alle fünf gingen auf – auch die, deren
+ * Inhalt noch nicht gebaut war. Das Spiel meldete an Tag 12 „Das Wasser
+ * steht heute tiefer als sonst. Da hinten liegt Grund frei", und es gab
+ * keine Gezeiten; an Tag 55 „Am Strand steht Gepäck. Jemand bleibt", und es
+ * kam niemand.
+ *
+ * Das ist derselbe Fehler, der beim Tagesereignis „Steinkraut" schon einmal
+ * aufgefallen ist – ein Versprechen ohne Deckung –, nur schlimmer: Ein
+ * stiller Tag fällt niemandem auf, ein angekündigter Nachbar, der nie
+ * kommt, schon. Ein Kapitel mit `inhalt: false` bleibt deshalb zu, bis es
+ * etwas zu halten gibt. Ein Test liest die Quellen und hält beides
+ * gegeneinander: Was ein offenes Kapitel mitbringt, muss das Spiel auch
+ * abfragen.
  *
  * Die Abstände wachsen: 1 → 12 → 30 → 55 → 90. Das ist kein Zufall und auch
  * keine Bequemlichkeit. Wer neu ist, braucht schnell ein Zeichen, dass es
@@ -85,7 +101,7 @@ export const KAPITEL = [
      * nicht „noch kein Kapitel". Ein Bogen, der erst beim zweiten Punkt
      * anfängt, sieht von vorn wie keiner aus.
      */
-    id: 'ankunft', ab: 1, boden: 0,
+    id: 'ankunft', ab: 1, boden: 0, inhalt: true,
     name: 'Ankunft',
     auftakt: '',
     hint: 'Die Insel liegt grau da. Das ändert sich.',
@@ -93,7 +109,7 @@ export const KAPITEL = [
     bringt: [],
   },
   {
-    id: 'niedrigesee', ab: 12, boden: 0.08,
+    id: 'niedrigesee', ab: 12, boden: 0.08, inhalt: false,
     name: 'Die niedrige See',
     auftakt: 'Das Wasser steht heute tiefer als sonst. Da hinten liegt Grund frei.',
     hint: 'Bei Niedrigwasser ist der Meeresboden begehbar.',
@@ -101,7 +117,7 @@ export const KAPITEL = [
     bringt: ['gezeiten'],
   },
   {
-    id: 'klarerhimmel', ab: 30, boden: 0.25,
+    id: 'klarerhimmel', ab: 30, boden: 0.25, inhalt: true,
     name: 'Der klare Himmel',
     auftakt: 'Nachts ist der Himmel aufgeklart. Man sieht mehr als sonst.',
     hint: 'In klaren Nächten lassen sich Sternbilder finden.',
@@ -109,7 +125,7 @@ export const KAPITEL = [
     bringt: ['sternbilder'],
   },
   {
-    id: 'zuzug', ab: 55, boden: 0.45,
+    id: 'zuzug', ab: 55, boden: 0.45, inhalt: false,
     name: 'Der Zuzug',
     auftakt: 'Am Strand steht Gepäck. Jemand bleibt.',
     hint: 'Jemand zieht auf die Insel und wohnt von jetzt an hier.',
@@ -126,7 +142,7 @@ export const KAPITEL = [
      * braucht – ein sechstes Kapitel wäre entweder wieder eine neue Sache
      * (dann wächst das Spiel an seinem Rand) oder eine Wiederholung.
      */
-    id: 'zweitesjahr', ab: 90, boden: 0.70,
+    id: 'zweitesjahr', ab: 90, boden: 0.70, inhalt: false,
     name: 'Das zweite Jahr',
     auftakt: 'Die Insel kommt dir vor wie immer. Und doch ist etwas anders.',
     hint: 'Jede Jahreszeit bringt jetzt, was sie beim ersten Mal zurückgehalten hat.',
@@ -152,6 +168,8 @@ export function kapitelVon(id) {
  */
 export function offenAm(kap, tag, anteil) {
   if (!kap) return false;
+  // Ein Kapitel ohne gebauten Inhalt geht nicht auf – siehe `inhalt` oben.
+  if (!kap.inhalt) return false;
   return tag >= kap.ab && (anteil || 0) >= kap.boden;
 }
 
@@ -188,6 +206,10 @@ export function jetzigesKapitel(tag, anteil) {
 export function naechstesKapitel(tag, anteil) {
   for (let i = 0; i < KAPITEL.length; i++) {
     const k = KAPITEL[i];
+    // Ein Kapitel ohne Inhalt wird auch nicht angekündigt. Sonst stünde dort
+    // für immer „Die niedrige See, in 0 Tagen" – eine Andeutung ohne
+    // Deckung, und davor warnt der Absatz über dieser Funktion selbst.
+    if (!k.inhalt) continue;
     if (offenAm(k, tag, anteil)) continue;
     return {
       kapitel: k,
@@ -258,8 +280,13 @@ export function sachenAus(stand) {
  */
 export function kapitelStand(stand) {
   let n = 0;
+  let gesamt = 0;
   for (let i = 0; i < KAPITEL.length; i++) {
+    // Gezählt wird nur, was es gibt. Sonst stünde dort für immer „2 von 5"
+    // und die fehlenden drei wären ein Versprechen in Zahlenform.
+    if (!KAPITEL[i].inhalt) continue;
+    gesamt++;
     if (stand && stand.offen && stand.offen[KAPITEL[i].id]) n++;
   }
-  return { offen: n, gesamt: KAPITEL.length };
+  return { offen: n, gesamt: gesamt };
 }

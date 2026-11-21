@@ -138,9 +138,21 @@ export const MOMENTE = [
     wenn: { ort: 'klippen', zeit: 'morgen' },
   },
   {
-    id: 'abseits_tag', name: 'Weit draußen',
+    /**
+     * Stand zuerst auf `ort: 'abseits'` – und war damit tot.
+     *
+     * „Weit weg von allem" hat in `ortAus` den letzten Rang, und jede
+     * Kachel weit vom Feuer liegt zugleich am Wasser, im Wald oder an den
+     * Klippen. Gemessen auf einer erzeugten Insel: EINE von 3531 Kacheln.
+     * Der Moment war also geschrieben und unerreichbar, und keine Rechnung
+     * hätte das gezeigt – in den Daten war alles in Ordnung.
+     *
+     * Die Stille Insel ist das, was `abseits` sein wollte: wirklich weit
+     * draußen, und man hört das Feuer dort nicht.
+     */
+    id: 'insel_weit', name: 'Weit draußen',
     satz: 'Von hier hört man das Feuer nicht mehr.',
-    wenn: { ort: 'abseits' },
+    wenn: { ort: 'insel' },
   },
   {
     id: 'nacht_wasser', name: 'Nachts am Wasser',
@@ -237,9 +249,10 @@ export const MOMENTE = [
     wenn: { ort: 'wald', ereignis: 'bluetenschnee' },
   },
   {
-    id: 'laubfall_abseits', name: 'Laubfall, weit draußen',
+    // Ebenfalls von `abseits` umgezogen – siehe `insel_weit`.
+    id: 'laubfall_insel', name: 'Laubfall, weit draußen',
     satz: 'Niemand wird das hier zusammenkehren.',
-    wenn: { ort: 'abseits', ereignis: 'laubfall' },
+    wenn: { ort: 'insel', ereignis: 'laubfall' },
   },
   {
     id: 'falter_lager_abend', name: 'Falterzug am Feuer',
