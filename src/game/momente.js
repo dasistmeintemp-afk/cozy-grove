@@ -280,6 +280,45 @@ export const MOMENTE = [
     wenn: { ort: 'klippen', ereignis: 'steinkraut' },
   },
 
+  /* --- Im Watt. Nur bei Ebbe, also nur nach dem Kapitel. --- */
+  {
+    id: 'watt_weite', name: 'Trockenen Fußes',
+    satz: 'Hier war gestern Meer. Heute stehe ich darauf.',
+    wenn: { ort: 'wasser' }, braucht: 'gezeiten',
+  },
+  {
+    id: 'watt_morgen', name: 'Morgens im Watt',
+    satz: 'Die Rinnen laufen alle in dieselbe Richtung. Das Wasser weiß, wo es hinwill.',
+    wenn: { ort: 'wasser', zeit: 'morgen' }, braucht: 'gezeiten',
+  },
+
+  /* --- Das zweite Jahr. Was die Insel beim ersten Mal zurückhält. --- */
+  {
+    id: 'wieder_fruehling', name: 'Wieder Frühling',
+    satz: 'Letztes Jahr stand ich hier auch. Ich weiß es noch.',
+    wenn: { jahreszeit: 'spring', zeit: 'morgen' }, braucht: 'wiederkehr',
+  },
+  {
+    id: 'wieder_sommer', name: 'Der zweite Sommer',
+    satz: 'Diesmal weiß ich schon, wo der Schatten ist.',
+    wenn: { jahreszeit: 'summer', zeit: 'tag' }, braucht: 'wiederkehr',
+  },
+  {
+    id: 'wieder_herbst', name: 'Der zweite Herbst',
+    satz: 'Dieselben Bäume. Und sie sind größer geworden.',
+    wenn: { jahreszeit: 'autumn', ort: 'wald' }, braucht: 'wiederkehr',
+  },
+  {
+    id: 'wieder_winter', name: 'Der zweite Winter',
+    satz: 'Ich habe nicht mehr gefroren. Das ist neu.',
+    wenn: { jahreszeit: 'winter', zeit: 'abend' }, braucht: 'wiederkehr',
+  },
+  {
+    id: 'meeresleuchten_nacht', name: 'Das Meer leuchtet',
+    satz: 'Das Wasser leuchtet von innen. Niemand hat mir gesagt, dass es das tut.',
+    wenn: { ort: 'wasser', zeit: 'nacht', ereignis: 'meeresleuchten' }, braucht: 'wiederkehr',
+  },
+
   /* --- Bei einem Geist. Sie stehen nicht immer an derselben Stelle. --- */
   {
     id: 'geist_regen', name: 'Mit jemandem im Regen',
@@ -381,13 +420,16 @@ export function heuteSchon(stand, tag) {
  * Eine Sternennacht, die man einmal im Monat hat, wäre damit an einen Satz
  * verschenkt, den man jede Nacht bekommen kann.
  */
-export function faelligerMoment(stand, lage, tag) {
+export function faelligerMoment(stand, lage, tag, hat) {
   if (heuteSchon(stand, tag)) return null;
+  const vorhanden = typeof hat === 'function' ? hat : function () { return true; };
   let beste = null;
   let besteP = Infinity;
   for (let i = 0; i < MOMENTE.length; i++) {
     const m = MOMENTE[i];
     if (gefunden(stand, m.id)) continue;
+    // Was ein Kapitel voraussetzt, gibt es vorher nicht.
+    if (m.braucht && !vorhanden(m.braucht)) continue;
     if (!passt(m, lage)) continue;
     const p = seltenheit(m);
     if (p < besteP) { beste = m; besteP = p; }

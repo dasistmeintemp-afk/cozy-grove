@@ -139,27 +139,48 @@ test('was ein offenes Kapitel verspricht, löst das Spiel auch ein', function ()
   // beide Seiten gegeneinander – was ein offenes Kapitel mitbringt, muss
   // irgendwo im Spiel abgefragt werden.
   const wurzel = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'src');
-  let quelle = '';
+  const quellen = [];
   (function sammle(verzeichnis) {
     for (const eintrag of readdirSync(verzeichnis, { withFileTypes: true })) {
       const pfad = join(verzeichnis, eintrag.name);
       if (eintrag.isDirectory()) sammle(pfad);
-      else if (eintrag.name.endsWith('.js')) quelle += readFileSync(pfad, 'utf8');
+      else if (eintrag.name.endsWith('.js')) {
+        quellen.push({ name: eintrag.name, text: readFileSync(pfad, 'utf8') });
+      }
     }
   })(wurzel);
 
+  /**
+   * Gesucht wird die Sache ÜBERALL in den Quellen außer in `kapitel.js`.
+   *
+   * Zuerst stand hier die wörtliche Suche nach `hatSache('…')`. Die war zu
+   * eng: Inzwischen hängen Tagesereignisse und Momente über ein Feld in
+   * ihren eigenen Tabellen am Kapitel (`kapitel: 'wiederkehr'`,
+   * `braucht: 'gezeiten'`), und abgefragt wird mit einer Variablen. Die
+   * Bindung ist damit genauso fest – sie steht nur in Daten statt in einer
+   * Zeile Code.
+   *
+   * Was die Prüfung weiterhin fängt, ist der Fehler, um den es geht: eine
+   * Sache, die NIRGENDS vorkommt. Genau so standen „gezeiten", „nachbar"
+   * und „wiederkehr" monatelang in offenen Kapiteln, ohne dass es sie gab.
+   */
+  function kommtVor(sache) {
+    for (const q of quellen) {
+      if (q.name === 'kapitel.js') continue;
+      if (q.text.indexOf("'" + sache + "'") >= 0) return true;
+    }
+    return false;
+  }
+
   for (const k of KAPITEL) {
     for (const sache of k.bringt) {
-      const gefragt = quelle.indexOf("hatSache('" + sache + "')") >= 0;
+      const da = kommtVor(sache);
       if (k.inhalt) {
-        assert.ok(gefragt,
-          k.id + ' ist offen und verspricht „' + sache + '", aber nichts im Spiel fragt danach');
+        assert.ok(da,
+          k.id + ' ist offen und verspricht „' + sache + '", aber nichts im Spiel kennt das');
       } else {
-        // Umgekehrt genauso wichtig: Steht der Inhalt schon im Spiel, soll
-        // das Kapitel auch aufgehen. Sonst baut jemand die Gezeiten und
-        // wundert sich, warum sie nie erscheinen.
-        assert.ok(!gefragt,
-          k.id + ': „' + sache + '" wird im Spiel abgefragt – dann setze `inhalt: true`');
+        assert.ok(!da,
+          k.id + ': „' + sache + '" kommt im Spiel vor – dann setze `inhalt: true`');
       }
     }
   }

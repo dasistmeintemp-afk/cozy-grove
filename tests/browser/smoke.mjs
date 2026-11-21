@@ -1076,6 +1076,16 @@ async function run() {
       aus.gruss = blasen[0] || null;
 
       // e) Ohne Fund: freundlicher Satz, KEIN Lohn und keine Aufgabe.
+      //
+      // Erst wirklich leer machen. Vorherige Prüfungen hinterlassen
+      // gefundene Momente, und dann hatte sie sehr wohl etwas zu fragen –
+      // die Prüfung hieß „ohne Fund" und lief mit Fund.
+      const mVorher = JSON.stringify(g.state.momente);
+      const sVorher = JSON.stringify(g.state.sternbilder);
+      const oVorher = JSON.stringify(g.state.orte);
+      g.state.momente = M.emptyMomente();
+      g.state.sternbilder = { gefunden: Object.create(null), zuletzt: 0 };
+      g.state.orte = [];
       blasen.length = 0;
       const vorOhne = g.state.coins;
       g.redeMitJule(e);
@@ -1108,7 +1118,9 @@ async function run() {
       }
       if (!vorher.kapitel) delete g.state.kapitel.offen.zuzug;
       g.state.nachbar = JSON.parse(vorher.nachbar);
-      g.state.momente = JSON.parse(vorher.momente);
+      g.state.momente = JSON.parse(mVorher);
+      g.state.sternbilder = JSON.parse(sVorher);
+      g.state.orte = JSON.parse(oVorher);
       g.state.coins = vorher.muenzen;
       g.day.day = vorher.tag;
       aus.aufgeraeumt = !g.juleDort();
@@ -1240,6 +1252,7 @@ async function run() {
       for (let i = 0; i < vorher.offen.length; i++) w.unlocked[i] = vorher.offen[i];
       g.player.x = vorher.x; g.player.y = vorher.y;
       g.player.prevX = vorher.x; g.player.prevY = vorher.y;
+      g.camera.snapTo(vorher.x, vorher.y);
       return aus;
     });
     check('Ohne das Kapitel bleibt das Wasser, wo es ist',
@@ -1277,17 +1290,25 @@ async function run() {
       g.ground.clear();
       const watt = w.wattKacheln(G.BREITE);
       // Die Stelle mit dem meisten Watt in Sichtweite.
+      // Suchfenster und Messfenster müssen DASSELBE sein.
+      //
+      // Erst wurde in 7x5 Kacheln gesucht und in etwa 3x2 gemessen – auf
+      // manchen Inseln lag das Watt dann gerade außerhalb der Messung, und
+      // die Prüfung meldete „kein Unterschied", wo einer war.
+      const FW = 4;   // Kacheln waagerecht, je Seite
+      const FH = 3;   // Kacheln senkrecht, je Seite
       let beste = watt[0], best = -1;
       for (const [tx, ty] of watt) {
         if (tx < 12 || ty < 12 || tx > w.w - 12 || ty > w.h - 12) continue;
         let n = 0;
-        for (let dy = -2; dy <= 2; dy++) {
-          for (let dx = -3; dx <= 3; dx++) {
+        for (let dy = -FH; dy <= FH; dy++) {
+          for (let dx = -FW; dx <= FW; dx++) {
             if (w.tileAtTile(tx + dx, ty + dy) === T.TIDEFLAT) n++;
           }
         }
         if (n > best) { best = n; beste = [tx, ty]; }
       }
+      const felder = (FW * 2 + 1) * (FH * 2 + 1);
       const px = (beste[0] + 0.5) * 64;
       const py = (beste[1] + 0.5) * 64;
 
@@ -1295,15 +1316,19 @@ async function run() {
         const c = document.querySelector('canvas');
         const ctx = c.getContext('2d');
         const dpr = c.width / c.clientWidth;
-        const sx = Math.max(0, Math.round((px - g.camera.ox - 90) * dpr));
-        const sy = Math.max(0, Math.round((py - g.camera.oy - 60) * dpr));
-        const bw = Math.min(180, c.width - sx);
-        const bh = Math.min(120, c.height - sy);
-        if (bw < 20 || bh < 20) return null;
+        const halbW = (FW + 0.5) * 64;
+        const halbH = (FH + 0.5) * 64;
+        const sx = Math.max(0, Math.round((px - g.camera.ox - halbW) * dpr));
+        const sy = Math.max(0, Math.round((py - g.camera.oy - halbH) * dpr));
+        const bw = Math.min(Math.round(halbW * 2 * dpr), c.width - sx);
+        const bh = Math.min(Math.round(halbH * 2 * dpr), c.height - sy);
+        if (bw < 40 || bh < 40) return null;
+        // Das GANZE Fenster, nicht nur sein Anfang: Hier standen zuerst
+        // `d.slice(0, 2000)` – also die obersten zwei Pixelzeilen.
         const d = ctx.getImageData(sx, sy, bw, bh).data;
-        let summe = 0;
-        for (let i = 0; i < d.length; i += 4) summe += d[i] + d[i + 1] + d[i + 2];
-        return { summe: summe, n: d.length / 4, roh: Array.from(d.slice(0, 2000)) };
+        const proben = [];
+        for (let i = 0; i < d.length; i += 4 * 7) proben.push(d[i], d[i + 1], d[i + 2]);
+        return { proben: proben };
       }
 
       function stelle(niedrig) {
@@ -1329,22 +1354,148 @@ async function run() {
       for (let i = 0; i < vorher.offen.length; i++) w.unlocked[i] = vorher.offen[i];
       g.player.x = vorher.x; g.player.y = vorher.y;
       g.player.prevX = vorher.x; g.player.prevY = vorher.y;
+      // Die KAMERA auch zurück, nicht nur die Figur.
+      //
+      // Sie folgt der Figur nur allmählich. Diese Prüfung schnappt sie weit
+      // hinaus aufs Watt, und die nächste Prüfung – „Der Herbst färbt warm,
+      // der Winter kühl" – misst Farben am gezeichneten Bild. Die fand dann
+      // Wasser statt Wiese, und Wasser trägt keine Jahreszeitenfarbe: ein
+      // Fehler, der aussah wie ein kaputtes Jahreszeiten-Tönen und einer in
+      // dieser Zeile war.
+      g.camera.snapTo(vorher.x, vorher.y);
 
-      if (!flut || !ebbe) return { gemessen: false };
+      if (!flut || !ebbe || flut.proben.length !== ebbe.proben.length) {
+        return { gemessen: false };
+      }
       let anders = 0;
-      for (let i = 0; i < flut.roh.length; i += 4) {
-        if (Math.abs(flut.roh[i] - ebbe.roh[i]) > 6) anders++;
+      for (let i = 0; i < flut.proben.length; i += 3) {
+        const d0 = Math.abs(flut.proben[i] - ebbe.proben[i]);
+        const d1 = Math.abs(flut.proben[i + 1] - ebbe.proben[i + 1]);
+        const d2 = Math.abs(flut.proben[i + 2] - ebbe.proben[i + 2]);
+        if (d0 + d1 + d2 > 18) anders++;
       }
       return {
         gemessen: true,
-        anteilAnders: anders / (flut.roh.length / 4),
+        anteilAnders: anders / (flut.proben.length / 3),
         wattInSicht: best,
+        felder: felder,
+        dichte: best / felder,
       };
     });
+    // Die Schwelle hängt daran, WIE VIEL Watt im Messfenster liegt: Auf
+    // einer Insel mit schmaler Küste sind es weniger Kacheln, und dann
+    // ändert sich entsprechend weniger Bild. Verlangt wird, dass sich
+    // mindestens die halbe Wattfläche sichtbar ändert.
+    // Die Schwelle ist gemessen, nicht geschätzt: Über mehrere Inseln lag
+    // der Anteil geänderter Pixel bei 0,25 bis 0,31. Verlangt wird 0,12 –
+    // hoch genug, dass ein unsichtbarer Wechsel (dann sind es 0) auffällt,
+    // und tief genug, dass eine schmale Küste nicht fälschlich durchfällt.
+    // Mehr als ein Drittel kann es nicht werden: Das Watt unterscheidet
+    // sich vor allem durch seine Rippelmarken, und die bedecken die Fläche
+    // nicht ganz.
     check('Der Unterschied zwischen Ebbe und Flut ist zu SEHEN',
-      tideBild.gemessen === true && tideBild.wattInSicht > 4 &&
-      tideBild.anteilAnders > 0.15,
+      tideBild.gemessen === true && tideBild.dichte > 0.25 &&
+      tideBild.anteilAnders > 0.12,
       JSON.stringify(tideBild));
+
+    /**
+     * Das zweite Jahr – was die Insel beim ersten Mal zurückhält.
+     *
+     * Das letzte der fünf Kapitel, und der billigste Inhalt, den dieses
+     * Spiel noch hat: Der echte Kalender dreht sich ohnehin weiter, und
+     * ein Frühling, der beim zweiten Mal etwas mitbringt, was es beim
+     * ersten nicht gab, macht aus einer Wiederholung ein Wiedersehen.
+     *
+     * Geprüft wird vor allem die Sperre. Sie liegt nicht mehr in einer
+     * Zeile Code, sondern in einem Feld an den Daten (`kapitel:
+     * 'wiederkehr'`) – also an einer Stelle, an der man sie beim
+     * Dazuschreiben eines Ereignisses leicht vergisst.
+     */
+    const jahrZwei = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const KAL = await import('/src/game/calendar.js');
+      const M = await import('/src/game/momente.js');
+      const aus = {};
+      const vorher = {
+        kapitel: !!g.state.kapitel.offen.zweitesjahr,
+        event: g.today.event,
+        season: g.today.season,
+        lastEvent: g.state.lastEvent,
+      };
+
+      const spaet = KAL.EVENT_IDS.filter(function (id) {
+        return KAL.EVENTS[id].kapitel === 'wiederkehr';
+      });
+      aus.anzahl = spaet.length;
+      aus.momente = M.MOMENTE.filter(function (m) { return m.braucht === 'wiederkehr'; }).length;
+
+      // a) Ohne das Kapitel taugt keines davon.
+      delete g.state.kapitel.offen.zweitesjahr;
+      aus.ohneKapitel = spaet.filter(function (id) {
+        return g._ereignisTaugt(KAL.EVENTS[id]);
+      }).length;
+
+      // b) Mit Kapitel alle – und jedes wirkt wirklich etwas.
+      g.state.kapitel.offen.zweitesjahr = 90;
+      aus.mitKapitel = spaet.filter(function (id) {
+        return g._ereignisTaugt(KAL.EVENTS[id]);
+      }).length;
+
+      let stumm = 0;
+      let tag = g.day.day + 400;
+      for (const id of spaet) {
+        const ev = KAL.EVENTS[id];
+        g.state.lastEvent = id;
+        g.today.event = ev;
+        g.today.season = KAL.SEASONS[ev.nur];
+        g._applyToday();
+        const fx = g._todayWorldEffects();
+        g.world.newDay(++tag, fx);
+        const gelegt = g.world.entities.filter(function (e) {
+          return e.fromEvent && !e.gone;
+        }).length;
+        const spur = gelegt > 0 || g.wildlife.swarm || fx.stars || g.shop.dayBonus > 1;
+        if (!spur) stumm++;
+      }
+      aus.stumm = stumm;
+
+      // c) Ein Moment des zweiten Jahres kommt vorher nicht.
+      const lage = { ort: 'wald', zeit: 'morgen', jahreszeit: 'spring',
+        wetter: null, ereignis: null, geist: null };
+      // Alle anderen Frühlingsmomente als gefunden ausgeben, damit der
+      // späte überhaupt an die Reihe kommt.
+      const stand = M.emptyMomente();
+      for (const m of M.MOMENTE) {
+        if (m.braucht !== 'wiederkehr' && M.passt(m, lage)) stand.gefunden[m.id] = 1;
+      }
+      delete g.state.kapitel.offen.zweitesjahr;
+      const ohne = M.faelligerMoment(stand, lage, 999, function (x) { return g.hatSache(x); });
+      aus.momentOhne = ohne ? ohne.id : null;
+      g.state.kapitel.offen.zweitesjahr = 90;
+      const mit = M.faelligerMoment(stand, lage, 999, function (x) { return g.hatSache(x); });
+      aus.momentMit = mit ? mit.id : null;
+
+      // Aufräumen.
+      for (let i = g.world.entities.length - 1; i >= 0; i--) {
+        if (g.world.entities[i].fromEvent) g.world.remove(g.world.entities[i]);
+      }
+      if (!vorher.kapitel) delete g.state.kapitel.offen.zweitesjahr;
+      g.today.event = vorher.event;
+      g.today.season = vorher.season;
+      g.state.lastEvent = vorher.lastEvent;
+      g._applyToday();
+      return aus;
+    });
+    check('Das zweite Jahr hält vier Tage und ein paar Momente zurück',
+      jahrZwei.anzahl === 4 && jahrZwei.momente >= 4, JSON.stringify(jahrZwei));
+    check('Vor dem Kapitel kommt keiner dieser Tage',
+      jahrZwei.ohneKapitel === 0, 'taugliche: ' + jahrZwei.ohneKapitel);
+    check('Nach dem Kapitel kommen alle – und jeder wirkt etwas',
+      jahrZwei.mitKapitel === 4 && jahrZwei.stumm === 0,
+      JSON.stringify({ taugt: jahrZwei.mitKapitel, stumm: jahrZwei.stumm }));
+    check('Ein Moment des zweiten Jahres wartet auf sein Kapitel',
+      jahrZwei.momentOhne === null && !!jahrZwei.momentMit,
+      JSON.stringify({ ohne: jahrZwei.momentOhne, mit: jahrZwei.momentMit }));
 
     // Was heute für ein Tag ist, muss man ablesen können, ohne die Meldung
     // beim Aufwachen erwischt zu haben.

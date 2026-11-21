@@ -3236,7 +3236,9 @@ export class Game {
     }
     const ereignis = this.today && this.today.event ? this.today.event.id : null;
     const lage = lageAus(this.ruheLage(), ereignis);
-    const m = faelligerMoment(this.state.momente, lage, this.day.day);
+    const self = this;
+    const m = faelligerMoment(this.state.momente, lage, this.day.day,
+      function (sache) { return self.hatSache(sache); });
     if (!m) return;
 
     this.state.momente = merkeMoment(this.state.momente, m.id, this.day.day);
@@ -3244,7 +3246,6 @@ export class Game {
     // der Inhalt ist und der Name nur die Quittung – und weil „Die graue
     // Bucht" vor dem Satz die Pointe wegnimmt.
     this.ui.bubble(p.x, p.y - 108, m.satz, null, 5.6, true);
-    const self = this;
     setTimeout(function () {
       self.ui.toast('Moment: ' + m.name, 'icon_sparkle', 'good');
     }, 1800);
@@ -4330,7 +4331,11 @@ export class Game {
    * bleiben.
    */
   _ereignisTaugt(ev) {
-    if (!ev || !ev.braucht) return true;
+    if (!ev) return true;
+    // Ereignisse, die ein Kapitel voraussetzen: Was die Insel beim ersten
+    // Mal zurückhält, kommt erst, wenn das Kapitel offen ist.
+    if (ev.kapitel && !this.hatSache(ev.kapitel)) return false;
+    if (!ev.braucht) return true;
     return this.world.hatBoden(ev.braucht);
   }
 

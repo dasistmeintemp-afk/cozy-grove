@@ -142,7 +142,7 @@ export const KAPITEL = [
      * braucht – ein sechstes Kapitel wäre entweder wieder eine neue Sache
      * (dann wächst das Spiel an seinem Rand) oder eine Wiederholung.
      */
-    id: 'zweitesjahr', ab: 90, boden: 0.70, inhalt: false,
+    id: 'zweitesjahr', ab: 90, boden: 0.70, inhalt: true,
     name: 'Das zweite Jahr',
     auftakt: 'Die Insel kommt dir vor wie immer. Und doch ist etwas anders.',
     hint: 'Jede Jahreszeit bringt jetzt, was sie beim ersten Mal zurückgehalten hat.',

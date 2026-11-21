@@ -233,6 +233,53 @@ export const EVENTS = {
   },
 
   /**
+   * Das zweite Jahr: vier Tage, die die Insel beim ersten Mal zurückhält.
+   *
+   * Sie tragen `kapitel: 'wiederkehr'` und kommen deshalb erst, wenn das
+   * Kapitel „Das zweite Jahr" offen ist. Das ist der ganze Inhalt jenes
+   * Kapitels, und es ist der billigste, den dieses Spiel noch hat: Der
+   * echte Kalender dreht sich ohnehin weiter, und ein Frühling, der beim
+   * zweiten Mal etwas mitbringt, was es beim ersten nicht gab, macht aus
+   * einer Wiederholung ein Wiedersehen.
+   *
+   * Jeder der vier ist die größere Fassung eines Tages, den es schon gibt –
+   * nicht eine neue Art Tag. Wer im zweiten Jahr einen Blütenschnee
+   * erlebt, soll denken „so dicht war das noch nie" und nicht „das ist ja
+   * etwas ganz anderes".
+   */
+  altebluete: {
+    id: 'altebluete', nur: 'spring', kapitel: 'wiederkehr',
+    name: 'Die alten Bäume blühen',
+    hint: 'Auch die alten Bäume blühen dieses Jahr. Das tun sie selten.',
+    icon: 'icon_petal',
+    wirkt: { streut: { arten: ['petal', 'flower_white', 'flower_pink'], boden: 'gras', n: 18 } },
+  },
+  meeresleuchten: {
+    id: 'meeresleuchten', nur: 'summer', kapitel: 'wiederkehr',
+    name: 'Meeresleuchten',
+    hint: 'Heute Nacht leuchtet das Wasser. Morgen früh liegt es am Saum.',
+    icon: 'icon_stardust',
+    wirkt: {
+      sterne: true,
+      danach: { arten: ['stardust', 'shell'], boden: 'sand', n: 14, abstand: 70 },
+    },
+  },
+  vogelzug: {
+    id: 'vogelzug', nur: 'autumn', kapitel: 'wiederkehr',
+    name: 'Der Zug',
+    hint: 'Den ganzen Tag ziehen Vögel über die Insel.',
+    icon: 'icon_feather',
+    wirkt: { falter: true, streut: { arten: ['feather'], boden: 'gras', n: 16 } },
+  },
+  klareskalt: {
+    id: 'klareskalt', nur: 'winter', kapitel: 'wiederkehr',
+    name: 'Das klare Kalt',
+    hint: 'So klar war es den ganzen Winter nicht.',
+    icon: 'icon_frostflower',
+    wirkt: { streut: { arten: ['frostflower', 'fogcrystal'], boden: 'gras', n: 15 } },
+  },
+
+  /**
    * Vier Tage, die es nur in ihrer Jahreszeit gibt – je einer.
    *
    * Zwei Gründe. Erstens macht es die Jahreszeiten voneinander
