@@ -1793,8 +1793,20 @@ export class Game {
         if (!this.world.canStand(x, y, 40, 22)) continue;
         // Abstand nachgerechnet, nicht `queryNear` geglaubt: Das arbeitet
         // auf einem groben Raster und meldet auch Fernere.
+        // Nur, was wirklich im Weg steht. Vorher zählte JEDES Objekt –
+        // auch Blumen, Grasbüschel und herumliegende Fundstücke. Gemessen:
+        // Auf einer Insel mit 792 Objekten sind nur 380 feste Hindernisse;
+        // mit der strengen Zählung fand die Suche 7 brauchbare Plätze, mit
+        // der richtigen 44. Deshalb musste der Vierte in die engste
+        // Notstufe ausweichen, und beim ersten Versuch blieb er ganz ohne
+        // Hütte – nicht weil die Insel zu klein wäre, sondern weil eine
+        // Margerite als Bauhindernis galt.
         const besetzt = this.world.queryNear(x, y, platz).some(function (o) {
           if (o.gone || o.kind === 'gabe' || o.kind === 'bewohner') return false;
+          const d = defOf(o.kind) || {};
+          const solide = o.solid == null ? d.solid : o.solid;
+          const radius = o.blockR == null ? d.blockR : o.blockR;
+          if (!solide && !(radius > 0)) return false;
           const dx = o.x - x;
           const dy = o.y - y;
           return dx * dx + dy * dy < platz * platz;

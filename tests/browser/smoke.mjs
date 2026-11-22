@@ -3931,14 +3931,37 @@ async function run() {
       r.pakete = zaehl('gabe');
       const hutte = g.world.entities.filter((e) => e.kind === 'hutte' && !e.gone)[0];
       const feuer = g.world.campfire;
-      r.wegVomLager = hutte
-        ? Math.round(Math.hypot(hutte.x - feuer.x, hutte.y - feuer.y)) : 0;
+      // Ohne Hütte hier aussteigen, statt gleich darauf über `hutte.x` zu
+      // stolpern. Ein Bewohner ohne Haus ist ein echter Fehlschlag – aber
+      // er soll als Fehlschlag dastehen, nicht als Absturz, der den ganzen
+      // Lauf mitnimmt. Genau das ist einmal passiert: 259 von 260, Rest
+      // abgebrochen.
+      if (!hutte) {
+        g.state.bewohner = merkStand;
+        g.day.day = merkTag;
+        g.inventory.slots = merkTasche;
+        g._deckungJetzt = merkDeckung;
+        for (const e of g.world.entities.slice()) if (!vorher.has(e.id)) g.world.remove(e);
+        return Object.assign(r, { obdachlos: true, wiederLeer: 0 });
+      }
+      r.wegVomLager = Math.round(Math.hypot(hutte.x - feuer.x, hutte.y - feuer.y));
       // Die Hütte steht nicht IN etwas: Der nächste Nachbar (außer dem
       // eigenen Volk) muss weiter weg sein als ihre halbe Breite.
+      // Gezählt wird, was wirklich im Weg steht. Eine Blume neben der Tür
+      // ist kein Platzproblem – und die Suche nach dem Bauplatz zählt sie
+      // seit der Korrektur auch nicht mehr mit.
+      const { defOf } = await import('/src/world/entities.js');
+      const fest = (o) => {
+        const d = defOf(o.kind) || {};
+        const solide = o.solid == null ? d.solid : o.solid;
+        const rad = o.blockR == null ? d.blockR : o.blockR;
+        return !!solide || rad > 0;
+      };
       let naechstes = 1e9;
       for (const o of g.world.entities) {
         if (o.gone || o === hutte) continue;
         if (o.kind === 'gabe' || o.kind === 'bewohner') continue;
+        if (!fest(o)) continue;
         naechstes = Math.min(naechstes, Math.hypot(o.x - hutte.x, o.y - hutte.y));
       }
       r.naechstesObjekt = Math.round(naechstes);
@@ -3988,13 +4011,13 @@ async function run() {
       dorf.ersterName === 'hilde' && dorf.nurEiner === true &&
       dorf.zweiterAmSelbenTag === null, JSON.stringify(dorf));
     check('Die Hütte steht frei, abseits vom Lager, mit Bewohner und Päckchen',
-      dorf.huetten === 1 && dorf.leute === 1 && dorf.pakete === 1 &&
-      dorf.wegVomLager >= 260 && dorf.naechstesObjekt >= 110, JSON.stringify(dorf));
+      !dorf.obdachlos && dorf.huetten === 1 && dorf.leute === 1 && dorf.pakete === 1 &&
+      dorf.wegVomLager >= 260 && dorf.naechstesObjekt >= 165, JSON.stringify(dorf));
     check('Das Päckchen gibt es einmal am Tag und landet in der Tasche',
-      dorf.genommen === true && dorf.inDerTasche === 1 &&
+      !dorf.obdachlos && dorf.genommen === true && dorf.inDerTasche === 1 &&
       dorf.keinNachschub === 0 && dorf.morgenWieder === 1, JSON.stringify(dorf));
     check('Kein Satz zweimal, bis alle durch sind',
-      dorf.verschiedeneSaetze === dorf.alleSaetze, JSON.stringify(dorf));
+      !dorf.obdachlos && dorf.verschiedeneSaetze === dorf.alleSaetze, JSON.stringify(dorf));
     check('Die Dorfprüfung räumt hinter sich auf',
       dorf.wiederLeer === 0, JSON.stringify(dorf));
 
