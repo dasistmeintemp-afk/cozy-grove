@@ -118,6 +118,23 @@ hinein – das tut nichts und erfüllt die Form.
 
 Dann **Save and Deploy**.
 
+### Schritt 4b – Falls Cloudflare den Weg über Workers nimmt
+
+Cloudflare hat Pages und Workers zusammengelegt. Es kann sein, dass im
+Protokoll `Executing user deploy command: npx wrangler deploy` steht statt
+eines Pages-Baus. Das ist in Ordnung – die Einstellung aus dem Formular
+greift dann aber nicht, Cloudflare nimmt stattdessen `wrangler.jsonc` aus
+dem Projekt. Die Datei liegt bei, und darin steht `./web`. Du musst nichts
+tun.
+
+Woran du erkennst, dass es gegriffen hat: Im Protokoll steht
+
+```
+ - Output Directory: ./web
+```
+
+und nicht `.`, und es werden zwei Dateien hochgeladen statt zwölftausend.
+
 ### Schritt 5 – Warten und nachsehen
 
 Es läuft ein Protokoll durch, meist unter einer Minute. Am Ende steht
@@ -127,7 +144,28 @@ Es läuft ein Protokoll durch, meist unter einer Minute. Am Ende steht
 https://seli-grove.pages.dev
 ```
 
+Je nachdem, welchen Weg Cloudflare genommen hat, heißt sie auch
+
+```
+https://seli-grove.<dein-konto>.workers.dev
+```
+
+Die steht im Protokoll ganz unten, zwei Zeilen über `Success`.
+
 Öffne sie. Du solltest den Startbildschirm von Seli Grove sehen.
+
+**Und eine Gegenprobe:** Häng `/src/game/game.js` an die Adresse. Da muss
+jetzt ein Fehler kommen. Kommt stattdessen Quelltext, liegt das ganze
+Projekt im Netz – dann stimmt das Verzeichnis nicht (siehe Fehlersuche).
+
+### Der Kontoname steckt in der Adresse
+
+Bei der Workers-Variante enthält die Adresse den Namen deines Kontos, also
+etwa `seli-grove.nascimento-kembo.workers.dev`. Wenn du das nicht
+verschicken möchtest: **Workers & Pages** → rechts in der Übersicht
+**Subdomain** → **Change**. Achtung, das ändert die Adresse **aller**
+Projekte in diesem Konto, auch künftiger. Mit einer eigenen Domain (unten)
+ist das Thema ganz erledigt.
 
 ---
 
@@ -144,10 +182,13 @@ vorher. Vergisst du es, meldet `npm test` es dir.
 
 ## Wenn etwas nicht klappt
 
-**Die Seite zeigt eine Dateiliste statt des Spiels.**
-Das Output directory stimmt nicht. Projekt → **Settings** → **Builds &
-deployments** → `web` eintragen → unter **Deployments** den letzten Eintrag
-→ **Retry deployment**.
+**Die Seite zeigt eine Dateiliste statt des Spiels, oder der Quelltext ist
+unter `/src/...` abrufbar.**
+Es wird das ganze Projekt ausgeliefert statt nur `web/`. Im Protokoll steht
+dann `Output Directory: .` und „Read 12408 files". Seit `wrangler.jsonc`
+im Projekt liegt, sollte das nicht mehr vorkommen; falls doch, prüfe unter
+**Settings**, ob dort ein abweichendes Verzeichnis eingetragen ist, und
+löse unter **Deployments** einen neuen Lauf aus.
 
 **„404 – Nothing is here yet".**
 Entweder der falsche Zweig, oder der Build lief noch nicht durch. Unter

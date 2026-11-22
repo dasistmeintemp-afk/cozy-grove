@@ -1,0 +1,27 @@
+{
+  // Was Cloudflare ausliefert.
+  //
+  // Ohne diese Datei entscheidet Cloudflare selbst, und es entschied sich
+  // für das Projektverzeichnis: `Output Directory: .`, zwölftausend Dateien
+  // hochgeladen. Damit lag der gesamte Quelltext samt Prüfungen offen im
+  // Netz, und ausgeliefert wurde die Entwicklungsfassung der Seite statt
+  // der fertig gebauten – also die, die achtzig Einzeldateien nachlädt.
+  //
+  // `./web` ist der Ordner, den `npm run bundle` schreibt: eine einzige
+  // Datei plus `_headers`. Mehr gehört nicht ins Netz.
+  "name": "seli-grove",
+  "compatibility_date": "2026-11-19",
+  "assets": {
+    "directory": "./web"
+  },
+
+  // Die Adresse auf `workers.dev` bleibt eingeschaltet – das ist die, die
+  // verschickt wird. Ausdrücklich hier, weil Cloudflare sonst bei jedem Bau
+  // warnt, dass es den Wert selbst setzt.
+  "workers_dev": true,
+
+  // Vorschau-Adressen dagegen aus. Sie legen für jede einzelne Fassung eine
+  // weitere öffentlich erreichbare Adresse an. Für ein Spiel, das nur an
+  // bekannte Leute geht, sind das nur zusätzliche offene Türen.
+  "preview_urls": false
+}
