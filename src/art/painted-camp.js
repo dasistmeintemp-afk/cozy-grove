@@ -143,9 +143,22 @@ export function paintTent(opts) {
     [cx - 128, baseY], [cx - 96, baseY - 60], [cx - 20, peak + 8],
     [cx, peak], [cx + 20, peak + 8], [cx + 96, baseY - 60], [cx + 128, baseY],
   ], 6);
-  const flapL = smoothClosed([[cx - 40, baseY], [cx - 12, peak + 30], [cx - 4, peak + 34], [cx - 16, baseY]], 5);
-  const flapR = smoothClosed([[cx + 40, baseY], [cx + 12, peak + 30], [cx + 4, peak + 34], [cx + 16, baseY]], 5);
-  const doorway = smoothClosed([[cx - 18, baseY], [cx - 10, peak + 40], [cx + 10, peak + 40], [cx + 18, baseY]], 5);
+  // Der Eingang: ein DREIECK, unten breit, und er reicht knapp zur halben
+  // Höhe. Vorher war er ein zwanzig Punkte schmaler Schlitz, der fast bis
+  // zur Spitze lief – gemalt las sich das nicht als Zelteingang, sondern als
+  // Riss im Stoff. Ein Zelt öffnet man unten.
+  const tuerH = baseY - 112;
+  const doorway = smoothClosed([
+    [cx - 38, baseY], [cx - 26, tuerH + 26], [cx, tuerH], [cx + 26, tuerH + 26], [cx + 38, baseY],
+  ], 4);
+  // Die zurückgeschlagenen Bahnen links und rechts daneben. Sie liegen AUF
+  // dem Zelt, nicht im Eingang, und machen aus dem Loch eine Öffnung.
+  const flapL = smoothClosed([
+    [cx - 62, baseY], [cx - 46, tuerH + 30], [cx - 26, tuerH + 24], [cx - 38, baseY],
+  ], 4);
+  const flapR = smoothClosed([
+    [cx + 62, baseY], [cx + 46, tuerH + 30], [cx + 26, tuerH + 24], [cx + 38, baseY],
+  ], 4);
 
   const res = paintObject(w, h, {
     seed: seed,
@@ -154,9 +167,23 @@ export function paintTent(opts) {
     shadow: function (g) { groundShadow(g, cx, baseY - 3, 132, 20, seed, 0.16); },
     wash: function (g) {
       wash(g, body, '#e3b48c', { seed: seed + 2, scale: 1.03 });
-      wash(g, offsetShape(body, 44, 10, 0.72), '#c8916a', { seed: seed + 3, alpha: 0.65 });
-      wash(g, offsetShape(body, -50, 6, 0.62), '#f0cba6', { seed: seed + 4, alpha: 0.5 });
-      wash(g, doorway, '#5c4436', { seed: seed + 5 });
+      // Licht- und Schattenseite BESCHNITTEN. Ohne das quollen beide über
+      // den Rand hinaus und standen als weiche Wolken neben dem Zelt.
+      clipTo(g, [body]);
+      wash(g, offsetShape(body, -LIGHT.x * 60, -LIGHT.y * 14, 0.78), '#c8916a',
+        { seed: seed + 3, alpha: 0.6 });
+      wash(g, offsetShape(body, LIGHT.x * 54, LIGHT.y * 16, 0.62), '#f0cba6',
+        { seed: seed + 4, alpha: 0.5 });
+      g.restore();
+      // Der Eingang ist dunkel, aber nicht schwarz: Man soll hineinsehen
+      // können, nicht in ein Loch.
+      wash(g, doorway, '#6b5040', { seed: seed + 5 });
+      clipTo(g, [doorway]);
+      // Dunkel nach UNTEN: In ein Zelt fällt oben Licht durch den Stoff,
+      // der Boden liegt im Schatten. Andersherum sah die Öffnung aus wie
+      // ein Tunnel, der nach oben führt.
+      wash(g, offsetShape(doorway, 0, 26, 0.72), '#49362b', { seed: seed + 8, alpha: 0.6 });
+      g.restore();
       wash(g, flapL, '#d9a67e', { seed: seed + 6 });
       wash(g, flapR, '#d9a67e', { seed: seed + 7 });
     },
@@ -165,9 +192,10 @@ export function paintTent(opts) {
       inkStroke(g, doorway, { width: 2.6, vary: 0.3, seed: seed + 12, color: ink.line, alpha: 0.9 });
       inkStroke(g, flapL, { width: 2.4, vary: 0.3, seed: seed + 13, color: ink.line, alpha: 0.8 });
       inkStroke(g, flapR, { width: 2.4, vary: 0.3, seed: seed + 14, color: ink.line, alpha: 0.8 });
-      // Nähte
-      inkLine(g, cx - 74, baseY - 12, cx - 22, peak + 40, { width: 1.6, bend: 0.04, seed: seed + 20, alpha: 0.4 });
-      inkLine(g, cx + 74, baseY - 12, cx + 22, peak + 40, { width: 1.6, bend: -0.04, seed: seed + 21, alpha: 0.4 });
+      // Nähte – sie laufen von der Spitze nach unten außen, nicht an der
+      // Tür entlang, sonst verdoppeln sie deren Kante.
+      inkLine(g, cx - 96, baseY - 6, cx - 14, peak + 26, { width: 1.6, bend: 0.05, seed: seed + 20, alpha: 0.38 });
+      inkLine(g, cx + 96, baseY - 6, cx + 14, peak + 26, { width: 1.6, bend: -0.05, seed: seed + 21, alpha: 0.38 });
       // Abspannungen
       inkLine(g, cx - 126, baseY - 2, cx - 156, baseY - 26, { width: 1.8, bend: 0.1, seed: seed + 30, color: ink.lineSoft });
       inkLine(g, cx + 126, baseY - 2, cx + 156, baseY - 26, { width: 1.8, bend: -0.1, seed: seed + 31, color: ink.lineSoft });
@@ -448,25 +476,48 @@ export function paintHouse(stage, opts) {
       groundShadow(g, cx, baseY - 3, halb + (stage >= 4 ? 36 : 14), 20, seed, 0.17);
     },
     wash: function (g) {
+      /**
+       * Schattenseite eines Bauteils – und zwar NUR auf diesem Bauteil.
+       *
+       * Vorher stand hier überall `wash(g, offsetShape(form, dx, dy, 0.6), …)`
+       * ohne Beschnitt. `offsetShape` verkleinert eine Form um ihren
+       * Schwerpunkt: Aus dem Dach wurde damit ein kleineres Dreieck, das
+       * mitten im Giebel schwebte – **das Haus hatte sichtbar zwei Dächer**.
+       * Bei braunem Dach über brauner Wand fiel das kaum auf; sobald die
+       * Hütten farbige Dächer bekamen, sprang es ins Auge.
+       *
+       * Der Beschnitt macht aus der verirrten Kopie das, was sie immer sein
+       * sollte: die dunklere Hälfte des Bauteils selbst.
+       */
+      function schatten(form, farbe, dx, dy, alpha, s2) {
+        clipTo(g, [form]);
+        wash(g, offsetShape(form, dx, dy, s2 == null ? 0.78 : s2), farbe,
+          { seed: seed + 70 + dx, alpha: alpha });
+        g.restore();
+      }
+
       if (dielen) {
         // Deutlich kühleres Holz als die Wand: In Wandfarbe las sich die
         // Veranda als Sockel, auf dem das Haus steht, nicht als Boden davor.
         wash(g, dielen, '#c6a479', { seed: seed + 11, scale: 1.01 });
-        wash(g, offsetShape(dielen, 0, 16, 0.72), '#a3835a', { seed: seed + 12, alpha: 0.55 });
+        schatten(dielen, '#a3835a', 0, 16, 0.5);
       }
       wash(g, wand, cWand, { seed: seed + 13, scale: 1.02 });
-      wash(g, offsetShape(wand, 52, 8, 0.62), cWandSchatten, { seed: seed + 14, alpha: 0.6 });
+      // Dieselbe Sonne wie überall: hell von oben links, dunkel nach unten
+      // rechts. Vorher lag der Wandschatten als großer Fleck mitten auf der
+      // Wand statt an ihrer Schattenseite.
+      schatten(wand, cWandSchatten, -LIGHT.x * 46, -LIGHT.y * 18, 0.5);
       // Der Giebel ist dieselbe Wand, nur höher: gleiche Farbe, eigener
       // Schatten. In einem eigenen Ton las er sich als Fleck im Dach.
       wash(g, giebel, cWand, { seed: seed + 15, scale: 1.02 });
-      wash(g, offsetShape(giebel, 26, 4, 0.62), cWandSchatten, { seed: seed + 29, alpha: 0.55 });
+      schatten(giebel, cWandSchatten, -LIGHT.x * 26, -LIGHT.y * 10, 0.45);
       // Schornstein vor dem Dach: Was danach kommt, deckt seinen Fuß zu.
       if (schlot) {
         wash(g, schlot, '#b0a596', { seed: seed + 16, scale: 1.02 });
-        wash(g, offsetShape(schlot, 18, 4, 0.55), '#8d8274', { seed: seed + 17, alpha: 0.6 });
+        schatten(schlot, '#8d8274', -LIGHT.x * 14, 0, 0.55);
       }
       wash(g, dach, cDach, { seed: seed + 18, scale: 1.02 });
-      wash(g, offsetShape(dach, 44, 8, 0.6), cDachSchatten, { seed: seed + 19, alpha: 0.55 });
+      schatten(dach, cDachSchatten, -LIGHT.x * 40, -LIGHT.y * 10, 0.5);
       if (kappe) wash(g, kappe, '#9a8f80', { seed: seed + 20, scale: 1.02 });
       wash(g, tuer, cTuer, { seed: seed + 21, scale: 1.02 });
       // Warmes Fenster statt Glas: Von außen sieht man das Licht darin.
@@ -1064,9 +1115,11 @@ export function paintSignpost(opts) {
   const cx = w / 2;
   const baseY = h - 10;
   const post = quad([cx - 9, baseY - 6], [cx + 9, baseY - 6], [cx + 8, baseY - 116], [cx - 8, baseY - 116]);
+  // Ein Brett hat Ecken. Mit fünf Glättungsdurchgängen wurde daraus eine
+  // Linse, und der Wegweiser las sich als Lutscher.
   const board = smoothClosed([
     [cx - 48, baseY - 96], [cx + 44, baseY - 102], [cx + 46, baseY - 136], [cx - 46, baseY - 130],
-  ], 5);
+  ], 1);
 
   const res = paintObject(w, h, {
     seed: seed,
@@ -1076,12 +1129,26 @@ export function paintSignpost(opts) {
     wash: function (g) {
       wash(g, post, ink.woodDark, { seed: seed + 2 });
       wash(g, board, ink.wood, { seed: seed + 3, scale: 1.03 });
-      wash(g, offsetShape(board, 0, 10, 0.9), ink.woodDark, { seed: seed + 4, alpha: 0.45 });
+      clipTo(g, [board]);
+      wash(g, offsetShape(board, 0, 12, 0.92), ink.woodDark, { seed: seed + 4, alpha: 0.4 });
+      g.restore();
     },
     shape: function (g) { fill(g, post); fill(g, board); },
     ink: function (g) {
-      inkLine(g, cx - 34, baseY - 118, cx + 26, baseY - 122, { width: 2.0, bend: 0.02, seed: seed + 10, alpha: 0.55 });
-      inkLine(g, cx - 34, baseY - 106, cx + 6, baseY - 108, { width: 1.8, bend: 0.02, seed: seed + 11, alpha: 0.45 });
+      // Drei Zeilen „Schrift" statt zwei, die letzte kurz – so sieht ein
+      // beschriftetes Brett aus, auch wenn nichts darauf steht.
+      inkLine(g, cx - 34, baseY - 122, cx + 28, baseY - 126, { width: 2.0, bend: 0.02, seed: seed + 10, alpha: 0.55 });
+      inkLine(g, cx - 34, baseY - 112, cx + 20, baseY - 115, { width: 1.8, bend: 0.02, seed: seed + 11, alpha: 0.45 });
+      inkLine(g, cx - 34, baseY - 103, cx - 2, baseY - 105, { width: 1.8, bend: 0.02, seed: seed + 12, alpha: 0.4 });
+      // Zwei Nägel, mit denen das Brett am Pfosten hängt.
+      g.save();
+      g.fillStyle = ink.line;
+      g.globalAlpha = 0.55;
+      g.beginPath();
+      g.arc(cx - 38, baseY - 113, 2.2, 0, 6.2832);
+      g.arc(cx + 38, baseY - 117, 2.2, 0, 6.2832);
+      g.fill();
+      g.restore();
     },
   });
   return made(res, w, h, cx, baseY);
@@ -1094,9 +1161,13 @@ export function paintCrate(opts) {
   const seed = o.seed || 551;
   const cx = w / 2;
   const baseY = h - 10;
+  // EIN Glättungsdurchgang, nicht fünf. `smoothClosed` schneidet bei jedem
+  // Durchgang die Ecken ab; aus vier Punkten wird nach fünf Durchgängen ein
+  // Kissen. Eine Kiste braucht Ecken – sie ist genau das, was sie von einem
+  // Sack unterscheidet.
   const body = smoothClosed([
     [cx - 52, baseY - 4], [cx + 52, baseY - 4], [cx + 48, baseY - 92], [cx - 48, baseY - 92],
-  ], 5);
+  ], 1);
   const res = paintObject(w, h, {
     seed: seed,
     blur: 1.5,
@@ -1104,13 +1175,30 @@ export function paintCrate(opts) {
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 54, 11, seed, 0.15); },
     wash: function (g) {
       wash(g, body, ink.wood, { seed: seed + 2, scale: 1.03 });
-      wash(g, offsetShape(body, 18, 6, 0.62), ink.woodDark, { seed: seed + 3, alpha: 0.55 });
+      // Beschnitten: Eine auf 62 % verkleinerte Kopie ohne Beschnitt schwebt
+      // als zweiter, kleinerer Kasten mitten in der Kiste. Derselbe Fehler,
+      // der die Häuser zwei Dächer haben ließ – nur fällt er hier weniger
+      // auf, weil Kiste und Schatten dieselbe Holzfarbe haben.
+      clipTo(g, [body]);
+      wash(g, offsetShape(body, -LIGHT.x * 32, -LIGHT.y * 12, 0.74), ink.woodDark,
+        { seed: seed + 3, alpha: 0.5 });
+      g.restore();
     },
     shape: function (g) { fill(g, body); },
     ink: function (g) {
+      // Drei Bretter statt einer glatten Fläche: Ohne die Fugen ist die
+      // Kiste ein Sack mit einem Kreuz darauf.
+      for (let i = 1; i <= 2; i++) {
+        const y = baseY - 92 + (88 * i) / 3;
+        inkLine(g, cx - 46, y, cx + 46, y + 1,
+          { width: 1.5, bend: 0.015, seed: seed + 20 + i, alpha: 0.4 });
+      }
       inkLine(g, cx - 44, baseY - 86, cx + 44, baseY - 12, { width: 2.0, bend: 0.03, seed: seed + 10, alpha: 0.55 });
       inkLine(g, cx + 44, baseY - 86, cx - 44, baseY - 12, { width: 2.0, bend: -0.03, seed: seed + 11, alpha: 0.55 });
       inkLine(g, cx - 48, baseY - 76, cx + 48, baseY - 78, { width: 1.6, bend: 0.02, seed: seed + 12, alpha: 0.4 });
+      // Die beiden Eckpfosten – senkrecht, nicht gemalt, nur gezogen.
+      inkLine(g, cx - 45, baseY - 88, cx - 48, baseY - 8, { width: 1.7, bend: 0.01, seed: seed + 14, alpha: 0.38 });
+      inkLine(g, cx + 45, baseY - 88, cx + 48, baseY - 8, { width: 1.7, bend: -0.01, seed: seed + 15, alpha: 0.38 });
     },
   });
   return made(res, w, h, cx, baseY);
@@ -1123,12 +1211,15 @@ export function paintChest(opts) {
   const seed = o.seed || 571;
   const cx = w / 2;
   const baseY = h - 10;
+  // Wie bei der Kiste: wenig Glättung, damit der Kasten ein Kasten bleibt.
+  // Der Deckel darf etwas runder sein – er wölbt sich wirklich –, aber nicht
+  // so rund, dass die Truhe als Brötchen durchgeht.
   const box = smoothClosed([
     [cx - 58, baseY - 4], [cx + 58, baseY - 4], [cx + 54, baseY - 56], [cx - 54, baseY - 56],
-  ], 5);
+  ], 1);
   const lid = smoothClosed([
     [cx - 58, baseY - 54], [cx - 44, baseY - 92], [cx + 44, baseY - 92], [cx + 58, baseY - 54],
-  ], 6);
+  ], 3);
   const lock = quad([cx - 10, baseY - 62], [cx + 10, baseY - 62], [cx + 10, baseY - 40], [cx - 10, baseY - 40]);
 
   const res = paintObject(w, h, {
@@ -1138,14 +1229,35 @@ export function paintChest(opts) {
     shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 60, 12, seed, 0.15); },
     wash: function (g) {
       wash(g, box, ink.wood, { seed: seed + 2, scale: 1.03 });
-      wash(g, offsetShape(box, 16, 6, 0.6), ink.woodDark, { seed: seed + 3, alpha: 0.55 });
+      clipTo(g, [box]);
+      wash(g, offsetShape(box, -LIGHT.x * 32, -LIGHT.y * 12, 0.74), ink.woodDark,
+        { seed: seed + 3, alpha: 0.5 });
+      g.restore();
       wash(g, lid, ink.bark, { seed: seed + 4, scale: 1.03 });
+      // Der Deckel wölbt sich: hell obenauf, dunkel an der Vorderkante.
+      // Ohne das lag er als flacher Streifen auf dem Kasten, und die Truhe
+      // las sich als Brötchen.
+      clipTo(g, [lid]);
+      wash(g, offsetShape(lid, 0, 22, 0.92), ink.woodDark, { seed: seed + 6, alpha: 0.38 });
+      wash(g, offsetShape(lid, LIGHT.x * 12, LIGHT.y * 14, 0.58), '#fff6e2',
+        { seed: seed + 7, alpha: 0.32 });
+      g.restore();
       wash(g, lock, ink.gold, { seed: seed + 5 });
     },
     shape: function (g) { fill(g, box); fill(g, lid); },
     ink: function (g) {
       inkStroke(g, lock, { width: 2.0, vary: 0.3, seed: seed + 10, color: ink.line, alpha: 0.85 });
-      inkLine(g, cx - 54, baseY - 54, cx + 54, baseY - 54, { width: 2.0, bend: 0.02, seed: seed + 11, alpha: 0.6 });
+      // Schlüsselloch. Ohne es ist das Schloss ein gelber Fleck.
+      g.save();
+      g.fillStyle = ink.line;
+      g.beginPath();
+      g.arc(cx, baseY - 54, 2.6, 0, 6.2832);
+      g.fill();
+      g.fillRect(cx - 1.4, baseY - 54, 2.8, 6);
+      g.restore();
+      // Die Kante zwischen Deckel und Kasten kräftiger: Sie ist die Linie,
+      // an der man eine Truhe als Truhe erkennt.
+      inkLine(g, cx - 54, baseY - 54, cx + 54, baseY - 54, { width: 2.6, bend: 0.02, seed: seed + 11, alpha: 0.75 });
       inkLine(g, cx - 30, baseY - 88, cx - 26, baseY - 8, { width: 1.5, bend: 0.02, seed: seed + 12, alpha: 0.4 });
       inkLine(g, cx + 30, baseY - 88, cx + 26, baseY - 8, { width: 1.5, bend: -0.02, seed: seed + 13, alpha: 0.4 });
     },

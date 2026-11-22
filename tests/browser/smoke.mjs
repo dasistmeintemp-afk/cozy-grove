@@ -3839,6 +3839,57 @@ async function run() {
     check('Die Wolkendecke zieht weiter',
       zug.anteil >= 10, JSON.stringify(zug));
 
+    /* ---- Kein zweites Dach ---- */
+    // Der Dachschatten war eine auf 60 % verkleinerte Kopie des Dachs, OHNE
+    // Beschnitt. `offsetShape` verkleinert um den Schwerpunkt – die Kopie
+    // landete als kleineres Dreieck mitten im Giebel, und das Haus hatte
+    // sichtbar zwei Dächer. Bei braunem Dach auf brauner Wand fiel es
+    // niemandem auf; mit den farbigen Hüttendächern sprang es ins Auge.
+    //
+    // Gemessen wird die Signatur des Fehlers: ein dunkler STREIFEN mitten im
+    // Giebel, heller darüber und darunter. Eine Wand, die nach unten hin
+    // gleichmäßig dunkler wird, ist in Ordnung – eine mit einem Loch in der
+    // Mitte nicht.
+    const giebel = await page.evaluate(async () => {
+      const { spr } = await import('/src/art/sprites.js');
+      const out = {};
+      const band = (s, x, anteil) => {
+        const c = document.createElement('canvas');
+        c.width = s.w; c.height = s.h;
+        const g2 = c.getContext('2d');
+        g2.drawImage(s.c, 0, 0);
+        const d = g2.getImageData(Math.round(s.w * 0.5 - 14), Math.round(s.h * anteil), 28, 8).data;
+        let n = 0;
+        let sl = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 200) continue;
+          sl += d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+          n++;
+        }
+        return n ? sl / n : -1;
+      };
+      // Nur die Hütten. Sie haben alle dieselben Maße, und das Messband
+      // sitzt deshalb sicher im Giebel. Beim Zuhause des Spielers wandert
+      // der Giebel je Ausbaustufe, und auf Stufe 3 traf dasselbe Band die
+      // Dachkante – gemessen ein Einbruch von 36, obwohl das Haus in
+      // Ordnung ist. Da alle Häuser DERSELBE Maler zeichnet, fiele ein
+      // Rückfall auch hier auf.
+      for (const name of ['hutte_hilde', 'hutte_knut', 'hutte_marei', 'hutte_pepe']) {
+        const s = spr(name);
+        if (!s) { out[name] = -1; continue; }
+        const oben = band(s, 0, 0.35);
+        const mitte = Math.min(band(s, 0, 0.40), band(s, 0, 0.45));
+        const unten = band(s, 0, 0.50);
+        out[name] = Math.round(Math.min(oben, unten) - mitte);
+      }
+      return out;
+    });
+    // Gemessen: mit dem Fehler ein Einbruch von 29 bis 35 Helligkeitsstufen,
+    // ohne ihn 6 bis 13. Die Schwelle liegt dazwischen, nicht knapp daneben.
+    check('Kein Haus hat ein zweites Dach im Giebel',
+      Object.keys(giebel).every((k) => giebel[k] >= 0 && giebel[k] < 20),
+      JSON.stringify(giebel));
+
     /* ---- Die Bewohner ziehen ein und bleiben ---- */
     const dorf = await page.evaluate(async () => {
       const g = window.CozyGrove.game;
