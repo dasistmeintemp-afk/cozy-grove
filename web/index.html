@@ -4166,6 +4166,15 @@ function paintHouse(stage, opts) {
   const h = L.h;
   const halb = L.halb;
   const seed = o.seed || (600 + stage * 31);
+  // Farben einstellbar, Voreinstellung wie bisher. Gebraucht wird das für
+  // die Bewohnerhütten: Vier Häuser in vier Farben sind vier Häuser – vier
+  // in derselben Farbe sind eine Siedlung aus Kopien. Ein zweiter Maler nur
+  // für die Hütten hätte dagegen dieselben dreihundert Zeilen gehabt.
+  const cWand = o.wand || '#e0c49c';
+  const cWandSchatten = o.wandSchatten || '#c39f74';
+  const cDach = o.dach || (stage >= 4 ? '#8a6242' : '#a2704a');
+  const cDachSchatten = o.dachSchatten || '#6f4a30';
+  const cTuer = o.tuer || '#75512f';
   const cx = w / 2;
   const baseY = h - 16;
   // Auf Stufe 4 steht das Haus auf der Veranda, nicht direkt auf dem Boden.
@@ -4248,21 +4257,21 @@ function paintHouse(stage, opts) {
         wash(g, dielen, '#c6a479', { seed: seed + 11, scale: 1.01 });
         wash(g, offsetShape(dielen, 0, 16, 0.72), '#a3835a', { seed: seed + 12, alpha: 0.55 });
       }
-      wash(g, wand, '#e0c49c', { seed: seed + 13, scale: 1.02 });
-      wash(g, offsetShape(wand, 52, 8, 0.62), '#c39f74', { seed: seed + 14, alpha: 0.6 });
+      wash(g, wand, cWand, { seed: seed + 13, scale: 1.02 });
+      wash(g, offsetShape(wand, 52, 8, 0.62), cWandSchatten, { seed: seed + 14, alpha: 0.6 });
       // Der Giebel ist dieselbe Wand, nur höher: gleiche Farbe, eigener
       // Schatten. In einem eigenen Ton las er sich als Fleck im Dach.
-      wash(g, giebel, '#e0c49c', { seed: seed + 15, scale: 1.02 });
-      wash(g, offsetShape(giebel, 26, 4, 0.62), '#c9a87e', { seed: seed + 29, alpha: 0.55 });
+      wash(g, giebel, cWand, { seed: seed + 15, scale: 1.02 });
+      wash(g, offsetShape(giebel, 26, 4, 0.62), cWandSchatten, { seed: seed + 29, alpha: 0.55 });
       // Schornstein vor dem Dach: Was danach kommt, deckt seinen Fuß zu.
       if (schlot) {
         wash(g, schlot, '#b0a596', { seed: seed + 16, scale: 1.02 });
         wash(g, offsetShape(schlot, 18, 4, 0.55), '#8d8274', { seed: seed + 17, alpha: 0.6 });
       }
-      wash(g, dach, stage >= 4 ? '#8a6242' : '#a2704a', { seed: seed + 18, scale: 1.02 });
-      wash(g, offsetShape(dach, 44, 8, 0.6), '#6f4a30', { seed: seed + 19, alpha: 0.55 });
+      wash(g, dach, cDach, { seed: seed + 18, scale: 1.02 });
+      wash(g, offsetShape(dach, 44, 8, 0.6), cDachSchatten, { seed: seed + 19, alpha: 0.55 });
       if (kappe) wash(g, kappe, '#9a8f80', { seed: seed + 20, scale: 1.02 });
-      wash(g, tuer, '#75512f', { seed: seed + 21, scale: 1.02 });
+      wash(g, tuer, cTuer, { seed: seed + 21, scale: 1.02 });
       // Warmes Fenster statt Glas: Von außen sieht man das Licht darin.
       wash(g, fenster, '#f4d488', { seed: seed + 22, scale: 1.03 });
       if (fenster2) wash(g, fenster2, '#f4d488', { seed: seed + 23, scale: 1.03 });
@@ -5702,16 +5711,37 @@ function paintSpirit(look, frame, opts) {
   const furShade = look.furShade;
   const accent = look.accent;
 
-  const tailPts = [];
-  const tailTop = baseY - 62 + bob;
-  tailPts.push([cx - 38, tailTop]);
-  for (let i = 0; i <= 6; i++) {
-    tailPts.push([cx - 38 + (i / 6) * 76, baseY - 6 - (i % 2 === 0 ? 0 : 18)]);
+  // `look.lebt` macht aus dem Geist einen Bewohner: Derselbe Körper, aber
+  // mit Füßen statt des wehenden Saums, ohne Schimmer und mit einem Schatten
+  // auf dem Boden.
+  //
+  // Ein eigener Maler für die Bewohner wäre hundertachtzig Zeilen gewesen,
+  // die dasselbe tun – und zwei Maler, die dasselbe tun, laufen
+  // auseinander, sobald jemand einem davon ein Ohr verbessert. Dass beide
+  // Sorten aussehen wie aus einer Familie, ist hier kein Zufall, sondern
+  // der Punkt: Die Geister gehören zur Insel, die Bewohner ziehen her.
+  const lebt = !!look.lebt;
+  let tail = null;
+  let fuesse = [];
+  if (lebt) {
+    fuesse = [
+      smoothClosed(blob(cx - 19, baseY - 9 + bob, 15, 9, seed + 6, 0.08, 14), 5),
+      smoothClosed(blob(cx + 19, baseY - 9 + bob, 15, 9, seed + 7, 0.08, 14), 5),
+    ];
+  } else {
+    const tailPts = [];
+    const tailTop = baseY - 62 + bob;
+    tailPts.push([cx - 38, tailTop]);
+    for (let i = 0; i <= 6; i++) {
+      tailPts.push([cx - 38 + (i / 6) * 76, baseY - 6 - (i % 2 === 0 ? 0 : 18)]);
+    }
+    tailPts.push([cx + 38, tailTop]);
+    tail = smoothClosed(tailPts, 5);
   }
-  tailPts.push([cx + 38, tailTop]);
-  const tail = smoothClosed(tailPts, 5);
 
-  const body = smoothClosed(blob(cx, baseY - 72 + bob, 43, 36, seed + 1, 0.07, 18), 6);
+  // Der lebende Körper reicht tiefer: Zwischen Bauch und Füßen darf keine
+  // Lücke stehen, sonst schwebt der Bewohner über seinen eigenen Schuhen.
+  const body = smoothClosed(blob(cx, baseY - (lebt ? 56 : 72) + bob, 43, lebt ? 44 : 36, seed + 1, 0.07, 18), 6);
   const head = smoothClosed(blob(cx, headY + bob, 43, 39, seed + 2, 0.05, 20), 6);
   const muzzle = smoothClosed(blob(cx, headY + 19 + bob, 20, 14, seed + 5, 0.07, 14), 5);
 
@@ -5761,16 +5791,25 @@ function paintSpirit(look, frame, opts) {
     seed: seed,
     blur: 1.5,
     outline: 2.0,
+    shadow: lebt
+      ? function (g) { groundShadow(g, cx + 2, baseY - 4, 34, 11, seed, 0.16); }
+      : null,
     wash: function (g) {
-      // Geisterschimmer: eine helle Aura hinter der Figur. Sie macht aus dem
-      // Fellknäuel etwas, das nicht ganz da ist.
-      g.save();
-      g.globalAlpha = 0.3;
-      g.fillStyle = '#ffffff';
-      fill(g, smoothClosed(blob(cx, baseY - 74 + bob, 58, 62, seed + 60, 0.09, 18), 6));
-      g.restore();
+      if (!lebt) {
+        // Geisterschimmer: eine helle Aura hinter der Figur. Sie macht aus
+        // dem Fellknäuel etwas, das nicht ganz da ist – und genau deshalb
+        // hat ein Bewohner sie nicht.
+        g.save();
+        g.globalAlpha = 0.3;
+        g.fillStyle = '#ffffff';
+        fill(g, smoothClosed(blob(cx, baseY - 74 + bob, 58, 62, seed + 60, 0.09, 18), 6));
+        g.restore();
+      }
 
-      wash(g, tail, fur, { seed: seed + 10, alpha: 0.68 });
+      if (tail) wash(g, tail, fur, { seed: seed + 10, alpha: 0.68 });
+      for (let i = 0; i < fuesse.length; i++) {
+        wash(g, fuesse[i], furShade, { seed: seed + 8 + i });
+      }
       wash(g, body, fur, { seed: seed + 11, scale: 1.05 });
       wash(g, offsetShape(body, -LIGHT.x * 22, -LIGHT.y * 13, 0.62), furShade,
         { seed: seed + 12, alpha: 0.6 });
@@ -5801,7 +5840,8 @@ function paintSpirit(look, frame, opts) {
       }
     },
     shape: function (g) {
-      fill(g, tail);
+      if (tail) fill(g, tail);
+      for (let i = 0; i < fuesse.length; i++) fill(g, fuesse[i]);
       for (let i = 0; i < ears.length; i++) fill(g, ears[i]);
       fill(g, body);
       fill(g, head);
@@ -10974,6 +11014,345 @@ __e.paintTanne = paintTanne;
 
 };
 
+__defs["src/game/bewohner.js"] = function (__e) {
+/**
+ * Die Bewohner – vier, die nach und nach herziehen und bleiben.
+ *
+ * Jule war der Beweis, dass die Besetzung dieser Insel nicht endgültig ist
+ * (siehe `nachbar.js`). Sie blieb aber eine Einzelne. Das hier ist der
+ * Schritt danach, und es ist der stärkste Dauermotor, den Animal Crossing
+ * hat: **Es kommt noch jemand.** Eine Welt, deren Bewohnerschaft von Anfang
+ * an vollzählig ist, hat man nach einem halben Jahr besichtigt. Eine, bei
+ * der nach dem hundertsten Tag noch jemand einzieht, nicht.
+ *
+ * **Woher sie kommen.** Nicht aus dem Nichts, sondern weil die Insel wieder
+ * bewohnbar aussieht: Jeder Zuzug hat eine Mindestzahl an Tagen UND eine
+ * Mindestfarbe. Das verknüpft den neuen Inhalt mit dem alten Kern, statt
+ * ihn danebenzustellen – wer Farbe zurückbringt, bekommt Nachbarn.
+ *
+ * **Was sie von den Geistern unterscheidet.** Dieselben vier Regeln wie bei
+ * Jule, und sie sind der Grund, warum das hier kein achter Auftraggeber
+ * wird:
+ *
+ * 1. **Sie leben.** Keine Freundschaftsstufe, die man „füllt", keine
+ *    Erinnerungskette, kein Farbkreis. Sie sind einfach da.
+ * 2. **Sie stellen keine Aufgabe.** Nichts von ihnen landet im
+ *    Aufgabenbuch. Wer nie mit ihnen redet, verpasst nichts, was verfällt.
+ * 3. **Sie geben, statt zu fordern.** Jeden Morgen liegt etwas Kleines vor
+ *    ihrer Tür. Die Geister bitten um Holz und Harz, der Wanderer tauscht –
+ *    ein vierter Kanal, der etwas will, wäre einer zu viel.
+ * 4. **Einmal am Tag.** Wer jemanden zehnmal hintereinander anspricht, hat
+ *    nicht zehnmal geredet.
+ *
+ * **Und was sie von Jule unterscheidet:** Jule fragt nach dem, was man
+ * gesehen hat, und schreibt es auf. Die vier hier reden übers Wetter, über
+ * ihre Arbeit und über die anderen. Das ist Absicht – Jules Buch bleibt
+ * ihres, sonst wäre sie eine von vieren statt die Erste, die blieb.
+ *
+ * Alles hier ist reine Rechnung auf übergebenen Werten: kein Browser, keine
+ * Wartezeit, prüfbar.
+ */
+
+/**
+ * Die vier.
+ *
+ * `look` geht unverändert an den Geistermaler – mit `lebt: true` malt er
+ * dieselbe Kreatur mit Füßen statt Schimmer. Deshalb sehen Bewohner und
+ * Geister aus wie aus einer Familie, und genau so soll es sein.
+ *
+ * `ab` ist die Bedingung: so viele Tage auf der Insel UND so viel Farbe
+ * zurück. Die Abstände sind mit Absicht groß – der Letzte kommt erst im
+ * zweiten Spieljahr, und bis dahin steht immer noch jemand aus.
+ */
+const BEWOHNER = [
+  {
+    id: 'hilde',
+    name: 'Hilde',
+    was: 'Sie gärtnert, seit sie denken kann.',
+    ab: { tag: 14, deckung: 0.15 },
+    look: {
+      lebt: true, ears: 'round', hat: 'cap',
+      fur: '#b9b2a4', furShade: '#938c7e', accent: '#7d9465',
+    },
+    hutte: { wand: '#dcd0b4', dach: '#7f8f63', tuer: '#6b5536' },
+    tuergabe: ['seed_flower', 'seed_herb', 'herb', 'flower_pink'],
+    saetze: [
+      'Der Boden hier ist besser, als er aussieht. Man muss ihn nur fragen.',
+      'Ich habe heute nichts geschafft. War auch mal schön.',
+      'Wenn du Samen übrig hast: Wirf sie nicht weg. Wirf sie hin.',
+      'Im Winter wächst auch etwas. Nur langsamer, und du siehst es nicht.',
+      'Mira war da. Sie hat nichts gesagt und alles begossen.',
+      'Zwei Dinge dauern, egal wie sehr man sich anstrengt: Bäume und Freundschaften.',
+      'Ich habe früher in einer Stadt gewohnt. Da war der Boden unter Steinen.',
+      'Das Beste am Gärtnern ist das Warten. Das sagt dir aber niemand vorher.',
+    ],
+  },
+  {
+    id: 'pepe',
+    name: 'Pepe',
+    was: 'Baut dauernd etwas und meistens zweimal.',
+    ab: { tag: 34, deckung: 0.3 },
+    look: {
+      lebt: true, ears: 'long', hat: 'scarf',
+      fur: '#e0cba6', furShade: '#b7a07c', accent: '#c4705a',
+    },
+    hutte: { wand: '#e6d3a8', dach: '#a2704a', tuer: '#7c5a38' },
+    tuergabe: ['wood', 'hardwood', 'resin', 'fiber'],
+    saetze: [
+      'Ich habe das Regal dreimal gebaut. Das dritte steht.',
+      'Tobi und ich haben gemessen. Wir kamen auf zwei verschiedene Zahlen.',
+      'Krumm ist nicht falsch. Krumm ist nur krumm.',
+      'Ich wollte heute früh anfangen. Dann war es schon Mittag.',
+      'Hast du mal probiert, einfach nichts zu bauen? Ich nicht.',
+      'Wenn du Hartholz findest – ich frage nicht danach. Ich sage nur, dass es gut ist.',
+      'Mein erstes Haus hatte kein Dach. Das war im Sommer egal.',
+      'Ich mag den Geruch von frischem Holz mehr als das, was daraus wird.',
+    ],
+  },
+  {
+    id: 'marei',
+    name: 'Marei',
+    was: 'Singt beim Kochen und kocht viel.',
+    ab: { tag: 70, deckung: 0.5 },
+    look: {
+      lebt: true, ears: 'pointed', hat: 'flowers',
+      fur: '#f2ece0', furShade: '#c9c0b0', accent: '#d68aa0',
+    },
+    hutte: { wand: '#f0e4cc', dach: '#b4687a', tuer: '#8a5f42' },
+    tuergabe: ['dish_berrymash', 'dish_herbtea', 'berry', 'mushroom'],
+    saetze: [
+      'Es steht etwas auf dem Feuer. Frag nicht was, ich weiß es selbst nicht.',
+      'Ich singe nicht gut. Ich singe nur gern.',
+      'Nelly hat mir ein Rezept gegeben. Es war ein Satz lang.',
+      'Zu viel Salz kann man nicht zurücknehmen. Alles andere schon.',
+      'Riech mal. Nein, warte, jetzt ist es weg.',
+      'Ich koche am liebsten für zwei. Auch wenn nur ich esse.',
+      'Auf dem Festland habe ich für sechzig Leute gekocht. Hier für sechs. Hier ist es besser.',
+      'Wenn etwas anbrennt, nenn es geröstet.',
+    ],
+  },
+  {
+    id: 'knut',
+    name: 'Knut',
+    was: 'Sitzt am Wasser und redet wenig.',
+    ab: { tag: 130, deckung: 0.72 },
+    look: {
+      lebt: true, ears: 'round', hat: 'scarf',
+      fur: '#9a7b5e', furShade: '#776046', accent: '#5f7f96',
+    },
+    hutte: { wand: '#cfc0a2', dach: '#5f7f96', tuer: '#6b5536' },
+    tuergabe: ['fish_sardine', 'fish_roach', 'shell', 'driftwood'],
+    saetze: [
+      'Hm.',
+      'Heute beißt nichts. Ist auch eine Antwort.',
+      'Käpt’n Kiesel erzählt die Geschichte falsch. Ich sage aber nichts.',
+      'Ich bin wegen der Ruhe hergekommen. Die gibt es hier wirklich.',
+      'Du läufst viel. Setz dich mal hin.',
+      'Das Wasser sieht jeden Tag gleich aus und ist jeden Tag anders.',
+      'Früher wollte ich weiter raus. Jetzt reicht mir das Ufer.',
+      'Wenn du einen Fisch brauchst, sag Bescheid. Oder sag nichts, dann liegt morgen einer da.',
+    ],
+  },
+];
+
+const BEWOHNER_IDS = BEWOHNER.map(function (b) { return b.id; });
+
+/** Einen Bewohner zur Kennung – oder null. */
+function bewohnerFuer(id) {
+  for (let i = 0; i < BEWOHNER.length; i++) if (BEWOHNER[i].id === id) return BEWOHNER[i];
+  return null;
+}
+
+/** Leerer Stand. */
+function emptyBewohner() {
+  return { da: {}, geredet: {}, satz: {}, gabe: {} };
+}
+
+/**
+ * Einen gespeicherten Stand einlesen und säubern.
+ *
+ * Unbekannte Kennungen fliegen raus: Hieße ein Bewohner einmal anders,
+ * bliebe sonst eine Leiche im Spielstand, die nie wieder jemand anspricht.
+ */
+function bewohnerAus(roh) {
+  const stand = emptyBewohner();
+  if (!roh || typeof roh !== 'object') return stand;
+  for (const id of BEWOHNER_IDS) {
+    if (roh.da && roh.da[id] > 0) stand.da[id] = Math.floor(roh.da[id]);
+    if (roh.geredet && roh.geredet[id] > 0) stand.geredet[id] = Math.floor(roh.geredet[id]);
+    if (roh.satz && Array.isArray(roh.satz[id])) {
+      const b = bewohnerFuer(id);
+      stand.satz[id] = roh.satz[id]
+        .map(function (n) { return Math.floor(Number(n)); })
+        .filter(function (n, i, a) {
+          return n >= 0 && n < b.saetze.length && a.indexOf(n) === i;
+        });
+    }
+    if (roh.gabe && roh.gabe[id] > 0) stand.gabe[id] = Math.floor(roh.gabe[id]);
+  }
+  return stand;
+}
+
+/** Wohnt dieser Bewohner schon hier? */
+function wohntHier(stand, id) {
+  return !!(stand && stand.da && stand.da[id] > 0);
+}
+
+/** Alle, die schon hier wohnen. */
+function alleDa(stand) {
+  return BEWOHNER.filter(function (b) { return wohntHier(stand, b.id); });
+}
+
+/**
+ * Wer als Nächster einziehen würde – oder null.
+ *
+ * Immer nur EINER unterwegs. Zwei Zuzüge am selben Tag wären kein Ereignis
+ * mehr, sondern eine Lieferung, und die Reihenfolge der vier ist erzählt:
+ * erst die Gärtnerin, zuletzt der, der am Wasser sitzt.
+ */
+function naechsterZuzug(stand, tag, deckung) {
+  if (zogHeuteEin(stand, tag)) return null;
+  for (let i = 0; i < BEWOHNER.length; i++) {
+    const b = BEWOHNER[i];
+    if (wohntHier(stand, b.id)) continue;
+    if (tag < b.ab.tag) return null;
+    if (deckung < b.ab.deckung) return null;
+    return b;
+  }
+  return null;
+}
+
+/**
+ * Woran es beim Nächsten noch hakt – für die Chronik.
+ *
+ * Ehrlich und konkret statt „bald": Wer liest, dass noch 40 Tage und 12
+ * Prozent Farbe fehlen, weiß, woran er ist. „Bald" weiß das nicht.
+ */
+function zuzugGrund(stand, tag, deckung) {
+  for (let i = 0; i < BEWOHNER.length; i++) {
+    const b = BEWOHNER[i];
+    if (wohntHier(stand, b.id)) continue;
+    const teile = [];
+    if (tag < b.ab.tag) teile.push((b.ab.tag - tag) + ' Tage');
+    const fehlt = Math.round((b.ab.deckung - deckung) * 100);
+    if (fehlt > 0) teile.push(fehlt + ' % Farbe');
+    if (!teile.length) return { bewohner: b, text: 'zieht morgen ein' };
+    return { bewohner: b, text: 'noch ' + teile.join(' und ') };
+  }
+  return null;
+}
+
+/**
+ * Ist heute schon jemand eingezogen?
+ *
+ * Die Regel „höchstens einer am Tag" stand zuerst nur im Kommentar, und die
+ * Prüfung hat das gefunden: Zweimal nacheinander gefragt, und es zogen zwei
+ * ein. Im Spiel wäre das nicht aufgefallen, weil der Tageswechsel nur einmal
+ * fragt – aber eine Regel, die davon abhängt, dass der Aufrufer sich benimmt,
+ * ist keine Regel.
+ */
+function zogHeuteEin(stand, tag) {
+  if (!stand || !stand.da) return false;
+  for (const id in stand.da) if (stand.da[id] === tag) return true;
+  return false;
+}
+
+/** Jemanden einziehen lassen. */
+function einziehen(stand, id, tag) {
+  if (!bewohnerFuer(id) || wohntHier(stand, id)) return false;
+  stand.da[id] = tag;
+  return true;
+}
+
+/**
+ * Der Satz von heute – und keiner zweimal, bis alle durch sind.
+ *
+ * Dieselbe Regel wie beim Geplauder der Geister. Ein Bewohner, der jeden
+ * Tag würfelt, sagt denselben Satz in einer Woche dreimal, und das merkt
+ * man sofort.
+ */
+function naechsterSatz(stand, id) {
+  const b = bewohnerFuer(id);
+  if (!b) return null;
+  let gesagt = (stand.satz && stand.satz[id]) || [];
+  if (gesagt.length >= b.saetze.length) gesagt = [];
+  for (let i = 0; i < b.saetze.length; i++) {
+    if (gesagt.indexOf(i) < 0) return { nummer: i, text: b.saetze[i] };
+  }
+  return { nummer: 0, text: b.saetze[0] };
+}
+
+/** Merkt, dass heute geredet wurde. Gibt zurück, ob es das erste Mal heute war. */
+function merkeRede(stand, id, nummer, tag) {
+  if (stand.geredet[id] === tag) return false;
+  stand.geredet[id] = tag;
+  if (!Array.isArray(stand.satz[id])) stand.satz[id] = [];
+  const b = bewohnerFuer(id);
+  if (b && stand.satz[id].length >= b.saetze.length) stand.satz[id] = [];
+  if (stand.satz[id].indexOf(nummer) < 0) stand.satz[id].push(nummer);
+  return true;
+}
+
+/** Wurde heute schon geredet? */
+function heuteGeredet(stand, id, tag) {
+  return stand.geredet[id] === tag;
+}
+
+/**
+ * Was heute vor der Tür liegt – oder null, wenn es heute schon abgeholt ist.
+ *
+ * Die Gabe hängt am Tag und an der Kennung, nicht am Zufall des Augenblicks:
+ * Wer neu lädt, findet dasselbe vor. Und sie wird nicht angekündigt – man
+ * findet sie, oder man findet sie eben nicht.
+ */
+function tuergabeFuer(id, tag) {
+  const b = bewohnerFuer(id);
+  if (!b) return null;
+  const n = ((tag * 2654435761) >>> 0) % b.tuergabe.length;
+  return b.tuergabe[n];
+}
+
+/** Schon abgeholt? */
+function gabeGeholt(stand, id, tag) {
+  return stand.gabe[id] === tag;
+}
+
+/** Abholen vermerken. */
+function merkeGabe(stand, id, tag) {
+  if (stand.gabe[id] === tag) return false;
+  stand.gabe[id] = tag;
+  return true;
+}
+
+/** Wie viele Tage man mit jemandem geredet hat – grob, für die Chronik. */
+function bewohnerStand(stand) {
+  return {
+    da: alleDa(stand).length,
+    alle: BEWOHNER.length,
+  };
+}
+
+__e.BEWOHNER = BEWOHNER;
+__e.BEWOHNER_IDS = BEWOHNER_IDS;
+__e.bewohnerFuer = bewohnerFuer;
+__e.emptyBewohner = emptyBewohner;
+__e.bewohnerAus = bewohnerAus;
+__e.wohntHier = wohntHier;
+__e.alleDa = alleDa;
+__e.naechsterZuzug = naechsterZuzug;
+__e.zuzugGrund = zuzugGrund;
+__e.zogHeuteEin = zogHeuteEin;
+__e.einziehen = einziehen;
+__e.naechsterSatz = naechsterSatz;
+__e.merkeRede = merkeRede;
+__e.heuteGeredet = heuteGeredet;
+__e.tuergabeFuer = tuergabeFuer;
+__e.gabeGeholt = gabeGeholt;
+__e.merkeGabe = merkeGabe;
+__e.bewohnerStand = bewohnerStand;
+
+};
+
 __defs["src/art/painted-icons.js"] = function (__e) {
 /**
  * Symbole für Tasche, Aufgabenkarten und HUD – im selben Malstil.
@@ -14980,6 +15359,14 @@ const ENTITY_DEFS = {
   // jeder Seite öffnen lassen, ohne dass man erst um sie herumgeht.
   tanne: { sprite: 'tanne_0', solid: true, blockR: 30, reachR: 110, category: 'tanne' },
 
+  // Die Bewohner und ihre Hütten. Wie Jule sind die Figuren NICHT solide:
+  // Wer um einen Nachbarn herumlaufen muss, geht ihm aus dem Weg statt zu
+  // ihm hin. Die Hütte dagegen ist ein Haus und bleibt eines.
+  bewohner: { sprite: 'bewohner_hilde_0', solid: false, reachR: 120, category: 'bewohner' },
+  hutte: { sprite: 'hutte_hilde', solid: true, blockR: 52, reachR: 90, category: 'hutte' },
+  // Was morgens vor der Tür liegt.
+  gabe: { sprite: 'paket', solid: false, reachR: 80, category: 'gabe' },
+
   // Aufgabengegenstände
   hidden: { solid: false, reachR: 80, tool: TOOL.HAND, hits: 1, category: 'hidden' },
 
@@ -15435,6 +15822,7 @@ const { kennung: bildKennung } = __req("src/game/bild.js");
 const { paintTable, paintChair, paintHammock, paintSwing, paintFirebowl, paintStringlights, paintPaperlamp, paintPlanter, paintTrellis, paintBirdbath, paintBeehive, paintScarecrow, paintWeathervane, paintMat, paintPond, paintStumpStool, paintStonebench, paintStonelamp, paintTorch, paintFlowerbox, paintBonsai, paintHedgehogbox, paintFeeder, paintSteppingstones, paintArch, paintClothesline, paintBookstack, paintAquarium, paintButtercase } = __req("src/art/painted-decor.js");
 const { paintPet, paintBowl, PET_KINDS } = __req("src/art/painted-pet.js");
 const { paintTanne, STUFEN_LICHTER } = __req("src/art/painted-advent.js");
+const { BEWOHNER } = __req("src/game/bewohner.js");
 const { ICON_PAINTERS, paintFishIcon, iconFromArt } = __req("src/art/painted-icons.js");
 const { paintGroundDecal } = __req("src/art/painted-ground.js");
 const { paintRoom, paintBed, paintPicture, paintWreath, paintShelf, paintHangplant } = __req("src/art/painted-interior.js");
@@ -15633,6 +16021,25 @@ function initArt() {
   }
   addArt('tree_stump', paintStump({ seed: 137 }));
 
+  /* --- Die Bewohner und ihre Hütten --- */
+  // Die Figuren entstehen beim Geistermaler: `lebt: true` gibt ihnen Füße
+  // statt des Schimmers. Die Hütten beim Hausmaler, Stufe 2 und kleiner
+  // skaliert – das Zuhause des Spielers soll das größere bleiben.
+  for (let i = 0; i < BEWOHNER.length; i++) {
+    const b = BEWOHNER[i];
+    for (let f = 0; f < 2; f++) {
+      addArt('bewohner_' + b.id + '_' + f, paintSpirit(b.look, f, { seed: 5200 + i * 37 }));
+    }
+    // Maßstab 0,95: Die Hütte muss größer sein als der, der darin wohnt.
+    // Bei 0,66 war sie 165 breit und die Figur 192 – gemalt sah das aus wie
+    // ein Spielhaus. Kleiner als das Zuhause des Spielers (340) bleibt sie
+    // trotzdem.
+    addArt('hutte_' + b.id, paintHouse(2, {
+      seed: 5600 + i * 41,
+      wand: b.hutte.wand, dach: b.hutte.dach, tuer: b.hutte.tuer,
+    }), 0.95);
+  }
+
   /* --- Die Tanne am Lager, fünf Stufen von kahl bis voll --- */
   // Fest gebacken, nicht erst bei Bedarf: Sie steht nur im Dezember, aber
   // wenn sie dann gebraucht wird, soll sie da sein und nicht in dem Moment
@@ -15761,6 +16168,9 @@ function initArt() {
   addArt('rug', paintRug({ seed: 511 }));
   addArt('signpost', paintSignpost({ seed: 531 }));
   addArt('crate', paintCrate({ seed: 551 }));
+  // Dasselbe Bild klein: das Päckchen, das morgens vor einer Haustür steht.
+  // In voller Größe verdeckte die Kiste die halbe Hütte.
+  addArt('paket', paintCrate({ seed: 557 }), 0.42);
   addArt('chest', paintChest({ seed: 571 }));
   addArt('path_tile', paintGroundDecal('path', 591), 1);
   addArt('bridge', paintGroundDecal('bridge', 593), 1);
@@ -32237,6 +32647,30 @@ class Panels {
         '</div></div></div></div>';
     }
 
+    // --- Nachbarschaft ---
+    // Wer schon hier wohnt, und woran es beim Nächsten noch hakt. Das Zweite
+    // ist das Wichtigere: Ohne diese Zeile wüsste niemand, dass überhaupt
+    // noch jemand kommt – und ein Zuzug, von dem man nichts ahnt, ist kein
+    // Grund, weiterzumachen. Der Grund steht konkret da („noch 40 Tage und
+    // 12 % Farbe") statt als „bald": Eine Zahl kann man anstreben.
+    const dorf = g.dorfStand();
+    if (dorf) {
+      html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Nachbarschaft · ' +
+        dorf.da.length + ' von ' + dorf.alle + '</h3>';
+      html += '<div class="rows">';
+      for (const b of dorf.da) {
+        html += '<div class="row">' + ico('icon_heart', 'lg') +
+          '<div class="grow"><div class="title">' + b.name + '</div>' +
+          '<div class="meta"><span>' + b.was + '</span></div></div></div>';
+      }
+      if (dorf.naechst) {
+        html += '<div class="row">' + ico('icon_lock', 'lg') +
+          '<div class="grow"><div class="title">Es zieht noch jemand her</div>' +
+          '<div class="meta"><span>' + dorf.naechst.text + '</span></div></div></div>';
+      }
+      html += '</div>';
+    }
+
     // --- Eigene Orte ---
     const orte = g.eigeneOrte();
     if (orte.length) {
@@ -33764,6 +34198,7 @@ const { emptyDekoreaktion, reaktionFuer, merke: merkeReaktion, reaktionenStand }
 const { niedrigAm, naechstesNiedrig, BREITE: WATT_BREITE, FUNDE: WATT_FUNDE, GRABSTELLEN: WATT_GRABEN } = __req("src/game/gezeiten.js");
 const { NAME: JULE, SAETZE: JULE_SAETZE, LOHN: JULE_LOHN, emptyNachbar, istDa: juleDa, naechsteGeschichte, merke: merkeGeschichte, neueStufe, nachbarStand, heuteSchon: juleHeuteSchon } = __req("src/game/nachbar.js");
 const { emptyAdvent, adventAus, istAdvent, istHeiligabend, naechstesTuerchen, oeffne: oeffneAdvent, baumStufe, baumText, lichter: adventLichter, LETZTES: ADVENT_LETZTES } = __req("src/game/advent.js");
+const { BEWOHNER, bewohnerFuer, emptyBewohner, bewohnerAus, wohntHier, alleDa, naechsterZuzug, zuzugGrund, einziehen, naechsterSatz, merkeRede, heuteGeredet, tuergabeFuer, gabeGeholt, merkeGabe, bewohnerStand } = __req("src/game/bewohner.js");
 const { emptySternbilder, faelligesSternbild, merke: merkeSternbild, gefundene: gefundeneSternbilder, sternbilderStand, geistName: sternGeist } = __req("src/game/sternbilder.js");
 const { orteAus, emptyOrte, nameHier, ortAnStelle, nochPlatz, benenne: benenneOrt, vergesse: vergessOrt, orteStand, saeubereOrtsname, MAX: ORTE_MAX, NAME_MAX: ORT_NAME_MAX } = __req("src/game/orte.js");
 const { naechsterTermin: terminInnerhalb, wannText, heuteIst } = __req("src/game/termine.js");
@@ -33980,6 +34415,7 @@ class Game {
     this._festSchmuck(this.day.day);
     this._tanneSetzen();
     this._heiligabendRunde();
+    this._bewohnerSetzen(this.day.day);
     this._wandererSetzen(this.day.day);
     this._juleSetzen();
     this._gezeitenNachfuehren();
@@ -34087,6 +34523,7 @@ class Game {
       dekoreaktion: emptyDekoreaktion(),
       nachbar: emptyNachbar(),
       advent: emptyAdvent(),
+      bewohner: emptyBewohner(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -34136,6 +34573,7 @@ class Game {
       dekoreaktion: emptyDekoreaktion(),
       nachbar: emptyNachbar(),
       advent: emptyAdvent(),
+      bewohner: emptyBewohner(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -34229,6 +34667,7 @@ class Game {
     // von Hand bearbeiteten Spielstand stünde sonst eine 99 im Feld, und der
     // Baum hätte neunundneunzig Lichter.
     this.state.advent = adventAus(this.state.advent);
+    this.state.bewohner = bewohnerAus(this.state.bewohner);
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
     this.state.trachten = offeneAus(this.state.trachten);
@@ -34708,6 +35147,8 @@ class Game {
       if (def.category === 'wanderer') { this.redeMitWanderer(t.entity); return; }
       if (def.category === 'nachbar') { this.redeMitJule(t.entity); return; }
       if (def.category === 'tanne') { this.oeffneTuerchen(t.entity); return; }
+      if (def.category === 'bewohner') { this.redeMitBewohner(t.entity); return; }
+      if (def.category === 'gabe') { this.nimmGabe(t.entity); return; }
       if (def.category === 'pet') { this.feedPet(); return; }
       if (def.category === 'fox') { this.openPanel('shop'); return; }
       if (def.category === 'hidden') { this.pickHidden(t.entity); return; }
@@ -35333,6 +35774,192 @@ class Game {
     // wofür das Türchen da ist.
     this.ui.toast(nr + '. Dezember · ' + t.text, 'icon_lantern');
     if (teile.length) this.ui.toast(teile.join(' · '), 'icon_heart');
+    this.save();
+    return true;
+  }
+
+  /* ---------------- Die Bewohner ---------------- */
+
+  /**
+   * Stellt Hütten, Bewohner und das, was vor der Tür liegt.
+   *
+   * Läuft bei jedem Tageswechsel und beim Laden. Dreierlei wird dabei
+   * sichergestellt, und zwar in dieser Reihenfolge, weil eines am anderen
+   * hängt: Die Hütte steht (sie bestimmt den Platz), der Bewohner steht
+   * daneben, und vor der Tür liegt die Gabe des Tages – falls sie nicht
+   * schon geholt ist.
+   *
+   * **Der Platz der Hütte hängt an der Weltnummer, nicht am Tag.** Ein
+   * Haus, das über Nacht umzieht, ist kein Haus. Und weiter weg vom Lager
+   * als die Adventstanne: Eine Siedlung soll ein eigener Ort sein, kein
+   * Anbau ans Zelt.
+   */
+  _bewohnerSetzen(tag) {
+    const stand = this.state.bewohner;
+    const feuer = this.world.campfire;
+    if (!feuer) return 0;
+    let n = 0;
+    const hier = alleDa(stand);
+    for (let i = 0; i < hier.length; i++) {
+      const b = hier[i];
+      let hutte = null;
+      for (let k = 0; k < this.world.entities.length; k++) {
+        const e = this.world.entities[k];
+        if (e.kind === 'hutte' && e.bewohnerId === b.id && !e.gone) { hutte = e; break; }
+      }
+      if (!hutte) hutte = this._hutteBauen(b, feuer);
+      if (!hutte) continue;
+      n++;
+
+      // Der Bewohner steht vor seiner Tür, leicht versetzt – mitten davor
+      // stünde er in der eigenen Tür.
+      let wer = null;
+      for (let k = 0; k < this.world.entities.length; k++) {
+        const e = this.world.entities[k];
+        if (e.kind === 'bewohner' && e.bewohnerId === b.id && !e.gone) { wer = e; break; }
+      }
+      if (!wer) {
+        wer = makeEntity('bewohner', hutte.x - 72, hutte.y + 30, {
+          bewohnerId: b.id, phase: i * 1.7,
+        });
+        wer.sprite = 'bewohner_' + b.id + '_0';
+        this.world.add(wer);
+      }
+
+      // Die Gabe des Tages. Sie wird nicht angekündigt: Man findet sie, oder
+      // man findet sie eben nicht. Eine Meldung „Hilde hat dir etwas
+      // hingelegt" machte aus einem Fund eine Abholbenachrichtigung.
+      let gabe = null;
+      for (let k = 0; k < this.world.entities.length; k++) {
+        const e = this.world.entities[k];
+        if (e.kind === 'gabe' && e.bewohnerId === b.id && !e.gone) { gabe = e; break; }
+      }
+      if (gabeGeholt(stand, b.id, tag)) {
+        if (gabe) this.world.remove(gabe);
+      } else {
+        const itemId = tuergabeFuer(b.id, tag);
+        if (!gabe) {
+          gabe = makeEntity('gabe', hutte.x + 46, hutte.y + 12, {
+            bewohnerId: b.id, itemId: itemId, zBias: 2,
+          });
+          gabe.sprite = 'paket';
+          this.world.add(gabe);
+        } else {
+          gabe.itemId = itemId;
+        }
+      }
+    }
+    return n;
+  }
+
+  /**
+   * Sucht einen Platz für eine Hütte und stellt sie hin.
+   *
+   * Gemessen hatte der erste Entwurf 155 Bildpunkte Abstand zum nächsten
+   * Nachbarn gelassen – die Hütte ist aber selbst 165 breit. Sie stand
+   * damit halb in der Kochstelle. Und der Vierte bekam auf einer engen
+   * Insel gar keinen Platz und blieb obdachlos, obwohl er eingezogen war.
+   *
+   * Deshalb zwei Dinge: Der Platzbedarf richtet sich nach der tatsächlichen
+   * Breite, und die Suche gibt nicht auf, sondern wird schrittweise
+   * genügsamer. Lieber eng als niemand.
+   */
+  _hutteBauen(b, feuer) {
+    const rng = dailyRng(this.world.seed, 0, 'hutte:' + b.id);
+    for (const platz of [200, 170, 142, 116]) {
+      for (let i = 0; i < 600; i++) {
+        const a = rng() * Math.PI * 2;
+        const r = 260 + rng() * 320;
+        const x = feuer.x + Math.cos(a) * r;
+        const y = feuer.y + Math.sin(a) * r;
+        if (!this.world.canStand(x, y, 40, 22)) continue;
+        // Abstand nachgerechnet, nicht `queryNear` geglaubt: Das arbeitet
+        // auf einem groben Raster und meldet auch Fernere.
+        const besetzt = this.world.queryNear(x, y, platz).some(function (o) {
+          if (o.gone || o.kind === 'gabe' || o.kind === 'bewohner') return false;
+          const dx = o.x - x;
+          const dy = o.y - y;
+          return dx * dx + dy * dy < platz * platz;
+        });
+        if (besetzt) continue;
+        const e = makeEntity('hutte', x, y, { bewohnerId: b.id });
+        e.sprite = 'hutte_' + b.id;
+        this.world.add(e);
+        return e;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Zieht heute jemand ein?
+   *
+   * Höchstens einer, und die Bedingung ist beides: Tage UND Farbe. Damit
+   * hängt der Zuzug am Kern des Spiels – wer die Insel wieder bunt macht,
+   * bekommt Nachbarn – statt danebenzustehen.
+   */
+  _zuzugPruefen(tag) {
+    const b = naechsterZuzug(this.state.bewohner, tag, this._deckungJetzt());
+    if (!b) return null;
+    einziehen(this.state.bewohner, b.id, tag);
+    this._bewohnerSetzen(tag);
+    const self = this;
+    setTimeout(function () {
+      self.ui.toast(b.name + ' ist eingezogen · ' + b.was, 'icon_heart', 'good');
+    }, 900);
+    return b;
+  }
+
+  /**
+   * Was die Chronik über die Nachbarschaft zeigt.
+   *
+   * Null, solange noch niemand da ist UND niemand in Sicht: Eine Zeile
+   * „0 von 4" am ersten Tag verrät etwas, das man selbst herausfinden soll.
+   */
+  dorfStand() {
+    const stand = this.state.bewohner;
+    const da = alleDa(stand);
+    const naechst = zuzugGrund(stand, this.day.day, this._deckungJetzt());
+    // Vor dem vierzehnten Tag gar nichts: Dass überhaupt jemand herziehen
+    // könnte, soll man nicht aus einer Liste erfahren, sondern daran, dass
+    // es passiert. Ab dem Tag, an dem die erste Bedingung erfüllt WÄRE,
+    // steht dann konkret da, woran es noch hakt.
+    if (!da.length && this.day.day < BEWOHNER[0].ab.tag) return null;
+    return { da: da, alle: BEWOHNER.length, naechst: naechst };
+  }
+
+  /** Mit einem Bewohner reden. */
+  redeMitBewohner(e) {
+    const b = bewohnerFuer(e.bewohnerId);
+    if (!b) return false;
+    const tag = this.day.day;
+    const satz = naechsterSatz(this.state.bewohner, b.id);
+    if (!satz) return false;
+    // Zweimal am selben Tag gibt denselben Satz zurück, verbraucht ihn aber
+    // nicht. Wer zweimal hingeht, soll nicht das Gefühl haben, etwas
+    // verschwendet zu haben – und auch nicht, zwei Gespräche geführt zu
+    // haben.
+    merkeRede(this.state.bewohner, b.id, satz.nummer, tag);
+    this.ui.bubble(e.x, e.y - 150, satz.text, null, 4.6, true);
+    this.save();
+    return true;
+  }
+
+  /** Die Gabe vor der Tür aufheben. */
+  nimmGabe(e) {
+    const b = bewohnerFuer(e.bewohnerId);
+    const id = e.itemId;
+    if (!id) return false;
+    if (!this.inventory.add(id, 1)) {
+      this.ui.toast('Die Tasche ist voll', 'icon_bag');
+      return false;
+    }
+    merkeGabe(this.state.bewohner, e.bewohnerId, this.day.day);
+    this.world.remove(e);
+    this.particles.burst('sparkle', e.x, e.y - 24, 8);
+    this.audio.play('pickup');
+    this.ui.toast('Vor ' + (b ? b.name + 's' : 'der') + ' Tür: ' + itemName(id),
+      'icon_' + id, 'good');
     this.save();
     return true;
   }
@@ -40547,6 +41174,8 @@ class Game {
     this._festSchmuck(day);
     this._tanneSetzen();
     this._heiligabendRunde();
+    this._zuzugPruefen(day);
+    this._bewohnerSetzen(day);
     const gast = this._wandererSetzen(day);
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
@@ -40977,6 +41606,18 @@ class Game {
     if (def.category === 'tanne') {
       const nr = naechstesTuerchen(this.state.advent, this.heute());
       this.ui.setPrompt(nr ? nr + '. Türchen öffnen' : baumText(this.state.advent, this.heute()));
+      return;
+    }
+    if (def.category === 'bewohner') {
+      const b = bewohnerFuer(t.entity.bewohnerId);
+      this.ui.setPrompt(b ? (heuteGeredet(this.state.bewohner, b.id, this.day.day)
+        ? b.name : b.name + ' ansprechen') : 'Reden');
+      return;
+    }
+    if (def.category === 'gabe') { this.ui.setPrompt('Aufheben'); return; }
+    if (def.category === 'hutte') {
+      const b = bewohnerFuer(t.entity.bewohnerId);
+      this.ui.setPrompt(b ? b.name + ' wohnt hier' : null);
       return;
     }
     if (def.category === 'fox') { this.ui.setPrompt('Laden'); return; }

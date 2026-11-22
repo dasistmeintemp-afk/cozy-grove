@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 
 import { BUGS, CONDITIONAL, BEDINGUNGEN, ITEM_LIST, getItem, CAT, MEMORY_IDS, MEMORY_KINDS, fishesOf, bugsOf } from '../../src/game/items.js';
 import { BAUM_STUFEN } from '../../src/game/advent.js';
+import { BEWOHNER } from '../../src/game/bewohner.js';
 import { TOOLS, TOOL_ART } from '../../src/game/player.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, campfireLevelFor, nextCampfireLevel, missingFor, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
@@ -95,6 +96,11 @@ const SPRITE_NAMES = (function () {
   // einer hier getippten 5: Kämen Stufen dazu, liefe diese Liste sonst
   // stillschweigend hinterher.
   for (let i = 0; i < BAUM_STUFEN; i++) names.push('tanne_' + i);
+  // Die Bewohner: zwei Fassungen je Figur, dazu die Hütte.
+  for (const b of BEWOHNER) {
+    names.push('bewohner_' + b.id + '_0', 'bewohner_' + b.id + '_1', 'hutte_' + b.id);
+  }
+  names.push('paket');
   // Der Wanderer – zwei Fassungen wie alles, was atmet.
   names.push('wanderer_0', 'nachbar_0', 'nachbar_1', 'wanderer_1');
   // Symbole für alle Gegenstände

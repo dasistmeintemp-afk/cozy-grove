@@ -3103,12 +3103,18 @@ async function run() {
       // und die erste darf noch nichts auszahlen.
       g.talkTo(e);
       const coinsNachVorstellung = g.state.coins;
+      // Gemeint ist DIESE Aufgabe, nicht der Kontostand. Auf einer Insel, auf
+      // der zufällig noch eine andere Aufgabe desselben Geistes fertig war,
+      // zahlte die erste Ansprache deren Lohn aus – gemessen 64 Münzen –,
+      // und die Prüfung fiel über etwas, das sie gar nicht prüfen wollte.
+      const smokeOffenNachVorstellung = !q.turnedIn;
       g.talkTo(e);
       for (let i = 0; i < 400; i++) g.colorField.update(0.05);
       return {
         ok: true,
         coinsBefore,
         coinsNachVorstellung,
+        smokeOffenNachVorstellung,
         coinsAfter: g.state.coins,
         covBefore,
         covAfter: g.colorField.coverage(g.world),
@@ -3116,7 +3122,7 @@ async function run() {
       };
     });
     check('Erstes Treffen stellt vor, statt gleich abzurechnen',
-      quest.coinsNachVorstellung === quest.coinsBefore, JSON.stringify(quest));
+      quest.smokeOffenNachVorstellung === true, JSON.stringify(quest));
     check('Aufgabe abgeben zahlt Münzen', quest.ok && quest.coinsAfter > quest.coinsBefore, JSON.stringify(quest));
     check('Abgabe bringt Farbe zurück', quest.ok && quest.covAfter > quest.covBefore,
       JSON.stringify({ vorher: quest.covBefore, nachher: quest.covAfter }));
@@ -3833,6 +3839,135 @@ async function run() {
     check('Die Wolkendecke zieht weiter',
       zug.anteil >= 10, JSON.stringify(zug));
 
+    /* ---- Die Bewohner ziehen ein und bleiben ---- */
+    const dorf = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { BEWOHNER } = await import('/src/game/bewohner.js');
+      const r = {};
+      const merkStand = JSON.parse(JSON.stringify(g.state.bewohner));
+      const merkTag = g.day.day;
+      const merkTasche = JSON.parse(JSON.stringify(g.inventory.slots));
+      const merkDeckung = g._deckungJetzt;
+      const vorher = new Set(g.world.entities.map((e) => e.id));
+
+      const zaehl = (art) => g.world.entities.filter((e) => e.kind === art && !e.gone).length;
+
+      // Niemand zieht ein, solange die Insel blass ist – auch nach 200 Tagen
+      // nicht. Das ist die halbe Bedingung, und ohne sie hinge der neue
+      // Inhalt neben dem Kern statt an ihm.
+      g.state.bewohner = { da: {}, geredet: {}, satz: {}, gabe: {} };
+      g._deckungJetzt = () => 0;
+      g.day.day = 200;
+      r.blassKeiner = !g._zuzugPruefen(200);
+
+      // Und niemand am zweiten Tag, auch wenn die Insel schon bunt ist.
+      g._deckungJetzt = () => 1;
+      g.day.day = 2;
+      r.frühKeiner = !g._zuzugPruefen(2);
+
+      // Beides erfüllt: genau EINER je Tag, der Reihe nach.
+      g.day.day = 200;
+      const erster = g._zuzugPruefen(200);
+      r.ersterName = erster ? erster.id : null;
+      r.nurEiner = Object.keys(g.state.bewohner.da).length === 1;
+      const nochmal = g._zuzugPruefen(200);
+      r.zweiterAmSelbenTag = nochmal ? nochmal.id : null;
+
+      // Die Hütte steht, der Bewohner daneben, das Päckchen davor.
+      g._bewohnerSetzen(200);
+      r.huetten = zaehl('hutte');
+      r.leute = zaehl('bewohner');
+      r.pakete = zaehl('gabe');
+      const hutte = g.world.entities.filter((e) => e.kind === 'hutte' && !e.gone)[0];
+      const feuer = g.world.campfire;
+      r.wegVomLager = hutte
+        ? Math.round(Math.hypot(hutte.x - feuer.x, hutte.y - feuer.y)) : 0;
+      // Die Hütte steht nicht IN etwas: Der nächste Nachbar (außer dem
+      // eigenen Volk) muss weiter weg sein als ihre halbe Breite.
+      let naechstes = 1e9;
+      for (const o of g.world.entities) {
+        if (o.gone || o === hutte) continue;
+        if (o.kind === 'gabe' || o.kind === 'bewohner') continue;
+        naechstes = Math.min(naechstes, Math.hypot(o.x - hutte.x, o.y - hutte.y));
+      }
+      r.naechstesObjekt = Math.round(naechstes);
+
+      // Das Päckchen: genau einmal, und es landet wirklich in der Tasche.
+      const paket = g.world.entities.filter((e) => e.kind === 'gabe' && !e.gone)[0];
+      const was = paket ? paket.itemId : null;
+      const vorZahl = was ? g.inventory.count(was) : 0;
+      r.genommen = paket ? g.nimmGabe(paket) : false;
+      r.inDerTasche = was ? g.inventory.count(was) - vorZahl : 0;
+      g._bewohnerSetzen(200);
+      r.keinNachschub = zaehl('gabe');
+      // Am nächsten Tag liegt wieder etwas da.
+      g.day.day = 201;
+      g._bewohnerSetzen(201);
+      r.morgenWieder = zaehl('gabe');
+
+      // Reden: einmal am Tag, und der Satz wiederholt sich nicht.
+      const wer = g.world.entities.filter((e) => e.kind === 'bewohner' && !e.gone)[0];
+      const b = BEWOHNER.filter((x) => x.id === wer.bewohnerId)[0];
+      const gehoert = [];
+      for (let tag = 300; tag < 300 + b.saetze.length; tag++) {
+        g.day.day = tag;
+        g.redeMitBewohner(wer);
+        const letzte = (g.state.bewohner.satz[b.id] || []).slice(-1)[0];
+        gehoert.push(letzte);
+      }
+      r.verschiedeneSaetze = new Set(gehoert).size;
+      r.alleSaetze = b.saetze.length;
+
+      // Aufräumen: Stand, Tag, Tasche, Deckung – und alles, was neu
+      // dazugekommen ist. Sonst stünde ab hier ein Dorf im Bild, das die
+      // nächste Prüfung nicht erwartet.
+      for (const e of g.world.entities.slice()) {
+        if (!vorher.has(e.id)) g.world.remove(e);
+      }
+      g.state.bewohner = merkStand;
+      g.day.day = merkTag;
+      g.inventory.slots = merkTasche;
+      g._deckungJetzt = merkDeckung;
+      r.wiederLeer = zaehl('hutte') + zaehl('bewohner') + zaehl('gabe');
+      return r;
+    });
+    check('Ohne Farbe zieht niemand ein, und am zweiten Tag auch nicht',
+      dorf.blassKeiner === true && dorf.frühKeiner === true, JSON.stringify(dorf));
+    check('Es zieht genau einer ein, und nur einer je Tag',
+      dorf.ersterName === 'hilde' && dorf.nurEiner === true &&
+      dorf.zweiterAmSelbenTag === null, JSON.stringify(dorf));
+    check('Die Hütte steht frei, abseits vom Lager, mit Bewohner und Päckchen',
+      dorf.huetten === 1 && dorf.leute === 1 && dorf.pakete === 1 &&
+      dorf.wegVomLager >= 260 && dorf.naechstesObjekt >= 110, JSON.stringify(dorf));
+    check('Das Päckchen gibt es einmal am Tag und landet in der Tasche',
+      dorf.genommen === true && dorf.inDerTasche === 1 &&
+      dorf.keinNachschub === 0 && dorf.morgenWieder === 1, JSON.stringify(dorf));
+    check('Kein Satz zweimal, bis alle durch sind',
+      dorf.verschiedeneSaetze === dorf.alleSaetze, JSON.stringify(dorf));
+    check('Die Dorfprüfung räumt hinter sich auf',
+      dorf.wiederLeer === 0, JSON.stringify(dorf));
+
+    // Und die Chronik sagt, woran es beim Nächsten noch hakt. Ohne diese
+    // Zeile wüsste niemand, dass überhaupt jemand kommt – und ein Zuzug,
+    // von dem man nichts ahnt, ist kein Grund weiterzumachen.
+    const dorfText = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const merkTag = g.day.day;
+      const merkDeckung = g._deckungJetzt;
+      g.day.day = 40;
+      g._deckungJetzt = () => 0.05;
+      g.panels.open('quests');
+      const txt = document.getElementById('panel-body').textContent;
+      g.panels.close();
+      g.day.day = merkTag;
+      g._deckungJetzt = merkDeckung;
+      return { hatUeberschrift: txt.indexOf('Nachbarschaft') >= 0, text: txt.slice(0, 0) +
+        (txt.match(/noch [^<]{0,40}Farbe/) || [''])[0] };
+    });
+    check('Die Chronik nennt den nächsten Zuzug und was ihm fehlt',
+      dorfText.hatUeberschrift === true && /\d+\s*% Farbe/.test(dorfText.text),
+      JSON.stringify(dorfText));
+
     /* ---- Die Adventstanne und der Heiligabend ---- */
     // Beides hängt am echten Kalender. Eine Prüfung, die bis Dezember warten
     // müsste, wäre keine – deshalb stellt `setzeDatum` die Uhr für die Dauer
@@ -4065,7 +4200,12 @@ async function run() {
         if (!baum) return { keins: true };
         e = {
           id: 990001, kind: 'hidden', x: baum.x - 8, y: baum.y - 60,
-          sprite: 'memory_shell', itemId: 'memory_shell',
+          // `memory_shell` gibt es nicht – das Stück heißt `memory_shellchain`.
+          // Der falsche Name fiel nur auf, wenn an diesem Tag kein echtes
+          // Fundstück lag und dieser Ersatzweg überhaupt lief: Dann meldete
+          // die Konsole „Unbekanntes Sprite", und die Konsolenprüfung am
+          // Ende des Laufs fiel darüber.
+          sprite: 'memory_shellchain', itemId: 'memory_shellchain',
           hp: 1, hidden: false, respawnDay: 0, phase: 1.2, zBias: 2,
         };
         g.world.add(e);
@@ -4218,20 +4358,36 @@ async function run() {
       uebernommen.coins === 9191 && uebernommen.day === 12, JSON.stringify(uebernommen));
 
     // Bildrate grob prüfen
-    const fps = await page.evaluate(async () => {
-      let frames = 0;
-      const start = performance.now();
-      await new Promise((resolve) => {
-        function tick() {
-          frames++;
-          if (performance.now() - start > 1500) resolve();
-          else requestAnimationFrame(tick);
-        }
-        requestAnimationFrame(tick);
-      });
-      return Math.round((frames / (performance.now() - start)) * 1000);
-    });
-    check('Flüssige Darstellung (' + fps + ' fps)', fps >= 30, String(fps));
+    // Drei Fenster, und es zählt der mittlere Wert.
+    //
+    // Vorher war es EIN Fenster von anderthalb Sekunden. Ein einzelner
+    // Schluckauf – ein Bodenstück, das gerade gebacken wird, eine
+    // Aufräumpause des Browsers, der geteilte Rechner unter dieser Prüfung –
+    // zog den Schnitt unter die Schwelle, und die Prüfung meldete einen
+    // Einbruch, den es nicht gab. Gemessen: 27 in einem Lauf, 40 und mehr in
+    // den Läufen davor und danach.
+    //
+    // Die Schwelle bleibt bei 30. Wer wirklich langsam ist, ist es auch
+    // viereinhalb Sekunden lang – nur das Rauschen fällt weg.
+    const fpsWerte = [];
+    for (let runde = 0; runde < 3; runde++) {
+      fpsWerte.push(await page.evaluate(async () => {
+        let frames = 0;
+        const start = performance.now();
+        await new Promise((resolve) => {
+          function tick() {
+            frames++;
+            if (performance.now() - start > 1500) resolve();
+            else requestAnimationFrame(tick);
+          }
+          requestAnimationFrame(tick);
+        });
+        return Math.round((frames / (performance.now() - start)) * 1000);
+      }));
+    }
+    fpsWerte.sort((a, b) => a - b);
+    const fps = fpsWerte[1];
+    check('Flüssige Darstellung (' + fps + ' fps)', fps >= 30, fpsWerte.join(' '));
 
     // Kleines Fenster / Hochformat: nichts darf überlaufen
     await page.setViewportSize({ width: 390, height: 780 });

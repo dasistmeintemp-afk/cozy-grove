@@ -873,6 +873,30 @@ export class Panels {
         '</div></div></div></div>';
     }
 
+    // --- Nachbarschaft ---
+    // Wer schon hier wohnt, und woran es beim Nächsten noch hakt. Das Zweite
+    // ist das Wichtigere: Ohne diese Zeile wüsste niemand, dass überhaupt
+    // noch jemand kommt – und ein Zuzug, von dem man nichts ahnt, ist kein
+    // Grund, weiterzumachen. Der Grund steht konkret da („noch 40 Tage und
+    // 12 % Farbe") statt als „bald": Eine Zahl kann man anstreben.
+    const dorf = g.dorfStand();
+    if (dorf) {
+      html += '<h3 style="font-size:0.95em;margin:16px 0 8px">Nachbarschaft · ' +
+        dorf.da.length + ' von ' + dorf.alle + '</h3>';
+      html += '<div class="rows">';
+      for (const b of dorf.da) {
+        html += '<div class="row">' + ico('icon_heart', 'lg') +
+          '<div class="grow"><div class="title">' + b.name + '</div>' +
+          '<div class="meta"><span>' + b.was + '</span></div></div></div>';
+      }
+      if (dorf.naechst) {
+        html += '<div class="row">' + ico('icon_lock', 'lg') +
+          '<div class="grow"><div class="title">Es zieht noch jemand her</div>' +
+          '<div class="meta"><span>' + dorf.naechst.text + '</span></div></div></div>';
+      }
+      html += '</div>';
+    }
+
     // --- Eigene Orte ---
     const orte = g.eigeneOrte();
     if (orte.length) {

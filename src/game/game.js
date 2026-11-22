@@ -62,6 +62,11 @@ import {
   LETZTES as ADVENT_LETZTES,
 } from './advent.js';
 import {
+  BEWOHNER, bewohnerFuer, emptyBewohner, bewohnerAus, wohntHier, alleDa,
+  naechsterZuzug, zuzugGrund, einziehen, naechsterSatz, merkeRede,
+  heuteGeredet, tuergabeFuer, gabeGeholt, merkeGabe, bewohnerStand,
+} from './bewohner.js';
+import {
   emptySternbilder, faelligesSternbild, merke as merkeSternbild,
   gefundene as gefundeneSternbilder, sternbilderStand, geistName as sternGeist,
 } from './sternbilder.js';
@@ -328,6 +333,7 @@ export class Game {
     this._festSchmuck(this.day.day);
     this._tanneSetzen();
     this._heiligabendRunde();
+    this._bewohnerSetzen(this.day.day);
     this._wandererSetzen(this.day.day);
     this._juleSetzen();
     this._gezeitenNachfuehren();
@@ -435,6 +441,7 @@ export class Game {
       dekoreaktion: emptyDekoreaktion(),
       nachbar: emptyNachbar(),
       advent: emptyAdvent(),
+      bewohner: emptyBewohner(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -484,6 +491,7 @@ export class Game {
       dekoreaktion: emptyDekoreaktion(),
       nachbar: emptyNachbar(),
       advent: emptyAdvent(),
+      bewohner: emptyBewohner(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -577,6 +585,7 @@ export class Game {
     // von Hand bearbeiteten Spielstand stünde sonst eine 99 im Feld, und der
     // Baum hätte neunundneunzig Lichter.
     this.state.advent = adventAus(this.state.advent);
+    this.state.bewohner = bewohnerAus(this.state.bewohner);
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
     this.state.trachten = offeneAus(this.state.trachten);
@@ -1056,6 +1065,8 @@ export class Game {
       if (def.category === 'wanderer') { this.redeMitWanderer(t.entity); return; }
       if (def.category === 'nachbar') { this.redeMitJule(t.entity); return; }
       if (def.category === 'tanne') { this.oeffneTuerchen(t.entity); return; }
+      if (def.category === 'bewohner') { this.redeMitBewohner(t.entity); return; }
+      if (def.category === 'gabe') { this.nimmGabe(t.entity); return; }
       if (def.category === 'pet') { this.feedPet(); return; }
       if (def.category === 'fox') { this.openPanel('shop'); return; }
       if (def.category === 'hidden') { this.pickHidden(t.entity); return; }
@@ -1681,6 +1692,192 @@ export class Game {
     // wofür das Türchen da ist.
     this.ui.toast(nr + '. Dezember · ' + t.text, 'icon_lantern');
     if (teile.length) this.ui.toast(teile.join(' · '), 'icon_heart');
+    this.save();
+    return true;
+  }
+
+  /* ---------------- Die Bewohner ---------------- */
+
+  /**
+   * Stellt Hütten, Bewohner und das, was vor der Tür liegt.
+   *
+   * Läuft bei jedem Tageswechsel und beim Laden. Dreierlei wird dabei
+   * sichergestellt, und zwar in dieser Reihenfolge, weil eines am anderen
+   * hängt: Die Hütte steht (sie bestimmt den Platz), der Bewohner steht
+   * daneben, und vor der Tür liegt die Gabe des Tages – falls sie nicht
+   * schon geholt ist.
+   *
+   * **Der Platz der Hütte hängt an der Weltnummer, nicht am Tag.** Ein
+   * Haus, das über Nacht umzieht, ist kein Haus. Und weiter weg vom Lager
+   * als die Adventstanne: Eine Siedlung soll ein eigener Ort sein, kein
+   * Anbau ans Zelt.
+   */
+  _bewohnerSetzen(tag) {
+    const stand = this.state.bewohner;
+    const feuer = this.world.campfire;
+    if (!feuer) return 0;
+    let n = 0;
+    const hier = alleDa(stand);
+    for (let i = 0; i < hier.length; i++) {
+      const b = hier[i];
+      let hutte = null;
+      for (let k = 0; k < this.world.entities.length; k++) {
+        const e = this.world.entities[k];
+        if (e.kind === 'hutte' && e.bewohnerId === b.id && !e.gone) { hutte = e; break; }
+      }
+      if (!hutte) hutte = this._hutteBauen(b, feuer);
+      if (!hutte) continue;
+      n++;
+
+      // Der Bewohner steht vor seiner Tür, leicht versetzt – mitten davor
+      // stünde er in der eigenen Tür.
+      let wer = null;
+      for (let k = 0; k < this.world.entities.length; k++) {
+        const e = this.world.entities[k];
+        if (e.kind === 'bewohner' && e.bewohnerId === b.id && !e.gone) { wer = e; break; }
+      }
+      if (!wer) {
+        wer = makeEntity('bewohner', hutte.x - 72, hutte.y + 30, {
+          bewohnerId: b.id, phase: i * 1.7,
+        });
+        wer.sprite = 'bewohner_' + b.id + '_0';
+        this.world.add(wer);
+      }
+
+      // Die Gabe des Tages. Sie wird nicht angekündigt: Man findet sie, oder
+      // man findet sie eben nicht. Eine Meldung „Hilde hat dir etwas
+      // hingelegt" machte aus einem Fund eine Abholbenachrichtigung.
+      let gabe = null;
+      for (let k = 0; k < this.world.entities.length; k++) {
+        const e = this.world.entities[k];
+        if (e.kind === 'gabe' && e.bewohnerId === b.id && !e.gone) { gabe = e; break; }
+      }
+      if (gabeGeholt(stand, b.id, tag)) {
+        if (gabe) this.world.remove(gabe);
+      } else {
+        const itemId = tuergabeFuer(b.id, tag);
+        if (!gabe) {
+          gabe = makeEntity('gabe', hutte.x + 46, hutte.y + 12, {
+            bewohnerId: b.id, itemId: itemId, zBias: 2,
+          });
+          gabe.sprite = 'paket';
+          this.world.add(gabe);
+        } else {
+          gabe.itemId = itemId;
+        }
+      }
+    }
+    return n;
+  }
+
+  /**
+   * Sucht einen Platz für eine Hütte und stellt sie hin.
+   *
+   * Gemessen hatte der erste Entwurf 155 Bildpunkte Abstand zum nächsten
+   * Nachbarn gelassen – die Hütte ist aber selbst 165 breit. Sie stand
+   * damit halb in der Kochstelle. Und der Vierte bekam auf einer engen
+   * Insel gar keinen Platz und blieb obdachlos, obwohl er eingezogen war.
+   *
+   * Deshalb zwei Dinge: Der Platzbedarf richtet sich nach der tatsächlichen
+   * Breite, und die Suche gibt nicht auf, sondern wird schrittweise
+   * genügsamer. Lieber eng als niemand.
+   */
+  _hutteBauen(b, feuer) {
+    const rng = dailyRng(this.world.seed, 0, 'hutte:' + b.id);
+    for (const platz of [200, 170, 142, 116]) {
+      for (let i = 0; i < 600; i++) {
+        const a = rng() * Math.PI * 2;
+        const r = 260 + rng() * 320;
+        const x = feuer.x + Math.cos(a) * r;
+        const y = feuer.y + Math.sin(a) * r;
+        if (!this.world.canStand(x, y, 40, 22)) continue;
+        // Abstand nachgerechnet, nicht `queryNear` geglaubt: Das arbeitet
+        // auf einem groben Raster und meldet auch Fernere.
+        const besetzt = this.world.queryNear(x, y, platz).some(function (o) {
+          if (o.gone || o.kind === 'gabe' || o.kind === 'bewohner') return false;
+          const dx = o.x - x;
+          const dy = o.y - y;
+          return dx * dx + dy * dy < platz * platz;
+        });
+        if (besetzt) continue;
+        const e = makeEntity('hutte', x, y, { bewohnerId: b.id });
+        e.sprite = 'hutte_' + b.id;
+        this.world.add(e);
+        return e;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Zieht heute jemand ein?
+   *
+   * Höchstens einer, und die Bedingung ist beides: Tage UND Farbe. Damit
+   * hängt der Zuzug am Kern des Spiels – wer die Insel wieder bunt macht,
+   * bekommt Nachbarn – statt danebenzustehen.
+   */
+  _zuzugPruefen(tag) {
+    const b = naechsterZuzug(this.state.bewohner, tag, this._deckungJetzt());
+    if (!b) return null;
+    einziehen(this.state.bewohner, b.id, tag);
+    this._bewohnerSetzen(tag);
+    const self = this;
+    setTimeout(function () {
+      self.ui.toast(b.name + ' ist eingezogen · ' + b.was, 'icon_heart', 'good');
+    }, 900);
+    return b;
+  }
+
+  /**
+   * Was die Chronik über die Nachbarschaft zeigt.
+   *
+   * Null, solange noch niemand da ist UND niemand in Sicht: Eine Zeile
+   * „0 von 4" am ersten Tag verrät etwas, das man selbst herausfinden soll.
+   */
+  dorfStand() {
+    const stand = this.state.bewohner;
+    const da = alleDa(stand);
+    const naechst = zuzugGrund(stand, this.day.day, this._deckungJetzt());
+    // Vor dem vierzehnten Tag gar nichts: Dass überhaupt jemand herziehen
+    // könnte, soll man nicht aus einer Liste erfahren, sondern daran, dass
+    // es passiert. Ab dem Tag, an dem die erste Bedingung erfüllt WÄRE,
+    // steht dann konkret da, woran es noch hakt.
+    if (!da.length && this.day.day < BEWOHNER[0].ab.tag) return null;
+    return { da: da, alle: BEWOHNER.length, naechst: naechst };
+  }
+
+  /** Mit einem Bewohner reden. */
+  redeMitBewohner(e) {
+    const b = bewohnerFuer(e.bewohnerId);
+    if (!b) return false;
+    const tag = this.day.day;
+    const satz = naechsterSatz(this.state.bewohner, b.id);
+    if (!satz) return false;
+    // Zweimal am selben Tag gibt denselben Satz zurück, verbraucht ihn aber
+    // nicht. Wer zweimal hingeht, soll nicht das Gefühl haben, etwas
+    // verschwendet zu haben – und auch nicht, zwei Gespräche geführt zu
+    // haben.
+    merkeRede(this.state.bewohner, b.id, satz.nummer, tag);
+    this.ui.bubble(e.x, e.y - 150, satz.text, null, 4.6, true);
+    this.save();
+    return true;
+  }
+
+  /** Die Gabe vor der Tür aufheben. */
+  nimmGabe(e) {
+    const b = bewohnerFuer(e.bewohnerId);
+    const id = e.itemId;
+    if (!id) return false;
+    if (!this.inventory.add(id, 1)) {
+      this.ui.toast('Die Tasche ist voll', 'icon_bag');
+      return false;
+    }
+    merkeGabe(this.state.bewohner, e.bewohnerId, this.day.day);
+    this.world.remove(e);
+    this.particles.burst('sparkle', e.x, e.y - 24, 8);
+    this.audio.play('pickup');
+    this.ui.toast('Vor ' + (b ? b.name + 's' : 'der') + ' Tür: ' + itemName(id),
+      'icon_' + id, 'good');
     this.save();
     return true;
   }
@@ -6895,6 +7092,8 @@ export class Game {
     this._festSchmuck(day);
     this._tanneSetzen();
     this._heiligabendRunde();
+    this._zuzugPruefen(day);
+    this._bewohnerSetzen(day);
     const gast = this._wandererSetzen(day);
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
@@ -7325,6 +7524,18 @@ export class Game {
     if (def.category === 'tanne') {
       const nr = naechstesTuerchen(this.state.advent, this.heute());
       this.ui.setPrompt(nr ? nr + '. Türchen öffnen' : baumText(this.state.advent, this.heute()));
+      return;
+    }
+    if (def.category === 'bewohner') {
+      const b = bewohnerFuer(t.entity.bewohnerId);
+      this.ui.setPrompt(b ? (heuteGeredet(this.state.bewohner, b.id, this.day.day)
+        ? b.name : b.name + ' ansprechen') : 'Reden');
+      return;
+    }
+    if (def.category === 'gabe') { this.ui.setPrompt('Aufheben'); return; }
+    if (def.category === 'hutte') {
+      const b = bewohnerFuer(t.entity.bewohnerId);
+      this.ui.setPrompt(b ? b.name + ' wohnt hier' : null);
       return;
     }
     if (def.category === 'fox') { this.ui.setPrompt('Laden'); return; }

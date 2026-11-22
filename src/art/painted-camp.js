@@ -363,6 +363,15 @@ export function paintHouse(stage, opts) {
   const h = L.h;
   const halb = L.halb;
   const seed = o.seed || (600 + stage * 31);
+  // Farben einstellbar, Voreinstellung wie bisher. Gebraucht wird das für
+  // die Bewohnerhütten: Vier Häuser in vier Farben sind vier Häuser – vier
+  // in derselben Farbe sind eine Siedlung aus Kopien. Ein zweiter Maler nur
+  // für die Hütten hätte dagegen dieselben dreihundert Zeilen gehabt.
+  const cWand = o.wand || '#e0c49c';
+  const cWandSchatten = o.wandSchatten || '#c39f74';
+  const cDach = o.dach || (stage >= 4 ? '#8a6242' : '#a2704a');
+  const cDachSchatten = o.dachSchatten || '#6f4a30';
+  const cTuer = o.tuer || '#75512f';
   const cx = w / 2;
   const baseY = h - 16;
   // Auf Stufe 4 steht das Haus auf der Veranda, nicht direkt auf dem Boden.
@@ -445,21 +454,21 @@ export function paintHouse(stage, opts) {
         wash(g, dielen, '#c6a479', { seed: seed + 11, scale: 1.01 });
         wash(g, offsetShape(dielen, 0, 16, 0.72), '#a3835a', { seed: seed + 12, alpha: 0.55 });
       }
-      wash(g, wand, '#e0c49c', { seed: seed + 13, scale: 1.02 });
-      wash(g, offsetShape(wand, 52, 8, 0.62), '#c39f74', { seed: seed + 14, alpha: 0.6 });
+      wash(g, wand, cWand, { seed: seed + 13, scale: 1.02 });
+      wash(g, offsetShape(wand, 52, 8, 0.62), cWandSchatten, { seed: seed + 14, alpha: 0.6 });
       // Der Giebel ist dieselbe Wand, nur höher: gleiche Farbe, eigener
       // Schatten. In einem eigenen Ton las er sich als Fleck im Dach.
-      wash(g, giebel, '#e0c49c', { seed: seed + 15, scale: 1.02 });
-      wash(g, offsetShape(giebel, 26, 4, 0.62), '#c9a87e', { seed: seed + 29, alpha: 0.55 });
+      wash(g, giebel, cWand, { seed: seed + 15, scale: 1.02 });
+      wash(g, offsetShape(giebel, 26, 4, 0.62), cWandSchatten, { seed: seed + 29, alpha: 0.55 });
       // Schornstein vor dem Dach: Was danach kommt, deckt seinen Fuß zu.
       if (schlot) {
         wash(g, schlot, '#b0a596', { seed: seed + 16, scale: 1.02 });
         wash(g, offsetShape(schlot, 18, 4, 0.55), '#8d8274', { seed: seed + 17, alpha: 0.6 });
       }
-      wash(g, dach, stage >= 4 ? '#8a6242' : '#a2704a', { seed: seed + 18, scale: 1.02 });
-      wash(g, offsetShape(dach, 44, 8, 0.6), '#6f4a30', { seed: seed + 19, alpha: 0.55 });
+      wash(g, dach, cDach, { seed: seed + 18, scale: 1.02 });
+      wash(g, offsetShape(dach, 44, 8, 0.6), cDachSchatten, { seed: seed + 19, alpha: 0.55 });
       if (kappe) wash(g, kappe, '#9a8f80', { seed: seed + 20, scale: 1.02 });
-      wash(g, tuer, '#75512f', { seed: seed + 21, scale: 1.02 });
+      wash(g, tuer, cTuer, { seed: seed + 21, scale: 1.02 });
       // Warmes Fenster statt Glas: Von außen sieht man das Licht darin.
       wash(g, fenster, '#f4d488', { seed: seed + 22, scale: 1.03 });
       if (fenster2) wash(g, fenster2, '#f4d488', { seed: seed + 23, scale: 1.03 });
@@ -1899,16 +1908,37 @@ export function paintSpirit(look, frame, opts) {
   const furShade = look.furShade;
   const accent = look.accent;
 
-  const tailPts = [];
-  const tailTop = baseY - 62 + bob;
-  tailPts.push([cx - 38, tailTop]);
-  for (let i = 0; i <= 6; i++) {
-    tailPts.push([cx - 38 + (i / 6) * 76, baseY - 6 - (i % 2 === 0 ? 0 : 18)]);
+  // `look.lebt` macht aus dem Geist einen Bewohner: Derselbe Körper, aber
+  // mit Füßen statt des wehenden Saums, ohne Schimmer und mit einem Schatten
+  // auf dem Boden.
+  //
+  // Ein eigener Maler für die Bewohner wäre hundertachtzig Zeilen gewesen,
+  // die dasselbe tun – und zwei Maler, die dasselbe tun, laufen
+  // auseinander, sobald jemand einem davon ein Ohr verbessert. Dass beide
+  // Sorten aussehen wie aus einer Familie, ist hier kein Zufall, sondern
+  // der Punkt: Die Geister gehören zur Insel, die Bewohner ziehen her.
+  const lebt = !!look.lebt;
+  let tail = null;
+  let fuesse = [];
+  if (lebt) {
+    fuesse = [
+      smoothClosed(blob(cx - 19, baseY - 9 + bob, 15, 9, seed + 6, 0.08, 14), 5),
+      smoothClosed(blob(cx + 19, baseY - 9 + bob, 15, 9, seed + 7, 0.08, 14), 5),
+    ];
+  } else {
+    const tailPts = [];
+    const tailTop = baseY - 62 + bob;
+    tailPts.push([cx - 38, tailTop]);
+    for (let i = 0; i <= 6; i++) {
+      tailPts.push([cx - 38 + (i / 6) * 76, baseY - 6 - (i % 2 === 0 ? 0 : 18)]);
+    }
+    tailPts.push([cx + 38, tailTop]);
+    tail = smoothClosed(tailPts, 5);
   }
-  tailPts.push([cx + 38, tailTop]);
-  const tail = smoothClosed(tailPts, 5);
 
-  const body = smoothClosed(blob(cx, baseY - 72 + bob, 43, 36, seed + 1, 0.07, 18), 6);
+  // Der lebende Körper reicht tiefer: Zwischen Bauch und Füßen darf keine
+  // Lücke stehen, sonst schwebt der Bewohner über seinen eigenen Schuhen.
+  const body = smoothClosed(blob(cx, baseY - (lebt ? 56 : 72) + bob, 43, lebt ? 44 : 36, seed + 1, 0.07, 18), 6);
   const head = smoothClosed(blob(cx, headY + bob, 43, 39, seed + 2, 0.05, 20), 6);
   const muzzle = smoothClosed(blob(cx, headY + 19 + bob, 20, 14, seed + 5, 0.07, 14), 5);
 
@@ -1958,16 +1988,25 @@ export function paintSpirit(look, frame, opts) {
     seed: seed,
     blur: 1.5,
     outline: 2.0,
+    shadow: lebt
+      ? function (g) { groundShadow(g, cx + 2, baseY - 4, 34, 11, seed, 0.16); }
+      : null,
     wash: function (g) {
-      // Geisterschimmer: eine helle Aura hinter der Figur. Sie macht aus dem
-      // Fellknäuel etwas, das nicht ganz da ist.
-      g.save();
-      g.globalAlpha = 0.3;
-      g.fillStyle = '#ffffff';
-      fill(g, smoothClosed(blob(cx, baseY - 74 + bob, 58, 62, seed + 60, 0.09, 18), 6));
-      g.restore();
+      if (!lebt) {
+        // Geisterschimmer: eine helle Aura hinter der Figur. Sie macht aus
+        // dem Fellknäuel etwas, das nicht ganz da ist – und genau deshalb
+        // hat ein Bewohner sie nicht.
+        g.save();
+        g.globalAlpha = 0.3;
+        g.fillStyle = '#ffffff';
+        fill(g, smoothClosed(blob(cx, baseY - 74 + bob, 58, 62, seed + 60, 0.09, 18), 6));
+        g.restore();
+      }
 
-      wash(g, tail, fur, { seed: seed + 10, alpha: 0.68 });
+      if (tail) wash(g, tail, fur, { seed: seed + 10, alpha: 0.68 });
+      for (let i = 0; i < fuesse.length; i++) {
+        wash(g, fuesse[i], furShade, { seed: seed + 8 + i });
+      }
       wash(g, body, fur, { seed: seed + 11, scale: 1.05 });
       wash(g, offsetShape(body, -LIGHT.x * 22, -LIGHT.y * 13, 0.62), furShade,
         { seed: seed + 12, alpha: 0.6 });
@@ -1998,7 +2037,8 @@ export function paintSpirit(look, frame, opts) {
       }
     },
     shape: function (g) {
-      fill(g, tail);
+      if (tail) fill(g, tail);
+      for (let i = 0; i < fuesse.length; i++) fill(g, fuesse[i]);
       for (let i = 0; i < ears.length; i++) fill(g, ears[i]);
       fill(g, body);
       fill(g, head);

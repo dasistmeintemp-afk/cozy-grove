@@ -308,6 +308,14 @@ export const ENTITY_DEFS = {
   // jeder Seite öffnen lassen, ohne dass man erst um sie herumgeht.
   tanne: { sprite: 'tanne_0', solid: true, blockR: 30, reachR: 110, category: 'tanne' },
 
+  // Die Bewohner und ihre Hütten. Wie Jule sind die Figuren NICHT solide:
+  // Wer um einen Nachbarn herumlaufen muss, geht ihm aus dem Weg statt zu
+  // ihm hin. Die Hütte dagegen ist ein Haus und bleibt eines.
+  bewohner: { sprite: 'bewohner_hilde_0', solid: false, reachR: 120, category: 'bewohner' },
+  hutte: { sprite: 'hutte_hilde', solid: true, blockR: 52, reachR: 90, category: 'hutte' },
+  // Was morgens vor der Tür liegt.
+  gabe: { sprite: 'paket', solid: false, reachR: 80, category: 'gabe' },
+
   // Aufgabengegenstände
   hidden: { solid: false, reachR: 80, tool: TOOL.HAND, hits: 1, category: 'hidden' },
 

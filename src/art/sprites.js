@@ -47,6 +47,7 @@ import {
 } from './painted-decor.js';
 import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
 import { paintTanne, STUFEN_LICHTER } from './painted-advent.js';
+import { BEWOHNER } from '../game/bewohner.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
 import {
@@ -250,6 +251,25 @@ export function initArt() {
   }
   addArt('tree_stump', paintStump({ seed: 137 }));
 
+  /* --- Die Bewohner und ihre Hütten --- */
+  // Die Figuren entstehen beim Geistermaler: `lebt: true` gibt ihnen Füße
+  // statt des Schimmers. Die Hütten beim Hausmaler, Stufe 2 und kleiner
+  // skaliert – das Zuhause des Spielers soll das größere bleiben.
+  for (let i = 0; i < BEWOHNER.length; i++) {
+    const b = BEWOHNER[i];
+    for (let f = 0; f < 2; f++) {
+      addArt('bewohner_' + b.id + '_' + f, paintSpirit(b.look, f, { seed: 5200 + i * 37 }));
+    }
+    // Maßstab 0,95: Die Hütte muss größer sein als der, der darin wohnt.
+    // Bei 0,66 war sie 165 breit und die Figur 192 – gemalt sah das aus wie
+    // ein Spielhaus. Kleiner als das Zuhause des Spielers (340) bleibt sie
+    // trotzdem.
+    addArt('hutte_' + b.id, paintHouse(2, {
+      seed: 5600 + i * 41,
+      wand: b.hutte.wand, dach: b.hutte.dach, tuer: b.hutte.tuer,
+    }), 0.95);
+  }
+
   /* --- Die Tanne am Lager, fünf Stufen von kahl bis voll --- */
   // Fest gebacken, nicht erst bei Bedarf: Sie steht nur im Dezember, aber
   // wenn sie dann gebraucht wird, soll sie da sein und nicht in dem Moment
@@ -378,6 +398,9 @@ export function initArt() {
   addArt('rug', paintRug({ seed: 511 }));
   addArt('signpost', paintSignpost({ seed: 531 }));
   addArt('crate', paintCrate({ seed: 551 }));
+  // Dasselbe Bild klein: das Päckchen, das morgens vor einer Haustür steht.
+  // In voller Größe verdeckte die Kiste die halbe Hütte.
+  addArt('paket', paintCrate({ seed: 557 }), 0.42);
   addArt('chest', paintChest({ seed: 571 }));
   addArt('path_tile', paintGroundDecal('path', 591), 1);
   addArt('bridge', paintGroundDecal('bridge', 593), 1);
