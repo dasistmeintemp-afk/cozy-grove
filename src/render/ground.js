@@ -160,7 +160,7 @@ export class GroundLayer {
     if (!allowPaint || this.budget <= 0) return null;
     this.budget--;
 
-    const chunk = paintGroundChunk(this.world, cx, cy);
+    const chunk = paintGroundChunk(this.world, cx, cy, this.pfade || null);
     chunk.frame = this.frame;
     this.cache[key] = chunk;
     this.order.push(key);

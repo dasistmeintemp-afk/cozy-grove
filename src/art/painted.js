@@ -388,6 +388,30 @@ export function paintTree(opts) {
         offsetShape(lobes[0], LIGHT.x * 20, LIGHT.y * 18, 0.68),
         offsetShape(lobes[4], LIGHT.x * 10, LIGHT.y * 10, 0.66),
       ], leafLight, { alpha: 0.85 });
+
+      // Der Rand sammelt Farbe.
+      //
+      // Das ist das eine, woran man Aquarell erkennt: Wo eine nasse Fläche
+      // trocknet, wandert das Pigment an die Kante und bleibt dort als
+      // dunkler Saum liegen. Ohne ihn bleibt jede Fläche ein weicher
+      // Verlauf – gleichmäßig, digital, und eben nicht gemalt.
+      //
+      // Gezeichnet wird er als breiter, blasser Strich AUF der Kante, innen
+      // beschnitten: Außen würde er die Silhouette verdicken und den
+      // Tuschestrich doppeln, der dort ohnehin schon liegt.
+      g.save();
+      clipTo(g, lobes);
+      g.globalAlpha = 0.22;
+      g.strokeStyle = o.leafDeep || ink.leafDeep;
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      for (let i = 0; i < lobes.length; i++) {
+        g.lineWidth = 9;
+        pathFrom(g, lobes[i], true);
+        g.stroke();
+      }
+      g.restore();
+      g.restore();
       for (let i = 0; i < fruits.length; i++) {
         dot(g, null, fruits[i][0], fruits[i][1], 7.5, o.fruit, seed + 90 + i);
       }

@@ -889,6 +889,17 @@ export class Panels {
           '<div class="grow"><div class="title">' + b.name + '</div>' +
           '<div class="meta"><span>' + b.was + '</span></div></div></div>';
       }
+      // Die Wege. Sie stehen bei der Nachbarschaft, weil sie genau das
+      // sind: die Spur davon, dass hier jemand hin und her geht.
+      const wege = g.wegeStand();
+      if (wege.sichtbar) {
+        html += '<div class="row">' + ico('icon_map', 'lg') +
+          '<div class="grow"><div class="title">' + wege.sichtbar +
+          (wege.sichtbar === 1 ? ' ausgetretene Kachel' : ' ausgetretene Kacheln') + '</div>' +
+          '<div class="meta"><span>' +
+          (wege.deutlich ? wege.deutlich + ' davon richtig breit' : 'noch zarte Spuren') +
+          '</span><span>wächst wieder zu, wenn du woanders langgehst</span></div></div></div>';
+      }
       if (dorf.naechst) {
         html += '<div class="row">' + ico('icon_lock', 'lg') +
           '<div class="grow"><div class="title">Es zieht noch jemand her</div>' +

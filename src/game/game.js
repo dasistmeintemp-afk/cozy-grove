@@ -68,6 +68,10 @@ import {
   stationFuer, merkeFuerSpaeter, erinnerungenAltern,
 } from './bewohner.js';
 import {
+  emptyPfade, pfadeAus, stufe as pfadStufe, tritt as pfadTritt,
+  verblassen as pfadeVerblassen, pfadStand,
+} from './pfade.js';
+import {
   emptySternbilder, faelligesSternbild, merke as merkeSternbild,
   gefundene as gefundeneSternbilder, sternbilderStand, geistName as sternGeist,
 } from './sternbilder.js';
@@ -443,6 +447,7 @@ export class Game {
       nachbar: emptyNachbar(),
       advent: emptyAdvent(),
       bewohner: emptyBewohner(),
+      pfade: emptyPfade(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -493,6 +498,7 @@ export class Game {
       nachbar: emptyNachbar(),
       advent: emptyAdvent(),
       bewohner: emptyBewohner(),
+      pfade: emptyPfade(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -587,6 +593,15 @@ export class Game {
     // Baum hätte neunundneunzig Lichter.
     this.state.advent = adventAus(this.state.advent);
     this.state.bewohner = bewohnerAus(this.state.bewohner);
+    this.state.pfade = pfadeAus(this.state.pfade);
+    // Der Bodenmaler fragt die Abnutzung über diese kleine Brücke ab. Er
+    // bekommt eine Funktion und nicht den Stand selbst: So kennt die
+    // Grafik das Spielstandsformat nicht, und die Reihenfolge beim Laden
+    // ist egal.
+    const self = this;
+    if (this.ground) {
+      this.ground.pfade = { stufe: function (tx, ty) { return pfadStufe(self.state.pfade, tx, ty); } };
+    }
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
     this.state.trachten = offeneAus(this.state.trachten);
@@ -908,6 +923,7 @@ export class Game {
     this._petRuht(dt);
     this._updatePet(dt);
     this._updateBewohner(dt);
+    this._spurenZaehlen();
 
     const mustSleep = this.day.update(dt);
     if (mustSleep) this.sleep(true);
@@ -1696,6 +1712,36 @@ export class Game {
     if (teile.length) this.ui.toast(teile.join(' · '), 'icon_heart');
     this.save();
     return true;
+  }
+
+  /* ---------------- Trampelpfade ---------------- */
+
+  /**
+   * Zählt einen Schritt, sobald Seli eine neue Kachel betritt.
+   *
+   * Nicht je Bild, sondern je KACHEL: Sonst liefen bei fünfzig Bildern in
+   * der Sekunde fünfzig Schritte auf denselben Fleck, und ein Weg entstünde
+   * vom Danebenstehen.
+   *
+   * Neu gebacken wird nur, wenn sich das Bild wirklich ändert – das meldet
+   * `tritt` zurück. Über ein ganzes Spielerleben sind das je Kachel genau
+   * zwei Neuaufbauten.
+   */
+  _spurenZaehlen() {
+    const tx = Math.floor(this.player.x / 64);
+    const ty = Math.floor(this.player.y / 64);
+    if (this._spurTx === tx && this._spurTy === ty) return false;
+    this._spurTx = tx;
+    this._spurTy = ty;
+    if (this.world.tileAtTile(tx, ty) !== T.GRASS) return false;
+    if (!pfadTritt(this.state.pfade, tx, ty)) return false;
+    this.ground.markTileDirty(tx, ty);
+    return true;
+  }
+
+  /** Was die Chronik über die Wege sagt. */
+  wegeStand() {
+    return pfadStand(this.state.pfade);
   }
 
   /* ---------------- Die Bewohner ---------------- */
@@ -7259,6 +7305,12 @@ export class Game {
     this._tanneSetzen();
     this._heiligabendRunde();
     erinnerungenAltern(this.state.bewohner, day);
+    // Wege wachsen über Nacht ein Stück zu. Nur die Kacheln, deren Bild
+    // sich dabei ändert, werden neu gebacken.
+    const verwachsen = pfadeVerblassen(this.state.pfade);
+    for (let i = 0; i < verwachsen.length; i++) {
+      this.ground.markTileDirty(verwachsen[i][0], verwachsen[i][1]);
+    }
     this._zuzugPruefen(day);
     this._bewohnerSetzen(day);
     const gast = this._wandererSetzen(day);

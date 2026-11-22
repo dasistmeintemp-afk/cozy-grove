@@ -258,9 +258,22 @@ export function paintBoat(opts) {
     shadow: function (g) { groundShadow(g, cx, baseY - 6, 110, 17, seed, 0.15); },
     wash: function (g) {
       wash(g, rumpf, ink.wood, { seed: seed + 2, scale: 1.03 });
-      wash(g, offsetShape(rumpf, 34, 10, 0.7), ink.woodDark, { seed: seed + 3, alpha: 0.6 });
-      wash(g, innen, '#c9a479', { seed: seed + 4, scale: 1.02 });
-      wash(g, offsetShape(innen, -30, -8, 0.6), '#dbbb95', { seed: seed + 5, alpha: 0.5 });
+      // Beschnitten wie überall: Eine verkleinerte Kopie ohne Beschnitt
+      // stand als weiche Wolke neben dem Boot.
+      clipTo(g, [rumpf]);
+      wash(g, offsetShape(rumpf, -LIGHT.x * 46, -LIGHT.y * 14, 0.76), ink.woodDark,
+        { seed: seed + 3, alpha: 0.55 });
+      g.restore();
+      // Das Innere ist DUNKLER als der Bordrand, nicht heller. Vorher lagen
+      // beide fast auf derselben Farbe, und das Boot war ein flaches Oval;
+      // erst der Sprung an der Bordkante macht daraus etwas, in das man
+      // hineinsehen kann.
+      wash(g, innen, '#a9855f', { seed: seed + 4, scale: 1.02 });
+      clipTo(g, [innen]);
+      wash(g, offsetShape(innen, 0, 16, 0.86), '#8a6a4a', { seed: seed + 5, alpha: 0.5 });
+      wash(g, offsetShape(innen, LIGHT.x * 22, LIGHT.y * 10, 0.5), '#c9a479',
+        { seed: seed + 10, alpha: 0.4 });
+      g.restore();
       wash(g, bankL, ink.woodDark, { seed: seed + 6 });
       wash(g, bankR, ink.woodDark, { seed: seed + 7 });
       wash(g, ruder, ink.wood, { seed: seed + 8 });

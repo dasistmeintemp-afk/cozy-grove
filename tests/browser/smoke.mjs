@@ -4042,6 +4042,92 @@ async function run() {
       dorfText.hatUeberschrift === true && /\d+\s*% Farbe/.test(dorfText.text),
       JSON.stringify(dorfText));
 
+    /* ---- Trampelpfade ---- */
+    // Gemessen wird am Bodenmaler, nicht am Spielbild: Auf einer erfundenen
+    // Welt aus lauter Gras wird dasselbe Stück dreimal gebacken –
+    // unberührt, angedeutet, ausgetreten. Im Spielbild ginge der Unterschied
+    // zwischen Bäumen und Büschen unter, und eine Messung, die ihren
+    // Gegenstand nicht sehen kann, ist keine.
+    const spuren = await page.evaluate(async () => {
+      const { paintGroundChunk } = await import('/src/art/painted-ground.js');
+      const { T } = await import('/src/art/tiles.js');
+      const welt = { tileAtTile: () => T.GRASS };
+      const mess = (stufeFn) => {
+        const st = paintGroundChunk(welt, 3, 3, stufeFn ? { stufe: stufeFn } : null);
+        const k = document.createElement('canvas');
+        k.width = st.size; k.height = st.size;
+        const x = k.getContext('2d');
+        x.drawImage(st.ink, 0, 0);
+        const d = x.getImageData(0, 0, st.size, st.size).data;
+        let n = 0;
+        for (let i = 3; i < d.length; i += 4) if (d[i] > 30) n++;
+        const kw = document.createElement('canvas');
+        kw.width = st.size; kw.height = st.size;
+        const xw = kw.getContext('2d');
+        xw.drawImage(st.wash, 0, 0, st.size, st.size);
+        const dw = xw.getImageData(0, 0, st.size, st.size).data;
+        let sl = 0;
+        let m = 0;
+        for (let i = 0; i < dw.length; i += 4) {
+          if (dw[i + 3] < 200) continue;
+          sl += dw[i] * 0.3 + dw[i + 1] * 0.59 + dw[i + 2] * 0.11;
+          m++;
+        }
+        return { tinte: Math.round(n / (st.size * st.size) * 1000) / 10, hell: m ? Math.round(sl / m) : -1 };
+      };
+      return { frei: mess(null), leicht: mess(() => 1), stark: mess(() => 2) };
+    });
+    // Gemessen: Grasbewuchs 11,0 → 6,7 → 2,3 Prozent der Fläche, Helligkeit
+    // 183 → 176 → 171. Beides muss in dieselbe Richtung gehen.
+    check('Wo oft jemand läuft, wächst weniger und der Boden wird erdiger',
+      spuren.frei.tinte > spuren.leicht.tinte + 2 &&
+      spuren.leicht.tinte > spuren.stark.tinte + 2 &&
+      spuren.frei.hell > spuren.stark.hell + 6, JSON.stringify(spuren));
+    // Und ein ausgetretener Weg ist nicht LEER: Ohne Trittspuren sähe man
+    // auf der unkolorierten Insel vom ganzen Weg nichts.
+    check('Auch ein ausgetretener Weg bleibt gezeichnet',
+      spuren.stark.tinte >= 1, JSON.stringify(spuren));
+
+    // Und im Spiel: Erst nach vielen Schritten, und das Bodenstück wird
+    // dabei genau zweimal neu gebacken, nicht bei jedem Schritt.
+    const laufen = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { T } = await import('/src/art/tiles.js');
+      const { stufe } = await import('/src/game/pfade.js');
+      const merkPfade = JSON.parse(JSON.stringify(g.state.pfade || {}));
+      const merkX = g.player.x;
+      const merkY = g.player.y;
+      let gras = null;
+      for (let ty = 8; ty < 88 && !gras; ty++) {
+        for (let tx = 8; tx < 88; tx++) {
+          if (g.world.tileAtTile(tx, ty) === T.GRASS) { gras = [tx, ty]; break; }
+        }
+      }
+      if (!gras) return { keins: true };
+      g.state.pfade = {};
+      let gebacken = 0;
+      const echt = g.ground.markTileDirty.bind(g.ground);
+      g.ground.markTileDirty = function (a, b) { gebacken++; return echt(a, b); };
+      for (let i = 0; i < 60; i++) {
+        // Zwischen zwei Kacheln hin und her, damit jeder Aufruf zählt.
+        g.player.x = gras[0] * 64 + 32;
+        g.player.y = gras[1] * 64 + 32;
+        g._spurenZaehlen();
+        g.player.x = gras[0] * 64 + 32 + 64;
+        g._spurenZaehlen();
+      }
+      const st = stufe(g.state.pfade, gras[0], gras[1]);
+      g.ground.markTileDirty = echt;
+      g.state.pfade = merkPfade;
+      g.player.x = merkX;
+      g.player.y = merkY;
+      g._spurTx = null;
+      return { stufe: st, gebacken };
+    });
+    check('Ein Weg entsteht vom Laufen, und der Boden wird dabei kaum neu gebacken',
+      !laufen.keins && laufen.stufe === 2 && laufen.gebacken <= 6,
+      JSON.stringify(laufen));
+
     /* ---- Die Bewohner gehen ihren Stationen nach ---- */
     // Der auffälligste Unterschied zum Vorbild waren Figuren, die Tag und
     // Nacht auf demselben Fleck standen. Gemessen wird deshalb BEWEGUNG:

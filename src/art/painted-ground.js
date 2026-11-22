@@ -76,7 +76,14 @@ function landDistance(world, tx, ty, max) {
  * @param {number} cty0 Stück-Zeile
  * @returns {{wash: HTMLCanvasElement, ink: HTMLCanvasElement, ox: number, oy: number}}
  */
-export function paintGroundChunk(world, ctx0, cty0) {
+/**
+ * @param {object} pfade Abnutzung je Kachel (siehe `game/pfade.js`) – oder
+ * nichts. Der Maler fragt sie nur ab; gezählt wird woanders.
+ */
+export function paintGroundChunk(world, ctx0, cty0, pfade) {
+  const abnutzung = pfade && pfade.stufe
+    ? pfade.stufe
+    : function () { return 0; };
   const tx0 = ctx0 * CHUNK_TILES;
   const ty0 = cty0 * CHUNK_TILES;
   const originX = tx0 * TILE_SIZE - PAD;
@@ -207,6 +214,27 @@ export function paintGroundChunk(world, ctx0, cty0) {
     }
   }
 
+  // Trampelpfade: Dort, wo oft jemand langgeht, liegt Erde statt Gras.
+  // Die Lasur allein macht wenig – sie liegt hier vor allem, damit der
+  // Streifen auch koloriert warm wirkt. Das, was man wirklich sieht, sind
+  // die fehlenden Grashalme weiter unten.
+  for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
+    for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
+      const st = abnutzung(tx, ty);
+      if (!st) continue;
+      const r = makeRng(hashString('tritt' + tx + ':' + ty));
+      wctx.save();
+      wctx.globalAlpha = st === 2 ? 0.34 : 0.17;
+      wctx.fillStyle = INK.dirtDark;
+      pathFrom(wctx, smoothClosed(blob(
+        (tx + 0.5) * TILE_SIZE, (ty + 0.5) * TILE_SIZE,
+        TILE_SIZE * (0.54 + r() * 0.18), TILE_SIZE * (0.5 + r() * 0.18),
+        hashString('tb' + tx + ':' + ty), 0.26, 14), 5), true);
+      wctx.fill();
+      wctx.restore();
+    }
+  }
+
   // Malerische Unruhe: größere, halbdurchsichtige Lasuren.
   // Wichtig: Ort und Aussehen hängen nur an der Kachel, nicht am Stück – sonst
   // würde dieselbe Lasur im Nachbarstück anders ausfallen und die Schnittkante
@@ -259,7 +287,7 @@ export function paintGroundChunk(world, ctx0, cty0) {
 
   blurCanvas(washCanvas, 3, 2);
 
-  paintGroundInk(ictx, world, tx0, ty0, ring);
+  paintGroundInk(ictx, world, tx0, ty0, ring, abnutzung);
 
   return { wash: washCanvas, ink: inkCanvas, ox: originX, oy: originY, size: size };
 }
@@ -359,7 +387,12 @@ function rockStep(g, world, tx0, ty0, ring) {
 }
 
 /** Küstenlinie und Bodendetails. */
-function paintGroundInk(g, world, tx0, ty0, ring) {
+/**
+ * @param {Function} abnutzung Stufe des Trampelpfads je Kachel. Wird
+ * durchgereicht und nicht hier geholt: Die Tintenschicht kennt den
+ * Spielstand nicht, sie bekommt eine Frage, die sie stellen darf.
+ */
+function paintGroundInk(g, world, tx0, ty0, ring, abnutzung) {
   const r = Math.min(ring, 1);
   // Brandung zuerst: eine breite weiße Linie, die um die Küste herumwandert.
   // Der andere Zitterwert lässt sie neben der Tuschelinie laufen – so entsteht
@@ -396,6 +429,7 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
       const rng = makeRng(hashString('d' + tx + ':' + ty));
       const bx = (tx + 0.2 + rng() * 0.6) * TILE_SIZE;
       const by = (ty + 0.2 + rng() * 0.6) * TILE_SIZE;
+      const tritt = abnutzung(tx, ty);
       if (t === T.GRASS) {
         // Vier Büschel je Kachel. Vorher waren es zwei, von denen eines
         // oft ausfiel – rund vier Halme auf 64 mal 64 Bildpunkte. Die
@@ -403,7 +437,11 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
         // der nur die Lasuren lagen, und genau das sah nach Farbe statt
         // nach Zeichnung aus. Alle Halme landen ohnehin in EINEM
         // Sammelpfad, die Zahl kostet also kaum etwas.
-        for (let k = 0; k < 4; k++) {
+        // Auf einem Trampelpfad wächst weniger. Das ist der eigentliche
+        // Effekt – die erdige Lasur allein verschwindet unter dem
+        // Papierschleier, die FEHLENDEN Halme sieht man sofort.
+        const halme = tritt === 2 ? 0 : tritt === 1 ? 2 : 4;
+        for (let k = 0; k < halme; k++) {
           if (rng() > 0.82) continue;
           const gx = (tx + rng()) * TILE_SIZE;
           const gy = (ty + rng()) * TILE_SIZE;
@@ -417,7 +455,20 @@ function paintGroundInk(g, world, tx0, ty0, ring) {
           }
         }
         // Farnwedel: ein Bogen mit Fiedern, gibt der Wiese Struktur
-        if (rng() < 0.2) fronds.push([bx, by, rng() < 0.5 ? -1 : 1]);
+        if (!tritt && rng() < 0.2) fronds.push([bx, by, rng() < 0.5 ? -1 : 1]);
+        // Auf dem Trampelpfad stattdessen Trittspuren. Ohne sie wäre eine
+        // deutlich ausgetretene Kachel vollkommen leer – gemessen null
+        // Prozent Tinte –, und auf der unkolorierten Insel sähe man vom
+        // ganzen Weg nichts. Ein Weg ist aber gerade dort eine Zeichnung.
+        if (tritt) {
+          const n = tritt === 2 ? 3 : 2;
+          for (let k = 0; k < n; k++) {
+            const sx2 = (tx + 0.12 + rng() * 0.7) * TILE_SIZE;
+            const sy2 = (ty + 0.14 + rng() * 0.72) * TILE_SIZE;
+            const lang = 9 + rng() * 13;
+            scratches.push([sx2, sy2, sx2 + lang, sy2 + (rng() - 0.5) * 5]);
+          }
+        }
       } else if (t === T.SAND) {
         if (rng() < 0.5) {
           pebbles.push([bx, by, 3.5 + rng() * 1.5]);
