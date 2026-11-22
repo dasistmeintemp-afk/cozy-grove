@@ -191,6 +191,44 @@ const html = buildHtml(css, js);
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, html, 'utf8');
 
+// Dieselbe Datei noch einmal nach `web/` – das ist der Ordner, den der
+// Webhoster ausliefert.
+//
+// Zwei Entscheidungen stecken darin:
+//
+// `index.html` statt `seli-grove.html`, weil ein Webserver unter einer
+// Adresse ohne Dateinamen genau diese Datei sucht. Ohne sie zeigte die
+// Seite ins Leere, und man müsste den Dateinamen mitverschicken.
+//
+// Und mitversioniert statt in `dist/`, das ja absichtlich nicht im Projekt
+// liegt: Dadurch braucht der Hoster KEINEN Bauschritt. Er kopiert nur
+// Dateien. Ein Bauschritt bei ihm müsste Node starten und vorher die
+// Entwicklungswerkzeuge nachladen – darunter Playwright, das dabei ganze
+// Browser herunterlädt. Das kann fehlschlagen, und zwar genau dann, wenn
+// man es am wenigsten gebrauchen kann. Der Preis ist eine 1,6 MB große
+// Datei je Stand in der Versionsgeschichte; das ist der ruhigere Handel.
+// Mit einem ausdrücklichen `--out=` ist nur diese eine Datei gemeint; dann
+// bleibt der Veröffentlichungsordner unberührt. Die Prüfung, ob er noch
+// zum Quelltext passt, braucht genau das: Sie baut nach nebenan und
+// vergleicht – würde sie dabei `web/` überschreiben, vergliche sie
+// hinterher mit sich selbst und könnte nie etwas finden.
+const NUR_OUT = args.some((a) => a.startsWith('--out='));
+const WEB = resolve(ROOT, 'web');
+if (!NUR_OUT) {
+  mkdirSync(WEB, { recursive: true });
+  writeFileSync(join(WEB, 'index.html'), html, 'utf8');
+}
+
+// Ohne das hier zeigte ein Browser, der schon einmal da war, tagelang den
+// alten Stand: `no-cache` heißt nicht „nicht speichern", sondern „vor dem
+// Anzeigen nachfragen, ob es etwas Neueres gibt". Damit ist ein Neuladen
+// sofort der neue Stand, ohne dass jemand den Zwischenspeicher leeren muss.
+if (!NUR_OUT) {
+  writeFileSync(join(WEB, '_headers'),
+    '/*\n  Cache-Control: no-cache\n', 'utf8');
+}
+
 const kb = (Buffer.byteLength(html) / 1024).toFixed(0);
-console.log('geschrieben: ' + relative(ROOT, OUT) + '  (' + kb + ' kB, ' +
-  order.length + ' Module)');
+console.log('geschrieben: ' + relative(ROOT, OUT) +
+  (NUR_OUT ? '' : ' und web/index.html') +
+  '  (' + kb + ' kB, ' + order.length + ' Module)');
