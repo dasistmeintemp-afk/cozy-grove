@@ -699,8 +699,11 @@ export class Renderer {
       this._wolkenSchirmCtx = ctx2d(this._wolkenSchirm);
       this._wolkenOx = null;
     }
+    // Sechs Bildpunkte, nicht zwei. Die Decke besteht aus sehr weichen,
+    // sehr blassen Verläufen – ein Versatz von sechs Punkten ist daran nicht
+    // zu sehen, spart beim Gehen aber zwei Drittel der Neuaufbauten.
     if (this._wolkenOx == null
-      || Math.abs(ox - this._wolkenOx) > 2 || Math.abs(oy - this._wolkenOy) > 2) {
+      || Math.abs(ox - this._wolkenOx) > 6 || Math.abs(oy - this._wolkenOy) > 6) {
       const sc = this._wolkenSchirmCtx;
       sc.setTransform(1, 0, 0, 1, 0, 0);
       sc.clearRect(0, 0, this.w, this.h);

@@ -57,6 +57,11 @@ import {
   neueStufe, nachbarStand, heuteSchon as juleHeuteSchon,
 } from './nachbar.js';
 import {
+  emptyAdvent, adventAus, istAdvent, istHeiligabend, naechstesTuerchen,
+  oeffne as oeffneAdvent, baumStufe, baumText, lichter as adventLichter,
+  LETZTES as ADVENT_LETZTES,
+} from './advent.js';
+import {
   emptySternbilder, faelligesSternbild, merke as merkeSternbild,
   gefundene as gefundeneSternbilder, sternbilderStand, geistName as sternGeist,
 } from './sternbilder.js';
@@ -321,6 +326,8 @@ export class Game {
     this.weather.snap();
     this._placeStoryPieces(this.day.day);
     this._festSchmuck(this.day.day);
+    this._tanneSetzen();
+    this._heiligabendRunde();
     this._wandererSetzen(this.day.day);
     this._juleSetzen();
     this._gezeitenNachfuehren();
@@ -427,6 +434,7 @@ export class Game {
       sternbilder: emptySternbilder(),
       dekoreaktion: emptyDekoreaktion(),
       nachbar: emptyNachbar(),
+      advent: emptyAdvent(),
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -475,6 +483,7 @@ export class Game {
       sternbilder: emptySternbilder(),
       dekoreaktion: emptyDekoreaktion(),
       nachbar: emptyNachbar(),
+      advent: emptyAdvent(),
     }, save.state || {});
     if (!this.state.crafted) this.state.crafted = Object.create(null);
     // Ein Spielstand von vor den Meilensteinen holt beim ersten Bild alles
@@ -564,6 +573,10 @@ export class Game {
         !this.state.nachbar.erzaehlt) {
       this.state.nachbar = emptyNachbar();
     }
+    // Der Adventsstand wird beim Laden gesäubert, nicht nur geprüft: In einem
+    // von Hand bearbeiteten Spielstand stünde sonst eine 99 im Feld, und der
+    // Baum hätte neunundneunzig Lichter.
+    this.state.advent = adventAus(this.state.advent);
     // Was sie anhat und was im Schrank hängt. Ein alter Spielstand trägt das
     // Gewohnte und hat einen leeren Schrank – zu holen ist alles davon noch.
     this.state.trachten = offeneAus(this.state.trachten);
@@ -1042,6 +1055,7 @@ export class Game {
       if (def.category === 'spirit') { this.talkTo(t.entity); return; }
       if (def.category === 'wanderer') { this.redeMitWanderer(t.entity); return; }
       if (def.category === 'nachbar') { this.redeMitJule(t.entity); return; }
+      if (def.category === 'tanne') { this.oeffneTuerchen(t.entity); return; }
       if (def.category === 'pet') { this.feedPet(); return; }
       if (def.category === 'fox') { this.openPanel('shop'); return; }
       if (def.category === 'hidden') { this.pickHidden(t.entity); return; }
@@ -1460,6 +1474,215 @@ export class Game {
       n++;
     }
     return n;
+  }
+
+  /* ---------------- Die Adventstanne ---------------- */
+
+  /**
+   * Das heutige Datum.
+   *
+   * Eine Methode statt `new Date()` an Ort und Stelle, aus einem einzigen
+   * Grund: Die Tanne steht nur im Dezember. Eine Prüfung, die bis dahin
+   * warten müsste, ist keine – und die Uhr des Rechners zu stellen, nur um
+   * ein Türchen zu sehen, ist keine Alternative. Dasselbe Muster wie
+   * `forceSeason` bei der Jahreszeit: Zum Nachsehen, nicht zum Spielen.
+   */
+  heute() {
+    return this._datum || new Date();
+  }
+
+  /** Das Datum stellen. Ohne Wert zurück auf die echte Uhr. */
+  setzeDatum(d) {
+    this._datum = d || null;
+    this._tanneSetzen();
+    this._heiligabendRunde();
+    return this._datum;
+  }
+
+
+  /**
+   * Stellt die Tanne hin, wenn Dezember ist – und räumt sie sonst weg.
+   *
+   * Dieselbe Bauart wie der Festschmuck: Sie gehört dem Tag, nicht dem
+   * Spieler, lässt sich also nicht einpacken. Anders als der Schmuck steht
+   * sie aber nicht einen Tag, sondern sechsundzwanzig, und sie steht jeden
+   * Tag an DERSELBEN Stelle – ein Baum, der über Nacht umzieht, wäre kein
+   * Baum.
+   *
+   * Deshalb wird der Platz aus der Weltnummer gewürfelt und nicht aus dem
+   * Tag: Auf einer Insel steht sie immer dort, auf der nächsten woanders.
+   */
+  _tanneSetzen() {
+    const schon = this.world.entities.filter(function (e) {
+      return e.kind === 'tanne' && !e.gone;
+    });
+    if (!istAdvent(this.heute())) {
+      for (let i = 0; i < schon.length; i++) this.world.remove(schon[i]);
+      return null;
+    }
+    const stufe = baumStufe(this.state.advent);
+    if (schon.length) {
+      // Sie steht schon. Nur das Bild nachziehen, falls über Nacht ein
+      // Türchen dazugekommen ist.
+      schon[0].sprite = 'tanne_' + stufe;
+      return schon[0];
+    }
+    const feuer = this.world.campfire;
+    if (!feuer) return null;
+    const rng = dailyRng(this.world.seed, 0, 'tanne');
+    for (let i = 0; i < 160; i++) {
+      const a = rng() * Math.PI * 2;
+      const r = 150 + rng() * 150;
+      const x = feuer.x + Math.cos(a) * r;
+      const y = feuer.y + Math.sin(a) * r;
+      if (!this.world.canStand(x, y, 22, 14)) continue;
+      // Abstand nachrechnen, nicht `queryNear` glauben: Das arbeitet auf
+      // einem groben Raster und meldet auch Nachbarn, die weiter weg sind.
+      // Genau daran hat der Festschmuck schon einmal NULL Stücke aufgestellt.
+      const frei = !this.world.queryNear(x, y, 90).some(function (e) {
+        if (e.gone) return false;
+        const dx = e.x - x;
+        const dy = e.y - y;
+        return dx * dx + dy * dy < 90 * 90;
+      });
+      if (!frei) continue;
+      const e = makeEntity('tanne', x, y, {});
+      e.sprite = 'tanne_' + stufe;
+      this.world.add(e);
+      return e;
+    }
+    return null;
+  }
+
+  /**
+   * Heiligabend: alle Geister ans Feuer – und am nächsten Morgen zurück.
+   *
+   * Das ist der einzige Abend im Jahr, an dem sie nebeneinander stehen.
+   * Sonst sitzt jeder in seiner Gegend, und man läuft die Insel ab, um alle
+   * zu sprechen; heute muss man nirgends hin.
+   *
+   * **Verschoben, nicht neu gesetzt.** Jeder Geist kennt seinen Platz
+   * (`homeX`/`homeY`), und genau dorthin kommt er zurück. Hätte ich sie
+   * stattdessen entfernt und am Feuer neu erzeugt, wären Aufträge,
+   * Freundschaftsstände und Erinnerungsstücke an der Objektnummer
+   * hängengeblieben.
+   *
+   * **Nur, wer schon da sein darf.** Ein Geist aus einer verschlossenen
+   * Gegend säße sonst am Feuer, bevor man seine Gegend überhaupt gefunden
+   * hat – das nähme dem Freischalten seinen Sinn. Wer noch nicht dazugehört,
+   * bleibt zu Hause; nächstes Jahr ist er dabei.
+   */
+  _heiligabendRunde() {
+    const heute = istHeiligabend(this.heute());
+    const liste = this.world.entities;
+    const dabei = [];
+    for (let i = 0; i < liste.length; i++) {
+      const e = liste[i];
+      if (e.kind !== 'spirit' || e.gone) continue;
+      if (!heute) {
+        // Zurück an den eigenen Platz, falls er heute Nacht am Feuer stand.
+        if (e.heiligabend) {
+          e.x = e.homeX;
+          e.y = e.homeY;
+          e.heiligabend = false;
+          this.world.reindex(e);
+        }
+        continue;
+      }
+      if (!this.world.isUnlocked(e.region)) continue;
+      dabei.push(e);
+    }
+    if (!heute || !dabei.length) return 0;
+
+    const feuer = this.world.campfire;
+    if (!feuer) return 0;
+    // Im Kreis ums Feuer, in fester Reihenfolge: Wer gestern links saß, sitzt
+    // auch heute links. Ein Kreis, der sich bei jedem Laden neu mischt, wäre
+    // kein Beisammensein, sondern ein Flackern.
+    dabei.sort(function (a, b) { return a.spiritId < b.spiritId ? -1 : 1; });
+    let n = 0;
+    for (let i = 0; i < dabei.length; i++) {
+      const e = dabei[i];
+      const a = -Math.PI / 2 + (i / dabei.length) * Math.PI * 2;
+      // Mehrere Abstände durchprobieren: Ums Feuer herum steht schon
+      // allerhand, und ein Geist, der im Zelt landet, ist kein Gast.
+      let gesetzt = false;
+      for (const r of [132, 160, 188, 216, 244]) {
+        const x = feuer.x + Math.cos(a) * r;
+        const y = feuer.y + Math.sin(a) * r * 0.74;
+        if (!this.world.canStand(x, y, 16, 10)) continue;
+        // `canStand` prüft nur den BODEN. Ums Lagerfeuer herum stehen Zelt,
+        // Werkbank, Laden, Briefkasten und Truhe – ohne diese Zeile stand
+        // ein Teil der Runde mitten im Zelt. Abstand nachgerechnet, nicht
+        // `queryNear` geglaubt: Das arbeitet auf einem groben Raster.
+        const besetzt = this.world.queryNear(x, y, 58).some(function (o) {
+          if (o.gone || o === e || o.kind === 'spirit') return false;
+          if (!o.solid && !o.blockR) return false;
+          const dx = o.x - x;
+          const dy = o.y - y;
+          return dx * dx + dy * dy < 58 * 58;
+        });
+        if (besetzt) continue;
+        e.x = x;
+        e.y = y;
+        e.heiligabend = true;
+        this.world.reindex(e);
+        gesetzt = true;
+        break;
+      }
+      if (gesetzt) n++;
+    }
+    return n;
+  }
+
+  /** Die Tanne auf der Insel – oder null. */
+  tanne() {
+    const liste = this.world.entities;
+    for (let i = 0; i < liste.length; i++) {
+      if (liste[i].kind === 'tanne' && !liste[i].gone) return liste[i];
+    }
+    return null;
+  }
+
+  /**
+   * Ein Türchen öffnen.
+   *
+   * Immer das kleinste, das noch zu ist – nicht das heutige. Wer eine Woche
+   * nicht da war, liest die Sätze also der Reihe nach, statt sechs davon zu
+   * verlieren. Das ist dieselbe Regel wie überall hier: Nichts verdirbt.
+   */
+  oeffneTuerchen(e) {
+    const heute = this.heute();
+    const nr = naechstesTuerchen(this.state.advent, heute);
+    if (!nr) {
+      this.ui.toast(baumText(this.state.advent, heute), 'icon_lantern');
+      return false;
+    }
+    const t = oeffneAdvent(this.state.advent, nr, heute);
+    if (!t) return false;
+
+    const gabe = t.gabe || {};
+    const teile = [];
+    for (const stk of gabe.items || []) {
+      this.inventory.add(stk.id, stk.n);
+      teile.push(stk.n + '× ' + itemName(stk.id));
+    }
+    if (gabe.coins) { this.state.coins += gabe.coins; teile.push('+' + gabe.coins + ' Münzen'); }
+    if (gabe.ember) {
+      this.state.ember += gabe.ember;
+      this._note('ember', gabe.ember);
+      teile.push('+' + gabe.ember + ' Glut');
+    }
+
+    if (e) e.sprite = 'tanne_' + baumStufe(this.state.advent);
+    this.audio.play('chime');
+    // Der Satz zuerst und allein. Die Ware kommt als zweite, kleinere
+    // Meldung hinterher – andersherum läse man „3× Holz" und überläse das,
+    // wofür das Türchen da ist.
+    this.ui.toast(nr + '. Dezember · ' + t.text, 'icon_lantern');
+    if (teile.length) this.ui.toast(teile.join(' · '), 'icon_heart');
+    this.save();
+    return true;
   }
 
   /* ---------------- Der Wanderer ---------------- */
@@ -6670,6 +6893,8 @@ export class Game {
     this._jitterSpirits(day);
     this._placeStoryPieces(day);
     this._festSchmuck(day);
+    this._tanneSetzen();
+    this._heiligabendRunde();
     const gast = this._wandererSetzen(day);
     this.camera.snapTo(this.player.x, this.player.y);
     this.ground.prewarm(this.camera.ox, this.camera.oy, this.renderer.viewW, this.renderer.viewH);
@@ -7095,6 +7320,11 @@ export class Game {
       const stand = this.petStatus();
       this.ui.setPrompt(!stand.hungrig ? 'Hat schon gefressen'
         : stand.futter ? 'Füttern' : 'Nichts dabei, was es frisst');
+      return;
+    }
+    if (def.category === 'tanne') {
+      const nr = naechstesTuerchen(this.state.advent, this.heute());
+      this.ui.setPrompt(nr ? nr + '. Türchen öffnen' : baumText(this.state.advent, this.heute()));
       return;
     }
     if (def.category === 'fox') { this.ui.setPrompt('Laden'); return; }

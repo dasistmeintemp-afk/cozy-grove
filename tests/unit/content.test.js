@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { BUGS, CONDITIONAL, BEDINGUNGEN, ITEM_LIST, getItem, CAT, MEMORY_IDS, MEMORY_KINDS, fishesOf, bugsOf } from '../../src/game/items.js';
+import { BAUM_STUFEN } from '../../src/game/advent.js';
 import { TOOLS, TOOL_ART } from '../../src/game/player.js';
 import { ENTITY_DEFS } from '../../src/world/entities.js';
 import { RECIPES, campfireLevelFor, nextCampfireLevel, missingFor, CAMPFIRE_LEVELS } from '../../src/game/recipes.js';
@@ -90,6 +91,10 @@ const SPRITE_NAMES = (function () {
     for (let f = 0; f < 2; f++) names.push('spirit_' + SPIRIT_IDS[i] + '_' + f);
   }
   names.push('fox_0', 'fox_1');
+  // Die Adventstanne. Die Zahl kommt aus dem Adventsmodul und nicht aus
+  // einer hier getippten 5: Kämen Stufen dazu, liefe diese Liste sonst
+  // stillschweigend hinterher.
+  for (let i = 0; i < BAUM_STUFEN; i++) names.push('tanne_' + i);
   // Der Wanderer – zwei Fassungen wie alles, was atmet.
   names.push('wanderer_0', 'nachbar_0', 'nachbar_1', 'wanderer_1');
   // Symbole für alle Gegenstände

@@ -46,6 +46,7 @@ import {
   paintAquarium, paintButtercase,
 } from './painted-decor.js';
 import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
+import { paintTanne, STUFEN_LICHTER } from './painted-advent.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
 import { paintGroundDecal } from './painted-ground.js';
 import {
@@ -248,6 +249,14 @@ export function initArt() {
     addArt('tree_pine_' + v, paintPine({ seed: 55 + v * 17 }));
   }
   addArt('tree_stump', paintStump({ seed: 137 }));
+
+  /* --- Die Tanne am Lager, fünf Stufen von kahl bis voll --- */
+  // Fest gebacken, nicht erst bei Bedarf: Sie steht nur im Dezember, aber
+  // wenn sie dann gebraucht wird, soll sie da sein und nicht in dem Moment
+  // entstehen, in dem jemand vor ihr steht.
+  for (let i = 0; i < STUFEN_LICHTER.length; i++) {
+    addArt('tanne_' + i, paintTanne({ lichter: STUFEN_LICHTER[i], seed: 4711 }));
+  }
   addArt('log_barrier', paintLogBarrier({ seed: 151 }));
 
   /* --- Steine --- */

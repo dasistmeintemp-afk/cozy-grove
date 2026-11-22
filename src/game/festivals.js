@@ -86,6 +86,29 @@ export const FESTE = {
     schmuck: ['lantern', 'paperlamp', 'stonelamp', 'firebowl'],
     gabe: { items: [{ id: 'gem', n: 1 }], ember: 14 },
   },
+  // Das fünfte Fest, und das einzige, bei dem zwei auf eine Jahreszeit
+  // fallen. Das ist kein Versehen: Der Dezember HAT zwei Termine, und
+  // zwischen der längsten Nacht und dem Heiligabend liegen drei Tage, in
+  // denen die Adventstanne weiterwächst. Eines davon wegzulassen, nur damit
+  // die Tabelle vier Zeilen hat, wäre Buchhaltung.
+  heiligabend: {
+    id: 'heiligabend',
+    name: 'Heiligabend',
+    season: 'winter',
+    datum: { monat: 11, tag: 24 },
+    hint: 'Heute sind alle am Feuer.',
+    icon: 'icon_lantern',
+    schmuck: ['stringlights', 'lantern', 'firebowl', 'torch'],
+    gabe: { items: [{ id: 'dish_berrycake', n: 1 }], ember: 16 },
+    // Dieser eine Termin kündigt sich selbst an, und zwar besser als jede
+    // Vorschauzeile: Ab dem 1. Dezember steht die Adventstanne am Lager und
+    // zählt sichtbar herunter. Die Vorschau zeigt immer nur den NÄCHSTEN
+    // Termin; zwischen dem 17. und dem 20. ist das Lichterfest, am 21. ist
+    // es selbst dran – der Heiligabend käme darin nur am 22. und 23. vor.
+    // Wer wöchentlich spielt, sähe ihn also nie kommen. Mit dem Baum sieht
+    // er ihn drei Wochen lang.
+    eigeneAnkuendigung: 'Adventstanne',
+  },
 };
 
 export const FEST_IDS = Object.keys(FESTE);
@@ -170,6 +193,18 @@ export const FEST_SATZ = {
     tobi: 'Ich habe alle Lampen nachgesehen. Alle gehen.',
     nelly: 'Ich zähle heute die Lichter. Es sind mehr als letztes Jahr.',
     wanda: 'Ich sehe euer Feuer von hier aus. Das reicht mir heute.',
+  },
+  // Am Heiligabend stehen sie alle am selben Feuer – der einzige Abend im
+  // Jahr, an dem das so ist. Die Sätze sind deshalb nicht an ihren Orten
+  // gesprochen, sondern nebeneinander.
+  heiligabend: {
+    flamey: 'Alle da. Ich brenne heute besonders ordentlich.',
+    mira: 'Ich habe Zweige mitgebracht. Mehr brauchte es nie.',
+    kiesel: 'Einmal im Jahr liegt das Boot fest. Heute.',
+    bruno: 'Ich bleibe nicht lange. … Na gut, ein bisschen.',
+    tobi: 'Ich habe nichts gebaut heute. Fühlt sich komisch an. Gut komisch.',
+    nelly: 'Ich habe für alle gedeckt. Heute kommen auch alle.',
+    wanda: 'Ich bin den ganzen Weg herübergekommen. Sag nichts.',
   },
 };
 

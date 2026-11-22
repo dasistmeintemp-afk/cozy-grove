@@ -102,6 +102,21 @@ export const TRACHTEN = [
     ab: { fest: 'lichter' },
   },
   {
+    id: 'heiligabend',
+    name: 'Tannenkleid',
+    woher: 'Vom Heiligabend',
+    // Drei Tage nach dem Lichtermantel, und deshalb bewusst dessen
+    // Gegenteil: Der ist tiefblau und dunkel, dieses hier ist das warme
+    // Tannengrün vom Baum, dazu das Rot der Kugeln und Gold am Hals.
+    // Zwei Wintertrachten, die sich ähneln, wären eine zu viel.
+    top: '#3e6b4a', topShade: '#2c5037',
+    skirt: '#9c4038', skirtShade: '#752e29',
+    tights: '#e8dcc2', scarf: '#e8bd62',
+    hat: '#4a7355', hatShade: '#355540',
+    boot: '#5a4234', pack: '#c8584a', packShade: '#9c4038',
+    ab: { fest: 'heiligabend' },
+  },
+  {
     id: 'wanderer',
     name: 'Wandertracht',
     woher: 'Vom Wanderer',

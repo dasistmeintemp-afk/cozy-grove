@@ -81,6 +81,10 @@ export function alleTermine() {
       tag: f.datum.tag,
       name: f.name,
       icon: f.icon,
+      // Siehe `festivals.js`: Der Heiligabend hat eine bessere Ankündigung
+      // als diese Zeile. Die Vorschau zeigt ihn trotzdem, wenn er dran ist –
+      // das Feld sagt nur, dass er nicht allein auf sie angewiesen ist.
+      eigeneAnkuendigung: f.eigeneAnkuendigung || null,
       mag: null,
     });
   }

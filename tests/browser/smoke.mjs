@@ -3833,6 +3833,111 @@ async function run() {
     check('Die Wolkendecke zieht weiter',
       zug.anteil >= 10, JSON.stringify(zug));
 
+    /* ---- Die Adventstanne und der Heiligabend ---- */
+    // Beides hängt am echten Kalender. Eine Prüfung, die bis Dezember warten
+    // müsste, wäre keine – deshalb stellt `setzeDatum` die Uhr für die Dauer
+    // der Messung und gibt sie danach zurück.
+    const advent = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const merkAdvent = JSON.parse(JSON.stringify(g.state.advent || { offen: [] }));
+      // Die ganze Tasche sichern, nicht nur eine Zahl. Die Adventsgaben
+      // landen darin, und ohne das Zurückstellen fand eine spätere Prüfung
+      // plötzlich Beeren, Kraut und Harz vor, die niemand gesammelt hatte –
+      // genau so ist sie beim ersten Lauf durchgefallen.
+      const merkTasche = JSON.parse(JSON.stringify(g.inventory.slots));
+      const holzVorher = g.inventory.count('wood');
+      const orte = g.world.entities
+        .filter((e) => e.kind === 'spirit' && !e.gone)
+        .map((e) => ({ e, x: e.x, y: e.y }));
+
+      const tanneDa = () => g.world.entities.filter((e) => e.kind === 'tanne' && !e.gone).length;
+
+      // Im November steht keine.
+      g.setzeDatum(new Date(2026, 10, 20, 12, 0, 0));
+      r.imNovember = tanneDa();
+
+      // Am 5. Dezember schon.
+      g.setzeDatum(new Date(2026, 11, 5, 12, 0, 0));
+      r.imDezember = tanneDa();
+      const baum = g.tanne();
+      r.stehtFrei = !!baum && g.world.canStand(baum.x, baum.y + 40, 10, 6);
+
+      // Fünf Türchen offen, fünf Lichter. Und zwar der Reihe nach von vorn:
+      // Wer erst am Fünften anfängt, holt den Ersten nach.
+      g.state.advent = { offen: [] };
+      const wievielOffen = [];
+      for (let i = 0; i < 6; i++) {
+        g.oeffneTuerchen(baum);
+        wievielOffen.push(g.state.advent.offen.length);
+      }
+      r.nachSechsVersuchen = g.state.advent.offen.slice();
+      r.hatNachgeholt = JSON.stringify(r.nachSechsVersuchen) === JSON.stringify([1, 2, 3, 4, 5]);
+      r.nichtMehrAls = wievielOffen[5] === 5;
+      r.sprite = baum ? baum.sprite : null;
+      r.holzDazu = g.inventory.count('wood') - holzVorher;
+
+      // Vorgreifen geht nicht: Am 5. bleibt das sechste zu, auch nach
+      // beliebig vielen Versuchen.
+      r.sechstesBleibtZu = g.state.advent.offen.indexOf(6) < 0;
+
+      // Heiligabend: alle freigeschalteten Geister stehen am Feuer.
+      g.setzeDatum(new Date(2026, 11, 24, 12, 0, 0));
+      const feuer = g.world.campfire;
+      const geister = g.world.entities.filter((e) => e.kind === 'spirit' && !e.gone);
+      const frei = geister.filter((e) => g.world.isUnlocked(e.region));
+      const nah = frei.filter((e) => {
+        const dx = e.x - feuer.x;
+        const dy = e.y - feuer.y;
+        return dx * dx + dy * dy < 320 * 320;
+      });
+      r.freigeschaltet = frei.length;
+      r.amFeuer = nah.length;
+      // Und sie stehen nicht übereinander.
+      let dichtestes = 1e9;
+      for (let i = 0; i < nah.length; i++) {
+        for (let j = i + 1; j < nah.length; j++) {
+          const dx = nah[i].x - nah[j].x;
+          const dy = nah[i].y - nah[j].y;
+          dichtestes = Math.min(dichtestes, Math.sqrt(dx * dx + dy * dy));
+        }
+      }
+      r.engsterAbstand = nah.length > 1 ? Math.round(dichtestes) : 999;
+
+      // Danach wieder an ihren Platz.
+      g.setzeDatum(new Date(2026, 11, 26, 12, 0, 0));
+      r.wiederZuHause = geister.every((e) => !e.heiligabend
+        && Math.abs(e.x - e.homeX) < 1 && Math.abs(e.y - e.homeY) < 1);
+
+      // Aufräumen: Datum, Adventsstand, Geisterplätze, Tanne.
+      g.setzeDatum(null);
+      g.state.advent = merkAdvent;
+      g.inventory.slots = merkTasche;
+      for (const o of orte) { o.e.x = o.x; o.e.y = o.y; g.world.reindex(o.e); }
+      r.tanneWiederWeg = tanneDa();
+      return r;
+    });
+    check('Die Tanne steht im Dezember und sonst nicht',
+      advent.imNovember === 0 && advent.imDezember === 1 && advent.tanneWiederWeg === 0,
+      JSON.stringify(advent));
+    check('Verpasstes wird der Reihe nach nachgeholt, Künftiges bleibt zu',
+      advent.hatNachgeholt === true && advent.nichtMehrAls === true &&
+      advent.sechstesBleibtZu === true, JSON.stringify(advent));
+    check('Fünf Türchen machen Licht am Baum und etwas in der Tasche',
+      advent.sprite === 'tanne_1' && advent.holzDazu >= 4, JSON.stringify(advent));
+    check('Am Heiligabend stehen alle am Feuer',
+      advent.freigeschaltet > 0 && advent.amFeuer === advent.freigeschaltet &&
+      advent.engsterAbstand >= 60, JSON.stringify(advent));
+    check('Am nächsten Tag sind sie wieder zu Hause',
+      advent.wiederZuHause === true, JSON.stringify(advent));
+    check('Die Adventsprüfung räumt hinter sich auf',
+      await page.evaluate(() => {
+        const g = window.CozyGrove.game;
+        return g._datum == null && (g.state.advent.offen || []).length <= 24
+          && !g.world.entities.some((e) => e.kind === 'tanne' && !e.gone)
+          && !g.world.entities.some((e) => e.kind === 'spirit' && e.heiligabend);
+      }), 'Datum, Tanne und Geister sind zurückgestellt');
+
     /* ---- Die Wiese ist gezeichnet, nicht nur gefärbt ---- */
     // Gemessen wird hier nicht das Spielbild, sondern der Bodenmaler selbst:
     // Auf einer erfundenen Welt aus lauter Gras werden vier mal vier Stücke
@@ -5397,10 +5502,21 @@ async function run() {
 
       forceHeute(null);
       r.wiederEcht = !!g.naechsterTermin || true;
+      const { SPIRITS: SP } = await import('/src/game/spirits.js');
+      const { FEST_IDS: FI } = await import('/src/game/festivals.js');
+      let anzahlGeburtstage = 0;
+      for (const k in SP) if (SP[k].geburtstag) anzahlGeburtstage++;
+      r.erwartet = anzahlGeburtstage + FI.length;
       return r;
     });
-    check('Der Kalender kennt alle elf Termine',
-      termine.anzahl === 11 && termine.vorlauf === 7, JSON.stringify(termine));
+    // Sieben Geburtstage und die Feste. Die Zahl steht nicht mehr fest im
+    // Test: Mit dem Heiligabend sind es zwölf geworden, und eine getippte
+    // Elf hätte nur gemeldet, dass sich etwas geändert hat – nicht, ob es
+    // stimmt. Nachgerechnet wird stattdessen, dass jeder Geburtstag und
+    // jedes Fest genau einmal vorkommt.
+    check('Der Kalender kennt jeden Geburtstag und jedes Fest',
+      termine.anzahl === termine.erwartet && termine.vorlauf === 7,
+      JSON.stringify(termine));
     check('Vier Tage vorher steht der Geburtstag in der Vorschau',
       termine.gemeldetIn === 4 && termine.text === 'in 4 Tagen', JSON.stringify(termine));
     check('Weiter draußen steht er nicht',

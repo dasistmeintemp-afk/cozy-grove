@@ -302,6 +302,12 @@ export const ENTITY_DEFS = {
   // nimmt ihr das Gemütliche.
   nachbar: { sprite: 'nachbar_0', solid: false, reachR: 120, category: 'nachbar' },
 
+  // Die Tanne, die im Dezember am Lager steht. Solide wie jeder Baum – wer
+  // hindurchliefe, hätte keinen Baum vor sich, sondern ein Bild. Dafür ein
+  // großzügiger Griffradius: Sie ist breit, und das Türchen soll sich von
+  // jeder Seite öffnen lassen, ohne dass man erst um sie herumgeht.
+  tanne: { sprite: 'tanne_0', solid: true, blockR: 30, reachR: 110, category: 'tanne' },
+
   // Aufgabengegenstände
   hidden: { solid: false, reachR: 80, tool: TOOL.HAND, hits: 1, category: 'hidden' },
 

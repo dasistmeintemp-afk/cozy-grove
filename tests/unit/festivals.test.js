@@ -36,11 +36,28 @@ function jahresTage(jahr) {
 
 /* ---------------- Die Termine ---------------- */
 
-test('Vier Feste, eines je Jahreszeit', () => {
-  assert.equal(FEST_IDS.length, 4);
-  const jz = FEST_IDS.map((id) => FESTE[id].season).sort();
-  assert.deepEqual(jz, SEASON_IDS.slice().sort(),
-    'nicht jede Jahreszeit hat ihr Fest');
+test('Jede Jahreszeit hat ihr Fest', () => {
+  // Früher stand hier „genau vier, eines je Jahreszeit". Mit dem Heiligabend
+  // sind es fünf, und der Winter hat zwei – die längste Nacht am 21. und den
+  // Heiligabend am 24. Das ist die Wirklichkeit des Dezembers, kein Fehler.
+  // Was weiter gilt: KEINE Jahreszeit geht leer aus.
+  const jz = FEST_IDS.map((id) => FESTE[id].season);
+  for (const s of SEASON_IDS) {
+    assert.ok(jz.indexOf(s) >= 0, s + ' hat kein Fest');
+  }
+  assert.ok(FEST_IDS.length >= SEASON_IDS.length);
+});
+
+test('Keine zwei Feste am selben Tag', () => {
+  // `festOn` gibt das erste Fest zurück, das passt. Zwei am selben Datum
+  // hieße: eines davon findet nie statt, und niemandem fiele es auf.
+  const gesehen = Object.create(null);
+  for (const id of FEST_IDS) {
+    const f = FESTE[id];
+    const k = f.datum.monat + '-' + f.datum.tag;
+    assert.ok(!gesehen[k], id + ' liegt auf demselben Tag wie ' + gesehen[k]);
+    gesehen[k] = id;
+  }
 });
 
 test('Jedes Fest liegt wirklich in seiner Jahreszeit', () => {
@@ -98,7 +115,8 @@ test('An allen anderen Tagen ist kein Fest', () => {
   // Die Gegenprobe: Ohne sie könnte `festOn` jeden Tag etwas melden.
   const tage = jahresTage(2026);
   const mit = tage.filter((d) => !!festOn(d)).length;
-  assert.equal(mit, 4);
+  assert.equal(mit, FEST_IDS.length,
+    'es gibt genauso viele Festtage wie Feste – keiner fällt aus, keiner doppelt');
   assert.ok(tage.length - mit > 355, 'fast jeder Tag ist ein Festtag');
 });
 

@@ -23,6 +23,7 @@ import {
 } from '../../src/game/termine.js';
 import { SPIRITS, SPIRIT_IDS } from '../../src/game/spirits.js';
 import { FESTE } from '../../src/game/festivals.js';
+import { istAdvent } from '../../src/game/advent.js';
 import { getItem } from '../../src/game/items.js';
 
 /** Ein Jahr ohne Schalttag – sonst verschiebt sich die Zählung um einen. */
@@ -120,6 +121,21 @@ test('Der Vorlauf lässt niemanden durchfallen, der wöchentlich spielt', () => 
   // Kalender; wer sonntags spielt, hätte bei kürzerem Vorlauf schlicht Pech.
   // Nachgerechnet für jeden Wochentag, an dem jemand spielen könnte.
   for (const t of alleTermine()) {
+    // Ein Termin, der sich selbst ankündigt, ist von dieser Regel
+    // ausgenommen – aber nicht umsonst: Die Ausnahme gilt nur, wenn die
+    // eigene Ankündigung den ganzen Vorlauf abdeckt und mehr. Für den
+    // Heiligabend heißt das: Die Adventstanne muss an jedem der vierzehn
+    // Tage davor schon stehen. Wird der Advent je verkürzt, fällt diese
+    // Prüfung durch, statt die Ausnahme stillschweigend zu erben.
+    if (t.eigeneAnkuendigung) {
+      for (let n = 1; n <= 14; n++) {
+        const d = new Date(JAHR, t.monat, t.tag - n);
+        assert.ok(istAdvent(d),
+          t.name + ': die Ankündigung „' + t.eigeneAnkuendigung +
+          '" fehlt ' + n + ' Tage vorher');
+      }
+      continue;
+    }
     for (let start = 0; start < 7; start++) {
       let gesehen = false;
       // Jemand, der alle sieben Tage hereinschaut, beginnend irgendwann.
