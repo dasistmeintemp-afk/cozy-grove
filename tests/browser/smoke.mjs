@@ -4042,6 +4042,139 @@ async function run() {
       dorfText.hatUeberschrift === true && /\d+\s*% Farbe/.test(dorfText.text),
       JSON.stringify(dorfText));
 
+    /* ---- Die Bewohner gehen ihren Stationen nach ---- */
+    // Der auffälligste Unterschied zum Vorbild waren Figuren, die Tag und
+    // Nacht auf demselben Fleck standen. Gemessen wird deshalb BEWEGUNG:
+    // Zur Schlafenszeit gehören sie an ihre Hütte, nachmittags ans Feuer –
+    // und dazwischen müssen sie wirklich laufen, nicht springen.
+    const gang = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { isWalkable } = await import('/src/art/tiles.js');
+      const r = {};
+      const merkStand = JSON.parse(JSON.stringify(g.state.bewohner));
+      const merkTag = g.day.day;
+      const merkStunde = g.day.hour;
+      const merkDeckung = g._deckungJetzt;
+      const vorher = new Set(g.world.entities.map((e) => e.id));
+
+      g.state.bewohner = { da: {}, geredet: {}, satz: {}, gabe: {}, merk: {} };
+      g._deckungJetzt = () => 1;
+      g.day.day = 200;
+      g._zuzugPruefen(200);
+      g._bewohnerSetzen(200);
+      const wer = g.world.entities.filter((e) => e.kind === 'bewohner' && !e.gone)[0];
+      const hutte = g.world.entities.filter((e) => e.kind === 'hutte' && !e.gone)[0];
+      if (!wer || !hutte) {
+        g.state.bewohner = merkStand; g.day.day = merkTag; g.day.hour = merkStunde;
+        g._deckungJetzt = merkDeckung;
+        for (const e of g.world.entities.slice()) if (!vorher.has(e.id)) g.world.remove(e);
+        return { obdachlos: true };
+      }
+      const feuer = g.world.campfire;
+      const lauf = (n) => { for (let i = 0; i < n; i++) g._updateBewohner(1 / 30); };
+
+      // Nacht: an die Hütte. Vorher wird er WEGGESTELLT – sonst steht er
+      // ohnehin schon dort, und die Prüfung bestünde auch bei einem
+      // Bewohner, der sich nie bewegt. Genau so war sie zuerst gebaut.
+      const weg = (() => {
+        for (let r2 = 200; r2 <= 400; r2 += 40) {
+          for (let k = 0; k < 16; k++) {
+            const a = (k / 16) * Math.PI * 2;
+            const x = hutte.x + Math.cos(a) * r2;
+            const y = hutte.y + Math.sin(a) * r2;
+            if (isWalkable(g.world.tileAt(x, y))) return { x, y };
+          }
+        }
+        return null;
+      })();
+      if (!weg) return { keinPlatz: true };
+      wer.x = weg.x; wer.y = weg.y; g.world.reindex(wer);
+      r.startAbstand = Math.round(Math.hypot(wer.x - hutte.x, wer.y - hutte.y));
+      g.day.hour = 3;
+      lauf(1400);
+      r.nachtsZurHutte = Math.round(Math.hypot(wer.x - hutte.x, wer.y - hutte.y));
+
+      // Nachmittag: ans Feuer. Unterwegs wird gemessen, ob die Schritte
+      // klein sind – ein Sprung wäre kein Gang.
+      g.day.hour = 15;
+      const start = { x: wer.x, y: wer.y };
+      let groessterSchritt = 0;
+      let imWasser = 0;
+      for (let i = 0; i < 900; i++) {
+        const vx = wer.x;
+        const vy = wer.y;
+        g._updateBewohner(1 / 30);
+        groessterSchritt = Math.max(groessterSchritt, Math.hypot(wer.x - vx, wer.y - vy));
+        if (!isWalkable(g.world.tileAt(wer.x, wer.y))) imWasser++;
+      }
+      r.gelaufen = Math.round(Math.hypot(wer.x - start.x, wer.y - start.y));
+      r.amFeuer = Math.round(Math.hypot(wer.x - feuer.x, wer.y - feuer.y));
+      r.groessterSchritt = Math.round(groessterSchritt * 10) / 10;
+      r.imWasser = imWasser;
+
+      // Und abends wieder heim.
+      g.day.hour = 21;
+      lauf(1600);
+      r.abendsZurHutte = Math.round(Math.hypot(wer.x - hutte.x, wer.y - hutte.y));
+
+      g.state.bewohner = merkStand;
+      g.day.day = merkTag;
+      g.day.hour = merkStunde;
+      g._deckungJetzt = merkDeckung;
+      for (const e of g.world.entities.slice()) if (!vorher.has(e.id)) g.world.remove(e);
+      return r;
+    });
+    check('Nachts geht der Bewohner heim – auch von weit weg',
+      !gang.obdachlos && !gang.keinPlatz && gang.startAbstand >= 180 &&
+      gang.nachtsZurHutte <= 130, JSON.stringify(gang));
+    check('Nachmittags geht er ans Feuer – und zwar zu Fuß',
+      !gang.obdachlos && !gang.keinPlatz && gang.gelaufen >= 60 && gang.amFeuer <= 230 &&
+      gang.groessterSchritt <= 4, JSON.stringify(gang));
+    check('Abends ist er wieder zu Hause',
+      !gang.obdachlos && !gang.keinPlatz && gang.abendsZurHutte <= 130, JSON.stringify(gang));
+    check('Unterwegs geht niemand ins Wasser',
+      !gang.obdachlos && !gang.keinPlatz && gang.imWasser === 0, JSON.stringify(gang));
+
+    /* ---- Was ein Bewohner mitbekommt ---- */
+    const merken = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { faelligeErinnerung, BEWOHNER } = await import('/src/game/bewohner.js');
+      const r = {};
+      const merkStand = JSON.parse(JSON.stringify(g.state.bewohner));
+      const merkTag = g.day.day;
+      const merkBuch = JSON.parse(JSON.stringify(g.state.daybook || {}));
+      const merkDeckung = g._deckungJetzt;
+
+      g.state.bewohner = { da: { hilde: 1 }, geredet: {}, satz: {}, gabe: {}, merk: {} };
+      g._deckungJetzt = () => 1;
+      g.day.day = 50;
+
+      // Pflanzen zählt das Tagebuch ohnehin – daran hängt das Merken.
+      g._note('planted');
+      r.gemerkt = !!g.state.bewohner.merk.hilde;
+      r.art = g.state.bewohner.merk.hilde && g.state.bewohner.merk.hilde.art;
+      // Münzen zählt niemand mit.
+      g.state.bewohner.merk = {};
+      g._note('coins', 10);
+      r.muenzenEgal = !g.state.bewohner.merk.hilde;
+
+      g.state.bewohner.merk = {};
+      g._note('gekocht');
+      r.amSelbenTagStill = !faelligeErinnerung(g.state.bewohner, 'hilde', 50);
+      const e = faelligeErinnerung(g.state.bewohner, 'hilde', 51);
+      r.amNaechstenTag = e ? e.art : null;
+
+      g.state.bewohner = merkStand;
+      g.day.day = merkTag;
+      g.state.daybook = merkBuch;
+      g._deckungJetzt = merkDeckung;
+      return r;
+    });
+    check('Ein Bewohner bekommt mit, was du tust – und spricht es erst später an',
+      merken.gemerkt === true && merken.art === 'gepflanzt' &&
+      merken.muenzenEgal === true && merken.amSelbenTagStill === true &&
+      merken.amNaechstenTag === 'gekocht', JSON.stringify(merken));
+
     /* ---- Die Adventstanne und der Heiligabend ---- */
     // Beides hängt am echten Kalender. Eine Prüfung, die bis Dezember warten
     // müsste, wäre keine – deshalb stellt `setzeDatum` die Uhr für die Dauer

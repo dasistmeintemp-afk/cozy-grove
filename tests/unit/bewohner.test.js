@@ -18,6 +18,8 @@ import assert from 'node:assert/strict';
 
 import {
   BEWOHNER, BEWOHNER_IDS, bewohnerFuer, emptyBewohner, bewohnerAus, zogHeuteEin,
+  STATIONEN, stationFuer, ERINNERUNGEN, ERINNERUNG_ARTEN, ERINNERUNG_FRIST,
+  merkeFuerSpaeter, faelligeErinnerung, erinnerungErzaehlt, erinnerungenAltern,
   wohntHier, alleDa, naechsterZuzug, zuzugGrund, einziehen,
   naechsterSatz, merkeRede, heuteGeredet,
   tuergabeFuer, gabeGeholt, merkeGabe, bewohnerStand,
@@ -34,6 +36,8 @@ test('vier Bewohner, jeder mit allem, was er braucht', () => {
     assert.ok(b.look && b.look.lebt === true, b.name + ' ist kein Lebender');
     assert.ok(b.look.fur && b.look.furShade && b.look.accent);
     assert.ok(b.hutte && b.hutte.wand && b.hutte.dach && b.hutte.tuer);
+    assert.ok(['beet', 'werkbank', 'kueche', 'wasser'].indexOf(b.arbeit) >= 0,
+      b.name + ' hat keinen Arbeitsplatz');
     assert.equal(bewohnerFuer(b.id), b);
   }
   assert.equal(bewohnerFuer('niemand'), null);
@@ -192,6 +196,124 @@ test('ein Spielstand von Hand bringt nichts durcheinander', () => {
   assert.equal(bewohnerStand(s).alle, BEWOHNER.length);
 });
 
+test('keine zwei arbeiten am selben Ort', () => {
+  // Vier Bewohner, die vormittags alle an derselben Werkbank stehen, sind
+  // eine Schlange, kein Dorf.
+  const orte = BEWOHNER.map((b) => b.arbeit);
+  assert.equal(new Set(orte).size, orte.length);
+});
+
 test('jede Kennung kommt genau einmal vor', () => {
   assert.equal(new Set(BEWOHNER_IDS).size, BEWOHNER_IDS.length);
+});
+
+/* ---------------- Der Tagesablauf ---------------- */
+
+test('die Stationen decken den ganzen Tag ab, lückenlos', () => {
+  assert.equal(STATIONEN[0].ab, 0);
+  assert.equal(STATIONEN[STATIONEN.length - 1].bis, 24);
+  for (let i = 1; i < STATIONEN.length; i++) {
+    assert.equal(STATIONEN[i].ab, STATIONEN[i - 1].bis,
+      'zwischen Station ' + (i - 1) + ' und ' + i + ' klafft eine Lücke');
+  }
+  // Für JEDE Stunde gibt es genau eine Station – auch für krumme.
+  for (let h = 0; h < 24; h += 0.25) {
+    const st = stationFuer(h);
+    assert.ok(st, 'für ' + h + ' Uhr gibt es keine Station');
+    assert.ok(h >= st.ab && h < st.bis, h + ' Uhr fällt auf die falsche Station');
+  }
+  assert.equal(stationFuer(25).wo, stationFuer(1).wo, 'die Uhr läuft um');
+});
+
+test('tagsüber ist niemand zu Hause, nachts sind alle da', () => {
+  // Das ist der Punkt der ganzen Sache: Wer um drei Uhr nachmittags vor
+  // seiner Tür steht, ist Kulisse.
+  assert.equal(stationFuer(3).wo, 'hutte');
+  assert.equal(stationFuer(11).wo, 'arbeit');
+  assert.equal(stationFuer(15).wo, 'feuer');
+  assert.equal(stationFuer(21).wo, 'hutte');
+  const draussen = STATIONEN.filter((s) => s.wo !== 'hutte');
+  assert.ok(draussen.length >= 2, 'sie sind fast immer zu Hause');
+});
+
+/* ---------------- Das Erinnern ---------------- */
+
+test('jede Erinnerung hat für jeden einen eigenen Satz', () => {
+  const alle = new Set();
+  for (const art of ERINNERUNG_ARTEN) {
+    for (const b of BEWOHNER) {
+      const satz = ERINNERUNGEN[art][b.id];
+      assert.ok(satz && satz.length > 12, art + '/' + b.id + ' fehlt');
+      assert.ok(!alle.has(satz), 'zwei Erinnerungen sagen dasselbe: ' + satz);
+      alle.add(satz);
+    }
+  }
+  assert.ok(ERINNERUNG_ARTEN.length >= 5);
+});
+
+test('gemerkt wird frühestens am nächsten Tag erzählt', () => {
+  const s = emptyBewohner();
+  einziehen(s, 'hilde', 1);
+  const wer = merkeFuerSpaeter(s, 'gepflanzt', 10);
+  assert.equal(wer.id, 'hilde');
+  assert.equal(faelligeErinnerung(s, 'hilde', 10), null, 'am selben Tag noch nicht');
+  const e = faelligeErinnerung(s, 'hilde', 11);
+  assert.equal(e.art, 'gepflanzt');
+  assert.ok(e.text.length > 12);
+});
+
+test('nach einer Woche fängt niemand mehr davon an', () => {
+  const s = emptyBewohner();
+  einziehen(s, 'hilde', 1);
+  merkeFuerSpaeter(s, 'gekocht', 10);
+  assert.ok(faelligeErinnerung(s, 'hilde', 10 + ERINNERUNG_FRIST));
+  assert.equal(faelligeErinnerung(s, 'hilde', 10 + ERINNERUNG_FRIST + 1), null);
+  assert.equal(erinnerungenAltern(s, 10 + ERINNERUNG_FRIST + 1), 1);
+  assert.equal(erinnerungenAltern(s, 99), 0, 'einmal weggeräumt ist weggeräumt');
+});
+
+test('es merkt sich einer, nicht alle', () => {
+  const s = emptyBewohner();
+  for (const b of BEWOHNER) einziehen(s, b.id, 1);
+  merkeFuerSpaeter(s, 'gefischt', 10);
+  const mit = BEWOHNER.filter((b) => !!faelligeErinnerung(s, b.id, 11));
+  assert.equal(mit.length, 1, 'ein Chor statt eines Dorfs');
+});
+
+test('wer schon etwas trägt, bekommt nichts Neues aufgeladen', () => {
+  const s = emptyBewohner();
+  einziehen(s, 'hilde', 1);
+  merkeFuerSpaeter(s, 'gepflanzt', 10);
+  assert.equal(merkeFuerSpaeter(s, 'gekocht', 10), null, 'niemand mehr frei');
+  assert.equal(faelligeErinnerung(s, 'hilde', 11).art, 'gepflanzt', 'das Alte bleibt');
+});
+
+test('die Erinnerung geht vor und verbraucht keinen der acht Sätze', () => {
+  const s = emptyBewohner();
+  einziehen(s, 'hilde', 1);
+  merkeFuerSpaeter(s, 'benannt', 10);
+  const satz = naechsterSatz(s, 'hilde', 11);
+  assert.equal(satz.nummer, -1);
+  assert.equal(satz.erinnerung, 'benannt');
+  merkeRede(s, 'hilde', satz.nummer, 11);
+  assert.deepEqual(s.satz.hilde || [], [], 'kein Alltagssatz verbraucht');
+  assert.equal(faelligeErinnerung(s, 'hilde', 12), null, 'einmal erzählt, dann weg');
+  // Und am nächsten Tag geht es ganz normal weiter.
+  const danach = naechsterSatz(s, 'hilde', 12);
+  assert.equal(danach.nummer, 0);
+});
+
+test('eine Erinnerung an niemanden geht ins Leere, nicht in die Hose', () => {
+  const s = emptyBewohner();
+  assert.equal(merkeFuerSpaeter(s, 'gekocht', 5), null, 'niemand wohnt hier');
+  einziehen(s, 'hilde', 1);
+  assert.equal(merkeFuerSpaeter(s, 'gibtsnicht', 5), null, 'unbekannte Art');
+  assert.equal(faelligeErinnerung(s, 'hilde', 9), null);
+});
+
+test('ein Spielstand von Hand kann keine erfundene Erinnerung einschleusen', () => {
+  const s = bewohnerAus({ da: { hilde: 1 }, merk: { hilde: { art: 'quatsch', tag: 5 } } });
+  assert.equal(s.merk.hilde, undefined);
+  const gut = bewohnerAus({ da: { hilde: 1 }, merk: { hilde: { art: 'gekocht', tag: 5 } } });
+  assert.equal(gut.merk.hilde.art, 'gekocht');
 });

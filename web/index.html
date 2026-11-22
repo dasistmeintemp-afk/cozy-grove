@@ -11179,6 +11179,10 @@ __defs["src/game/bewohner.js"] = function (__e) {
 const BEWOHNER = [
   {
     id: 'hilde',
+    // Wo sie vormittags steht. Der Ort gehört zur Figur: Die Gärtnerin
+    // am Beet, der Bastler an der Werkbank – das erzählt mehr über sie
+    // als jeder Satz.
+    arbeit: 'beet',
     name: 'Hilde',
     was: 'Sie gärtnert, seit sie denken kann.',
     ab: { tag: 14, deckung: 0.15 },
@@ -11201,6 +11205,10 @@ const BEWOHNER = [
   },
   {
     id: 'pepe',
+    // Wo sie vormittags steht. Der Ort gehört zur Figur: Die Gärtnerin
+    // am Beet, der Bastler an der Werkbank – das erzählt mehr über sie
+    // als jeder Satz.
+    arbeit: 'werkbank',
     name: 'Pepe',
     was: 'Baut dauernd etwas und meistens zweimal.',
     ab: { tag: 34, deckung: 0.3 },
@@ -11223,6 +11231,10 @@ const BEWOHNER = [
   },
   {
     id: 'marei',
+    // Wo sie vormittags steht. Der Ort gehört zur Figur: Die Gärtnerin
+    // am Beet, der Bastler an der Werkbank – das erzählt mehr über sie
+    // als jeder Satz.
+    arbeit: 'kueche',
     name: 'Marei',
     was: 'Singt beim Kochen und kocht viel.',
     ab: { tag: 70, deckung: 0.5 },
@@ -11245,6 +11257,10 @@ const BEWOHNER = [
   },
   {
     id: 'knut',
+    // Wo sie vormittags steht. Der Ort gehört zur Figur: Die Gärtnerin
+    // am Beet, der Bastler an der Werkbank – das erzählt mehr über sie
+    // als jeder Satz.
+    arbeit: 'wasser',
     name: 'Knut',
     was: 'Sitzt am Wasser und redet wenig.',
     ab: { tag: 130, deckung: 0.72 },
@@ -11269,6 +11285,101 @@ const BEWOHNER = [
 
 const BEWOHNER_IDS = BEWOHNER.map(function (b) { return b.id; });
 
+/* ------------------------------------------------- Der Tagesablauf ------ */
+
+/**
+ * Drei Stationen, nach der Uhrzeit.
+ *
+ * Bewohner, die den ganzen Tag auf demselben Fleck vor ihrer Tür stehen,
+ * verraten sich sofort als Kulisse – das ist der auffälligste Unterschied
+ * zum Vorbild, und er kostet weniger Arbeit zu beheben als jeder neue
+ * Inhalt. Wer morgens woanders steht als abends, wird zu jemandem, der
+ * hier wohnt.
+ *
+ * Nur drei, nicht acht: Ein Tag auf der Insel dauert vierzehn Minuten. Bei
+ * acht Stationen wäre jeder Bewohner ständig unterwegs und nie irgendwo –
+ * und man träfe ihn nie an.
+ *
+ * `wo` sagt, WORAN die Station hängt, nicht wo sie liegt: Die Punkte kennt
+ * nur das Spiel, weil nur es weiß, wo Hütte und Lagerfeuer stehen.
+ */
+const STATIONEN = [
+  { ab: 0, bis: 9, wo: 'hutte', was: 'schläft noch' },
+  { ab: 9, bis: 13, wo: 'arbeit', was: 'ist bei der Arbeit' },
+  { ab: 13, bis: 19, wo: 'feuer', was: 'ist am Lagerfeuer' },
+  { ab: 19, bis: 24, wo: 'hutte', was: 'ist zu Hause' },
+];
+
+/** Welche Station gerade gilt. */
+function stationFuer(stunde) {
+  const h = ((stunde % 24) + 24) % 24;
+  for (let i = 0; i < STATIONEN.length; i++) {
+    if (h >= STATIONEN[i].ab && h < STATIONEN[i].bis) return STATIONEN[i];
+  }
+  return STATIONEN[STATIONEN.length - 1];
+}
+
+/* ------------------------------------------------- Das Erinnern --------- */
+
+/**
+ * Was ein Bewohner mitbekommt – und Tage später davon anfängt.
+ *
+ * Das ist der Unterschied zwischen einer Figur mit acht Sätzen und einer,
+ * die hier wohnt: Sie hat gesehen, was du getan hast. Nach zwei Wochen
+ * kennt man alle acht Sätze; eine Erinnerung dagegen ist jedes Mal eine
+ * andere, weil sie von dir handelt.
+ *
+ * **Frühestens am nächsten Tag.** Wer etwas kommentiert, während man noch
+ * danebensteht, ist ein Zuschauer. Wer am übernächsten Tag darauf
+ * zurückkommt, hat daran gedacht.
+ *
+ * **Und sie verfällt.** Nach einer Woche fängt niemand mehr von einem
+ * Steinweg an. Eine Erinnerung, die ewig wartet, kommt irgendwann völlig
+ * zusammenhanglos.
+ */
+const ERINNERUNG_FRIST = 7;
+
+const ERINNERUNGEN = {
+  gepflanzt: {
+    hilde: 'Du hast etwas gesetzt. Ich war nachsehen – es steht gut.',
+    pepe: 'Du pflanzt, ich baue. Irgendwann treffen wir uns in der Mitte.',
+    marei: 'Wenn das reif ist, koche ich etwas daraus. Abgemacht?',
+    knut: 'Gesehen. Dauert jetzt nur noch.',
+  },
+  gekocht: {
+    hilde: 'Es hat bis zu mir gerochen. Ich habe das Fenster aufgelassen.',
+    pepe: 'Du hast gekocht. Ich habe an dem Tag nur Nägel verbogen.',
+    marei: 'Du warst an meiner Kochstelle! Und es ist dir gelungen.',
+    knut: 'Roch gut. Mehr sage ich nicht.',
+  },
+  gefischt: {
+    hilde: 'Du standst ewig am Wasser. Ich dachte schon, du bist eingeschlafen.',
+    pepe: 'Angeln wäre nichts für mich. Zu wenig zu bauen.',
+    marei: 'Bring mir mal einen mit, dann mache ich etwas daraus.',
+    knut: 'Du hast einen rausgeholt. Da an der Stelle gehen sie gut.',
+  },
+  aufgestellt: {
+    hilde: 'Das Stück, das du hingestellt hast, steht genau richtig.',
+    pepe: 'Ich habe nachgemessen, was du aufgestellt hast. Gerade. Ärgerlich.',
+    marei: 'Es wird gemütlich hier. Das fällt mir erst auf, wenn ich zurückkomme.',
+    knut: 'Du räumst die Insel ein. Gut so.',
+  },
+  benannt: {
+    hilde: 'Du hast der Stelle einen Namen gegeben. Jetzt weiß ich, wo das ist.',
+    pepe: 'Namen sind praktisch. Ich sage sonst immer „da hinten".',
+    marei: 'Ein Ort mit Namen ist ein Ort, an den man zurückkommt.',
+    knut: 'Guter Name. Besser als meiner für die Stelle.',
+  },
+  geschenkt: {
+    hilde: 'Du hast den Geistern etwas mitgebracht. Das macht nicht jeder.',
+    pepe: 'Ich wollte auch mal was schenken. Dann habe ich es verbaut.',
+    marei: 'Schenken ist das Schönste. Gleich nach Essen.',
+    knut: 'Du gibst viel weg. Fällt auf.',
+  },
+};
+
+const ERINNERUNG_ARTEN = Object.keys(ERINNERUNGEN);
+
 /** Einen Bewohner zur Kennung – oder null. */
 function bewohnerFuer(id) {
   for (let i = 0; i < BEWOHNER.length; i++) if (BEWOHNER[i].id === id) return BEWOHNER[i];
@@ -11277,7 +11388,7 @@ function bewohnerFuer(id) {
 
 /** Leerer Stand. */
 function emptyBewohner() {
-  return { da: {}, geredet: {}, satz: {}, gabe: {} };
+  return { da: {}, geredet: {}, satz: {}, gabe: {}, merk: {} };
 }
 
 /**
@@ -11301,8 +11412,67 @@ function bewohnerAus(roh) {
         });
     }
     if (roh.gabe && roh.gabe[id] > 0) stand.gabe[id] = Math.floor(roh.gabe[id]);
+    const m = roh.merk && roh.merk[id];
+    if (m && ERINNERUNGEN[m.art] && m.tag > 0) {
+      stand.merk[id] = { art: m.art, tag: Math.floor(m.tag) };
+    }
   }
   return stand;
+}
+
+/**
+ * Jemandem etwas zu merken geben.
+ *
+ * Einer trägt es, nicht alle: Vier Bewohner, die am selben Morgen dasselbe
+ * ansprechen, sind ein Chor, kein Dorf. Wer schon etwas gemerkt hat,
+ * bekommt nichts Neues – sonst überschriebe der Alltag ständig das, was
+ * noch gar nicht gesagt wurde.
+ */
+function merkeFuerSpaeter(stand, art, tag, wer) {
+  if (!ERINNERUNGEN[art]) return null;
+  const da = alleDa(stand);
+  if (!da.length) return null;
+  const frei = da.filter(function (b) { return !stand.merk[b.id]; });
+  const topf = frei.length ? frei : [];
+  if (!topf.length) return null;
+  // Wer gewählt wird, hängt am Tag und an der Art, nicht am Zufall des
+  // Augenblicks: Zweimal dasselbe Ereignis am selben Tag soll nicht zwei
+  // verschiedene Leute beschäftigen.
+  const n = wer == null
+    ? ((tag * 2654435761 + art.length * 97) >>> 0) % topf.length
+    : wer % topf.length;
+  const b = topf[n];
+  stand.merk[b.id] = { art: art, tag: tag };
+  return b;
+}
+
+/**
+ * Hat jemand heute etwas zu erzählen, das er sich gemerkt hat?
+ *
+ * Frühestens am Tag danach, und nach einer Woche nicht mehr.
+ */
+function faelligeErinnerung(stand, id, tag) {
+  const m = stand.merk && stand.merk[id];
+  if (!m) return null;
+  if (tag <= m.tag) return null;
+  if (tag - m.tag > ERINNERUNG_FRIST) return null;
+  const satz = ERINNERUNGEN[m.art] && ERINNERUNGEN[m.art][id];
+  if (!satz) return null;
+  return { art: m.art, text: satz, alter: tag - m.tag };
+}
+
+/** Eine erzählte Erinnerung wegräumen. */
+function erinnerungErzaehlt(stand, id) {
+  if (stand.merk) delete stand.merk[id];
+}
+
+/** Abgelaufene Erinnerungen wegräumen – einmal je Tageswechsel. */
+function erinnerungenAltern(stand, tag) {
+  let weg = 0;
+  for (const id in stand.merk) {
+    if (tag - stand.merk[id].tag > ERINNERUNG_FRIST) { delete stand.merk[id]; weg++; }
+  }
+  return weg;
 }
 
 /** Wohnt dieser Bewohner schon hier? */
@@ -11383,9 +11553,16 @@ function einziehen(stand, id, tag) {
  * Tag würfelt, sagt denselben Satz in einer Woche dreimal, und das merkt
  * man sofort.
  */
-function naechsterSatz(stand, id) {
+function naechsterSatz(stand, id, tag) {
   const b = bewohnerFuer(id);
   if (!b) return null;
+  // Eine fällige Erinnerung geht allem vor. Sie ist der einzige Satz, der
+  // von DIR handelt – ihn hinter dem Wetter anstehen zu lassen, wäre die
+  // falsche Reihenfolge.
+  if (tag != null) {
+    const e = faelligeErinnerung(stand, id, tag);
+    if (e) return { nummer: -1, text: e.text, erinnerung: e.art };
+  }
   let gesagt = (stand.satz && stand.satz[id]) || [];
   if (gesagt.length >= b.saetze.length) gesagt = [];
   for (let i = 0; i < b.saetze.length; i++) {
@@ -11398,6 +11575,8 @@ function naechsterSatz(stand, id) {
 function merkeRede(stand, id, nummer, tag) {
   if (stand.geredet[id] === tag) return false;
   stand.geredet[id] = tag;
+  // Eine Erinnerung verbraucht keinen der acht Sätze – sie wird abgehakt.
+  if (nummer < 0) { erinnerungErzaehlt(stand, id); return true; }
   if (!Array.isArray(stand.satz[id])) stand.satz[id] = [];
   const b = bewohnerFuer(id);
   if (b && stand.satz[id].length >= b.saetze.length) stand.satz[id] = [];
@@ -11446,9 +11625,18 @@ function bewohnerStand(stand) {
 
 __e.BEWOHNER = BEWOHNER;
 __e.BEWOHNER_IDS = BEWOHNER_IDS;
+__e.STATIONEN = STATIONEN;
+__e.ERINNERUNG_FRIST = ERINNERUNG_FRIST;
+__e.ERINNERUNGEN = ERINNERUNGEN;
+__e.ERINNERUNG_ARTEN = ERINNERUNG_ARTEN;
+__e.stationFuer = stationFuer;
 __e.bewohnerFuer = bewohnerFuer;
 __e.emptyBewohner = emptyBewohner;
 __e.bewohnerAus = bewohnerAus;
+__e.merkeFuerSpaeter = merkeFuerSpaeter;
+__e.faelligeErinnerung = faelligeErinnerung;
+__e.erinnerungErzaehlt = erinnerungErzaehlt;
+__e.erinnerungenAltern = erinnerungenAltern;
 __e.wohntHier = wohntHier;
 __e.alleDa = alleDa;
 __e.naechsterZuzug = naechsterZuzug;
@@ -34310,7 +34498,7 @@ const { emptyDekoreaktion, reaktionFuer, merke: merkeReaktion, reaktionenStand }
 const { niedrigAm, naechstesNiedrig, BREITE: WATT_BREITE, FUNDE: WATT_FUNDE, GRABSTELLEN: WATT_GRABEN } = __req("src/game/gezeiten.js");
 const { NAME: JULE, SAETZE: JULE_SAETZE, LOHN: JULE_LOHN, emptyNachbar, istDa: juleDa, naechsteGeschichte, merke: merkeGeschichte, neueStufe, nachbarStand, heuteSchon: juleHeuteSchon } = __req("src/game/nachbar.js");
 const { emptyAdvent, adventAus, istAdvent, istHeiligabend, naechstesTuerchen, oeffne: oeffneAdvent, baumStufe, baumText, lichter: adventLichter, LETZTES: ADVENT_LETZTES } = __req("src/game/advent.js");
-const { BEWOHNER, bewohnerFuer, emptyBewohner, bewohnerAus, wohntHier, alleDa, naechsterZuzug, zuzugGrund, einziehen, naechsterSatz, merkeRede, heuteGeredet, tuergabeFuer, gabeGeholt, merkeGabe, bewohnerStand } = __req("src/game/bewohner.js");
+const { BEWOHNER, bewohnerFuer, emptyBewohner, bewohnerAus, wohntHier, alleDa, naechsterZuzug, zuzugGrund, einziehen, naechsterSatz, merkeRede, heuteGeredet, tuergabeFuer, gabeGeholt, merkeGabe, bewohnerStand, stationFuer, merkeFuerSpaeter, erinnerungenAltern } = __req("src/game/bewohner.js");
 const { emptySternbilder, faelligesSternbild, merke: merkeSternbild, gefundene: gefundeneSternbilder, sternbilderStand, geistName: sternGeist } = __req("src/game/sternbilder.js");
 const { orteAus, emptyOrte, nameHier, ortAnStelle, nochPlatz, benenne: benenneOrt, vergesse: vergessOrt, orteStand, saeubereOrtsname, MAX: ORTE_MAX, NAME_MAX: ORT_NAME_MAX } = __req("src/game/orte.js");
 const { naechsterTermin: terminInnerhalb, wannText, heuteIst } = __req("src/game/termine.js");
@@ -35100,6 +35288,7 @@ class Game {
     this._petSucht();
     this._petRuht(dt);
     this._updatePet(dt);
+    this._updateBewohner(dt);
 
     const mustSleep = this.day.update(dt);
     if (mustSleep) this.sleep(true);
@@ -36035,6 +36224,133 @@ class Game {
   }
 
   /**
+   * Wohin ein Bewohner gerade gehört.
+   *
+   * Drei Stationen nach der Uhrzeit: zu Hause, bei der Arbeit, am Feuer.
+   * Der Arbeitsplatz gehört zur Figur – die Gärtnerin ans Beet, der
+   * Bastler an die Werkbank –, und wenn es den auf dieser Insel nicht gibt,
+   * fällt sie ans Feuer zurück statt stehenzubleiben.
+   *
+   * Der Platz am Feuer hängt an der Reihenfolge der Bewohner, nicht am
+   * Zufall: Wer gestern links vom Feuer saß, sitzt heute auch links.
+   */
+  _bewohnerZiel(b, e) {
+    const st = stationFuer(this.day.hour);
+    const hutte = this._hutteVon(b.id);
+    if (st.wo === 'hutte') {
+      return hutte ? { x: hutte.x - 72, y: hutte.y + 30 } : { x: e.x, y: e.y };
+    }
+    const feuer = this.world.campfire;
+    if (st.wo === 'arbeit') {
+      const ziel = this._arbeitsplatz(b);
+      if (ziel) return ziel;
+    }
+    if (!feuer) return { x: e.x, y: e.y };
+    const i = Math.max(0, BEWOHNER.indexOf(b));
+    const a = -Math.PI / 2 + (i / BEWOHNER.length) * Math.PI * 2;
+    return { x: feuer.x + Math.cos(a) * 150, y: feuer.y + Math.sin(a) * 110 };
+  }
+
+  /** Die Hütte eines Bewohners – oder null. */
+  _hutteVon(id) {
+    const liste = this.world.entities;
+    for (let i = 0; i < liste.length; i++) {
+      const e = liste[i];
+      if (e.kind === 'hutte' && e.bewohnerId === id && !e.gone) return e;
+    }
+    return null;
+  }
+
+  /** Der Platz, an dem ein Bewohner vormittags steht – oder null. */
+  _arbeitsplatz(b) {
+    const feuer = this.world.campfire;
+    if (!feuer) return null;
+    const passt = {
+      beet: function (e) { return e.kind === 'crop' || e.itemId === 'flowerbed' || e.itemId === 'planter'; },
+      werkbank: function (e) { return e.kind === 'workbench' || e.itemId === 'workbench'; },
+      kueche: function (e) { return e.kind === 'kitchen' || e.itemId === 'bowl'; },
+      wasser: null,
+    }[b.arbeit];
+    if (passt) {
+      const nah = this.world.queryNear(feuer.x, feuer.y, 700);
+      let beste = null;
+      let d2 = Infinity;
+      for (let i = 0; i < nah.length; i++) {
+        const e = nah[i];
+        if (e.gone || !passt(e)) continue;
+        const dx = e.x - feuer.x;
+        const dy = e.y - feuer.y;
+        if (dx * dx + dy * dy < d2) { d2 = dx * dx + dy * dy; beste = e; }
+      }
+      if (beste) return { x: beste.x - 56, y: beste.y + 18 };
+      return null;
+    }
+    // Knut sitzt am Wasser: die nächste begehbare Stelle am Ufer.
+    const hutte = this._hutteVon(b.id);
+    const von = hutte || feuer;
+    for (let r = 120; r <= 760; r += 80) {
+      for (let k = 0; k < 24; k++) {
+        const a = (k / 24) * Math.PI * 2;
+        const x = von.x + Math.cos(a) * r;
+        const y = von.y + Math.sin(a) * r;
+        if (!this.world.canStand(x, y, 14, 8)) continue;
+        if (!isWater(this.world.tileAt(x + 70, y)) && !isWater(this.world.tileAt(x - 70, y))
+          && !isWater(this.world.tileAt(x, y + 70))) continue;
+        return { x: x, y: y };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Die Bewohner gehen ihren Stationen nach.
+   *
+   * Gelaufen wird in gerader Linie, mit demselben Ausweichen wie beim
+   * Haustier: schräg zuerst, sonst an der Kante entlang – und geprüft wird
+   * der BODEN, nicht was darauf steht. Mit `canStand` blieben sie am ersten
+   * Findling für immer hängen; das steht beim Haustier schon als Lehre.
+   *
+   * Kein Wegfinden: Eine Insel voller Bäume braucht das nicht, solange die
+   * Stationen im Lagerbereich liegen. Wer sich doch einmal festläuft,
+   * bleibt stehen, wo er ist – das sieht aus, als hätte er beschlossen,
+   * heute hier zu bleiben, und nicht nach einem Fehler.
+   */
+  _updateBewohner(dt) {
+    const liste = this.world.entities;
+    for (let i = 0; i < liste.length; i++) {
+      const e = liste[i];
+      if (e.kind !== 'bewohner' || e.gone) continue;
+      const b = bewohnerFuer(e.bewohnerId);
+      if (!b) continue;
+      const ziel = this._bewohnerZiel(b, e);
+      const dx = ziel.x - e.x;
+      const dy = ziel.y - e.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 26) {
+        const s2 = Math.min(d, 64 * dt);
+        const sx = (dx / d) * s2;
+        const sy = (dy / d) * s2;
+        const wege = [[sx, sy], [sx, 0], [0, sy]];
+        for (let k = 0; k < wege.length; k++) {
+          const nx = e.x + wege[k][0];
+          const ny = e.y + wege[k][1];
+          if (!isWalkable(this.world.tileAt(nx, ny))) continue;
+          e.x = nx;
+          e.y = ny;
+          this.world.reindex(e);
+          break;
+        }
+        e.laeuft = true;
+        e.schritt = (e.schritt || 0) + dt * 5;
+      } else {
+        e.laeuft = false;
+      }
+      e.sprite = 'bewohner_' + b.id + '_' +
+        (e.laeuft && Math.floor(e.schritt || 0) % 2 === 1 ? '1' : '0');
+    }
+  }
+
+  /**
    * Was die Chronik über die Nachbarschaft zeigt.
    *
    * Null, solange noch niemand da ist UND niemand in Sicht: Eine Zeile
@@ -36057,7 +36373,7 @@ class Game {
     const b = bewohnerFuer(e.bewohnerId);
     if (!b) return false;
     const tag = this.day.day;
-    const satz = naechsterSatz(this.state.bewohner, b.id);
+    const satz = naechsterSatz(this.state.bewohner, b.id, tag);
     if (!satz) return false;
     // Zweimal am selben Tag gibt denselben Satz zurück, verbraucht ihn aber
     // nicht. Wer zweimal hingeht, soll nicht das Gefühl haben, etwas
@@ -40523,8 +40839,33 @@ class Game {
    */
   _note(feld, n) {
     const b = this.state.daybook;
-    if (!b) return;
-    b[feld] = (b[feld] || 0) + (n == null ? 1 : n);
+    if (b) b[feld] = (b[feld] || 0) + (n == null ? 1 : n);
+    this._bewohnerSehen(feld);
+  }
+
+  /**
+   * Einer der Bewohner bekommt mit, was du gerade getan hast.
+   *
+   * Angehängt an `_note` und nicht an zwanzig Stellen im Spiel verteilt:
+   * Hier läuft ohnehin schon alles zusammen, was einen Tag ausmacht – das
+   * Tagebuch zählt dieselben Ereignisse. Eine zweite Sammelstelle wäre eine
+   * zweite Wahrheit, und die beiden liefen auseinander.
+   *
+   * Nicht jedes Ereignis: Münzen und Glut zählt niemand mit, und „gegossen"
+   * wäre ein Kommentar über eine Gießkanne. Was bleibt, sind die sechs
+   * Dinge, zu denen jemand, der danebensteht, wirklich etwas sagen würde.
+   */
+  _bewohnerSehen(feld) {
+    const art = {
+      planted: 'gepflanzt',
+      gekocht: 'gekocht',
+      fish: 'gefischt',
+      decor: 'aufgestellt',
+      erzaehlt: 'benannt',
+      gifts: 'geschenkt',
+    }[feld];
+    if (!art || !this.state.bewohner) return null;
+    return merkeFuerSpaeter(this.state.bewohner, art, this.day.day);
   }
 
   /* ---------------- Mitbringsel ---------------- */
@@ -41298,6 +41639,7 @@ class Game {
     this._festSchmuck(day);
     this._tanneSetzen();
     this._heiligabendRunde();
+    erinnerungenAltern(this.state.bewohner, day);
     this._zuzugPruefen(day);
     this._bewohnerSetzen(day);
     const gast = this._wandererSetzen(day);

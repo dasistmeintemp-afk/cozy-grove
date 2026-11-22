@@ -65,6 +65,7 @@ import {
   BEWOHNER, bewohnerFuer, emptyBewohner, bewohnerAus, wohntHier, alleDa,
   naechsterZuzug, zuzugGrund, einziehen, naechsterSatz, merkeRede,
   heuteGeredet, tuergabeFuer, gabeGeholt, merkeGabe, bewohnerStand,
+  stationFuer, merkeFuerSpaeter, erinnerungenAltern,
 } from './bewohner.js';
 import {
   emptySternbilder, faelligesSternbild, merke as merkeSternbild,
@@ -906,6 +907,7 @@ export class Game {
     this._petSucht();
     this._petRuht(dt);
     this._updatePet(dt);
+    this._updateBewohner(dt);
 
     const mustSleep = this.day.update(dt);
     if (mustSleep) this.sleep(true);
@@ -1841,6 +1843,133 @@ export class Game {
   }
 
   /**
+   * Wohin ein Bewohner gerade gehört.
+   *
+   * Drei Stationen nach der Uhrzeit: zu Hause, bei der Arbeit, am Feuer.
+   * Der Arbeitsplatz gehört zur Figur – die Gärtnerin ans Beet, der
+   * Bastler an die Werkbank –, und wenn es den auf dieser Insel nicht gibt,
+   * fällt sie ans Feuer zurück statt stehenzubleiben.
+   *
+   * Der Platz am Feuer hängt an der Reihenfolge der Bewohner, nicht am
+   * Zufall: Wer gestern links vom Feuer saß, sitzt heute auch links.
+   */
+  _bewohnerZiel(b, e) {
+    const st = stationFuer(this.day.hour);
+    const hutte = this._hutteVon(b.id);
+    if (st.wo === 'hutte') {
+      return hutte ? { x: hutte.x - 72, y: hutte.y + 30 } : { x: e.x, y: e.y };
+    }
+    const feuer = this.world.campfire;
+    if (st.wo === 'arbeit') {
+      const ziel = this._arbeitsplatz(b);
+      if (ziel) return ziel;
+    }
+    if (!feuer) return { x: e.x, y: e.y };
+    const i = Math.max(0, BEWOHNER.indexOf(b));
+    const a = -Math.PI / 2 + (i / BEWOHNER.length) * Math.PI * 2;
+    return { x: feuer.x + Math.cos(a) * 150, y: feuer.y + Math.sin(a) * 110 };
+  }
+
+  /** Die Hütte eines Bewohners – oder null. */
+  _hutteVon(id) {
+    const liste = this.world.entities;
+    for (let i = 0; i < liste.length; i++) {
+      const e = liste[i];
+      if (e.kind === 'hutte' && e.bewohnerId === id && !e.gone) return e;
+    }
+    return null;
+  }
+
+  /** Der Platz, an dem ein Bewohner vormittags steht – oder null. */
+  _arbeitsplatz(b) {
+    const feuer = this.world.campfire;
+    if (!feuer) return null;
+    const passt = {
+      beet: function (e) { return e.kind === 'crop' || e.itemId === 'flowerbed' || e.itemId === 'planter'; },
+      werkbank: function (e) { return e.kind === 'workbench' || e.itemId === 'workbench'; },
+      kueche: function (e) { return e.kind === 'kitchen' || e.itemId === 'bowl'; },
+      wasser: null,
+    }[b.arbeit];
+    if (passt) {
+      const nah = this.world.queryNear(feuer.x, feuer.y, 700);
+      let beste = null;
+      let d2 = Infinity;
+      for (let i = 0; i < nah.length; i++) {
+        const e = nah[i];
+        if (e.gone || !passt(e)) continue;
+        const dx = e.x - feuer.x;
+        const dy = e.y - feuer.y;
+        if (dx * dx + dy * dy < d2) { d2 = dx * dx + dy * dy; beste = e; }
+      }
+      if (beste) return { x: beste.x - 56, y: beste.y + 18 };
+      return null;
+    }
+    // Knut sitzt am Wasser: die nächste begehbare Stelle am Ufer.
+    const hutte = this._hutteVon(b.id);
+    const von = hutte || feuer;
+    for (let r = 120; r <= 760; r += 80) {
+      for (let k = 0; k < 24; k++) {
+        const a = (k / 24) * Math.PI * 2;
+        const x = von.x + Math.cos(a) * r;
+        const y = von.y + Math.sin(a) * r;
+        if (!this.world.canStand(x, y, 14, 8)) continue;
+        if (!isWater(this.world.tileAt(x + 70, y)) && !isWater(this.world.tileAt(x - 70, y))
+          && !isWater(this.world.tileAt(x, y + 70))) continue;
+        return { x: x, y: y };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Die Bewohner gehen ihren Stationen nach.
+   *
+   * Gelaufen wird in gerader Linie, mit demselben Ausweichen wie beim
+   * Haustier: schräg zuerst, sonst an der Kante entlang – und geprüft wird
+   * der BODEN, nicht was darauf steht. Mit `canStand` blieben sie am ersten
+   * Findling für immer hängen; das steht beim Haustier schon als Lehre.
+   *
+   * Kein Wegfinden: Eine Insel voller Bäume braucht das nicht, solange die
+   * Stationen im Lagerbereich liegen. Wer sich doch einmal festläuft,
+   * bleibt stehen, wo er ist – das sieht aus, als hätte er beschlossen,
+   * heute hier zu bleiben, und nicht nach einem Fehler.
+   */
+  _updateBewohner(dt) {
+    const liste = this.world.entities;
+    for (let i = 0; i < liste.length; i++) {
+      const e = liste[i];
+      if (e.kind !== 'bewohner' || e.gone) continue;
+      const b = bewohnerFuer(e.bewohnerId);
+      if (!b) continue;
+      const ziel = this._bewohnerZiel(b, e);
+      const dx = ziel.x - e.x;
+      const dy = ziel.y - e.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 26) {
+        const s2 = Math.min(d, 64 * dt);
+        const sx = (dx / d) * s2;
+        const sy = (dy / d) * s2;
+        const wege = [[sx, sy], [sx, 0], [0, sy]];
+        for (let k = 0; k < wege.length; k++) {
+          const nx = e.x + wege[k][0];
+          const ny = e.y + wege[k][1];
+          if (!isWalkable(this.world.tileAt(nx, ny))) continue;
+          e.x = nx;
+          e.y = ny;
+          this.world.reindex(e);
+          break;
+        }
+        e.laeuft = true;
+        e.schritt = (e.schritt || 0) + dt * 5;
+      } else {
+        e.laeuft = false;
+      }
+      e.sprite = 'bewohner_' + b.id + '_' +
+        (e.laeuft && Math.floor(e.schritt || 0) % 2 === 1 ? '1' : '0');
+    }
+  }
+
+  /**
    * Was die Chronik über die Nachbarschaft zeigt.
    *
    * Null, solange noch niemand da ist UND niemand in Sicht: Eine Zeile
@@ -1863,7 +1992,7 @@ export class Game {
     const b = bewohnerFuer(e.bewohnerId);
     if (!b) return false;
     const tag = this.day.day;
-    const satz = naechsterSatz(this.state.bewohner, b.id);
+    const satz = naechsterSatz(this.state.bewohner, b.id, tag);
     if (!satz) return false;
     // Zweimal am selben Tag gibt denselben Satz zurück, verbraucht ihn aber
     // nicht. Wer zweimal hingeht, soll nicht das Gefühl haben, etwas
@@ -6329,8 +6458,33 @@ export class Game {
    */
   _note(feld, n) {
     const b = this.state.daybook;
-    if (!b) return;
-    b[feld] = (b[feld] || 0) + (n == null ? 1 : n);
+    if (b) b[feld] = (b[feld] || 0) + (n == null ? 1 : n);
+    this._bewohnerSehen(feld);
+  }
+
+  /**
+   * Einer der Bewohner bekommt mit, was du gerade getan hast.
+   *
+   * Angehängt an `_note` und nicht an zwanzig Stellen im Spiel verteilt:
+   * Hier läuft ohnehin schon alles zusammen, was einen Tag ausmacht – das
+   * Tagebuch zählt dieselben Ereignisse. Eine zweite Sammelstelle wäre eine
+   * zweite Wahrheit, und die beiden liefen auseinander.
+   *
+   * Nicht jedes Ereignis: Münzen und Glut zählt niemand mit, und „gegossen"
+   * wäre ein Kommentar über eine Gießkanne. Was bleibt, sind die sechs
+   * Dinge, zu denen jemand, der danebensteht, wirklich etwas sagen würde.
+   */
+  _bewohnerSehen(feld) {
+    const art = {
+      planted: 'gepflanzt',
+      gekocht: 'gekocht',
+      fish: 'gefischt',
+      decor: 'aufgestellt',
+      erzaehlt: 'benannt',
+      gifts: 'geschenkt',
+    }[feld];
+    if (!art || !this.state.bewohner) return null;
+    return merkeFuerSpaeter(this.state.bewohner, art, this.day.day);
   }
 
   /* ---------------- Mitbringsel ---------------- */
@@ -7104,6 +7258,7 @@ export class Game {
     this._festSchmuck(day);
     this._tanneSetzen();
     this._heiligabendRunde();
+    erinnerungenAltern(this.state.bewohner, day);
     this._zuzugPruefen(day);
     this._bewohnerSetzen(day);
     const gast = this._wandererSetzen(day);
