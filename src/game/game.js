@@ -1244,6 +1244,12 @@ export class Game {
       this._unlockRegion(def.unlocks, e);
     }
 
+    // Merken, ob hier ein Schatten lag – die Kronenschatten sind in den
+    // Boden gebacken. Ohne das Nachziehen bliebe der Schatten eines
+    // gefällten Baums als dunkler Fleck auf der Wiese stehen, und beim
+    // Nachwachsen fehlte er.
+    const warf = e.kind && (e.kind.indexOf('tree_') === 0 || e.kind.indexOf('bush_') === 0);
+
     if (def.becomes) {
       e.origin = e.kind;
       e.kind = def.becomes;
@@ -1255,6 +1261,10 @@ export class Game {
       e.respawnDay = this.day.day + regrowDays(def.respawn, this.season());
     } else {
       this.world.remove(e);
+    }
+
+    if (warf && this.ground) {
+      this.ground.markTileDirty(Math.floor(e.x / 64), Math.floor(e.y / 64));
     }
   }
 
@@ -7288,6 +7298,15 @@ export class Game {
     // Prüfung die ECHTE Reihenfolge nachspielte statt einer bequemen.
     this._gezeitenNachfuehren();
     this.world.newDay(day, this._todayWorldEffects());
+    // Über Nacht wächst Gefälltes nach, und mit ihm sein Kronenschatten.
+    // Der steckt im gebackenen Boden, also muss der neu entstehen – sonst
+    // steht der Baum wieder da, aber der Boden unter ihm bleibt hell.
+    //
+    // Einmal am Tag alles wegzuwerfen ist dafür der ehrlichste Weg: Welche
+    // Kacheln betroffen sind, weiß nur `newDay`, und der Neuaufbau fällt in
+    // den Augenblick, in dem das Bild ohnehin überblendet. Dieselbe
+    // Entscheidung wie bei den Gezeiten.
+    this.ground.clear();
     // Erst das Wetter des neuen Tages, dann wachsen lassen: Regen zählt
     // doppelt, und das soll der Regen von heute sein, nicht der von gestern.
     this.weather.setDay(this.world.seed, day, this.season());

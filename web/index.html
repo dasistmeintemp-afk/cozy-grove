@@ -12544,7 +12544,7 @@ __defs["src/art/painted-ground.js"] = function (__e) {
  */
 const { makeCanvas, ctx2d } = __req("src/core/util.js");
 const { makeRng, hashString } = __req("src/core/rng.js");
-const { blob, smoothClosed, offsetShape, pathFrom, inkStroke, inkLine, blurCanvas } = __req("src/art/brush.js");
+const { blob, smoothClosed, offsetShape, pathFrom, inkStroke, inkLine, blurCanvas, LIGHT } = __req("src/art/brush.js");
 const { INK } = __req("src/art/painted.js");
 const { T, TILE_SIZE, TILE_DEF, isWalkable, isWater } = __req("src/art/tiles.js");
 
@@ -12743,6 +12743,54 @@ function paintGroundChunk(world, ctx0, cty0, pfade) {
       wctx.fill();
       wctx.restore();
     }
+  }
+
+  // Kronenschatten.
+  //
+  // Unter einem Baum war der Boden bisher genauso hell wie auf der freien
+  // Wiese – im Bild sah ein Wald deshalb aus wie Bäume, die auf eine
+  // Rasenfläche gelegt wurden. Ein Schatten je Krone macht daraus einen
+  // Ort mit Licht und Halbschatten, und wo viele Bäume stehen, überlagern
+  // sich die Schatten von selbst zu dichtem Wald.
+  //
+  // Hier im gebackenen Boden und nicht je Bild: Bäume wachsen nicht und
+  // gehen nicht spazieren. Fällt einer, wird das Stück ohnehin neu
+  // gebacken.
+  //
+  // Der Versatz folgt derselben Sonne wie alle anderen Schatten im Spiel.
+  if (world.queryNear) {
+    const mx = (tx0 + CHUNK_TILES / 2) * TILE_SIZE;
+    const my = (ty0 + CHUNK_TILES / 2) * TILE_SIZE;
+    // Nur so weit, wie ein Schatten überhaupt reichen kann: halbe
+    // Stückbreite plus Rand plus die größte Halbachse. Vorher war der
+    // Radius fast anderthalb Stücke breit, und für jedes Stück wurden
+    // dreimal so viele Bäume geprüft wie nötig.
+    const nah = world.queryNear(mx, my, CHUNK_PX * 0.5 + PAD + 150);
+    wctx.save();
+    wctx.fillStyle = '#5d6b4e';
+    for (let i = 0; i < nah.length; i++) {
+      const e = nah[i];
+      if (e.gone || !e.kind) continue;
+      // Nur Bäume. Büsche warfen anfangs auch einen, mit halber Stärke –
+      // gesehen hat man davon nichts, bezahlt wurde es trotzdem: Auf der
+      // Insel stehen fast so viele Büsche wie Bäume, und jeder war eine
+      // weitere halbdurchsichtige Fläche beim Backen.
+      if (e.kind.indexOf('tree_') !== 0 || e.kind === 'tree_stump') continue;
+      // Eine Ellipse, kein gezeichneter Klecks. Ein `blob` mit vierzehn
+      // Punkten und fünf Glättungsdurchgängen ergibt 448 Stützpunkte – je
+      // Baum. Bei dreißig Bäumen im Stück kostete das Backen so viel, dass
+      // die Bildrate beim Laufen von 44 auf 34 fiel. Nach dem Weichzeichner
+      // sieht man von der unruhigen Kante ohnehin nichts; die Unruhe steckt
+      // stattdessen in den leicht verschiedenen Halbachsen.
+      const hs = hashString('schatten' + Math.round(e.x) + ':' + Math.round(e.y));
+      const r = 88 * (0.88 + ((hs >>> 7) & 255) / 255 * 0.26);
+      wctx.globalAlpha = 0.125;
+      wctx.beginPath();
+      wctx.ellipse(e.x - LIGHT.x * 34, e.y - 22 - LIGHT.y * 12,
+        r, r * (0.56 + ((hs >>> 17) & 255) / 255 * 0.14), 0, 0, 6.2832);
+      wctx.fill();
+    }
+    wctx.restore();
   }
 
   // Trampelpfade: Dort, wo oft jemand langgeht, liegt Erde statt Gras.
@@ -16311,12 +16359,7 @@ function drawSprite(ctx, name, x, y, line, opts) {
   }
   ctx.save();
   if (o.alpha != null) ctx.globalAlpha = o.alpha;
-  if (o.rotate) {
-    ctx.translate(x, y);
-    ctx.rotate(o.rotate);
-    ctx.scale(o.flip ? -1 : 1, 1);
-    ctx.drawImage(img, -s.ax, -s.ay);
-  } else if (o.flip || o.scale) {
+  if (o.flip || o.scale || o.rotate) {
     /**
      * Spiegeln UND Skalieren – und zwar um den Ankerpunkt.
      *
@@ -16328,9 +16371,15 @@ function drawSprite(ctx, name, x, y, line, opts) {
      * Jetzt wird um (x, y) gerechnet, also um den Punkt, an dem das Objekt
      * auf dem Boden steht. Ein kleinerer Baum ist dann einfach kleiner und
      * steht weiter an derselben Stelle.
+     *
+     * Dasselbe galt noch einmal für `rotate`: Das hatte einen EIGENEN
+     * Zweig, der die Größe stillschweigend fallen ließ. Wer beides angab –
+     * und ein Baum, der leicht geneigt UND etwas kleiner ist, ist genau
+     * das –, bekam nur die Neigung. Jetzt ist es ein Zweig für alle drei.
      */
     const sc = o.scale || 1;
     ctx.translate(x, y);
+    if (o.rotate) ctx.rotate(o.rotate);
     ctx.scale(o.flip ? -sc : sc, sc);
     ctx.drawImage(img, -s.ax, -s.ay);
   } else {
@@ -20836,7 +20885,16 @@ const ALWAYS_COLOR = { spirit: 1, fox: 1, hidden: 1, wanderer: 1 };
 
 const REFERENCE_W = 1560;
 const REFERENCE_H = 880;
-const MAX_PIXELS = 2100000;
+// Obergrenze für die Zahl der gezeichneten Bildpunkte.
+//
+// Angehoben von 2,1 auf 3,2 Millionen: Auf einem Bildschirm mit doppelter
+// Punktdichte will ein 1440×900 großes Fenster 5,2 Millionen – gedeckelt
+// auf 2,1 blieben davon 0,63 Punkte je Bildschirmpunkt übrig, und genau
+// diese Geräte benutzen die meisten Leute. Mit 3,2 sind es 0,78, und die
+// Nachsteuerung darunter nimmt zurück, wenn es dafür zu langsam wird –
+// das ist ihre Aufgabe, und seit der Schwellenkorrektur kann sie auch
+// wieder hoch.
+const MAX_PIXELS = 3200000;
 
 /**
  * Welche Arten je Exemplar ein wenig anders aussehen dürfen.
@@ -20868,11 +20926,17 @@ function wuchsStreuung(e, def) {
   if (!def || !STREU_ARTEN[def.category]) return undefined;
   const h = (Math.round(e.x) * 374761393) ^ (Math.round(e.y) * 668265263);
   const u = ((h >>> 5) & 1023) / 1023;
+  const v = ((h >>> 15) & 1023) / 1023;
   return {
     flip: ((h >>> 2) & 1) === 1,
-    // 0,90 bis 1,10. Mehr sähe nach verschiedenen Arten aus, weniger
-    // sieht man nicht.
-    scale: 0.9 + u * 0.2,
+    // 0,84 bis 1,16. Vorher 0,90 bis 1,10 – im Bild sah der Wald dadurch
+    // aus, als wäre derselbe Baum hundertmal eingefügt worden. Mehr als
+    // das hier liest sich dagegen als verschiedene Arten.
+    scale: 0.84 + u * 0.32,
+    // Ein paar Grad Neigung. Das ist der billigste Unterschied von allen:
+    // Gewachsenes steht nie exakt senkrecht, und nichts verrät ein
+    // kopiertes Bild so sehr wie hundert exakt gleiche Lotrechte.
+    rotate: (v - 0.5) * 0.085,
   };
 }
 
@@ -20962,8 +21026,31 @@ class Renderer {
     if (this._sinceChange < 120 || !this._cssW) return false;
 
     let q = this.quality;
-    if (this._frameAvg > 26 && q > 0.55) q = Math.max(0.55, q - 0.15);
-    else if (this._frameAvg < 11 && q < 1) q = Math.min(1, q + 0.1);
+    // **Die Schwelle zum Hochdrehen war unerreichbar.**
+    //
+    // Ein Browser zeichnet im Takt des Bildschirms. Auf 60 Hz ist eine
+    // Bildzeit von 16,7 ms das BESTE, was es gibt – schneller geht nicht,
+    // weil der Browser dazwischen wartet. Die alte Bedingung verlangte
+    // weniger als 11 ms, also etwas, das auf 60 Hz nie eintritt.
+    //
+    // Die Folge: Die Auflösung konnte nur fallen. Ein einziger zäher
+    // Moment beim Start – die ersten Bodenstücke werden gebacken, die
+    // Grafiken entstehen – zog sie herunter, und dort blieb sie für immer.
+    // Gemessen in einem 1280×800-Fenster: 1088×680 gezeichnet, also 0,85
+    // Bildpunkte je Bildschirmpunkt, und das ganze Bild dadurch weich.
+    //
+    // 19 ms sind gut 52 Bilder je Sekunde. Wer das schafft, verträgt auch
+    // die volle Auflösung; wer sie dann nicht mehr schafft, fällt über die
+    // obere Schwelle wieder zurück.
+    //
+    // Und die liegt bei 24 ms, nicht bei 28: Achtundzwanzig sind erst 36
+    // Bilder je Sekunde – das ist schon sichtbar zäh, und ein Spiel, das
+    // dort noch auf voller Auflösung beharrt, hat die Abwägung falsch
+    // herum. Zwischen beiden Schwellen liegen fünf Millisekunden; nach
+    // einer Änderung vergehen 120 Bilder, bis wieder entschieden wird,
+    // und der Mittelwert hat sich bis dahin längst eingependelt.
+    if (this._frameAvg > 24 && q > 0.55) q = Math.max(0.55, q - 0.15);
+    else if (this._frameAvg < 19 && q < 1) q = Math.min(1, q + 0.1);
     if (q === this.quality) return false;
 
     this.quality = q;
@@ -35872,6 +35959,12 @@ class Game {
       this._unlockRegion(def.unlocks, e);
     }
 
+    // Merken, ob hier ein Schatten lag – die Kronenschatten sind in den
+    // Boden gebacken. Ohne das Nachziehen bliebe der Schatten eines
+    // gefällten Baums als dunkler Fleck auf der Wiese stehen, und beim
+    // Nachwachsen fehlte er.
+    const warf = e.kind && (e.kind.indexOf('tree_') === 0 || e.kind.indexOf('bush_') === 0);
+
     if (def.becomes) {
       e.origin = e.kind;
       e.kind = def.becomes;
@@ -35883,6 +35976,10 @@ class Game {
       e.respawnDay = this.day.day + regrowDays(def.respawn, this.season());
     } else {
       this.world.remove(e);
+    }
+
+    if (warf && this.ground) {
+      this.ground.markTileDirty(Math.floor(e.x / 64), Math.floor(e.y / 64));
     }
   }
 
@@ -41916,6 +42013,15 @@ class Game {
     // Prüfung die ECHTE Reihenfolge nachspielte statt einer bequemen.
     this._gezeitenNachfuehren();
     this.world.newDay(day, this._todayWorldEffects());
+    // Über Nacht wächst Gefälltes nach, und mit ihm sein Kronenschatten.
+    // Der steckt im gebackenen Boden, also muss der neu entstehen – sonst
+    // steht der Baum wieder da, aber der Boden unter ihm bleibt hell.
+    //
+    // Einmal am Tag alles wegzuwerfen ist dafür der ehrlichste Weg: Welche
+    // Kacheln betroffen sind, weiß nur `newDay`, und der Neuaufbau fällt in
+    // den Augenblick, in dem das Bild ohnehin überblendet. Dieselbe
+    // Entscheidung wie bei den Gezeiten.
+    this.ground.clear();
     // Erst das Wetter des neuen Tages, dann wachsen lassen: Regen zählt
     // doppelt, und das soll der Regen von heute sein, nicht der von gestern.
     this.weather.setDay(this.world.seed, day, this.season());

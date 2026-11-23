@@ -4042,6 +4042,100 @@ async function run() {
       dorfText.hatUeberschrift === true && /\d+\s*% Farbe/.test(dorfText.text),
       JSON.stringify(dorfText));
 
+    /* ---- Unter Bäumen ist es dunkler ---- */
+    // Vorher war der Boden unter einem Baum genauso hell wie auf der
+    // freien Wiese – ein Wald sah deshalb aus wie Bäume, die auf einen
+    // Rasen gelegt wurden. Gemessen am Bodenmaler mit einer erfundenen
+    // Welt: dasselbe Stück Gras einmal ohne und einmal mit Bäumen darauf.
+    const schatten = await page.evaluate(async () => {
+      const { paintGroundChunk, CHUNK_PX } = await import('/src/art/painted-ground.js');
+      const { T } = await import('/src/art/tiles.js');
+      const baeume = [];
+      for (let i = 0; i < 12; i++) {
+        baeume.push({
+          kind: 'tree_oak', gone: false,
+          x: 3 * CHUNK_PX + 60 + (i % 4) * 130,
+          y: 3 * CHUNK_PX + 60 + Math.floor(i / 4) * 150,
+        });
+      }
+      const mess = (mitBaeumen) => {
+        const welt = {
+          tileAtTile: () => T.GRASS,
+          queryNear: () => (mitBaeumen ? baeume : []),
+        };
+        const st = paintGroundChunk(welt, 3, 3, null);
+        const k = document.createElement('canvas');
+        k.width = st.size; k.height = st.size;
+        const x = k.getContext('2d');
+        x.drawImage(st.wash, 0, 0, st.size, st.size);
+        // UNTER einem Baum messen, nicht über das ganze Stück gemittelt:
+        // Zwölf Schatten decken nur ein Drittel der Fläche, und der
+        // Mittelwert verwässert den Unterschied auf vier Stufen. Die
+        // Frage ist aber „ist es unter einem Baum dunkler", nicht „ist das
+        // ganze Stück dunkler".
+        const bx = Math.round(baeume[5].x - st.ox - 20);
+        const by = Math.round(baeume[5].y - st.oy - 40);
+        const d = x.getImageData(bx, by, 40, 40).data;
+        let sl = 0;
+        let n = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 200) continue;
+          sl += d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+          n++;
+        }
+        return n ? Math.round(sl / n) : -1;
+      };
+      const frei = mess(false);
+      const wald = mess(true);
+      return { frei, wald, unterschied: frei - wald };
+    });
+    check('Zwölf Bäume verdunkeln den Boden unter sich merklich',
+      schatten.unterschied >= 8, JSON.stringify(schatten));
+
+    /* ---- Die Auflösung findet wieder hoch ---- */
+    // Die Nachsteuerung senkt die interne Auflösung, wenn es ruckelt, und
+    // hebt sie wieder an, wenn Luft ist. Das Anheben war unerreichbar: Es
+    // verlangte eine Bildzeit unter 11 ms, aber ein Browser zeichnet im
+    // Takt des Bildschirms – auf 60 Hz sind 16,7 ms das Beste, was es
+    // überhaupt gibt. Die Auflösung konnte also nur fallen, und ein
+    // einziger zäher Moment beim Start ließ das Bild für immer weich.
+    // Gemessen in einem 1280×800-Fenster: 1088×680 gezeichnet.
+    const schaerfe = await page.evaluate(async () => {
+      const R = window.CozyGrove.game.renderer;
+      const cam = window.CozyGrove.game.camera;
+      const merkQ = R.quality;
+      const merkAvg = R._frameAvg;
+      const merkSeit = R._sinceChange;
+      const r = {};
+
+      // Künstlich heruntergedreht, als hätte es einmal geruckelt.
+      R.quality = 0.55;
+      R.resize(R._cssW, R._cssH, R._dpr);
+      cam.resize(R.viewW, R.viewH);
+      r.gesenkt = Math.round(R.quality * 100) / 100;
+
+      // Jetzt läuft es rund: 60 Bilder je Sekunde, also 16,7 ms. Mehr kann
+      // ein Browser nicht liefern.
+      for (let i = 0; i < 2000 && R.quality < 1; i++) R.adapt(16.7, cam);
+      r.nachGutemLauf = Math.round(R.quality * 100) / 100;
+
+      // Und wenn es wirklich zäh wird, geht sie auch wieder herunter.
+      for (let i = 0; i < 2000 && R.quality > 0.55; i++) R.adapt(45, cam);
+      r.nachZaehemLauf = Math.round(R.quality * 100) / 100;
+
+      R.quality = merkQ;
+      R._frameAvg = merkAvg;
+      R._sinceChange = merkSeit;
+      R.resize(R._cssW, R._cssH, R._dpr);
+      cam.resize(R.viewW, R.viewH);
+      return r;
+    });
+    check('Bei 60 Bildern je Sekunde findet die Auflösung wieder auf voll',
+      schaerfe.gesenkt === 0.55 && schaerfe.nachGutemLauf === 1,
+      JSON.stringify(schaerfe));
+    check('Und bei echtem Ruckeln geht sie zurück',
+      schaerfe.nachZaehemLauf <= 0.6, JSON.stringify(schaerfe));
+
     /* ---- Trampelpfade ---- */
     // Gemessen wird am Bodenmaler, nicht am Spielbild: Auf einer erfundenen
     // Welt aus lauter Gras wird dasselbe Stück dreimal gebacken –

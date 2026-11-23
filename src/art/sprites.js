@@ -153,12 +153,7 @@ export function drawSprite(ctx, name, x, y, line, opts) {
   }
   ctx.save();
   if (o.alpha != null) ctx.globalAlpha = o.alpha;
-  if (o.rotate) {
-    ctx.translate(x, y);
-    ctx.rotate(o.rotate);
-    ctx.scale(o.flip ? -1 : 1, 1);
-    ctx.drawImage(img, -s.ax, -s.ay);
-  } else if (o.flip || o.scale) {
+  if (o.flip || o.scale || o.rotate) {
     /**
      * Spiegeln UND Skalieren – und zwar um den Ankerpunkt.
      *
@@ -170,9 +165,15 @@ export function drawSprite(ctx, name, x, y, line, opts) {
      * Jetzt wird um (x, y) gerechnet, also um den Punkt, an dem das Objekt
      * auf dem Boden steht. Ein kleinerer Baum ist dann einfach kleiner und
      * steht weiter an derselben Stelle.
+     *
+     * Dasselbe galt noch einmal für `rotate`: Das hatte einen EIGENEN
+     * Zweig, der die Größe stillschweigend fallen ließ. Wer beides angab –
+     * und ein Baum, der leicht geneigt UND etwas kleiner ist, ist genau
+     * das –, bekam nur die Neigung. Jetzt ist es ein Zweig für alle drei.
      */
     const sc = o.scale || 1;
     ctx.translate(x, y);
+    if (o.rotate) ctx.rotate(o.rotate);
     ctx.scale(o.flip ? -sc : sc, sc);
     ctx.drawImage(img, -s.ax, -s.ay);
   } else {

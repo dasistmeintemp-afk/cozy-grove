@@ -12,7 +12,7 @@
 import { makeCanvas, ctx2d } from '../core/util.js';
 import { makeRng, hashString } from '../core/rng.js';
 import {
-  blob, smoothClosed, offsetShape, pathFrom, inkStroke, inkLine, blurCanvas,
+  blob, smoothClosed, offsetShape, pathFrom, inkStroke, inkLine, blurCanvas, LIGHT,
 } from './brush.js';
 import { INK } from './painted.js';
 import { T, TILE_SIZE, TILE_DEF, isWalkable, isWater } from './tiles.js';
@@ -212,6 +212,54 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
       wctx.fill();
       wctx.restore();
     }
+  }
+
+  // Kronenschatten.
+  //
+  // Unter einem Baum war der Boden bisher genauso hell wie auf der freien
+  // Wiese – im Bild sah ein Wald deshalb aus wie Bäume, die auf eine
+  // Rasenfläche gelegt wurden. Ein Schatten je Krone macht daraus einen
+  // Ort mit Licht und Halbschatten, und wo viele Bäume stehen, überlagern
+  // sich die Schatten von selbst zu dichtem Wald.
+  //
+  // Hier im gebackenen Boden und nicht je Bild: Bäume wachsen nicht und
+  // gehen nicht spazieren. Fällt einer, wird das Stück ohnehin neu
+  // gebacken.
+  //
+  // Der Versatz folgt derselben Sonne wie alle anderen Schatten im Spiel.
+  if (world.queryNear) {
+    const mx = (tx0 + CHUNK_TILES / 2) * TILE_SIZE;
+    const my = (ty0 + CHUNK_TILES / 2) * TILE_SIZE;
+    // Nur so weit, wie ein Schatten überhaupt reichen kann: halbe
+    // Stückbreite plus Rand plus die größte Halbachse. Vorher war der
+    // Radius fast anderthalb Stücke breit, und für jedes Stück wurden
+    // dreimal so viele Bäume geprüft wie nötig.
+    const nah = world.queryNear(mx, my, CHUNK_PX * 0.5 + PAD + 150);
+    wctx.save();
+    wctx.fillStyle = '#5d6b4e';
+    for (let i = 0; i < nah.length; i++) {
+      const e = nah[i];
+      if (e.gone || !e.kind) continue;
+      // Nur Bäume. Büsche warfen anfangs auch einen, mit halber Stärke –
+      // gesehen hat man davon nichts, bezahlt wurde es trotzdem: Auf der
+      // Insel stehen fast so viele Büsche wie Bäume, und jeder war eine
+      // weitere halbdurchsichtige Fläche beim Backen.
+      if (e.kind.indexOf('tree_') !== 0 || e.kind === 'tree_stump') continue;
+      // Eine Ellipse, kein gezeichneter Klecks. Ein `blob` mit vierzehn
+      // Punkten und fünf Glättungsdurchgängen ergibt 448 Stützpunkte – je
+      // Baum. Bei dreißig Bäumen im Stück kostete das Backen so viel, dass
+      // die Bildrate beim Laufen von 44 auf 34 fiel. Nach dem Weichzeichner
+      // sieht man von der unruhigen Kante ohnehin nichts; die Unruhe steckt
+      // stattdessen in den leicht verschiedenen Halbachsen.
+      const hs = hashString('schatten' + Math.round(e.x) + ':' + Math.round(e.y));
+      const r = 88 * (0.88 + ((hs >>> 7) & 255) / 255 * 0.26);
+      wctx.globalAlpha = 0.125;
+      wctx.beginPath();
+      wctx.ellipse(e.x - LIGHT.x * 34, e.y - 22 - LIGHT.y * 12,
+        r, r * (0.56 + ((hs >>> 17) & 255) / 255 * 0.14), 0, 0, 6.2832);
+      wctx.fill();
+    }
+    wctx.restore();
   }
 
   // Trampelpfade: Dort, wo oft jemand langgeht, liegt Erde statt Gras.

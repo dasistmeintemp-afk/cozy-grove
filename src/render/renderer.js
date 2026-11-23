@@ -27,7 +27,16 @@ const ALWAYS_COLOR = { spirit: 1, fox: 1, hidden: 1, wanderer: 1 };
 
 const REFERENCE_W = 1560;
 const REFERENCE_H = 880;
-const MAX_PIXELS = 2100000;
+// Obergrenze für die Zahl der gezeichneten Bildpunkte.
+//
+// Angehoben von 2,1 auf 3,2 Millionen: Auf einem Bildschirm mit doppelter
+// Punktdichte will ein 1440×900 großes Fenster 5,2 Millionen – gedeckelt
+// auf 2,1 blieben davon 0,63 Punkte je Bildschirmpunkt übrig, und genau
+// diese Geräte benutzen die meisten Leute. Mit 3,2 sind es 0,78, und die
+// Nachsteuerung darunter nimmt zurück, wenn es dafür zu langsam wird –
+// das ist ihre Aufgabe, und seit der Schwellenkorrektur kann sie auch
+// wieder hoch.
+const MAX_PIXELS = 3200000;
 
 /**
  * Welche Arten je Exemplar ein wenig anders aussehen dürfen.
@@ -59,11 +68,17 @@ function wuchsStreuung(e, def) {
   if (!def || !STREU_ARTEN[def.category]) return undefined;
   const h = (Math.round(e.x) * 374761393) ^ (Math.round(e.y) * 668265263);
   const u = ((h >>> 5) & 1023) / 1023;
+  const v = ((h >>> 15) & 1023) / 1023;
   return {
     flip: ((h >>> 2) & 1) === 1,
-    // 0,90 bis 1,10. Mehr sähe nach verschiedenen Arten aus, weniger
-    // sieht man nicht.
-    scale: 0.9 + u * 0.2,
+    // 0,84 bis 1,16. Vorher 0,90 bis 1,10 – im Bild sah der Wald dadurch
+    // aus, als wäre derselbe Baum hundertmal eingefügt worden. Mehr als
+    // das hier liest sich dagegen als verschiedene Arten.
+    scale: 0.84 + u * 0.32,
+    // Ein paar Grad Neigung. Das ist der billigste Unterschied von allen:
+    // Gewachsenes steht nie exakt senkrecht, und nichts verrät ein
+    // kopiertes Bild so sehr wie hundert exakt gleiche Lotrechte.
+    rotate: (v - 0.5) * 0.085,
   };
 }
 
@@ -153,8 +168,31 @@ export class Renderer {
     if (this._sinceChange < 120 || !this._cssW) return false;
 
     let q = this.quality;
-    if (this._frameAvg > 26 && q > 0.55) q = Math.max(0.55, q - 0.15);
-    else if (this._frameAvg < 11 && q < 1) q = Math.min(1, q + 0.1);
+    // **Die Schwelle zum Hochdrehen war unerreichbar.**
+    //
+    // Ein Browser zeichnet im Takt des Bildschirms. Auf 60 Hz ist eine
+    // Bildzeit von 16,7 ms das BESTE, was es gibt – schneller geht nicht,
+    // weil der Browser dazwischen wartet. Die alte Bedingung verlangte
+    // weniger als 11 ms, also etwas, das auf 60 Hz nie eintritt.
+    //
+    // Die Folge: Die Auflösung konnte nur fallen. Ein einziger zäher
+    // Moment beim Start – die ersten Bodenstücke werden gebacken, die
+    // Grafiken entstehen – zog sie herunter, und dort blieb sie für immer.
+    // Gemessen in einem 1280×800-Fenster: 1088×680 gezeichnet, also 0,85
+    // Bildpunkte je Bildschirmpunkt, und das ganze Bild dadurch weich.
+    //
+    // 19 ms sind gut 52 Bilder je Sekunde. Wer das schafft, verträgt auch
+    // die volle Auflösung; wer sie dann nicht mehr schafft, fällt über die
+    // obere Schwelle wieder zurück.
+    //
+    // Und die liegt bei 24 ms, nicht bei 28: Achtundzwanzig sind erst 36
+    // Bilder je Sekunde – das ist schon sichtbar zäh, und ein Spiel, das
+    // dort noch auf voller Auflösung beharrt, hat die Abwägung falsch
+    // herum. Zwischen beiden Schwellen liegen fünf Millisekunden; nach
+    // einer Änderung vergehen 120 Bilder, bis wieder entschieden wird,
+    // und der Mittelwert hat sich bis dahin längst eingependelt.
+    if (this._frameAvg > 24 && q > 0.55) q = Math.max(0.55, q - 0.15);
+    else if (this._frameAvg < 19 && q < 1) q = Math.min(1, q + 0.1);
     if (q === this.quality) return false;
 
     this.quality = q;
