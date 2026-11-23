@@ -39,6 +39,41 @@ const REFERENCE_H = 880;
 const MAX_PIXELS = 3200000;
 
 /**
+ * Luftperspektive – die Ferne verliert Farbe.
+ *
+ * Das Bild ist eine Draufsicht, aber keine senkrechte: Die Sprites sind
+ * leicht geneigt gemalt, und was weiter oben im Bild steht, steht weiter
+ * weg. Genau diese Staffelung war bisher nirgends zu sehen – ein Baum am
+ * oberen Rand war so satt wie der, neben dem Seli steht. Dadurch las sich
+ * das Ganze als Landkarte statt als Landschaft.
+ *
+ * Luft ist nicht durchsichtig; über Entfernung legt sie sich als blasser,
+ * kühler Schleier vor alles. Das ist der älteste Trick der Landschafts-
+ * malerei, und er kostet hier einen Verlauf je Bild.
+ *
+ * `DUNST_HOEHE` ist der Anteil der Bildhöhe, über den der Schleier
+ * ausläuft. Bei weniger als etwa der Hälfte sieht man eine Kante, bei
+ * mehr nebelt die Bildmitte ein, in der gespielt wird.
+ */
+const DUNST_HOEHE = 0.58;
+
+/**
+ * Deckung am oberen Bildrand.
+ *
+ * Die Obergrenze ist hier nicht Geschmack, sondern das Papier: Schon bei
+ * 0,25 verschwand die Bleistiftzeichnung unter dem Schleier, und die ist
+ * das Einzige, was dieses Spiel optisch zusammenhält. Gemessen (siehe die
+ * Prüfung „Was oben im Bild steht, ist blasser"): Mit 0,18 verliert
+ * derselbe Weltpunkt am oberen Rand rund ein Zehntel seiner Farbigkeit
+ * gegenüber der Bildmitte – sichtbar, wenn man die Insel überblickt, und
+ * unauffällig, wenn man nur läuft.
+ */
+const DUNST_STAERKE = 0.18;
+
+/** Der Grundton des Schleiers: kühles, helles Graublau. */
+const DUNST_HIMMEL = [220, 232, 243];
+
+/**
  * Welche Arten je Exemplar ein wenig anders aussehen dürfen.
  *
  * Nur Gewachsenes und Gewordenes. Nicht die Deko: Was der Spieler selbst
@@ -1015,6 +1050,39 @@ export class Renderer {
   }
 
   /**
+   * Der Dunstschleier über der Ferne.
+   *
+   * Er trägt die Farbe des Lichts, das gerade in der Luft steht, nicht
+   * immer dasselbe Graublau: Mittags ist er ein kühler Hauch, am Abend
+   * glüht er mit, und nachts löst sich die Ferne ins Dunkelblau auf. Das
+   * ist derselbe Grund, aus dem ferne Berge bei Sonnenuntergang rosa sind
+   * – der Dunst zeigt die Farbe des Himmels, nicht die der Landschaft.
+   *
+   * Deshalb wird zur Tagesfärbung hin gemischt, und zwar mit dem
+   * Anderthalbfachen ihrer Deckung: Die Tönung selbst ist absichtlich
+   * zurückhaltend, aber der Dunst BESTEHT aus ihr und darf sie nicht nur
+   * andeuten. Bei reiner Übernahme der Deckung (0,24 am Abend) war der
+   * Schleier zur goldenen Stunde noch grau.
+   */
+  _dunst(lc, tint) {
+    const m = Math.min(1, tint.a * 1.6);
+    const r = Math.round(DUNST_HIMMEL[0] + (tint.r - DUNST_HIMMEL[0]) * m);
+    const g = Math.round(DUNST_HIMMEL[1] + (tint.g - DUNST_HIMMEL[1]) * m);
+    const b = Math.round(DUNST_HIMMEL[2] + (tint.b - DUNST_HIMMEL[2]) * m);
+    const pre = 'rgba(' + r + ',' + g + ',' + b + ',';
+    const hoehe = this.h * DUNST_HOEHE;
+    const verlauf = lc.createLinearGradient(0, 0, 0, hoehe);
+    // Drei Stützpunkte, nicht zwei: Ein linearer Abfall ließ die obere
+    // Hälfte durchgehend trüb wirken. Der Schleier soll dicht am Rand
+    // sitzen und schnell nachlassen, so wie die Luft es tut.
+    verlauf.addColorStop(0, pre + DUNST_STAERKE.toFixed(3) + ')');
+    verlauf.addColorStop(0.34, pre + (DUNST_STAERKE * 0.38).toFixed(3) + ')');
+    verlauf.addColorStop(1, pre + '0)');
+    lc.fillStyle = verlauf;
+    lc.fillRect(0, 0, this.w, hoehe);
+  }
+
+  /**
    * Tageszeit-Ton, Lichtkegel und Randabdunklung landen zusammen auf einer
    * Ebene. Ein einziger bildschirmgroßer Überzug statt zweier – auf schwachen
    * Geräten macht das den Unterschied.
@@ -1045,6 +1113,7 @@ export class Renderer {
       lc.fillStyle = 'rgba(' + wt.r + ',' + wt.g + ',' + wt.b + ',' + wt.a.toFixed(3) + ')';
       lc.fillRect(0, 0, this.w, this.h);
     }
+    this._dunst(lc, tint);
 
     if (game.day.isDark()) {
       this._world(lc, camX, camY);

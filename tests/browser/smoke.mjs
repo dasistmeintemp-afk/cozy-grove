@@ -4136,6 +4136,66 @@ async function run() {
     check('Und bei echtem Ruckeln geht sie zurück',
       schaerfe.nachZaehemLauf <= 0.6, JSON.stringify(schaerfe));
 
+    /* ---- Luftperspektive ---- */
+    // Gemessen wird auf einer erfundenen Fläche, nicht am Spielbild – und
+    // das ist hier keine Bequemlichkeit, sondern Notwendigkeit: Der
+    // Dunstschleier liegt auf derselben Ebene wie die Randabdunklung, und
+    // die ist am oberen Bildrand ebenfalls stärker. Am echten Bild misst
+    // man beide zusammen und weiß nicht, welches von beidem man sieht.
+    // Hier liegt bekanntes Wiesengrün unter dem Schleier, sonst nichts.
+    const dunst = await page.evaluate(async () => {
+      const { DayCycle } = await import('/src/game/daycycle.js');
+      const R = window.CozyGrove.game.renderer;
+      const streifen = (x, y0) => {
+        const d = x.getImageData(0, y0, R.w, 6).data;
+        let sr = 0; let sg = 0; let sb = 0; let sc = 0; let n = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          sr += d[i]; sg += d[i + 1]; sb += d[i + 2];
+          sc += Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]);
+          n++;
+        }
+        return { r: Math.round(sr / n), g: Math.round(sg / n), b: Math.round(sb / n),
+          chroma: Math.round(sc / n) };
+      };
+      const probe = (stunde) => {
+        const k = document.createElement('canvas');
+        k.width = R.w; k.height = R.h;
+        const x = k.getContext('2d');
+        x.fillStyle = '#8bb845'; // Sommerlaub, sattes Grün
+        x.fillRect(0, 0, R.w, R.h);
+        const uhr = new DayCycle();
+        uhr.hour = stunde;
+        R._dunst(x, uhr.tint());
+        return { oben: streifen(x, 1), unten: streifen(x, Math.round(R.h * 0.82)) };
+      };
+      const mittag = probe(12);
+      const abend = probe(18.3);
+      const nacht = probe(24);
+      return {
+        chromaOben: mittag.oben.chroma,
+        chromaUnten: mittag.unten.chroma,
+        // Gemessen wird die VERSCHIEBUNG gegen die unberührte Fläche, nicht
+        // der Absolutwert: Das Grün darunter ist selbst schon warm (Rot 139
+        // gegen Blau 69), und daran gemessen wäre jeder Schleier „warm".
+        warmMittag: (mittag.oben.r - mittag.oben.b) - (mittag.unten.r - mittag.unten.b),
+        warmAbend: (abend.oben.r - abend.oben.b) - (abend.unten.r - abend.unten.b),
+        nachtHell: nacht.oben.r * 0.3 + nacht.oben.g * 0.59 + nacht.oben.b * 0.11,
+        untenHell: nacht.unten.r * 0.3 + nacht.unten.g * 0.59 + nacht.unten.b * 0.11,
+      };
+    });
+    // Oben verliert die Fläche Farbigkeit, unten bleibt sie unberührt.
+    check('Was oben im Bild steht, ist blasser als dasselbe in der Mitte',
+      dunst.chromaUnten - dunst.chromaOben >= 12 && dunst.chromaUnten >= 110,
+      JSON.stringify(dunst));
+    // Und der Schleier zeigt die Farbe des Himmels, nicht immer dieselbe:
+    // mittags kühl (Blau über Rot), abends warm (Rot über Blau).
+    check('Der Dunst trägt die Farbe des Lichts – mittags kühl, abends warm',
+      dunst.warmMittag <= -10 && dunst.warmAbend >= dunst.warmMittag + 8,
+      JSON.stringify({ mittag: dunst.warmMittag, abend: dunst.warmAbend }));
+    // Nachts löst sich die Ferne ins Dunkle auf, statt hell aufzuleuchten.
+    check('Nachts wird die Ferne dunkler, nicht heller',
+      dunst.nachtHell < dunst.untenHell - 4, JSON.stringify(dunst));
+
     /* ---- Trampelpfade ---- */
     // Gemessen wird am Bodenmaler, nicht am Spielbild: Auf einer erfundenen
     // Welt aus lauter Gras wird dasselbe Stück dreimal gebacken –
