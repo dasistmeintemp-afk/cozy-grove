@@ -35,13 +35,25 @@
   --paper-warm: #fdfaf2;
   --paper-deep: #ede3cd;
   --paper-shade: #e2d7bd;
-  --ink: #4a4038;
-  --ink-dim: #857763;
+  --ink: #2f2821;
+  --ink-dim: #6f6353;
 
-  /* Tuschelinien in drei Stärken. Kein reines Schwarz – Sepia wie im Bild. */
-  --edge: rgba(74, 64, 56, 0.55);
-  --edge-strong: rgba(74, 64, 56, 0.82);
-  --edge-soft: rgba(74, 64, 56, 0.18);
+  /* Die Tusche – dieselbe wie im Bild (TUSCHE in src/art/brush.js).
+   *
+   * Hier stand `rgba(74,64,56,0.55)`: ein helles Sepia, und davon noch
+   * einmal die Hälfte durchsichtig. Im fertigen Fenster kam eine Linie
+   * mit der Helligkeit 140 heraus – sichtbar, aber kein Strich. Daneben
+   * hat jeder Baum auf der Insel seit dem Tieftonumbau eine fast schwarze
+   * Kontur, und genau dieser Unterschied ließ die Oberfläche wie ein
+   * Formular über einem gemalten Bild aussehen statt wie ein Teil davon.
+   *
+   * Im Vorbild hat jedes Feld dieselbe Kontur wie jeder Gegenstand.
+   * Deshalb jetzt dieselbe Tusche, fast deckend – und warm, kein Schwarz:
+   * Reines Schwarz macht aus Aquarell einen Comic. */
+  --tusche: #241e1a;
+  --edge: rgba(36, 30, 26, 0.86);
+  --edge-strong: rgba(36, 30, 26, 1);
+  --edge-soft: rgba(36, 30, 26, 0.26);
 
   --warm: #e8a44c;
   --warm-deep: #c9762c;
@@ -63,8 +75,24 @@
 
   /* Aufliegender Schatten: ein harter Versatz wie bei einem Aufkleber,
      darunter ein weicher warmer Hof. */
-  --shadow: 0 3px 0 rgba(74, 64, 56, 0.15), 0 7px 16px rgba(74, 64, 56, 0.16);
-  --shadow-lift: 0 5px 0 rgba(74, 64, 56, 0.16), 0 16px 40px rgba(74, 64, 56, 0.26);
+  --shadow: 0 3px 0 rgba(36, 30, 26, 0.3), 0 7px 16px rgba(36, 30, 26, 0.2);
+  --shadow-lift: 0 5px 0 rgba(36, 30, 26, 0.32), 0 16px 40px rgba(36, 30, 26, 0.3);
+
+  /* Die Strichstärke der Oberfläche – eine Zahl für alle Ränder.
+   *
+   * Zwei Bildpunkte waren auf einem Feld von vierzig eine Haarlinie. Das
+   * Vorbild zieht seine Konturen proportional dicker; drei lesen sich als
+   * gezeichnet, vier als Rahmen. Sie wächst mit der Oberflächengröße mit,
+   * sonst wird sie auf „Sehr groß" wieder zur Haarlinie. Nach unten
+   * gibt es dafür einen Boden: In einem kleinen Fenster wird die ganze
+   * Oberfläche verkleinert, und bei 0,8 wären aus drei Bildpunkten
+   * zwei geworden – gemessen genau das, was vorher da war. Eine Linie
+   * darf mitwachsen, aber nicht wieder verschwinden.
+   *
+   * Der Boden liegt bei vollen drei und nicht bei zweieinhalb: Browser
+   * runden Randbreiten auf ganze Gerätepunkte ab, und auf einem Schirm
+   * ohne doppelte Punktdichte wurden aus 2,5 wieder 2. */
+  --strich: max(3px, calc(3px * var(--ui-scale)));
 
   /* Größe der Oberfläche.
    *
@@ -170,7 +198,7 @@ html, body {
   gap: 5px;
   padding: 5px 11px 5px 8px;
   background: var(--paper-warm);
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   border-radius: 999px;
   box-shadow: var(--shadow);
   color: var(--ink);
@@ -181,6 +209,46 @@ html, body {
 
 .hud-chip b { font-weight: 800; letter-spacing: 0.01em; }
 
+/**
+ * Jedes Symbol sitzt auf einer farbigen Scheibe.
+ *
+ * Vorher standen fünf gleich aussehende cremefarbene Kapseln
+ * nebeneinander, und welche davon die Münzen zeigt, musste man lesen.
+ * Im Vorbild trägt jede Anzeige ihre eigene Farbe – man findet sie am
+ * Fleck, nicht am Text. Die Farben kommen aus derselben Palette wie die
+ * Insel, und jede sagt, worum es geht: Gold für Münzen, Glut für Glut,
+ * Blattgrün für zurückgebrachte Farbe, Wasser für die Uhr.
+ *
+ * Die Scheibe sitzt UNTER dem Symbol und ist etwas größer als es –
+ * dadurch bekommt auch ein Symbol mit dünnen Strichen eine Form, die
+ * man aus zwei Metern erkennt.
+ */
+/**
+ * Die Scheibe liegt HINTER dem Symbol, nicht darauf.
+ *
+ * Mein erster Versuch setzte `background` auf das Symbol selbst – und
+ * löschte es damit aus: `.ico` trägt sein Bild in genau dieser
+ * Eigenschaft. Im Fenster standen fünf farbige Kreise ohne Inhalt. Ein
+ * Schatten nach außen malt dieselbe Scheibe, ohne das Bild anzutasten.
+ */
+.hud-chip .ico {
+  border-radius: 999px;
+  width: calc(22px * var(--ui-scale));
+  height: calc(22px * var(--ui-scale));
+  box-shadow:
+    0 0 0 calc(4px * var(--ui-scale)) var(--chip-ton, var(--paper-deep)),
+    0 0 0 calc(5px * var(--ui-scale)) var(--edge-soft);
+  margin: 0 calc(4px * var(--ui-scale));
+}
+
+#chip-day .ico { --chip-ton: rgba(232, 164, 76, 0.42); }
+#chip-clock .ico { --chip-ton: rgba(63, 163, 173, 0.34); }
+#chip-coins .ico { --chip-ton: rgba(232, 195, 76, 0.46); }
+#chip-ember .ico { --chip-ton: rgba(201, 118, 44, 0.4); }
+#chip-color .ico { --chip-ton: rgba(134, 173, 75, 0.42); }
+
+.hud-chip { padding-left: calc(6px * var(--ui-scale)); }
+
 .icon-btn {
   width: calc(42px * var(--ui-scale));
   height: calc(42px * var(--ui-scale));
@@ -188,7 +256,7 @@ html, body {
   align-items: center;
   justify-content: center;
   background: var(--paper-warm);
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   border-radius: var(--r-btn);
   color: var(--ink);
   cursor: pointer;
@@ -200,7 +268,7 @@ html, body {
 }
 
 .icon-btn:hover { background: var(--warm-wash); }
-.icon-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(74, 64, 56, 0.15); }
+.icon-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(36, 30, 26, 0.3); }
 .icon-btn:focus-visible, .big-btn:focus-visible, .round-btn:focus-visible,
 .tool:focus-visible, .qcard:focus-visible, .slot:focus-visible, .row-btn:focus-visible {
   outline: 2px solid var(--warm-deep);
@@ -242,7 +310,7 @@ html, body {
 
 .qcard {
   background: var(--paper-warm);
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   border-left: 5px solid var(--warm);
   border-radius: var(--r-btn);
   padding: 7px 9px;
@@ -283,7 +351,7 @@ html, body {
   bottom: calc(112px * var(--ui-scale) + var(--safe-b));
   transform: translateX(-50%);
   background: var(--paper-warm);
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   border-radius: 999px;
   padding: 5px 14px 5px 5px;
   display: flex;
@@ -305,7 +373,7 @@ html, body {
   padding: 0 5px;
   border-radius: 8px 6px 8px 6px;
   background: var(--warm);
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   color: #3a2409;
   font-weight: 800;
   font-size: 0.78em;
@@ -321,7 +389,7 @@ html, body {
   gap: 6px;
   padding: 6px;
   background: var(--paper-warm);
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   border-radius: var(--r-card);
   box-shadow: var(--shadow);
 }
@@ -330,7 +398,7 @@ html, body {
   width: calc(56px * var(--ui-scale));
   height: calc(56px * var(--ui-scale));
   border-radius: var(--r-slot);
-  border: 2px solid transparent;
+  border: var(--strich) solid transparent;
   background: var(--paper-deep);
   display: flex;
   flex-direction: column;
@@ -346,10 +414,23 @@ html, body {
 
 .tool:hover { background: var(--paper-shade); }
 
+/**
+ * Das gewählte Werkzeug ist GEFÜLLT, nicht nur umrandet.
+ *
+ * Vorher lag eine 26 % deckende warme Lasur darin und ein etwas
+ * dunklerer Rand – gemessen ein Helligkeitsunterschied von neun Stufen
+ * zum Nachbarfach. Man musste hinsehen, um zu wissen, welches Werkzeug
+ * in der Hand liegt, und das ist bei der Sache, die man den ganzen Tag
+ * benutzt, die falsche Stelle zum Sparen. Im Vorbild ist das gewählte
+ * Feld eine farbige Fläche.
+ */
 .tool[aria-pressed="true"] {
-  background: var(--warm-wash);
+  background: var(--warm);
   border-color: var(--edge-strong);
+  box-shadow: inset 0 0 0 2px rgba(253, 250, 242, 0.55);
 }
+
+.tool[aria-pressed="true"] .num { color: var(--paper-warm); }
 
 .tool .num {
   position: absolute;
@@ -379,7 +460,7 @@ html, body {
   position: absolute;
   transform: translate(-50%, -100%);
   background: var(--paper-warm);
-  border: 2px solid var(--edge-strong);
+  border: var(--strich) solid var(--edge-strong);
   border-radius: var(--r-card);
   padding: 6px 11px;
   color: var(--ink);
@@ -446,7 +527,7 @@ html, body {
 
 .toast {
   background: var(--paper-warm);
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   border-radius: 999px;
   padding: 5px 13px;
   color: var(--ink);
@@ -481,7 +562,7 @@ html, body {
   position: relative;
   height: calc(25px * var(--ui-scale));
   background: var(--paper-deep);
-  border: 2px solid var(--edge-strong);
+  border: var(--strich) solid var(--edge-strong);
   border-radius: 999px;
   overflow: hidden;
   box-shadow: var(--shadow);
@@ -524,7 +605,7 @@ html, body {
   width: 118px;
   height: 118px;
   border-radius: 50%;
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   background: rgba(248, 243, 231, 0.55);
   pointer-events: auto;
   touch-action: none;
@@ -539,7 +620,7 @@ html, body {
   margin: -23px 0 0 -23px;
   border-radius: 50%;
   background: var(--paper-warm);
-  border: 2px solid var(--edge-strong);
+  border: var(--strich) solid var(--edge-strong);
 }
 
 #touch-actions {
@@ -556,7 +637,7 @@ html, body {
   width: calc(82px * var(--ui-scale));
   height: calc(82px * var(--ui-scale));
   border-radius: 50%;
-  border: 2px solid var(--edge-strong);
+  border: var(--strich) solid var(--edge-strong);
   background: var(--warm);
   color: #3a2409;
   font-size: calc(24px * var(--ui-scale));
@@ -568,7 +649,7 @@ html, body {
 }
 
 .round-btn.small { width: calc(58px * var(--ui-scale)); height: calc(58px * var(--ui-scale)); font-size: calc(20px * var(--ui-scale)); background: var(--paper-warm); color: var(--ink); }
-.round-btn:active { transform: translateY(2px) scale(0.96); box-shadow: 0 1px 0 rgba(74, 64, 56, 0.15); }
+.round-btn:active { transform: translateY(2px) scale(0.96); box-shadow: 0 1px 0 rgba(36, 30, 26, 0.3); }
 
 /* ---------- Modale Fenster ---------- */
 
@@ -648,7 +729,7 @@ html, body {
   width: calc(38px * var(--ui-scale)); height: calc(38px * var(--ui-scale));
   display: flex; align-items: center; justify-content: center;
   border-radius: 9px 7px 10px 8px;
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   background: var(--paper-warm);
 }
 /* Die Geschichte eines Geistes, so weit sie aufgedeckt ist. Eingerückt und
@@ -810,7 +891,7 @@ html, body {
   padding: 1px 8px;
   border-radius: 999px;
   background: var(--warm);
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   font-size: 0.68em;
   font-weight: 800;
   vertical-align: middle;
@@ -838,7 +919,7 @@ html, body {
 }
 
 .row-btn {
-  border: 2px solid var(--edge);
+  border: var(--strich) solid var(--edge);
   background: var(--warm);
   color: #3a2409;
   border-radius: 9px 7px 10px 8px;
@@ -868,7 +949,7 @@ html, body {
    sonst klebt er am Namen der Einstellung. */
 .setting .hint { font-size: 0.76em; color: var(--ink-dim); margin-top: 2px; display: block; }
 
-.seg { display: inline-flex; border: 2px solid var(--edge); border-radius: 9px; overflow: hidden; }
+.seg { display: inline-flex; border: var(--strich) solid var(--edge); border-radius: 9px; overflow: hidden; }
 .seg button {
   border: 0;
   background: transparent;
@@ -944,7 +1025,7 @@ html, body {
 .big-btn {
   padding: 12px 18px;
   border-radius: var(--r-btn);
-  border: 2px solid var(--edge-strong);
+  border: var(--strich) solid var(--edge-strong);
   background: var(--paper-deep);
   color: var(--ink);
   font-size: 1em;

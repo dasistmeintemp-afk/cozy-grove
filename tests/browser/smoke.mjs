@@ -4171,6 +4171,69 @@ async function run() {
     check('Zwölf Bäume verdunkeln den Boden unter sich merklich',
       schatten.unterschied >= 8, JSON.stringify(schatten));
 
+    /* ---- Die Oberfläche ist aus demselben Material wie die Welt ---- */
+    // Gemessen wird die gerechnete Darstellung, nicht das Aussehen:
+    // Welche Farbe hat die Kontur eines Feldes wirklich, und wie breit
+    // ist sie? Vorher war sie ein zu 55 % deckendes helles Sepia – im
+    // Fenster eine Linie der Helligkeit 140, während jeder Baum daneben
+    // eine fast schwarze Kontur trägt. Genau dieser Unterschied ließ die
+    // Oberfläche wie ein Formular über einem gemalten Bild aussehen.
+    const oberflaeche = await page.evaluate(() => {
+      const hell = (farbe) => {
+        const m = String(farbe).match(/[\d.]+/g);
+        if (!m) return null;
+        const a = m.length > 3 ? Number(m[3]) : 1;
+        // Über Papier (248,243,231) zusammengerechnet – so sieht man die
+        // Linie wirklich.
+        const ueber = [248, 243, 231];
+        const r = Number(m[0]) * a + ueber[0] * (1 - a);
+        const g = Number(m[1]) * a + ueber[1] * (1 - a);
+        const b = Number(m[2]) * a + ueber[2] * (1 - a);
+        return Math.round(r * 0.3 + g * 0.59 + b * 0.11);
+      };
+      const chip = document.querySelector('.hud-chip');
+      const knopf = document.querySelector('.icon-btn');
+      const werkzeug = document.querySelector('.tool[aria-pressed="true"]');
+      const nachbar = document.querySelector('.tool:not([aria-pressed="true"])');
+      const cs = (el) => (el ? getComputedStyle(el) : null);
+      const c = cs(chip);
+      const k = cs(knopf);
+      const w = cs(werkzeug);
+      const n = cs(nachbar);
+      // Wie verschieden sind die fünf Anzeigen oben? Jede trägt ihre
+      // eigene Farbscheibe, damit man sie am Fleck findet und nicht am
+      // Text.
+      const toene = Array.from(document.querySelectorAll('.hud-chip .ico'))
+        .map((el) => getComputedStyle(el).boxShadow)
+        .filter((v) => v && v !== 'none');
+      return {
+        randHell: c ? hell(c.borderTopColor) : null,
+        randBreit: c ? Math.round(parseFloat(c.borderTopWidth) * 10) / 10 : null,
+        knopfRandHell: k ? hell(k.borderTopColor) : null,
+        gewaehltHell: w ? hell(w.backgroundColor) : null,
+        nachbarHell: n ? hell(n.backgroundColor) : null,
+        verschiedeneToene: new Set(toene).size,
+        anzahlAnzeigen: toene.length,
+      };
+    });
+    check('Die Felder tragen dieselbe Tusche wie die Insel',
+      oberflaeche.randHell != null && oberflaeche.randHell <= 80
+      && oberflaeche.knopfRandHell <= 80, JSON.stringify(oberflaeche));
+    // In einem kleinen Fenster wird die ganze Oberfläche verkleinert;
+    // der Strich geht mit, aber nicht unter zweieinhalb Punkte.
+    check('Und die Linie ist ein Strich, kein Haar',
+      oberflaeche.randBreit >= 2.5, JSON.stringify(oberflaeche));
+    // Das gewählte Werkzeug muss man sehen, ohne hinzusehen: Es ist die
+    // Sache, die man den ganzen Tag benutzt.
+    check('Das gewählte Werkzeug hebt sich deutlich ab',
+      oberflaeche.nachbarHell - oberflaeche.gewaehltHell >= 40,
+      JSON.stringify(oberflaeche));
+    // Fünf gleich aussehende Kapseln nebeneinander musste man lesen.
+    check('Jede Anzeige oben trägt ihre eigene Farbe',
+      oberflaeche.anzahlAnzeigen >= 5
+      && oberflaeche.verschiedeneToene === oberflaeche.anzahlAnzeigen,
+      JSON.stringify(oberflaeche));
+
     /* ---- Die Abbruchkante am Ufer ---- */
     // Das Land liegt höher als das Wasser; an der Kante sieht man die Wand
     // darunter. Gemessen am Bodenmaler mit einer erfundenen Welt: oben
