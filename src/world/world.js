@@ -12,6 +12,7 @@ import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
 import { syncIdCounter } from '../core/util.js';
 import { inAnyPlot, inAnyPlotAt } from '../game/plot.js';
 import { biomeFuer, BIOME } from './biome.js';
+import { markenPlaetze } from './marken.js';
 
 const CELL = 160;
 const GRID_W = Math.ceil((MAP_W * TILE_SIZE) / CELL);
@@ -239,9 +240,37 @@ export class World {
     this._placeCamp();
     this._placeBarriers();
     this._placeBoats();
+    this._setzeMarken();
     this._scatterNature(rng);
     this._placeSpirits();
     return this;
+  }
+
+  /**
+   * Die Landmarken hinstellen – VOR dem Streuwurf.
+   *
+   * Sie brauchen viel Platz und sehr bestimmte Stellen; wer zuletzt
+   * kommt, findet keine mehr. Dieselbe Lehre wie bei den Geoden, nur
+   * eine Nummer größer: Das Wrack braucht Strand am Wasser, und davon
+   * gibt es auf einer Insel vielleicht ein Dutzend Kacheln.
+   *
+   * Dass ringsum danach nichts hineingestreut wird, besorgt der
+   * Streuwurf von selbst – er fragt `_tooClose`, und eine Marke ist mit
+   * Abstand das Größte auf der Insel.
+   */
+  _setzeMarken() {
+    const plaetze = markenPlaetze(this);
+    this.marken = [];
+    for (let i = 0; i < plaetze.length; i++) {
+      const p = plaetze[i];
+      const e = makeEntity('marke', (p.tx + 0.5) * TILE_SIZE, (p.ty + 0.5) * TILE_SIZE);
+      e.sprite = p.marke.sprite;
+      e.blockR = p.marke.block;
+      e.markeId = p.marke.id;
+      this.add(e);
+      this.marken.push({ id: p.marke.id, name: p.marke.name, x: e.x, y: e.y });
+    }
+    return this.marken;
   }
 
   _placeCamp() {

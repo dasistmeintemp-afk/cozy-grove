@@ -8,6 +8,10 @@
 import { makeCanvas, ctx2d } from '../core/util.js';
 import { INK } from './painted.js';
 import {
+  paintWrack, paintGerippe, paintSteinkreis, paintTorbogen,
+  paintLeuchtturm, paintHohlerBaum, paintMuehle,
+} from './painted-marken.js';
+import {
   paintTree, paintPine, paintStump, paintLogBarrier,
   paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft,
   paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot,
@@ -263,6 +267,19 @@ export function initArt() {
     }));
   }
   addArt('tree_stump', paintStump({ seed: 137 }));
+
+  /* --- Landmarken --- */
+  // Jede genau einmal je Insel, jede groß. Sie werden kleiner skaliert
+  // als ihr Maß hergibt (0,8): Gemalt wird großzügig, damit Innenleben
+  // Platz hat – im Spiel soll das Wrack neben Seli stehen können, ohne
+  // den halben Bildschirm zu füllen.
+  addArt('marke_wrack', paintWrack({ seed: 801 }), 0.8);
+  addArt('marke_gerippe', paintGerippe({ seed: 811 }), 0.8);
+  addArt('marke_steinkreis', paintSteinkreis({ seed: 821 }), 0.8);
+  addArt('marke_torbogen', paintTorbogen({ seed: 831 }), 0.8);
+  addArt('marke_leuchtturm', paintLeuchtturm({ seed: 841 }), 0.8);
+  addArt('marke_baum', paintHohlerBaum({ seed: 851 }), 0.8);
+  addArt('marke_muehle', paintMuehle({ seed: 861 }), 0.8);
 
   /* --- Die Bewohner und ihre Hütten --- */
   // Die Figuren entstehen beim Geistermaler: `lebt: true` gibt ihnen Füße

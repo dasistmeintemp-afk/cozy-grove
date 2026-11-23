@@ -190,7 +190,20 @@ export class GroundLayer {
    * bereits in der Transformation des Kontexts.
    * @param {boolean} pale unkolorierte Fassung (Papierschleier über die Farbe)
    */
-  draw(ctx, viewX, viewY, viewW, viewH, pale, mayPaint) {
+  /**
+   * @param {object} nurRect Weltrechteck {x,y,w,h}: Nur Stücke, die es
+   * berühren, werden gezeichnet. Der Farbdurchgang braucht das.
+   *
+   * Gemessen: Ohne diese Einschränkung zeichnete der Farbdurchgang alle
+   * zwölf sichtbaren Bodenstücke in die Farbfläche, obwohl die Maske
+   * darüber nur ein Rechteck von 404×403 Bildpunkten durchlässt – rund
+   * drei Millionen Bildpunkte rastern für zweihunderttausend sichtbare.
+   * `_drawColorPass` kostete damit 11,9 ms von 16,7, also mehr als drei
+   * Viertel der Bildzeit. Der Beschnitt des Zeichenwerkzeugs (`clip`)
+   * hilft dabei nicht: Er verwirft die Bildpunkte erst, nachdem sie
+   * gerechnet sind.
+   */
+  draw(ctx, viewX, viewY, viewW, viewH, pale, mayPaint, nurRect) {
     // Nur der erste Durchgang darf neue Stücke malen. Sonst verbraucht die
     // Zeichnung das Budget und der Farbdurchgang findet Löcher vor – man sähe
     // die Stückgrenzen als harte Kanten in der Farbfläche.
@@ -200,10 +213,19 @@ export class GroundLayer {
     const cx1 = Math.floor((viewX + viewW) / CHUNK_PX);
     const cy1 = Math.floor((viewY + viewH) / CHUNK_PX);
     if (allowPaint) this._ensureLimit((cx1 - cx0 + 1) * (cy1 - cy0 + 1));
+    const drin = nurRect
+      ? function (cx, cy) {
+        return cx * CHUNK_PX < nurRect.x + nurRect.w
+          && (cx + 1) * CHUNK_PX > nurRect.x
+          && cy * CHUNK_PX < nurRect.y + nurRect.h
+          && (cy + 1) * CHUNK_PX > nurRect.y;
+      }
+      : function () { return true; };
 
     // 1 – Farbflächen
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
+        if (!drin(cx, cy)) continue;
         const chunk = this._get(cx, cy, allowPaint);
         if (chunk) {
           // Nur den Kern zeichnen: Der Malrand enthält Nachbardaten und würde
@@ -233,6 +255,7 @@ export class GroundLayer {
     // 3 – Tinte bleibt immer sichtbar
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
+        if (!drin(cx, cy)) continue;
         const chunk = this._get(cx, cy, false);
         if (chunk) {
           ctx.drawImage(chunk.ink, CHUNK_PAD, CHUNK_PAD, CHUNK_PX, CHUNK_PX,

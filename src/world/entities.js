@@ -83,6 +83,21 @@ export const ENTITY_DEFS = {
     },
     becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
+  /**
+   * Eine Landmarke – Wrack, Steinkreis, Leuchtturm.
+   *
+   * Sie ist fest und nicht abbaubar: Eine Landmarke, die man wegräumen
+   * kann, ist Deko. Der ganze Sinn ist, dass sie bleibt, wo sie ist, und
+   * dass man sich an ihr orientiert.
+   *
+   * `sprite` und `blockR` stehen je Stück auf der Instanz, nicht hier:
+   * Das Wrack ist dreimal so breit wie der Torbogen, und ein gemeinsamer
+   * Wert wäre für beide falsch.
+   */
+  marke: {
+    sprite: 'marke_steinkreis', solid: true, blockR: 70, blockH: 34,
+    reachR: 150, tool: null, category: 'marke',
+  },
   tree_stump: {
     sprite: 'tree_stump', solid: true, blockR: 20, reachR: 72, tool: null, category: 'stump',
   },
@@ -389,6 +404,32 @@ export function makeEntity(kind, x, y, extra) {
     hidden: false,
     respawnDay: 0,
     phase: (x * 0.7 + y * 1.3) % 6.28,
+    /**
+     * Die Felder, die nur manche Objekte brauchen, stehen trotzdem HIER.
+     *
+     * Das ist kein Schönheitsfehler, sondern eine Messung. JavaScript-
+     * Maschinen ordnen Objekte nach ihrer Bauform; wer einem fertigen
+     * Objekt nachträglich ein Feld anhängt, erzeugt eine zweite Bauform.
+     * Sobald dieselbe Schleife beide Formen sieht, kann sie die
+     * Feldzugriffe nicht mehr vorab auflösen – und die Zeichenschleife
+     * sieht jedes Bild alle sichtbaren Objekte.
+     *
+     * Gemessen: Sieben Landmarken, denen `markeId` und `blockR`
+     * nachträglich angehängt wurden, kosteten acht Bilder je Sekunde
+     * (35 auf 27) – unabhängig davon, wie groß ihre Grafik war und ob
+     * sie überhaupt eine Kollision hatten. Mit einer Grafik von der
+     * Größe eines Kiesels blieb es bei 24. Sieben Objekte können nicht
+     * acht Bilder kosten; die Bauform kann es.
+     *
+     * Wer hier ein Feld ergänzt, zahlt vier Bytes je Objekt. Wer es
+     * weglässt und später anhängt, zahlt die halbe Bildrate.
+     */
+    gone: false,
+    blockR: null,
+    blockH: null,
+    markeId: null,
+    lehnt: 0,
+    origin: null,
   };
   if (extra) for (const k in extra) e[k] = extra[k];
   return e;

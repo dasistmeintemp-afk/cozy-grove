@@ -104,6 +104,10 @@ const SPRITE_NAMES = (function () {
     names.push('bewohner_' + b.id + '_0', 'bewohner_' + b.id + '_1', 'hutte_' + b.id);
   }
   names.push('paket');
+  // Die Landmarken. Von Hand und nicht aus MARKEN abgeleitet: Diese
+  // Liste ist die Gegenseite der Prüfung (siehe oben bei den Bäumen).
+  names.push('marke_wrack', 'marke_gerippe', 'marke_steinkreis', 'marke_torbogen',
+    'marke_leuchtturm', 'marke_baum', 'marke_muehle');
   // Der Wanderer – zwei Fassungen wie alles, was atmet.
   names.push('wanderer_0', 'nachbar_0', 'nachbar_1', 'wanderer_1');
   // Symbole für alle Gegenstände
