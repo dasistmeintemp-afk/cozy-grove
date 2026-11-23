@@ -249,6 +249,18 @@ export function initArt() {
       leafDeep: INK.autumnDeep, fruit: INK.berry,
     }));
     addArt('tree_pine_' + v, paintPine({ seed: 55 + v * 17 }));
+    // Der Windbaum am Ufer. Dieselbe Eiche, nur sein Leben lang von
+    // einer Seite angeblasen: Er wächst schief, kleiner und mit
+    // dünnerer Krone als die im Windschatten des Waldes. Gemalt wird er
+    // immer nach rechts geneigt; welche Seite er auf der Insel bekommt,
+    // entscheidet das Wasser (siehe `lehnt` in der Weltgenerierung).
+    addArt('tree_wind_' + v, paintTree({
+      // Schmaler und höher als die Eiche, nicht breiter: Eine breite Krone
+      // plus Neigung las sich als umgefallener Busch. Ein Baum, der gegen
+      // Wind ansteht, zieht sich zusammen.
+      seed: 63 + v * 17, spread: s.spread * 0.72, lift: s.lift,
+      wind: 0.22 + v * 0.06,
+    }));
   }
   addArt('tree_stump', paintStump({ seed: 137 }));
 
@@ -533,6 +545,7 @@ function buildIcons() {
     // bei 64 Punkten ein Strich mit drei Punkten daran.
     ['sapling_oak', 'sapling_oak_1'], ['sapling_birch', 'sapling_birch_1'],
     ['sapling_maple', 'sapling_maple_1'], ['sapling_pine', 'sapling_pine_1'],
+    ['sapling_wind', 'sapling_wind_1'],
     ['boat', 'boat'], ['mailbox', 'mailbox'],
     ['picture', 'picture'], ['islandpic', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
     ['wreath_spring', 'wreath_spring'], ['wreath_summer', 'wreath_summer'],

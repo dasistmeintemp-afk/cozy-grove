@@ -66,6 +66,23 @@ export const ENTITY_DEFS = {
     },
     becomes: 'tree_stump', respawn: 4, sway: true, category: 'tree',
   },
+  /**
+   * Der Windbaum am Ufer.
+   *
+   * Er steht nur dort, wo das Wasser anfängt, und er gibt WENIGER Holz
+   * als die Eiche im Wald, nicht mehr. Sonst wäre aus einer Beobachtung
+   * über die Küste ein Grund geworden, nur noch dort zu fällen – und das
+   * Ufer ist das Erste, was man sieht, wenn man ankommt.
+   */
+  tree_wind: {
+    sprite: 'tree_wind', variants: 3, solid: true, blockR: 22, reachR: 88, tool: TOOL.AXE, hits: 3,
+    yield: function (level, rng) {
+      const out = [{ id: 'wood', n: randInt(rng, 1, 2) + level }];
+      if (rng() < 0.4) out.push({ id: 'resin', n: 1 });
+      return out;
+    },
+    becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
+  },
   tree_stump: {
     sprite: 'tree_stump', solid: true, blockR: 20, reachR: 72, tool: null, category: 'stump',
   },

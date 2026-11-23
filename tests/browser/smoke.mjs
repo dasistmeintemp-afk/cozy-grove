@@ -4092,6 +4092,74 @@ async function run() {
     check('Zwölf Bäume verdunkeln den Boden unter sich merklich',
       schatten.unterschied >= 8, JSON.stringify(schatten));
 
+    /* ---- Der Windbaum am Ufer ---- */
+    // Zwei Dinge, und sie hängen nicht zusammen: dass die GRAFIK geneigt
+    // ist, und dass die Insel sie richtig herum hinstellt.
+    const windbaum = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { isWater } = await import('/src/art/tiles.js');
+      const { spr } = await import('/src/art/sprites.js');
+
+      // 1. Die Grafik. Gemessen wird die Krone: die obersten Zeilen mit
+      //    Farbe, und wo deren Schwerpunkt gegenüber dem Stammfuß liegt.
+      const kronenVersatz = (name) => {
+        const s = spr(name);
+        const k = document.createElement('canvas');
+        k.width = s.w; k.height = s.h;
+        const x = k.getContext('2d');
+        x.drawImage(s.c, 0, 0);
+        const d = x.getImageData(0, 0, s.w, s.h).data;
+        let erste = -1;
+        let sx = 0;
+        let n = 0;
+        for (let y = 0; y < s.h; y++) {
+          for (let px = 0; px < s.w; px++) {
+            if (d[(y * s.w + px) * 4 + 3] < 120) continue;
+            if (erste < 0) erste = y;
+            if (y - erste > 24) continue;
+            sx += px; n++;
+          }
+          if (erste >= 0 && y - erste > 24) break;
+        }
+        return n ? Math.round(sx / n - s.ax) : null;
+      };
+
+      // 2. Die Insel. Für jeden Uferbaum das nächste Wasser in JEDER
+      //    Richtung suchen – nicht nur waagerecht wie die Weltgenerierung,
+      //    sonst prüfte die Messung ihre eigene Rechnung nach.
+      const baeume = g.world.entities.filter((e) => e.kind === 'tree_wind' && !e.gone);
+      let richtig = 0;
+      let falsch = 0;
+      let ohneWasser = 0;
+      for (const b of baeume) {
+        const tx = Math.floor(b.x / 64);
+        const ty = Math.floor(b.y / 64);
+        let best = null;
+        let nah = 1e9;
+        for (let dy = -10; dy <= 10; dy++) {
+          for (let dx = -10; dx <= 10; dx++) {
+            if (!isWater(g.world.tileAtTile(tx + dx, ty + dy))) continue;
+            const d = dx * dx + dy * dy;
+            if (d < nah) { nah = d; best = dx; }
+          }
+        }
+        if (best === null || best === 0) { ohneWasser++; continue; }
+        if (Math.sign(b.lehnt) === Math.sign(-best)) richtig++; else falsch++;
+      }
+      return {
+        anzahl: baeume.length,
+        versatzWind: kronenVersatz('tree_wind_0'),
+        versatzEiche: kronenVersatz('tree_oak_0'),
+        richtig, falsch, ohneWasser,
+      };
+    });
+    check('Die Krone des Windbaums hängt über dem Stammfuß zur Seite',
+      windbaum.versatzWind >= 28 && Math.abs(windbaum.versatzEiche) <= 12,
+      JSON.stringify({ wind: windbaum.versatzWind, eiche: windbaum.versatzEiche }));
+    check('Und am Ufer lehnt jeder von ihnen vom Wasser weg',
+      windbaum.anzahl >= 10 && windbaum.falsch === 0 && windbaum.richtig >= 8,
+      JSON.stringify(windbaum));
+
     /* ---- Die Auflösung findet wieder hoch ---- */
     // Die Nachsteuerung senkt die interne Auflösung, wenn es ruckelt, und
     // hebt sie wieder an, wenn Luft ist. Das Anheben war unerreichbar: Es

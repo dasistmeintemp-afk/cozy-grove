@@ -29,7 +29,7 @@ import { regrowDays } from './seasons.js';
 /**
  * Was aus welchem Setzling wird.
  *
- * Vier Sorten, dieselben vier, die auf der Insel stehen. Ein einziger
+ * Fünf Sorten, dieselben fünf, die auf der Insel stehen. Ein einziger
  * „Baumsetzling", aus dem irgendetwas wird, wäre einfacher gewesen und
  * hätte genau das kaputtgemacht, worum es geht: Wer eine Birkenreihe
  * pflanzen will, soll eine Birkenreihe bekommen.
@@ -43,6 +43,9 @@ export const SETZLINGE = {
   sapling_birch: { id: 'sapling_birch', name: 'Birkensetzling', wird: 'tree_birch', tage: 5, laub: '#a8c47f' },
   sapling_maple: { id: 'sapling_maple', name: 'Ahornsetzling', wird: 'tree_maple', tage: 6, laub: '#c08a4e' },
   sapling_pine: { id: 'sapling_pine', name: 'Kiefernsetzling', wird: 'tree_pine', tage: 8, laub: '#6f9470' },
+  // Der Windbaum wächst am langsamsten. Wer eine Uferreihe will, soll
+  // dafür warten – an der Küste steht ohnehin das, was Ausdauer hat.
+  sapling_wind: { id: 'sapling_wind', name: 'Windbaumsetzling', wird: 'tree_wind', tage: 9, laub: '#9ab477' },
 };
 
 export const SETZLING_IDS = Object.keys(SETZLINGE);

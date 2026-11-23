@@ -2469,10 +2469,29 @@ function paintTree(opts) {
   // Wald fällt sonst auf, dass alle Bäume dieselbe Form haben.
   const spread = o.spread == null ? 1 : o.spread;
   const lift = o.lift == null ? 1 : o.lift;
-  const w = Math.round(180 * Math.max(1, spread));
+  /**
+   * Die Windneigung: Der Baum wird geschert, nicht gedreht.
+   *
+   * Das ist der Unterschied zwischen einem umgekippten und einem schief
+   * GEWACHSENEN Baum. Beim Drehen hebt sich der Stammfuß von der Erde und
+   * die ganze Silhouette kippt starr zur Seite – man sieht einen Baum, den
+   * jemand schräg hingestellt hat. Beim Scheren bleibt der Fuß stehen, und
+   * je höher es geht, desto weiter neigt es sich: genau das, was ein Baum
+   * tut, der sein Leben lang Seewind von einer Seite bekommt.
+   *
+   * Positiv heißt „nach rechts geneigt". Die Kronenmitte liegt dann rund
+   * 190 Punkte über dem Fuß, also wandert sie um `wind * 190` nach rechts
+   * – und um genau so viel muss die Bildfläche breiter werden, sonst
+   * schneidet der Rand die Krone ab.
+   */
+  const wind = o.wind || 0;
+  const neigung = Math.abs(wind) * 190;
+  const w = Math.round(180 * Math.max(1, spread) + neigung);
   const h = Math.round(224 * Math.max(1, lift));
   const seed = o.seed || 21;
-  const cx = w / 2;
+  // Der Stammfuß rückt gegen die Neigung aus der Mitte: Platz braucht die
+  // Krone nur auf der Seite, zu der sie hängt.
+  const cx = w / 2 - (wind >= 0 ? neigung / 2 : -neigung / 2);
   const baseY = h - 14;
   const canopyY = baseY - 132 * lift;
 
@@ -2494,6 +2513,29 @@ function paintTree(opts) {
     smoothClosed(blob(cx + 30 * sx, canopyY - 18, 25 * sx, 23, seed + 6, 0.22), 7),
   ];
 
+  /**
+   * Die Krone eines Windbaums ist nicht nur geneigt, sie ist einseitig.
+   *
+   * Die Scherung allein reichte nicht: Sie schob eine runde Krone zur
+   * Seite, und das las sich wie ein Baum, den jemand umgestoßen hat. Was
+   * einen Windbaum ausmacht, ist, dass auf der Wetterseite kaum etwas
+   * wächst – die Knospen dort vertrocknen im Salz – und alles, was
+   * durchkommt, nach hinten wegstreicht. Also: die Luvseite einziehen,
+   * die Leeseite ausstellen und alles ein Stück nachschieben.
+   *
+   * Die Zahlen sind die x-Seite jedes Lappens, in derselben Reihenfolge
+   * wie oben: Mitte, links, rechts, unten-Mitte, links-oben, rechts-oben.
+   */
+  if (wind) {
+    const seiten = [0, -1, 1, 0, -1, 1];
+    const luvSeite = wind > 0 ? -1 : 1;
+    for (let i = 0; i < lobes.length; i++) {
+      const imLuv = seiten[i] === luvSeite;
+      const gr = imLuv ? 0.6 : (seiten[i] ? 1.16 : 0.95);
+      lobes[i] = offsetShape(lobes[i], wind * (imLuv ? 14 : 44), 0, gr);
+    }
+  }
+
   // Stamm reicht bis in die Krone hinein, sonst entsteht ein Pilzstiel
   const trunk = smoothClosed([
     [cx - 14, baseY], [cx - 24, baseY - 5], [cx - 15, baseY - 24],
@@ -2510,12 +2552,32 @@ function paintTree(opts) {
     }
   }
 
+  /**
+   * Die Scherung legt sich um einen ganzen Durchgang, statt jeden Punkt
+   * einzeln zu verschieben. Sonst müsste jede Lasur, jeder Blattbogen und
+   * jeder Tuschestrich davon wissen – und einer würde es vergessen.
+   *
+   * Der Bodenschatten bleibt ungeschert: Er liegt auf der Erde, nicht am
+   * Baum. Er rückt nur ein Stück mit, weil die Krone übersteht.
+   */
+  function geneigt(fn) {
+    if (!wind) return fn;
+    return function (g) {
+      g.save();
+      g.transform(1, 0, -wind, 1, wind * baseY, 0);
+      fn(g);
+      g.restore();
+    };
+  }
+
   const res = paintObject(w, h, {
     seed: seed,
     blur: 1.8,
     outline: 2.0,
-    shadow: function (g) { groundShadow(g, cx + 4, baseY - 3, 54, 15, seed, 0.16); },
-    wash: function (g) {
+    shadow: function (g) {
+      groundShadow(g, cx + 4 + wind * 46, baseY - 3, 54, 15, seed, 0.16);
+    },
+    wash: geneigt(function (g) {
       wash(g, trunk, trunkFill, { seed: seed + 9, dx: -2, dy: 2, scale: 1.04 });
       wash(g, offsetShape(trunk, 8, 4, 0.66), trunkShade, { seed: seed + 10, alpha: 0.85 });
       for (let i = 0; i < lobes.length; i++) {
@@ -2569,19 +2631,23 @@ function paintTree(opts) {
       for (let i = 0; i < fruits.length; i++) {
         dot(g, null, fruits[i][0], fruits[i][1], 7.5, o.fruit, seed + 90 + i);
       }
-    },
-    shape: function (g) {
+    }),
+    shape: geneigt(function (g) {
       fill(g, trunk);
       for (let i = 0; i < lobes.length; i++) fill(g, lobes[i]);
-    },
+    }),
     // Blattbüscheln: viele kleine Bögen quer durch die Krone. Das ist der
     // Unterschied zwischen einer gefärbten Fläche und einer Zeichnung –
     // vorher standen hier neun verlorene Striche. Sie liegen in `detail`,
     // nicht in `ink`: grüne Tinte bliebe sonst auch im Malbuch grün.
-    detail: function (g) {
-      leafClumps(g, cx, canopyY + 10, 58 * sx, 50, seed + 500, o.leafDeep || ink.leafDeep);
-    },
-    ink: function (g) {
+    detail: geneigt(function (g) {
+      // Beim Windbaum wandert das Blattwerk mit der Krone: Sie ist nach
+      // einer Seite gezogen und auf der Wetterseite eingezogen. Ohne diese
+      // Verschiebung lagen ein paar Büschel neben dem Baum in der Luft.
+      leafClumps(g, cx + wind * 38, canopyY + 10, 58 * sx * (wind ? 0.78 : 1), 50,
+        seed + 500, o.leafDeep || ink.leafDeep);
+    }),
+    ink: geneigt(function (g) {
       // Die Lappen voreinander schieben. Vorher standen hier drei lange, fast
       // waagerechte Striche quer durch die Krone – gedacht als Andeutung der
       // Lappen, gelesen als Mund und Brauen. Jetzt wird stattdessen die obere
@@ -2622,7 +2688,7 @@ function paintTree(opts) {
       for (let i = 0; i < fruits.length; i++) {
         dot(null, g, fruits[i][0], fruits[i][1], 7.5, o.fruit, seed + 90 + i);
       }
-    },
+    }),
   });
   return made(res, w, h, cx, baseY);
 }
@@ -7617,7 +7683,7 @@ const { regrowDays } = __req("src/game/seasons.js");
 /**
  * Was aus welchem Setzling wird.
  *
- * Vier Sorten, dieselben vier, die auf der Insel stehen. Ein einziger
+ * Fünf Sorten, dieselben fünf, die auf der Insel stehen. Ein einziger
  * „Baumsetzling", aus dem irgendetwas wird, wäre einfacher gewesen und
  * hätte genau das kaputtgemacht, worum es geht: Wer eine Birkenreihe
  * pflanzen will, soll eine Birkenreihe bekommen.
@@ -7631,6 +7697,9 @@ const SETZLINGE = {
   sapling_birch: { id: 'sapling_birch', name: 'Birkensetzling', wird: 'tree_birch', tage: 5, laub: '#a8c47f' },
   sapling_maple: { id: 'sapling_maple', name: 'Ahornsetzling', wird: 'tree_maple', tage: 6, laub: '#c08a4e' },
   sapling_pine: { id: 'sapling_pine', name: 'Kiefernsetzling', wird: 'tree_pine', tage: 8, laub: '#6f9470' },
+  // Der Windbaum wächst am langsamsten. Wer eine Uferreihe will, soll
+  // dafür warten – an der Küste steht ohnehin das, was Ausdauer hat.
+  sapling_wind: { id: 'sapling_wind', name: 'Windbaumsetzling', wird: 'tree_wind', tage: 9, laub: '#9ab477' },
 };
 
 const SETZLING_IDS = Object.keys(SETZLINGE);
@@ -15115,6 +15184,7 @@ const LIST = [
   it('sapling_birch', 'Birkensetzling', CAT.SEED, 14, 0, { pflanzt: 'sapling_birch', prop: 'sapling_birch_1' }),
   it('sapling_maple', 'Ahornsetzling', CAT.SEED, 16, 0, { pflanzt: 'sapling_maple', prop: 'sapling_maple_1' }),
   it('sapling_pine', 'Kiefernsetzling', CAT.SEED, 18, 0, { pflanzt: 'sapling_pine', prop: 'sapling_pine_1' }),
+  it('sapling_wind', 'Windbaumsetzling', CAT.SEED, 18, 0, { pflanzt: 'sapling_wind', prop: 'sapling_wind_1' }),
 
   // Andenken – das Geschenk am Ende einer Erinnerungskette. Nicht käuflich,
   // nicht herstellbar, nicht verbrennbar: der einzige Weg dahin ist die
@@ -15552,6 +15622,23 @@ const ENTITY_DEFS = {
       return out;
     },
     becomes: 'tree_stump', respawn: 4, sway: true, category: 'tree',
+  },
+  /**
+   * Der Windbaum am Ufer.
+   *
+   * Er steht nur dort, wo das Wasser anfängt, und er gibt WENIGER Holz
+   * als die Eiche im Wald, nicht mehr. Sonst wäre aus einer Beobachtung
+   * über die Küste ein Grund geworden, nur noch dort zu fällen – und das
+   * Ufer ist das Erste, was man sieht, wenn man ankommt.
+   */
+  tree_wind: {
+    sprite: 'tree_wind', variants: 3, solid: true, blockR: 22, reachR: 88, tool: TOOL.AXE, hits: 3,
+    yield: function (level, rng) {
+      const out = [{ id: 'wood', n: randInt(rng, 1, 2) + level }];
+      if (rng() < 0.4) out.push({ id: 'resin', n: 1 });
+      return out;
+    },
+    becomes: 'tree_stump', respawn: 3, sway: true, category: 'tree',
   },
   tree_stump: {
     sprite: 'tree_stump', solid: true, blockR: 20, reachR: 72, tool: null, category: 'stump',
@@ -16455,6 +16542,18 @@ function initArt() {
       leafDeep: INK.autumnDeep, fruit: INK.berry,
     }));
     addArt('tree_pine_' + v, paintPine({ seed: 55 + v * 17 }));
+    // Der Windbaum am Ufer. Dieselbe Eiche, nur sein Leben lang von
+    // einer Seite angeblasen: Er wächst schief, kleiner und mit
+    // dünnerer Krone als die im Windschatten des Waldes. Gemalt wird er
+    // immer nach rechts geneigt; welche Seite er auf der Insel bekommt,
+    // entscheidet das Wasser (siehe `lehnt` in der Weltgenerierung).
+    addArt('tree_wind_' + v, paintTree({
+      // Schmaler und höher als die Eiche, nicht breiter: Eine breite Krone
+      // plus Neigung las sich als umgefallener Busch. Ein Baum, der gegen
+      // Wind ansteht, zieht sich zusammen.
+      seed: 63 + v * 17, spread: s.spread * 0.72, lift: s.lift,
+      wind: 0.22 + v * 0.06,
+    }));
   }
   addArt('tree_stump', paintStump({ seed: 137 }));
 
@@ -16739,6 +16838,7 @@ function buildIcons() {
     // bei 64 Punkten ein Strich mit drei Punkten daran.
     ['sapling_oak', 'sapling_oak_1'], ['sapling_birch', 'sapling_birch_1'],
     ['sapling_maple', 'sapling_maple_1'], ['sapling_pine', 'sapling_pine_1'],
+    ['sapling_wind', 'sapling_wind_1'],
     ['boat', 'boat'], ['mailbox', 'mailbox'],
     ['picture', 'picture'], ['islandpic', 'picture'], ['wreath', 'wreath'], ['shelf', 'shelf'],
     ['wreath_spring', 'wreath_spring'], ['wreath_summer', 'wreath_summer'],
@@ -18762,6 +18862,56 @@ class World {
       }
     }
 
+    /**
+     * In welche Richtung das Wasser liegt: -1 links, +1 rechts, 0 keins.
+     *
+     * Dafür wird in beide Richtungen bis zu sechs Kacheln weit geschaut.
+     * Sechs, weil zwischen Grasnarbe und Wasser meistens noch ein Streifen
+     * Sand liegt – mit zwei Kacheln fand der Uferbaum fast nie ein Ufer.
+     */
+    function wasserSeite(tx, ty) {
+      let links = 0;
+      let rechts = 0;
+      for (let d = 1; d <= 6; d++) {
+        if (!links && isWater(self.tileAtTile(tx - d, ty))) links = d;
+        if (!rechts && isWater(self.tileAtTile(tx + d, ty))) rechts = d;
+      }
+      if (links && (!rechts || links < rechts)) return -1;
+      if (rechts) return 1;
+      return 0;
+    }
+
+    /**
+     * Die Uferbäume setzen.
+     *
+     * Ein eigener Durchgang statt eines Eintrags in `scatter`, weil jeder
+     * dieser Bäume seine Neigung von der Landschaft bekommt und nicht vom
+     * Zufall: Wind kommt von der See, also lehnt der Baum landeinwärts.
+     * Stünden am selben Ufer welche in beide Richtungen, wäre es kein Wind
+     * mehr, sondern Beliebigkeit – und genau das sieht man sofort.
+     *
+     * `lehnt` wird nicht gespeichert und muss es auch nicht: Die Welt wird
+     * beim Laden aus dem Samen neu gebaut, und dabei kommt hier dasselbe
+     * heraus.
+     */
+    function uferbaeume(spots, count, spacing) {
+      let placed = 0;
+      let guard = 0;
+      while (placed < count && guard++ < count * 40 && spots.length) {
+        const s = spots[Math.floor(rng() * spots.length)];
+        if (nearFord(s.x, s.y) || nearBridge(s.x, s.y)) continue;
+        const seite = wasserSeite(s.x, s.y);
+        if (!seite) continue;
+        const wx = (s.x + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
+        const wy = (s.y + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
+        if (self._tooClose(wx, wy, spacing)) continue;
+        const e = makeEntity('tree_wind', wx, wy);
+        e.lehnt = -seite; // vom Wasser weg
+        self.add(e);
+        placed++;
+      }
+    }
+
     const grassCamp = walkableTilesOf(this.tiles, REGION.CAMP, function (t, tx, ty) {
       return t === T.GRASS && farFromCamp(tx, ty);
     });
@@ -18781,6 +18931,7 @@ class World {
     scatter(['reeds'], sandCamp, 18, 48);
     scatter(['feather'], sandCamp, 8, 56);
     scatter(['feather'], grassCamp, 8, 60);
+    uferbaeume(grassCamp, 14, 72);
 
     // Wald
     scatter(['tree_oak', 'tree_pine', 'tree_birch', 'tree_maple'], grassForest, 78, 72);
@@ -18831,6 +18982,8 @@ class World {
     scatter(['shell', 'driftwood'], cliffSand, 14, 48);
     scatter(['feather'], cliffSand, 6, 56);
     scatter(['grass_tuft'], cliffLand, 16, 40);
+    uferbaeume(cliffLand, 10, 76);
+    uferbaeume(isleLand, 8, 76);
   }
 
   _tooClose(x, y, r) {
@@ -20963,7 +21116,12 @@ function wuchsStreuung(e, def) {
   const u = ((h >>> 5) & 1023) / 1023;
   const v = ((h >>> 15) & 1023) / 1023;
   return {
-    flip: ((h >>> 2) & 1) === 1,
+    // Der Uferbaum darf NICHT nach Zufall gespiegelt werden: Seine
+    // Neigung kommt aus der Landschaft (Wind von der See, also vom Wasser
+    // weg). Gemalt ist er nach rechts geneigt, also wird für die linke
+    // Seite gespiegelt. Ohne diese Zeile stünden an derselben Bucht
+    // Bäume, die sich gegenseitig anlehnen – und aus Wind würde Willkür.
+    flip: e.lehnt ? e.lehnt < 0 : ((h >>> 2) & 1) === 1,
     // 0,84 bis 1,16. Vorher 0,90 bis 1,10 – im Bild sah der Wald dadurch
     // aus, als wäre derselbe Baum hundertmal eingefügt worden. Mehr als
     // das hier liest sich dagegen als verschiedene Arten.
@@ -29593,6 +29751,7 @@ const HINTS = {
   sapling_birch: 'Fällt manchmal ab, wenn du eine Birke fällst.',
   sapling_maple: 'Fällt manchmal ab, wenn du einen Ahorn fällst.',
   sapling_pine: 'Fällt manchmal ab, wenn du eine Kiefer fällst.',
+  sapling_wind: 'Fällt manchmal ab, wenn du einen Windbaum am Ufer fällst.',
   petal: 'Im Frühling am Boden, überall wo etwas wächst.',
   sunstone: 'Im Sommer am Boden, überall wo etwas wächst.',
   mapleleaf: 'Im Herbst am Boden, überall wo etwas wächst.',

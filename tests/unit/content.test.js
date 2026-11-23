@@ -59,7 +59,10 @@ const SPRITE_NAMES = (function () {
   ];
   // Bäume liegen in drei Fassungen vor; die Objektdefinition nennt nur den
   // Rumpf, makeEntity hängt die Nummer an.
-  const trees = ['tree_oak', 'tree_birch', 'tree_maple', 'tree_pine'];
+  // Von Hand und nicht aus ENTITY_DEFS abgeleitet: Diese Liste ist die
+  // Gegenseite der Prüfung. Leitete sie sich aus denselben Daten ab, die
+  // sie prüft, bestünde sie immer.
+  const trees = ['tree_oak', 'tree_birch', 'tree_maple', 'tree_pine', 'tree_wind'];
   for (let i = 0; i < trees.length; i++) {
     for (let v = 0; v < 3; v++) names.push(trees[i] + '_' + v);
   }

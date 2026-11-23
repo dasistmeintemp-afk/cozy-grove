@@ -105,7 +105,12 @@ function wuchsStreuung(e, def) {
   const u = ((h >>> 5) & 1023) / 1023;
   const v = ((h >>> 15) & 1023) / 1023;
   return {
-    flip: ((h >>> 2) & 1) === 1,
+    // Der Uferbaum darf NICHT nach Zufall gespiegelt werden: Seine
+    // Neigung kommt aus der Landschaft (Wind von der See, also vom Wasser
+    // weg). Gemalt ist er nach rechts geneigt, also wird für die linke
+    // Seite gespiegelt. Ohne diese Zeile stünden an derselben Bucht
+    // Bäume, die sich gegenseitig anlehnen – und aus Wind würde Willkür.
+    flip: e.lehnt ? e.lehnt < 0 : ((h >>> 2) & 1) === 1,
     // 0,84 bis 1,16. Vorher 0,90 bis 1,10 – im Bild sah der Wald dadurch
     // aus, als wäre derselbe Baum hundertmal eingefügt worden. Mehr als
     // das hier liest sich dagegen als verschiedene Arten.

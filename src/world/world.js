@@ -301,6 +301,56 @@ export class World {
       }
     }
 
+    /**
+     * In welche Richtung das Wasser liegt: -1 links, +1 rechts, 0 keins.
+     *
+     * Dafür wird in beide Richtungen bis zu sechs Kacheln weit geschaut.
+     * Sechs, weil zwischen Grasnarbe und Wasser meistens noch ein Streifen
+     * Sand liegt – mit zwei Kacheln fand der Uferbaum fast nie ein Ufer.
+     */
+    function wasserSeite(tx, ty) {
+      let links = 0;
+      let rechts = 0;
+      for (let d = 1; d <= 6; d++) {
+        if (!links && isWater(self.tileAtTile(tx - d, ty))) links = d;
+        if (!rechts && isWater(self.tileAtTile(tx + d, ty))) rechts = d;
+      }
+      if (links && (!rechts || links < rechts)) return -1;
+      if (rechts) return 1;
+      return 0;
+    }
+
+    /**
+     * Die Uferbäume setzen.
+     *
+     * Ein eigener Durchgang statt eines Eintrags in `scatter`, weil jeder
+     * dieser Bäume seine Neigung von der Landschaft bekommt und nicht vom
+     * Zufall: Wind kommt von der See, also lehnt der Baum landeinwärts.
+     * Stünden am selben Ufer welche in beide Richtungen, wäre es kein Wind
+     * mehr, sondern Beliebigkeit – und genau das sieht man sofort.
+     *
+     * `lehnt` wird nicht gespeichert und muss es auch nicht: Die Welt wird
+     * beim Laden aus dem Samen neu gebaut, und dabei kommt hier dasselbe
+     * heraus.
+     */
+    function uferbaeume(spots, count, spacing) {
+      let placed = 0;
+      let guard = 0;
+      while (placed < count && guard++ < count * 40 && spots.length) {
+        const s = spots[Math.floor(rng() * spots.length)];
+        if (nearFord(s.x, s.y) || nearBridge(s.x, s.y)) continue;
+        const seite = wasserSeite(s.x, s.y);
+        if (!seite) continue;
+        const wx = (s.x + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
+        const wy = (s.y + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
+        if (self._tooClose(wx, wy, spacing)) continue;
+        const e = makeEntity('tree_wind', wx, wy);
+        e.lehnt = -seite; // vom Wasser weg
+        self.add(e);
+        placed++;
+      }
+    }
+
     const grassCamp = walkableTilesOf(this.tiles, REGION.CAMP, function (t, tx, ty) {
       return t === T.GRASS && farFromCamp(tx, ty);
     });
@@ -320,6 +370,7 @@ export class World {
     scatter(['reeds'], sandCamp, 18, 48);
     scatter(['feather'], sandCamp, 8, 56);
     scatter(['feather'], grassCamp, 8, 60);
+    uferbaeume(grassCamp, 14, 72);
 
     // Wald
     scatter(['tree_oak', 'tree_pine', 'tree_birch', 'tree_maple'], grassForest, 78, 72);
@@ -370,6 +421,8 @@ export class World {
     scatter(['shell', 'driftwood'], cliffSand, 14, 48);
     scatter(['feather'], cliffSand, 6, 56);
     scatter(['grass_tuft'], cliffLand, 16, 40);
+    uferbaeume(cliffLand, 10, 76);
+    uferbaeume(isleLand, 8, 76);
   }
 
   _tooClose(x, y, r) {

@@ -315,10 +315,29 @@ export function paintTree(opts) {
   // Wald fällt sonst auf, dass alle Bäume dieselbe Form haben.
   const spread = o.spread == null ? 1 : o.spread;
   const lift = o.lift == null ? 1 : o.lift;
-  const w = Math.round(180 * Math.max(1, spread));
+  /**
+   * Die Windneigung: Der Baum wird geschert, nicht gedreht.
+   *
+   * Das ist der Unterschied zwischen einem umgekippten und einem schief
+   * GEWACHSENEN Baum. Beim Drehen hebt sich der Stammfuß von der Erde und
+   * die ganze Silhouette kippt starr zur Seite – man sieht einen Baum, den
+   * jemand schräg hingestellt hat. Beim Scheren bleibt der Fuß stehen, und
+   * je höher es geht, desto weiter neigt es sich: genau das, was ein Baum
+   * tut, der sein Leben lang Seewind von einer Seite bekommt.
+   *
+   * Positiv heißt „nach rechts geneigt". Die Kronenmitte liegt dann rund
+   * 190 Punkte über dem Fuß, also wandert sie um `wind * 190` nach rechts
+   * – und um genau so viel muss die Bildfläche breiter werden, sonst
+   * schneidet der Rand die Krone ab.
+   */
+  const wind = o.wind || 0;
+  const neigung = Math.abs(wind) * 190;
+  const w = Math.round(180 * Math.max(1, spread) + neigung);
   const h = Math.round(224 * Math.max(1, lift));
   const seed = o.seed || 21;
-  const cx = w / 2;
+  // Der Stammfuß rückt gegen die Neigung aus der Mitte: Platz braucht die
+  // Krone nur auf der Seite, zu der sie hängt.
+  const cx = w / 2 - (wind >= 0 ? neigung / 2 : -neigung / 2);
   const baseY = h - 14;
   const canopyY = baseY - 132 * lift;
 
@@ -340,6 +359,29 @@ export function paintTree(opts) {
     smoothClosed(blob(cx + 30 * sx, canopyY - 18, 25 * sx, 23, seed + 6, 0.22), 7),
   ];
 
+  /**
+   * Die Krone eines Windbaums ist nicht nur geneigt, sie ist einseitig.
+   *
+   * Die Scherung allein reichte nicht: Sie schob eine runde Krone zur
+   * Seite, und das las sich wie ein Baum, den jemand umgestoßen hat. Was
+   * einen Windbaum ausmacht, ist, dass auf der Wetterseite kaum etwas
+   * wächst – die Knospen dort vertrocknen im Salz – und alles, was
+   * durchkommt, nach hinten wegstreicht. Also: die Luvseite einziehen,
+   * die Leeseite ausstellen und alles ein Stück nachschieben.
+   *
+   * Die Zahlen sind die x-Seite jedes Lappens, in derselben Reihenfolge
+   * wie oben: Mitte, links, rechts, unten-Mitte, links-oben, rechts-oben.
+   */
+  if (wind) {
+    const seiten = [0, -1, 1, 0, -1, 1];
+    const luvSeite = wind > 0 ? -1 : 1;
+    for (let i = 0; i < lobes.length; i++) {
+      const imLuv = seiten[i] === luvSeite;
+      const gr = imLuv ? 0.6 : (seiten[i] ? 1.16 : 0.95);
+      lobes[i] = offsetShape(lobes[i], wind * (imLuv ? 14 : 44), 0, gr);
+    }
+  }
+
   // Stamm reicht bis in die Krone hinein, sonst entsteht ein Pilzstiel
   const trunk = smoothClosed([
     [cx - 14, baseY], [cx - 24, baseY - 5], [cx - 15, baseY - 24],
@@ -356,12 +398,32 @@ export function paintTree(opts) {
     }
   }
 
+  /**
+   * Die Scherung legt sich um einen ganzen Durchgang, statt jeden Punkt
+   * einzeln zu verschieben. Sonst müsste jede Lasur, jeder Blattbogen und
+   * jeder Tuschestrich davon wissen – und einer würde es vergessen.
+   *
+   * Der Bodenschatten bleibt ungeschert: Er liegt auf der Erde, nicht am
+   * Baum. Er rückt nur ein Stück mit, weil die Krone übersteht.
+   */
+  function geneigt(fn) {
+    if (!wind) return fn;
+    return function (g) {
+      g.save();
+      g.transform(1, 0, -wind, 1, wind * baseY, 0);
+      fn(g);
+      g.restore();
+    };
+  }
+
   const res = paintObject(w, h, {
     seed: seed,
     blur: 1.8,
     outline: 2.0,
-    shadow: function (g) { groundShadow(g, cx + 4, baseY - 3, 54, 15, seed, 0.16); },
-    wash: function (g) {
+    shadow: function (g) {
+      groundShadow(g, cx + 4 + wind * 46, baseY - 3, 54, 15, seed, 0.16);
+    },
+    wash: geneigt(function (g) {
       wash(g, trunk, trunkFill, { seed: seed + 9, dx: -2, dy: 2, scale: 1.04 });
       wash(g, offsetShape(trunk, 8, 4, 0.66), trunkShade, { seed: seed + 10, alpha: 0.85 });
       for (let i = 0; i < lobes.length; i++) {
@@ -415,19 +477,23 @@ export function paintTree(opts) {
       for (let i = 0; i < fruits.length; i++) {
         dot(g, null, fruits[i][0], fruits[i][1], 7.5, o.fruit, seed + 90 + i);
       }
-    },
-    shape: function (g) {
+    }),
+    shape: geneigt(function (g) {
       fill(g, trunk);
       for (let i = 0; i < lobes.length; i++) fill(g, lobes[i]);
-    },
+    }),
     // Blattbüscheln: viele kleine Bögen quer durch die Krone. Das ist der
     // Unterschied zwischen einer gefärbten Fläche und einer Zeichnung –
     // vorher standen hier neun verlorene Striche. Sie liegen in `detail`,
     // nicht in `ink`: grüne Tinte bliebe sonst auch im Malbuch grün.
-    detail: function (g) {
-      leafClumps(g, cx, canopyY + 10, 58 * sx, 50, seed + 500, o.leafDeep || ink.leafDeep);
-    },
-    ink: function (g) {
+    detail: geneigt(function (g) {
+      // Beim Windbaum wandert das Blattwerk mit der Krone: Sie ist nach
+      // einer Seite gezogen und auf der Wetterseite eingezogen. Ohne diese
+      // Verschiebung lagen ein paar Büschel neben dem Baum in der Luft.
+      leafClumps(g, cx + wind * 38, canopyY + 10, 58 * sx * (wind ? 0.78 : 1), 50,
+        seed + 500, o.leafDeep || ink.leafDeep);
+    }),
+    ink: geneigt(function (g) {
       // Die Lappen voreinander schieben. Vorher standen hier drei lange, fast
       // waagerechte Striche quer durch die Krone – gedacht als Andeutung der
       // Lappen, gelesen als Mund und Brauen. Jetzt wird stattdessen die obere
@@ -468,7 +534,7 @@ export function paintTree(opts) {
       for (let i = 0; i < fruits.length; i++) {
         dot(null, g, fruits[i][0], fruits[i][1], 7.5, o.fruit, seed + 90 + i);
       }
-    },
+    }),
   });
   return made(res, w, h, cx, baseY);
 }

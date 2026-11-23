@@ -166,6 +166,7 @@ export const HINTS = {
   sapling_birch: 'Fällt manchmal ab, wenn du eine Birke fällst.',
   sapling_maple: 'Fällt manchmal ab, wenn du einen Ahorn fällst.',
   sapling_pine: 'Fällt manchmal ab, wenn du eine Kiefer fällst.',
+  sapling_wind: 'Fällt manchmal ab, wenn du einen Windbaum am Ufer fällst.',
   petal: 'Im Frühling am Boden, überall wo etwas wächst.',
   sunstone: 'Im Sommer am Boden, überall wo etwas wächst.',
   mapleleaf: 'Im Herbst am Boden, überall wo etwas wächst.',

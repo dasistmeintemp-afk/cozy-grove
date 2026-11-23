@@ -266,6 +266,7 @@ const LIST = [
   it('sapling_birch', 'Birkensetzling', CAT.SEED, 14, 0, { pflanzt: 'sapling_birch', prop: 'sapling_birch_1' }),
   it('sapling_maple', 'Ahornsetzling', CAT.SEED, 16, 0, { pflanzt: 'sapling_maple', prop: 'sapling_maple_1' }),
   it('sapling_pine', 'Kiefernsetzling', CAT.SEED, 18, 0, { pflanzt: 'sapling_pine', prop: 'sapling_pine_1' }),
+  it('sapling_wind', 'Windbaumsetzling', CAT.SEED, 18, 0, { pflanzt: 'sapling_wind', prop: 'sapling_wind_1' }),
 
   // Andenken – das Geschenk am Ende einer Erinnerungskette. Nicht käuflich,
   // nicht herstellbar, nicht verbrennbar: der einzige Weg dahin ist die
