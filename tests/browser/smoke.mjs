@@ -7595,10 +7595,16 @@ async function run() {
       g.world.pet.fund = null;
       g.state.pet.fundAm = 0;
       g.state.pet.laune = 100;
+      // Dazu muss Seli neben einer Fundstelle stehen – sonst sucht das Tier
+      // gar nicht erst, und die Prüfung scheitert an der Insel statt am Namen.
+      // Genau daran hing sie: Nach der Bank stand Seli irgendwo, und auf
+      // manchen Inseln lag dort im Umkreis von 900 Punkten keine Grabstelle.
+      const grab = g.world.entities.filter((e) => e.kind === 'digspot' && !e.gone)[0];
+      if (grab) { g.player.x = grab.x + 60; g.player.y = grab.y + 60; }
       const toastBox = document.getElementById('toasts');
       while (toastBox.firstChild) toastBox.removeChild(toastBox.firstChild);
       g._petSucht();
-      const nameInMeldung = toastBox.textContent.indexOf('Moos') >= 0;
+      const nameInMeldung = !!grab && toastBox.textContent.indexOf('Moos') >= 0;
       g.world.pet.fund = null;
       g.state.pet.name = '';
 
