@@ -253,7 +253,7 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
       // stattdessen in den leicht verschiedenen Halbachsen.
       const hs = hashString('schatten' + Math.round(e.x) + ':' + Math.round(e.y));
       const r = 88 * (0.88 + ((hs >>> 7) & 255) / 255 * 0.26);
-      wctx.globalAlpha = 0.125;
+      wctx.globalAlpha = 0.15;
       wctx.beginPath();
       wctx.ellipse(e.x - LIGHT.x * 34, e.y - 22 - LIGHT.y * 12,
         r, r * (0.56 + ((hs >>> 17) & 255) / 255 * 0.14), 0, 0, 6.2832);

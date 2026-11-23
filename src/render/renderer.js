@@ -25,8 +25,23 @@ import { TILE_SIZE, isWater } from '../art/tiles.js';
 /** Diese Wesen behalten immer ihre Farbe – sie sind ja nicht verblasst. */
 const ALWAYS_COLOR = { spirit: 1, fox: 1, hidden: 1, wanderer: 1 };
 
-const REFERENCE_W = 1560;
-const REFERENCE_H = 880;
+/**
+ * Das Bezugsmaß für den Zoom – und damit, wie viel Welt ins Bild passt.
+ *
+ * Gemessen an vier Bildern des Vorbilds: Dort ist die Spielfigur rund
+ * acht Prozent der Bildbreite hoch, bei uns waren es dreizehn. Die Folge
+ * war nicht, dass Seli zu groß aussah – sie sah richtig aus –, sondern
+ * dass zu WENIG ins Bild passte. Ein Bildschirm des Vorbilds zeigt sechzig
+ * einzelne Dinge, unserer fünfundzwanzig, und daran hing der Eindruck von
+ * Fülle, nicht an der Zahl der Dinge je Quadratmeter.
+ *
+ * Von 1560×880 auf 2080×1170: Das ist Faktor 1,33 in der Breite, also die
+ * eineinhalbfache Fläche. Weiter wollte ich nicht gehen, ohne es zu
+ * sehen – ab irgendwann ist die Figur ein Punkt, und das Spiel handelt
+ * von ihr.
+ */
+const REFERENCE_W = 2080;
+const REFERENCE_H = 1170;
 // Obergrenze für die Zahl der gezeichneten Bildpunkte.
 //
 // Angehoben von 2,1 auf 3,2 Millionen: Auf einem Bildschirm mit doppelter

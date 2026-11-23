@@ -1540,13 +1540,25 @@ async function run() {
       async function bei(stunde) {
         g.day.hour = stunde;
         await new Promise(function (r) { setTimeout(r, 700); });
-        const feuerX = (f.x - g.camera.ox) * dpr;
-        const feuerY = (f.y - g.camera.oy) * dpr;
+        // Der Zoom MUSS mitgerechnet werden, und das Kästchen muss in
+        // Weltmaßen aufgespannt sein.
+        //
+        // Vorher stand hier weder das eine noch das andere: Die Stelle
+        // des Feuers wurde ohne Zoom gerechnet (also um ein Fünftel
+        // daneben), und das Kästchen war 90 BILDpunkte groß. Als die
+        // Kamera weiter herausging, deckte dasselbe Kästchen plötzlich
+        // 146 statt 110 Weltpunkte ab – also halb unbeleuchteten Boden –,
+        // und die gemessene Wärme fiel von 9 auf 2. Gemessen wurde die
+        // Kameraeinstellung, nicht das Feuer.
+        const z = g.renderer.zoom * dpr;
+        const feuerX = (f.x - g.camera.ox) * z;
+        const feuerY = (f.y - g.camera.oy) * z;
+        const halb = Math.round(56 * z);
         return {
           // Der Bildrand liegt weit von der Figur und damit außerhalb
           // aller Lichtkreise.
           rand: feld(4, 4, 90, 70),
-          feuer: feld(feuerX - 45, feuerY - 45, 90, 90),
+          feuer: feld(feuerX - halb, feuerY - halb, halb * 2, halb * 2),
         };
       }
       const tag = await bei(13);
@@ -3549,7 +3561,12 @@ async function run() {
         const R = g.renderer;
         const sx = Math.round((ziel.x * 64 + 32 - g.camera.ox) * R.zoom);
         const sy = Math.round((ziel.y * 64 + 32 - g.camera.oy) * R.zoom);
-        return R.ctx.getImageData(sx - 20, sy - 20, 40, 40).data;
+        // Das Kästchen in WELTmaßen, nicht in Bildpunkten: Sonst wächst
+        // mit jedem Schritt der Kamera nach hinten die Fläche mit, die es
+        // abdeckt – vierzig Bildpunkte waren einmal eine halbe Kachel und
+        // nach dem Herauszoomen fast eine ganze, also halb Wiese.
+        const halb = Math.max(8, Math.round(21 * R.zoom));
+        return R.ctx.getImageData(sx - halb, sy - halb, halb * 2, halb * 2).data;
       }
       await warten();
       const a = pixel();

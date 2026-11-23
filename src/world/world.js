@@ -374,29 +374,43 @@ export class World {
     const cliffLand = walkableTilesOf(this.tiles, REGION.CLIFFS, function (t) { return t === T.GRASS || t === T.ROCKFLOOR; });
     const cliffSand = walkableTilesOf(this.tiles, REGION.CLIFFS, function (t) { return t === T.SAND; });
 
+    /**
+     * Die Zahlen sind MESSWERTE, keine Schätzungen.
+     *
+     * Gemessen an vier Bildern des Vorbilds: Dort steht auf einem
+     * Bildschirm ungefähr ein Gegenstand je Kachel – Treibholz, Muscheln,
+     * Kiesel, Grasbüschel, Korallen, alles dicht an dicht. Bei uns waren
+     * es 25 Gegenstände je 100 begehbare Kacheln, also einer alle vier.
+     * Daran und nicht an der Palette hing der Eindruck von Leere.
+     *
+     * Verdoppelt wird fast nur das KLEINE: Grasbüschel, Blumen, Muscheln,
+     * Treibholz, Federn, Kräuter. Bäume und Felsen steigen kaum, denn sie
+     * sind fest – eine doppelt so dichte Wiese ist voll, ein doppelt so
+     * dichter Wald ist eine Wand.
+     */
     // Lager & Strand
-    scatter(['tree_oak', 'tree_birch', 'tree_maple'], grassCamp, 46, 80);
-    scatter(['rock_big', 'rock_small'], grassCamp, 16, 80);
-    scatter(['bush_berry', 'bush_plain'], grassCamp, 22, 64);
-    scatter(['flower_pink', 'flower_yellow', 'flower_white'], grassCamp, 30, 44);
-    scatter(['grass_tuft'], grassCamp, 34, 40);
-    scatter(['herb'], grassCamp, 12, 48);
-    scatter(['shell', 'driftwood'], sandCamp, 26, 48);
-    scatter(['reeds'], sandCamp, 18, 48);
-    scatter(['feather'], sandCamp, 8, 56);
-    scatter(['feather'], grassCamp, 8, 60);
-    uferbaeume(grassCamp, 14, 72);
+    scatter(['tree_oak', 'tree_birch', 'tree_maple'], grassCamp, 54, 78);
+    scatter(['rock_big', 'rock_small'], grassCamp, 22, 72);
+    scatter(['bush_berry', 'bush_plain'], grassCamp, 30, 58);
+    scatter(['flower_pink', 'flower_yellow', 'flower_white'], grassCamp, 72, 30);
+    scatter(['grass_tuft'], grassCamp, 96, 26);
+    scatter(['herb'], grassCamp, 24, 40);
+    scatter(['shell', 'driftwood'], sandCamp, 62, 30);
+    scatter(['reeds'], sandCamp, 32, 38);
+    scatter(['feather'], sandCamp, 16, 44);
+    scatter(['feather'], grassCamp, 16, 48);
+    uferbaeume(grassCamp, 16, 70);
 
     // Wald
-    scatter(['tree_oak', 'tree_pine', 'tree_birch', 'tree_maple'], grassForest, 78, 72);
-    scatter(['bush_berry'], grassForest, 20, 60);
-    scatter(['mushroom'], grassForest, 26, 44);
-    scatter(['herb'], grassForest, 16, 48);
-    scatter(['flower_violet', 'flower_white'], grassForest, 18, 48);
-    scatter(['feather'], grassForest, 12, 56);
-    scatter(['rock_big', 'rock_small'], grassForest, 14, 72);
-    scatter(['rock_ore'], grassForest, 4, 104);
-    scatter(['grass_tuft'], grassForest, 26, 40);
+    scatter(['tree_oak', 'tree_pine', 'tree_birch', 'tree_maple'], grassForest, 92, 70);
+    scatter(['bush_berry'], grassForest, 28, 54);
+    scatter(['mushroom'], grassForest, 58, 30);
+    scatter(['herb'], grassForest, 32, 40);
+    scatter(['flower_violet', 'flower_white'], grassForest, 46, 34);
+    scatter(['feather'], grassForest, 22, 46);
+    scatter(['rock_big', 'rock_small'], grassForest, 20, 64);
+    scatter(['rock_ore'], grassForest, 5, 100);
+    scatter(['grass_tuft'], grassForest, 76, 28);
 
     // Stille Insel. Sie zerfällt in zwei Hälften: unten der grüne Süden mit
     // Wanda, oben das Hochland aus Fels. Nur dort liegen Granit und Geoden,
@@ -408,34 +422,34 @@ export class World {
     const isleLand = isleAll.filter(function (p) { return p.y >= HIGHLAND_Y; });
     const isleHigh = isleAll.filter(function (p) { return p.y < HIGHLAND_Y; });
     const isleSand = walkableTilesOf(this.tiles, REGION.ISLE, function (t) { return t === T.SAND; });
-    scatter(['tree_pine', 'tree_birch'], isleLand, 16, 76);
-    scatter(['rock_ore'], isleLand, 10, 72);
-    scatter(['rock_big', 'rock_small'], isleLand, 12, 64);
-    scatter(['bush_berry'], isleLand, 8, 60);
-    scatter(['herb', 'mushroom'], isleLand, 14, 44);
-    scatter(['flower_violet', 'flower_white'], isleLand, 12, 44);
-    scatter(['grass_tuft'], isleLand, 14, 40);
-    scatter(['shell', 'driftwood'], isleSand, 18, 44);
-    scatter(['reeds'], isleSand, 10, 44);
+    scatter(['tree_pine', 'tree_birch'], isleLand, 20, 74);
+    scatter(['rock_ore'], isleLand, 12, 68);
+    scatter(['rock_big', 'rock_small'], isleLand, 17, 58);
+    scatter(['bush_berry'], isleLand, 11, 54);
+    scatter(['herb', 'mushroom'], isleLand, 34, 30);
+    scatter(['flower_violet', 'flower_white'], isleLand, 30, 30);
+    scatter(['grass_tuft'], isleLand, 38, 28);
+    scatter(['shell', 'driftwood'], isleSand, 42, 30);
+    scatter(['reeds'], isleSand, 20, 36);
 
     // Das Hochland
-    scatter(['rock_granite'], isleHigh, 22, 82);
-    scatter(['rock_geode'], isleHigh, 6, 150);
-    scatter(['rock_big', 'rock_small'], isleHigh, 18, 68);
-    scatter(['rock_ore'], isleHigh, 8, 88);
-    scatter(['tree_pine'], isleHigh, 10, 92);
-    scatter(['herb'], isleHigh, 8, 56);
-    scatter(['grass_tuft'], isleHigh, 8, 52);
+    scatter(['rock_granite'], isleHigh, 26, 76);
+    scatter(['rock_geode'], isleHigh, 7, 144);
+    scatter(['rock_big', 'rock_small'], isleHigh, 24, 60);
+    scatter(['rock_ore'], isleHigh, 10, 84);
+    scatter(['tree_pine'], isleHigh, 13, 88);
+    scatter(['herb'], isleHigh, 20, 38);
+    scatter(['grass_tuft'], isleHigh, 26, 32);
 
     // Klippen
-    scatter(['tree_pine'], cliffLand, 26, 80);
-    scatter(['rock_big', 'rock_small'], cliffLand, 26, 64);
-    scatter(['rock_ore'], cliffLand, 12, 88);
-    scatter(['flower_violet'], cliffLand, 12, 48);
-    scatter(['herb', 'mushroom'], cliffLand, 12, 48);
-    scatter(['shell', 'driftwood'], cliffSand, 14, 48);
-    scatter(['feather'], cliffSand, 6, 56);
-    scatter(['grass_tuft'], cliffLand, 16, 40);
+    scatter(['tree_pine'], cliffLand, 32, 76);
+    scatter(['rock_big', 'rock_small'], cliffLand, 38, 56);
+    scatter(['rock_ore'], cliffLand, 15, 84);
+    scatter(['flower_violet'], cliffLand, 32, 34);
+    scatter(['herb', 'mushroom'], cliffLand, 32, 34);
+    scatter(['shell', 'driftwood'], cliffSand, 34, 32);
+    scatter(['feather'], cliffSand, 13, 44);
+    scatter(['grass_tuft'], cliffLand, 48, 28);
     uferbaeume(cliffLand, 10, 76);
     uferbaeume(isleLand, 8, 76);
   }

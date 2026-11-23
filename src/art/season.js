@@ -48,7 +48,18 @@ export const SEASON_PALETTE = {
     moss: '#94ac60',
   },
   autumn: {
-    grass: '#c9cd74', grassLight: '#e0dc9c', grassDark: '#a3a355',
+    // Das Gras bleibt GRÜN, auch im Herbst.
+    //
+    // Hier stand `#c9cd74`: Rot 201, Grün 205 – also Khaki, praktisch
+    // ohne Grünanteil. Zusammen mit dem orangen Laub lag damit das ganze
+    // Bild in einer einzigen Farbfamilie, und ein Bild ohne Gegensatz
+    // liest sich als Dunst, egal wie gut die Einzelteile sind. Im Vorbild
+    // steht brennendes Laub IMMER über grünem Gras – daher kommt das
+    // Leuchten, nicht aus der Sättigung des Laubs.
+    //
+    // Jetzt liegt Grün 23 Stufen über Rot. Gelblicher als im Sommer
+    // bleibt es trotzdem, sonst wäre es kein Herbst.
+    grass: '#aec163', grassLight: '#cbd78f', grassDark: '#8a9d4a',
     leaf: '#d8a94e', leafLight: '#eecb84', leafDark: '#b7822f', leafDeep: '#8d5a21',
     birchLeaf: '#e0c761', birchLight: '#f2e096', birchDark: '#b89b41', birchDeep: '#8e7530',
     // Im Herbst brennt der Ahorn – hier steht die Grundpalette, und genau
