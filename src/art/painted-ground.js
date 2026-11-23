@@ -333,11 +333,239 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
     }
   }
 
+  // EINMAL rechnen, zweimal benutzen: Die Farbfläche und die Risse in der
+  // Tinte brauchen dieselbe Geometrie. Zweimal gerechnet kostete das
+  // Backen eines Stücks spürbar – und ein Stück wird gebacken, während
+  // jemand läuft.
+  const waende = wandFlaechen(world, tx0, ty0, ring);
+  uferwand(wctx, waende);
+
   blurCanvas(washCanvas, 3, 2);
 
-  paintGroundInk(ictx, world, tx0, ty0, ring, abnutzung);
+  paintGroundInk(ictx, world, tx0, ty0, ring, abnutzung, waende);
 
   return { wash: washCanvas, ink: inkCanvas, ox: originX, oy: originY, size: size };
+}
+
+/**
+ * Die Abbruchkante am Ufer – das Land bekommt Höhe.
+ *
+ * Bis hierher war die Insel eine Landkarte: Gras hörte auf, Wasser fing
+ * an, beides in derselben Ebene. Im Vorbild liegt das Land HÖHER als das
+ * Wasser, und was man sieht, ist nicht die Grenze, sondern die Wand
+ * darunter – eine braune Felskante mit der Grasnarbe als Überhang oben
+ * drauf. Das ist der stärkste Tiefeneindruck im ganzen Bild und zugleich
+ * die größte dunkle Fläche darin.
+ *
+ * **Nur an Südkanten.** Eine Wand sieht man nur dort, wo die Kante zum
+ * Betrachter zeigt – also wo unter dem Land Wasser liegt. An einer
+ * Nordküste schaut man von oben auf die Grasnarbe und sieht keine Wand;
+ * malte man dort eine, läge sie auf dem Land. Dieselbe Regel wie beim
+ * Felsabsatz eine Funktion weiter unten.
+ *
+ * **Und ohne Treppenstufen.** Die Oberkante jeder Kachel ist leicht
+ * gewellt, und die Welligkeit kommt aus `cornerJitter` an den geteilten
+ * Eckpunkten: Die rechte Ecke einer Kachel und die linke der nächsten
+ * fragen denselben Gitterpunkt und bekommen denselben Wert. Ohne das
+ * zerfiele eine lange Küste in lauter einzeln wackelnde Kacheln.
+ */
+const WAND_HOEHE = 48;
+
+/**
+ * Wie stark die Küstenlinie hier zittert. Dieselbe Zahl wie beim
+ * Hauptstrich der Küste – nur dann sitzt die Wand unter dem Strich.
+ */
+const WAND_JITTER = 13;
+
+/**
+ * Die Wandflächen eines Stücks.
+ *
+ * Für jeden Küstenabschnitt wird geprüft, ob darüber Land und darunter
+ * Wasser liegt; nur dann sieht man eine Wand. Ihre Höhe hängt davon ab,
+ * wie WAAGERECHT der Abschnitt verläuft: Eine Kante quer zum Blick zeigt
+ * ihre ganze Fläche, eine längs dazu fast keine. Ohne diesen Faktor liefen
+ * an Ost- und Westküsten braune Bänder NEBEN dem Land durchs Wasser.
+ *
+ * Der erste Versuch zog die Wand an den Kachelgrenzen hoch statt an der
+ * Küstenlinie. Auf einer diagonalen Küste ergab das einzelne braune
+ * Rechtecke, die im Wasser schwammen – der Strich lief diagonal durch die
+ * Kachel, die Wand saß an ihrem Rand.
+ */
+function wandFlaechen(world, tx0, ty0, ring) {
+  const kanten = kuestenKanten(world, tx0, ty0, ring, WAND_JITTER);
+  const out = [];
+  for (let i = 0; i < kanten.length; i++) {
+    const a = kanten[i][0];
+    const b = kanten[i][1];
+    const mx = (a[0] + b[0]) / 2;
+    const my = (a[1] + b[1]) / 2;
+    const oben = world.tileAtTile(Math.floor(mx / TILE_SIZE), Math.floor((my - 22) / TILE_SIZE));
+    const unten = world.tileAtTile(Math.floor(mx / TILE_SIZE), Math.floor((my + 22) / TILE_SIZE));
+    if (!isWalkable(oben) || !isWater(unten)) continue;
+    // Ein STRAND hat keine Felskante. Sand läuft flach ins Wasser, und
+    // genau dieser Unterschied macht aus einer Insel mit Wand ringsum
+    // eine Landschaft: hier Steilküste, dort Bucht. Im ersten Entwurf lag
+    // das braune Band auch unter dem Sand, und der Strand sah aus, als
+    // hinge er in der Luft.
+    if (oben === T.SAND) continue;
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const quer = Math.abs(dx) / len;
+    if (quer < 0.3) continue;
+    const h = WAND_HOEHE * quer;
+    // Die Unterkante wackelt stark, die obere kaum: Oben schneidet die
+    // Grasnarbe sauber ab, unten bricht der Fels ins Wasser. Der
+    // Zitterwert hängt am ENDPUNKT, nicht am Abschnitt – zwei Abschnitte
+    // teilen sich ihn und die Wand bleibt durchgehend.
+    const ja = cornerJitter(Math.round(a[0]), Math.round(a[1]));
+    const jb = cornerJitter(Math.round(b[0]), Math.round(b[1]));
+    out.push({
+      a: a, b: b,
+      ua: [a[0], a[1] + h * (0.82 + ja[0] * 0.022)],
+      ub: [b[0], b[1] + h * (0.82 + jb[0] * 0.022)],
+      h: h,
+    });
+  }
+  return out;
+}
+
+/**
+ * Die Abbruchkante am Ufer – das Land bekommt Höhe.
+ *
+ * Bis hierher war die Insel eine Landkarte: Gras hörte auf, Wasser fing
+ * an, beides in derselben Ebene. Im Vorbild liegt das Land HÖHER als das
+ * Wasser, und was man sieht, ist nicht die Grenze, sondern die Wand
+ * darunter – eine braune Felskante mit der Grasnarbe als Überhang oben
+ * drauf. Das ist der stärkste Tiefeneindruck im ganzen Bild und zugleich
+ * die größte dunkle Fläche darin.
+ */
+function uferwand(g, flaechen) {
+  for (let i = 0; i < flaechen.length; i++) {
+    const f = flaechen[i];
+    g.save();
+    // Der Verlauf macht die Fläche zur Wand, und seine Reihenfolge ist
+    // nicht beliebig: oben ein schmaler heller Streifen – die frische
+    // Erde direkt unter der Grasnarbe –, dann der Absturz ins Dunkle,
+    // unten wieder etwas aufgehellt vom Wasser. Erst dieser helle Saum
+    // lässt die Narbe überhängen; ohne ihn ist es ein brauner Balken.
+    const y0 = Math.min(f.a[1], f.b[1]);
+    const grad = g.createLinearGradient(0, y0, 0, y0 + f.h);
+    grad.addColorStop(0, INK.uferLicht);
+    grad.addColorStop(0.18, INK.uferTief);
+    grad.addColorStop(0.66, INK.ufer);
+    grad.addColorStop(1, INK.uferLicht);
+    g.fillStyle = grad;
+    g.beginPath();
+    g.moveTo(f.a[0], f.a[1]);
+    g.lineTo(f.b[0], f.b[1]);
+    g.lineTo(f.ub[0], f.ub[1]);
+    g.lineTo(f.ua[0], f.ua[1]);
+    g.closePath();
+    g.fill();
+    // Und die Wand wirft ihren Schatten aufs Wasser davor.
+    g.globalAlpha = 0.4;
+    const sg = g.createLinearGradient(0, y0 + f.h * 0.82, 0, y0 + f.h * 0.82 + 20);
+    sg.addColorStop(0, INK.waterDark);
+    sg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = sg;
+    g.beginPath();
+    g.moveTo(f.ua[0], f.ua[1] - 2);
+    g.lineTo(f.ub[0], f.ub[1] - 2);
+    g.lineTo(f.ub[0], f.ub[1] + 20);
+    g.lineTo(f.ua[0], f.ua[1] + 20);
+    g.closePath();
+    g.fill();
+    g.restore();
+  }
+}
+
+/**
+ * Senkrechte Risse in der Uferwand.
+ *
+ * Sie liegen in der Tinte, nicht in der Farbe: Eine Wand ohne Struktur
+ * ist ein brauner Balken, und im unkolorierten Zustand wäre von ihr sonst
+ * gar nichts zu sehen.
+ */
+function uferRisse(g, flaechen) {
+  const striche = [];
+  for (let i = 0; i < flaechen.length; i++) {
+    const f = flaechen[i];
+    const rng = makeRng(hashString('riss' + Math.round(f.a[0]) + ':' + Math.round(f.a[1])));
+    const n = 1 + Math.floor(rng() * 3);
+    for (let k = 0; k < n; k++) {
+      const u = 0.12 + rng() * 0.76;
+      const x = f.a[0] + (f.b[0] - f.a[0]) * u;
+      const y = f.a[1] + (f.b[1] - f.a[1]) * u;
+      const tief = f.h * (0.35 + rng() * 0.45);
+      striche.push([x, y + 4 + rng() * 4, x + (rng() - 0.5) * 5, y + tief]);
+    }
+  }
+  if (!striche.length) return;
+  g.save();
+  g.lineCap = 'round';
+  g.strokeStyle = INK.line;
+  g.globalAlpha = 0.34;
+  g.lineWidth = 1.9;
+  g.beginPath();
+  for (let i = 0; i < striche.length; i++) {
+    const t = striche[i];
+    g.moveTo(t[0], t[1]);
+    g.lineTo(t[2], t[3]);
+  }
+  g.stroke();
+  g.restore();
+}
+
+/**
+ * Die beiden Stützpunkte zwischen benachbarten Kachelmitten.
+ *
+ * Auf Modulebene und nicht in `contour`, weil die Uferwand DIESELBEN
+ * Punkte braucht: Sie wird aus der Küstenlinie nach unten gezogen, und
+ * nur wenn beide aus derselben Rechnung kommen, sitzt die Wand genau
+ * unter dem Strich statt daneben.
+ */
+function midH(tx, ty, j) { // zwischen (tx,ty) und (tx+1,ty)
+  const o = cornerJitter(tx * 2 + 1, ty * 2);
+  return [(tx + 1) * TILE_SIZE + o[0] * (j / 13), (ty + 0.5) * TILE_SIZE + o[1] * (j / 13)];
+}
+function midV(tx, ty, j) { // zwischen (tx,ty) und (tx,ty+1)
+  const o = cornerJitter(tx * 2, ty * 2 + 1);
+  return [(tx + 0.5) * TILE_SIZE + o[0] * (j / 13), (ty + 1) * TILE_SIZE + o[1] * (j / 13)];
+}
+
+/**
+ * Alle Küstenabschnitte eines Stücks als Strecken, in derselben
+ * Marching-Squares-Rechnung wie die Tuschelinie.
+ */
+function kuestenKanten(world, tx0, ty0, ring, j) {
+  const out = [];
+  for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
+    for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
+      const a = isWalkable(world.tileAtTile(tx, ty)) ? 1 : 0;
+      const b = isWalkable(world.tileAtTile(tx + 1, ty)) ? 1 : 0;
+      const c = isWalkable(world.tileAtTile(tx + 1, ty + 1)) ? 1 : 0;
+      const d = isWalkable(world.tileAtTile(tx, ty + 1)) ? 1 : 0;
+      const code = a | (b << 1) | (c << 2) | (d << 3);
+      if (code === 0 || code === 15) continue;
+      const top = midH(tx, ty, j);
+      const right = midV(tx + 1, ty, j);
+      const bottom = midH(tx, ty + 1, j);
+      const left = midV(tx, ty, j);
+      switch (code) {
+        case 1: case 14: out.push([left, top]); break;
+        case 2: case 13: out.push([top, right]); break;
+        case 3: case 12: out.push([left, right]); break;
+        case 4: case 11: out.push([right, bottom]); break;
+        case 6: case 9: out.push([top, bottom]); break;
+        case 7: case 8: out.push([left, bottom]); break;
+        case 5: out.push([left, top]); out.push([right, bottom]); break;
+        case 10: out.push([top, right]); out.push([left, bottom]); break;
+        default: break;
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -350,17 +578,7 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
  * zusammen.
  */
 function contour(g, world, tx0, ty0, ring, classify, width, color, alpha, jitter) {
-  const T2 = TILE_SIZE;
   const j = jitter == null ? 11 : jitter;
-
-  function midH(tx, ty) { // zwischen (tx,ty) und (tx+1,ty)
-    const o = cornerJitter(tx * 2 + 1, ty * 2);
-    return [(tx + 1) * T2 + o[0] * (j / 13), (ty + 0.5) * T2 + o[1] * (j / 13)];
-  }
-  function midV(tx, ty) { // zwischen (tx,ty) und (tx,ty+1)
-    const o = cornerJitter(tx * 2, ty * 2 + 1);
-    return [(tx + 0.5) * T2 + o[0] * (j / 13), (ty + 1) * T2 + o[1] * (j / 13)];
-  }
 
   function segment(a, b, tx, ty, tag) {
     const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -380,10 +598,10 @@ function contour(g, world, tx0, ty0, ring, classify, width, color, alpha, jitter
       const code = a | (b << 1) | (c << 2) | (d << 3);
       if (code === 0 || code === 15) continue;
 
-      const top = midH(tx, ty);
-      const right = midV(tx + 1, ty);
-      const bottom = midH(tx, ty + 1);
-      const left = midV(tx, ty);
+      const top = midH(tx, ty, j);
+      const right = midV(tx + 1, ty, j);
+      const bottom = midH(tx, ty + 1, j);
+      const left = midV(tx, ty, j);
 
       switch (code) {
         case 1: case 14: segment(left, top, tx, ty, 1); break;
@@ -440,7 +658,7 @@ function rockStep(g, world, tx0, ty0, ring) {
  * durchgereicht und nicht hier geholt: Die Tintenschicht kennt den
  * Spielstand nicht, sie bekommt eine Frage, die sie stellen darf.
  */
-function paintGroundInk(g, world, tx0, ty0, ring, abnutzung) {
+function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
   const r = Math.min(ring, 1);
   // Brandung zuerst: eine breite weiße Linie, die um die Küste herumwandert.
   // Der andere Zitterwert lässt sie neben der Tuschelinie laufen – so entsteht
@@ -457,6 +675,7 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung) {
     function (t) { return t === T.ROCKFLOOR; },
     2.6, INK.rockDeep, 0.65, 11);
   rockStep(g, world, tx0, ty0, r);
+  uferRisse(g, waende);
 
   // Bodendetails: Grasbüschel, Kiesel, Wellenkringel.
   // Alles in wenigen Sammelpfaden – tausend einzelne stroke()-Aufrufe pro

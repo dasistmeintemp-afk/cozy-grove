@@ -13,13 +13,13 @@
  */
 import {
   blob, teardrop, smoothClosed, offsetShape, pathFrom, clipTo,
-  inkStroke, inkLine, wash, washGroup, paintObject, groundShadow, LIGHT,
+  inkStroke, inkLine, wash, washGroup, paintObject, groundShadow, LIGHT, TUSCHE,
 } from './brush.js';
 import { makeRng } from '../core/rng.js';
 
 /** Die Farbwelt: warmes Papier, Tinte in Sepia statt Schwarz. */
 export const INK = {
-  line: '#4a4038',
+  line: TUSCHE,
   lineSoft: '#7a6f5e',
   paper: '#f8f3e7',
   paperShade: '#ece4d0',
@@ -61,6 +61,12 @@ export const INK = {
   waterDeep: '#36a6b0',
   waterDark: '#248a97',
   foam: '#f0fbf9',
+
+  // Die Uferwand: warme Erde, oben im Schatten der überhängenden
+  // Grasnarbe, unten vom Wasser aufgehellt.
+  uferTief: '#3b2a1a',
+  ufer: '#7b5a39',
+  uferLicht: '#a07c52',
 
   rock: '#dcd8c6',
   rockShade: '#aeb2a0',

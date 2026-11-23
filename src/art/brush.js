@@ -8,6 +8,54 @@
 import { makeRng } from '../core/rng.js';
 import { makeCanvas, ctx2d } from '../core/util.js';
 
+/**
+ * Die Tusche. Fast schwarz, nicht graubraun – und das ist eine Messung.
+ *
+ * Hier stand `#4a4038`, ein warmes Dunkelgrau mit einer Helligkeit von 66.
+ * Das klingt dunkel und war es nicht: Nach Alphaschwankung, Weichzeichner
+ * und dem Papier darunter kam im fertigen Bild NICHTS unter 60 heraus –
+ * im ganzen Spielbild kein einziger dunkler Punkt. Gemessen gegen das
+ * Vorbild (Cozy Grove): dort sind 9 % aller Punkte dunkler als 60, und
+ * die Streuung der Helligkeit ist mit 60 fast dreimal so groß wie unsere
+ * 24. Das Bild wirkte daneben ausgewaschen, obwohl es sogar MEHR Farbe
+ * hat (Farbigkeit 81 gegen 70).
+ *
+ * Es fehlte also nicht an Farbe, sondern am Tiefton. Eine Zeichnung
+ * braucht etwas, wogegen das Helle hell ist.
+ *
+ * Warm bleibt sie trotzdem: Reines Schwarz macht aus Aquarell einen
+ * Comic. 36/30/26 ist Sepia, nur endlich dunkel genug, um als Strich zu
+ * gelten.
+ */
+export const TUSCHE = '#241e1a';
+
+/**
+ * Wie breit die Umrisse insgesamt sind – ein Faktor auf alle Angaben.
+ *
+ * Jeder Maler nennt seine eigene Strichstärke (ein Falter dünner als ein
+ * Haus), und die Verhältnisse untereinander stimmen. Was nicht stimmte,
+ * war das Gesamtmaß: Zwei Bildpunkte auf einer 220 Punkte hohen Zeichnung
+ * sind im fertigen Spiel ein Haar. Dunklere Tusche allein brachte den
+ * Anteil dunkler Punkte nur von 0,0 auf 0,9 Prozent – es gab schlicht zu
+ * wenige davon.
+ *
+ * Deshalb ein Faktor statt dreißig geänderter Zahlen: Die Abstufung
+ * zwischen den Malern bleibt, das Ganze wird kräftiger. Jede Änderung
+ * hier ist eine an der Handschrift des ganzen Spiels.
+ */
+export const STRICH = 1.65;
+
+/**
+ * Wie kräftig Schlagschatten insgesamt sind – ein Faktor auf alle
+ * Angaben an `groundShadow`.
+ *
+ * Im Vorbild sitzt jedes Ding auf einem deutlichen Schatten; bei uns
+ * musste man ihn suchen. Ein Schatten, den man suchen muss, ist der
+ * teuerste Weg, keinen zu haben: Er kostet dieselbe Rechenzeit und bringt
+ * weder Bodenkontakt noch Tiefton.
+ */
+export const SCHATTEN = 1.75;
+
 /* ------------------------------------------------------------------ Formen */
 
 /**
@@ -137,7 +185,7 @@ export function inkStroke(ctx, pts, opts) {
 
   ctx.save();
   ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
-  ctx.strokeStyle = o.color || '#4a4038';
+  ctx.strokeStyle = o.color || TUSCHE;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
@@ -185,7 +233,7 @@ export function unionOutline(shapeCanvas, width, color, seed) {
   rc.globalCompositeOperation = 'destination-out';
   rc.drawImage(shapeCanvas, 0, 0);
   rc.globalCompositeOperation = 'source-in';
-  rc.fillStyle = color || '#4c4237';
+  rc.fillStyle = color || TUSCHE;
   rc.fillRect(0, 0, w, h);
   rc.globalCompositeOperation = 'source-over';
 
@@ -245,7 +293,7 @@ export function inkLine(ctx, x0, y0, x1, y1, opts) {
     closed: false,
     width: o.width || 2,
     vary: o.vary == null ? 0.3 : o.vary,
-    color: o.color || '#4a4038',
+    color: o.color || TUSCHE,
     seed: o.seed || 3,
     alpha: o.alpha,
   });
@@ -599,8 +647,8 @@ export function paintObject(w, h, o) {
     const sl = layer();
     sl[1].fillStyle = '#000000';
     o.shape(sl[1]);
-    ring = unionOutline(sl[0], o.outline == null ? 1.9 : o.outline,
-      o.outlineColor || '#4a4038', o.seed || 5);
+    ring = unionOutline(sl[0], (o.outline == null ? 1.9 : o.outline) * STRICH,
+      o.outlineColor || TUSCHE, o.seed || 5);
   }
 
   function compose(washSource) {
@@ -666,7 +714,15 @@ export const LIGHT = { x: -0.6, y: -0.8 };
  * ihn schwebt ein Baum über der Wiese, statt auf ihr zu stehen.
  */
 export function groundShadow(ctx, cx, cy, rx, ry, seed, alpha) {
-  const a = alpha == null ? 0.16 : alpha;
+  // Von 0,16 auf 0,27, und der Ton von Oliv (Helligkeit 115) auf ein
+  // tiefes Graugrün (65). Gemessen gegen das Vorbild fehlte dem Bild der
+  // Tiefton; ein Schatten, den man suchen muss, ist der teuerste Weg,
+  // keinen zu haben. Jetzt sitzt jedes Ding wirklich auf dem Boden.
+  // Die 76 Aufrufstellen nennen ihre eigene Deckung (ein Pilz wirft
+  // weniger als ein Haus), und die Verhältnisse stimmen. Zu schwach war
+  // das Gesamtmaß – darum ein Faktor darüber statt 76 geänderter Zahlen,
+  // genau wie bei der Strichstärke.
+  const a = (alpha == null ? 0.16 : alpha) * SCHATTEN;
   // Der Schatten lag fast mittig unter dem Objekt und war kaum größer als
   // dessen Fuß. Damit hatte die Szene keine Lichtrichtung: Eine Lichtung sah
   // aus, als stünden die Bäume bei bedecktem Himmel. Jetzt liegt er
@@ -679,7 +735,7 @@ export function groundShadow(ctx, cx, cy, rx, ry, seed, alpha) {
   const oy = -LIGHT.y * ry * 0.50;
   const s = seed || 11;
   ctx.save();
-  ctx.fillStyle = '#6f7a5c';
+  ctx.fillStyle = '#414a35';
 
   ctx.globalAlpha = a;
   pathFrom(ctx, smoothClosed(

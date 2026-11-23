@@ -11,6 +11,7 @@
  * davon anfassen.
  */
 import { drawSprite } from '../art/sprites.js';
+import { TUSCHE } from '../art/brush.js';
 import { randRange } from '../core/rng.js';
 import { isWalkable, isWater } from '../art/tiles.js';
 import { bugsOf } from '../game/items.js';
@@ -388,14 +389,14 @@ export class Wildlife {
       ctx.beginPath();
       ctx.ellipse(x, fy, 12, 6, tilt, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#4a4038';
+      ctx.strokeStyle = TUSCHE;
       ctx.globalAlpha = 0.75;
       ctx.lineWidth = 1.6;
       ctx.stroke();
 
       // Auge
       ctx.globalAlpha = 0.8;
-      ctx.fillStyle = '#4a4038';
+      ctx.fillStyle = TUSCHE;
       ctx.beginPath();
       ctx.arc(x + dir * 5, fy - 1.5, 1.4, 0, Math.PI * 2);
       ctx.fill();

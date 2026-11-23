@@ -4092,6 +4092,59 @@ async function run() {
     check('Zwölf Bäume verdunkeln den Boden unter sich merklich',
       schatten.unterschied >= 8, JSON.stringify(schatten));
 
+    /* ---- Die Abbruchkante am Ufer ---- */
+    // Das Land liegt höher als das Wasser; an der Kante sieht man die Wand
+    // darunter. Gemessen am Bodenmaler mit einer erfundenen Welt: oben
+    // Land, unten Wasser, und dann das Helligkeitsprofil quer zur Kante.
+    const kante = await page.evaluate(async () => {
+      const { paintGroundChunk } = await import('/src/art/painted-ground.js');
+      const { T } = await import('/src/art/tiles.js');
+      const profil = (oben) => {
+        const welt = {
+          tileAtTile: (tx, ty) => (ty < 26 ? oben : T.WATER),
+          queryNear: () => [],
+        };
+        const st = paintGroundChunk(welt, 3, 3, null);
+        const k = document.createElement('canvas');
+        k.width = st.size; k.height = st.size;
+        const x = k.getContext('2d');
+        x.drawImage(st.wash, 0, 0, st.size, st.size);
+        x.drawImage(st.ink, 0, 0);
+        const yK = 26 * 64 - st.oy;
+        const reihe = (y) => {
+          const d = x.getImageData(0, y, st.size, 1).data;
+          let s = 0; let n = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] < 120) continue;
+            s += d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+            n++;
+          }
+          return n ? s / n : -1;
+        };
+        let dunkelste = 999;
+        let tiefe = 0;
+        for (let dy = 2; dy <= 55; dy++) {
+          const h = reihe(Math.round(yK + dy));
+          if (h < dunkelste) dunkelste = h;
+          if (h < 130) tiefe++;
+        }
+        return {
+          ueber: Math.round(reihe(Math.round(yK - 20))),
+          dunkelste: Math.round(dunkelste),
+          tiefe: tiefe,
+        };
+      };
+      return { gras: profil(T.GRASS), sand: profil(T.SAND) };
+    });
+    check('Unter der Grasnarbe steht eine dunkle Wand im Wasser',
+      kante.gras.ueber >= 150 && kante.gras.dunkelste <= 100 && kante.gras.tiefe >= 25,
+      JSON.stringify(kante.gras));
+    // Und der Strand hat keine. Sand läuft flach ins Wasser – genau dieser
+    // Unterschied macht aus „Insel mit Rand" eine Landschaft.
+    check('Ein Sandstrand bekommt keine Felskante',
+      kante.sand.dunkelste >= kante.gras.dunkelste + 30,
+      JSON.stringify(kante.sand));
+
     /* ---- Der Windbaum am Ufer ---- */
     // Zwei Dinge, und sie hängen nicht zusammen: dass die GRAFIK geneigt
     // ist, und dass die Insel sie richtig herum hinstellt.
