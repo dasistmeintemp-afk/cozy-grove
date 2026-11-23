@@ -13018,6 +13018,8 @@ function paintGroundChunk(world, ctx0, cty0, pfade) {
     }
   }
 
+  biomLasur(wctx, world, tx0, ty0, ring);
+
   steilkanten(wctx, world, tx0, ty0, ring);
 
   // EINMAL rechnen, zweimal benutzen: Die Farbfläche und die Risse in der
@@ -13057,6 +13059,42 @@ function paintGroundChunk(world, ctx0, cty0, pfade) {
  * zerfiele eine lange Küste in lauter einzeln wackelnde Kacheln.
  */
 const WAND_HOEHE = 48;
+
+/**
+ * Die Bodenlasur des Bioms.
+ *
+ * Jedes Biom bekommt einen eigenen Ton über die Grundfarbe: der
+ * Nadelwald dunkel und kühl, der Birkenhain hell, die Heide erdig, das
+ * Geröll steinig. Das ist die Hälfte dessen, was eine Gegend als Gegend
+ * lesbar macht – die andere Hälfte ist, was darauf wächst.
+ *
+ * Die Lasur hängt an der KACHEL und nicht am Stück, genau wie die
+ * übrigen Lasuren: Sonst wäre die Schnittkante zwischen zwei
+ * Bodenstücken als gerade Linie zu sehen. Und sie ist schwach gehalten –
+ * ein Nadelwald, dessen Boden sattgrün ist, sieht aus wie ein Teppich.
+ */
+function biomLasur(g, world, tx0, ty0, ring) {
+  if (!world.biomTonAtTile) return;
+  for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
+    for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
+      const t = world.tileAtTile(tx, ty);
+      if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
+      // Den TON holt der Maler von der Welt, nicht die Biomtabelle: Die
+      // Zeichenschicht soll nicht wissen, dass es Biome gibt, genauso
+      // wenig wie sie den Spielstand kennt. Sie bekommt eine Farbe.
+      const ton = world.biomTonAtTile(tx, ty);
+      if (!ton) continue;
+      const farbe = INK[ton[0]];
+      if (!farbe) continue;
+      g.save();
+      g.globalAlpha = ton[1];
+      g.fillStyle = farbe;
+      pathFrom(g, tilePatch(tx, ty, 0.7), true);
+      g.fill();
+      g.restore();
+    }
+  }
+}
 
 /**
  * Die Steilkanten im Landesinneren.
@@ -19356,6 +19394,287 @@ __e.TILE_SIZE = TILE_SIZE;
 
 };
 
+__defs["src/world/biome.js"] = function (__e) {
+/**
+ * Biome – warum eine Gegend nach einer Gegend aussieht.
+ *
+ * Die Insel hatte vier Bereiche, und alle vier waren „Wiese mit Bäumen".
+ * Lager, Wald, Klippen und Stille Insel unterschieden sich in der Zahl
+ * der Bäume und sonst in nichts – man konnte überall stehen und nicht
+ * sagen, wo man ist. Genau das meint „die Welt sieht überall gleich aus",
+ * und es ist kein Grafikproblem: Es fehlte die ZUSAMMENSETZUNG.
+ *
+ * Ein Biom ist deshalb keine Farbe, sondern eine Liste: Was wächst hier,
+ * was liegt hier herum, und welchen Ton hat der Boden. Ein Birkenhain
+ * besteht aus Birken, hellem Gras und Blumen; ein Nadelwald aus Kiefern,
+ * Moos, Pilzen und wenig Licht; eine Heide aus Geröll, zähem Gras und
+ * fast keinen Bäumen. Man erkennt sie, ohne dass irgendwo ein Schild
+ * steht – so wie man einen Buchenwald von einem Fichtenforst
+ * unterscheidet, ohne Botanik zu können.
+ *
+ * **Die Biome liegen QUER zu den Bereichen, nicht in ihnen.** Jeder
+ * Bereich hat eine Auswahl, aus der sein Rauschen schöpft, und zwei
+ * Bereiche teilen sich Biome. Sonst wären Biome nur neue Namen für die
+ * alten vier Kästen, und die Grenze zwischen Wald und Klippen bliebe die
+ * Linie, die sie heute ist.
+ *
+ * Hier steht nur die Tabelle und die Zuteilung. Was daraus folgt, steht
+ * dort, wo es hingehört: der Streuwurf in `world.js`, der Bodenton im
+ * Bodenmaler.
+ */
+const { makeNoise2D, fbm } = __req("src/core/rng.js");
+const { T, isWalkable } = __req("src/art/tiles.js");
+const { MAP_W, MAP_H, REGION, tileIndex, regionAt, generateTiles } = __req("src/world/worldgen.js");
+
+const BIOM = {
+  WIESE: 0,
+  BIRKENHAIN: 1,
+  NADELWALD: 2,
+  HEIDE: 3,
+  BLUMENWIESE: 4,
+  GEROELL: 5,
+};
+
+const BIOM_NAMEN = [
+  'Wiese', 'Birkenhain', 'Nadelwald', 'Heide', 'Blumenwiese', 'Geröll',
+];
+
+/**
+ * Was ein Biom ausmacht.
+ *
+ *   baeume     Baumarten und wie dicht sie stehen (Zahl je 100 Kacheln)
+ *   busch      Büsche je 100 Kacheln
+ *   boden      Streugut, das den Boden ausmacht – das Kleinzeug
+ *   ton        Bodenlasur: Farbe aus der Palette und Deckung
+ *
+ * Die Dichten sind je 100 Kacheln angegeben und nicht als absolute Zahl.
+ * Vorher standen überall feste Zahlen („46 Bäume ins Lager"), und ein
+ * Biom, das auf einer Insel groß und auf der nächsten klein ausfällt,
+ * wäre damit einmal Wald und einmal Lichtung gewesen.
+ */
+const BIOME = {
+  [BIOM.WIESE]: {
+    name: 'Wiese',
+    baeume: [['tree_oak', 5], ['tree_maple', 3], ['tree_birch', 2]],
+    dichteBaum: 9,
+    busch: 5,
+    boden: [['grass_tuft', 16], ['flower_pink', 3], ['flower_yellow', 3],
+      ['flower_white', 3], ['herb', 4]],
+    ton: null,
+  },
+  [BIOM.BIRKENHAIN]: {
+    name: 'Birkenhain',
+    // Fast nur Birken, und dicht: Ein Hain ist kein gemischter Wald,
+    // sondern lauter weiße Stämme in einer Reihe. Das ist die auffälligste
+    // Baumgruppe, die es gibt, und sie kostet keine neue Grafik.
+    baeume: [['tree_birch', 11], ['tree_oak', 1]],
+    dichteBaum: 15,
+    busch: 2,
+    boden: [['grass_tuft', 22], ['flower_white', 7], ['herb', 5], ['feather', 2]],
+    ton: ['grassLight', 0.2],
+  },
+  [BIOM.NADELWALD]: {
+    name: 'Nadelwald',
+    baeume: [['tree_pine', 11], ['tree_birch', 1]],
+    dichteBaum: 17,
+    busch: 3,
+    // Unter Nadeln wächst wenig Gras, dafür Moos und Pilze.
+    boden: [['mushroom', 11], ['grass_tuft', 6], ['herb', 3], ['flower_violet', 2]],
+    ton: ['leafDeep', 0.17],
+  },
+  [BIOM.HEIDE]: {
+    name: 'Heide',
+    // Die Heide ist der Gegenentwurf zum Wald: offen, windig, kaum ein
+    // Baum. Ohne eine Gegend, in der man WEIT sehen kann, ist eine Insel
+    // aus Wald und Lichtung ein einziger Wald.
+    baeume: [['tree_wind', 3], ['tree_pine', 1]],
+    dichteBaum: 2.5,
+    busch: 7,
+    boden: [['grass_tuft', 20], ['rock_small', 5], ['herb', 5], ['flower_violet', 4]],
+    ton: ['dirtDark', 0.14],
+  },
+  [BIOM.BLUMENWIESE]: {
+    name: 'Blumenwiese',
+    baeume: [['tree_maple', 4], ['tree_oak', 2]],
+    dichteBaum: 4,
+    busch: 4,
+    boden: [['flower_pink', 11], ['flower_yellow', 11], ['flower_white', 8],
+      ['flower_violet', 6], ['grass_tuft', 14], ['herb', 4]],
+    ton: ['grassLight', 0.22],
+  },
+  [BIOM.GEROELL]: {
+    name: 'Geröll',
+    baeume: [['tree_pine', 2]],
+    dichteBaum: 1.5,
+    busch: 1,
+    boden: [['rock_small', 16], ['rock_big', 6], ['grass_tuft', 7], ['herb', 2]],
+    ton: ['rockShade', 0.2],
+  },
+};
+
+/**
+ * Welche Biome in welchem Bereich vorkommen.
+ *
+ * Die Reihenfolge ist die Reihenfolge der Rauschschwellen: Das erste
+ * Biom bekommt das meiste Land. Blumenwiese und Geröll stehen bewusst
+ * hinten – beide sind Ausrufezeichen, und ein Ausrufezeichen, das ein
+ * Drittel der Insel bedeckt, ist ein Punkt.
+ */
+const BIOME_JE_BEREICH = {
+  [REGION.CAMP]: [BIOM.WIESE, BIOM.BIRKENHAIN, BIOM.BLUMENWIESE],
+  [REGION.FOREST]: [BIOM.NADELWALD, BIOM.BIRKENHAIN, BIOM.WIESE, BIOM.BLUMENWIESE],
+  [REGION.CLIFFS]: [BIOM.NADELWALD, BIOM.HEIDE, BIOM.GEROELL, BIOM.WIESE],
+  [REGION.ISLE]: [BIOM.HEIDE, BIOM.NADELWALD, BIOM.GEROELL, BIOM.BIRKENHAIN],
+};
+
+const CACHE = { seed: -1, data: null };
+
+/**
+ * Die Biomkarte zu einem Samen.
+ *
+ * Eigenes Rauschen, eigener Maßstab: 0,038 ergibt Flecken von rund
+ * fünfundzwanzig Kacheln Durchmesser. Das ist die Größe, bei der man
+ * beim Durchlaufen merkt, dass man den Ort gewechselt hat, bevor man ihn
+ * schon wieder verlässt – bei 0,08 lief man alle zehn Schritte durch ein
+ * anderes Biom, und die Insel sah aus wie ein Flickenteppich.
+ */
+function biomeFuer(seed) {
+  const s = seed >>> 0;
+  if (CACHE.seed === s && CACHE.data) return CACHE.data;
+  const tiles = generateTiles(s);
+  const n = makeNoise2D(s ^ 0x6b43a9f1);
+  const m = makeNoise2D(s ^ 0x1f83d9ab);
+  const karte = new Uint8Array(MAP_W * MAP_H);
+
+  /**
+   * Die Grenzen werden GEMESSEN, nicht gesetzt – wie bei den Höhen.
+   *
+   * Mit festen Schwellen auf dem Rauschen hing es am Samen, wie groß ein
+   * Biom ausfällt: Bei großen Flecken (die man will) verschwand auf einer
+   * Insel die Blumenwiese auf 0,2 Prozent, bei kleinen Flecken war die
+   * Insel ein Flickenteppich mit einem Biomwechsel alle elf Schritte.
+   * Beides ist falsch, und zwischen beidem gibt es keine feste Schwelle,
+   * die für alle Samen stimmt.
+   *
+   * Also: je Bereich alle Rauschwerte sammeln, sortieren und bei
+   * ANTEILEN schneiden. Weil das Rauschen glatt ist, sind die
+   * Schnittflächen zusammenhängend – man bekommt große Flecken UND jedes
+   * Biom. Die Anteile sind ungleich: Das erste Biom einer Liste ist der
+   * Grundton des Bereichs, das letzte das Ausrufezeichen.
+   */
+  const ANTEILE = [0.40, 0.27, 0.20, 0.13];
+  const proBereich = {};
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i = tileIndex(tx, ty);
+      const t = tiles[i];
+      if (!isWalkable(t) && t !== T.CLIFF) continue;
+      if (t === T.SAND || t === T.TIDEFLAT || t === T.PATH || t === T.BRIDGE) continue;
+      // Zwei Rauschfelder, nicht eins: Mit einem einzigen liegen die
+      // Biome in Ringen um dieselben Mittelpunkte, weil Schwellen auf
+      // einem Rauschwert Höhenlinien sind. Zwei Felder spannen eine
+      // Fläche auf, und darin können Flecken nebeneinander liegen.
+      // Eine Oktave, nicht drei, und ein grober Maßstab.
+      //
+      // Beides gemessen: Mit drei Oktaven hat das Rauschen so viel
+      // Feinstruktur, dass die Schnittflächen der Anteile in viele kleine
+      // Inseln zerfallen – bei sonst gleichen Zahlen stieg der Anteil der
+      // Biomwechsel von 6 auf 10 Prozent. Eine Oktave ist glatt, und auf
+      // einem glatten Feld ist jede Höhenschicht zusammenhängend.
+      // 0,013 ergibt Flecken von rund fünfzig Kacheln – eine Gegend, durch
+      // die man eine Weile läuft.
+      const a = fbm(n, tx * 0.013, ty * 0.013, 1, 2.0, 0.5);
+      const b = fbm(m, tx * 0.0146 + 60, ty * 0.0146 - 25, 1, 2.0, 0.5);
+      const r = regionAt(tx, ty);
+      if (!proBereich[r]) proBereich[r] = [];
+      proBereich[r].push({ i: i, v: a * 0.6 + b * 0.4 });
+    }
+  }
+  for (const r in proBereich) {
+    const liste = BIOME_JE_BEREICH[r] || BIOME_JE_BEREICH[REGION.CAMP];
+    const felder = proBereich[r];
+    felder.sort(function (x, y) { return x.v - y.v; });
+    let summe = 0;
+    for (let k = 0; k < liste.length; k++) summe += ANTEILE[k] || 0.1;
+    let von = 0;
+    for (let k = 0; k < liste.length; k++) {
+      const anteil = (ANTEILE[k] || 0.1) / summe;
+      const bis = k === liste.length - 1 ? felder.length
+        : Math.min(felder.length, von + Math.round(felder.length * anteil));
+      for (let q = von; q < bis; q++) karte[felder[q].i] = liste[k];
+      von = bis;
+    }
+  }
+
+  glaette(karte, tiles);
+  CACHE.seed = s;
+  CACHE.data = karte;
+  return karte;
+}
+
+/**
+ * Einzelne Kacheln einsammeln, die aus der Reihe tanzen.
+ *
+ * Rohes Rauschen erzeugt an den Biomgrenzen ausgefranste Säume und
+ * einzelne Kacheln mitten im Nachbarbiom. Sichtbar ist davon nichts –
+ * eine einzelne Kiefer in einem Birkenhain fällt niemandem auf –, aber
+ * die Grenzen werden dadurch lang und zackig, und eine Prüfung maß auf
+ * einer Insel alle elf Schritte einen Biomwechsel. Ein Biom, durch das
+ * man in elf Schritten durch ist, ist kein Ort.
+ *
+ * Zwei Runden Mehrheitsentscheid über die acht Nachbarn, und nur bei
+ * deutlicher Mehrheit (fünf von acht): Sonst frisst der Filter die
+ * kleineren Biome in zwei Runden auf.
+ */
+function glaette(karte, tiles) {
+  for (let runde = 0; runde < 2; runde++) {
+    const kopie = karte.slice();
+    for (let ty = 1; ty < MAP_H - 1; ty++) {
+      for (let tx = 1; tx < MAP_W - 1; tx++) {
+        const i = tileIndex(tx, ty);
+        const t = tiles[i];
+        if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR && t !== T.CLIFF) continue;
+        const zaehler = {};
+        let beste = kopie[i];
+        let bestN = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            const j = tileIndex(tx + dx, ty + dy);
+            const tj = tiles[j];
+            if (tj !== T.GRASS && tj !== T.DIRT && tj !== T.ROCKFLOOR && tj !== T.CLIFF) continue;
+            const b = kopie[j];
+            zaehler[b] = (zaehler[b] || 0) + 1;
+            if (zaehler[b] > bestN) { bestN = zaehler[b]; beste = b; }
+          }
+        }
+        if (bestN >= 5) karte[i] = beste;
+      }
+    }
+  }
+}
+
+/** Wie viele Kacheln je Biom – für Prüfungen und die Chronik. */
+function biomStand(karte, tiles) {
+  const out = {};
+  for (const k in BIOME) out[k] = 0;
+  for (let i = 0; i < karte.length; i++) {
+    if (!isWalkable(tiles[i])) continue;
+    if (tiles[i] === T.SAND || tiles[i] === T.TIDEFLAT) continue;
+    out[karte[i]] = (out[karte[i]] || 0) + 1;
+  }
+  return out;
+}
+
+__e.BIOM = BIOM;
+__e.BIOM_NAMEN = BIOM_NAMEN;
+__e.BIOME = BIOME;
+__e.BIOME_JE_BEREICH = BIOME_JE_BEREICH;
+__e.biomeFuer = biomeFuer;
+__e.biomStand = biomStand;
+
+};
+
 __defs["src/world/world.js"] = function (__e) {
 /** Weltmodell: Kacheln, Objekte, Kollision, räumlicher Index. */
 const { T, TILE_SIZE, isWalkable, isWater } = __req("src/art/tiles.js");
@@ -19364,6 +19683,7 @@ const { makeEntity, defOf, spriteFor } = __req("src/world/entities.js");
 const { makeRng, randInt, randPick, dailyRng } = __req("src/core/rng.js");
 const { syncIdCounter } = __req("src/core/util.js");
 const { inAnyPlot, inAnyPlotAt } = __req("src/game/plot.js");
+const { biomeFuer, BIOME } = __req("src/world/biome.js");
 
 const CELL = 160;
 const GRID_W = Math.ceil((MAP_W * TILE_SIZE) / CELL);
@@ -19390,6 +19710,7 @@ class World {
     this.h = MAP_H;
     this.tiles = generateTiles(this.seed);
     this.hoehen = hoehenFuer(this.seed);
+    this.biome = biomeFuer(this.seed);
     this.entities = [];
     this.byId = Object.create(null);
     this.grid = new Array(GRID_W * GRID_H);
@@ -19424,6 +19745,25 @@ class World {
   hoeheAtTile(tx, ty) {
     if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return 0;
     return this.hoehen ? this.hoehen[tileIndex(tx, ty)] : 0;
+  }
+
+  /**
+   * Welches Biom auf dieser Kachel liegt – nur fürs Bild.
+   *
+   * Der Bodenmaler legt je Biom eine andere Lasur. Für das Spiel ist das
+   * Biom bedeutungslos: Es hat beim Erzeugen entschieden, was hier
+   * wächst, und danach steht das Ergebnis in den Objekten. Eine zweite
+   * Regel, die zur Laufzeit nach dem Biom fragt, gibt es nicht.
+   */
+  biomAtTile(tx, ty) {
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return 0;
+    return this.biome ? this.biome[tileIndex(tx, ty)] : 0;
+  }
+
+  /** Die Bodenlasur dieses Bioms, oder null. Siehe `biomAtTile`. */
+  biomTonAtTile(tx, ty) {
+    const def = BIOME[this.biomAtTile(tx, ty)];
+    return def && def.ton ? def.ton : null;
   }
 
   tileAt(px, py) {
@@ -19654,7 +19994,7 @@ class World {
       return tx >= CHANNEL_X0 - 5 && tx <= CHANNEL_X1 + 5 && ty >= BRIDGE_Y0 - 4 && ty <= BRIDGE_Y1 + 4;
     }
 
-    function scatter(kinds, spots, count, spacing) {
+    function scatter(kinds, spots, count, spacing, nachbehandeln) {
       let placed = 0;
       let guard = 0;
       while (placed < count && guard++ < count * 30 && spots.length) {
@@ -19664,7 +20004,9 @@ class World {
         const wy = (s.y + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
         if (self._tooClose(wx, wy, spacing)) continue;
         const kind = randPick(rng, kinds);
-        self.add(makeEntity(kind, wx, wy));
+        const e = makeEntity(kind, wx, wy);
+        if (nachbehandeln) nachbehandeln(e, s.x, s.y);
+        self.add(e);
         placed++;
       }
     }
@@ -19676,16 +20018,51 @@ class World {
      * Sechs, weil zwischen Grasnarbe und Wasser meistens noch ein Streifen
      * Sand liegt – mit zwei Kacheln fand der Uferbaum fast nie ein Ufer.
      */
+    /**
+     * Die Windrichtung dieser Insel, wenn kein Wasser in der Nähe ist.
+     *
+     * Auf der Heide stehen Windbäume mitten im Land – dort gibt es keine
+     * See, von der der Wind käme, und trotzdem darf nicht jeder Baum in
+     * eine andere Richtung hängen. Also hat jede Insel eine
+     * vorherrschende Windrichtung, und landeinwärts gilt die.
+     *
+     * Das war ein echter Fehler: Als die Biome den Windbaum auf die Heide
+     * streuten, bekam er dort gar keine Neigung zugewiesen und fiel auf
+     * die Zufallsspiegelung zurück. Fünf von zweiundzwanzig lehnten gegen
+     * ihre Nachbarn, und eine Prüfung fing es.
+     */
+    const inselWind = (this.seed & 1) ? 1 : -1;
+
     function wasserSeite(tx, ty) {
-      let links = 0;
-      let rechts = 0;
-      for (let d = 1; d <= 6; d++) {
-        if (!links && isWater(self.tileAtTile(tx - d, ty))) links = d;
-        if (!rechts && isWater(self.tileAtTile(tx + d, ty))) rechts = d;
+      // Das NÄCHSTE Wasser in jeder Richtung, nicht nur waagerecht.
+      //
+      // Erst wurde nur nach links und rechts geschaut. An einer Küste,
+      // die von Norden nach Süden verläuft, fand das kein Wasser, und der
+      // Baum fiel auf die Windrichtung der Insel zurück – während die
+      // Prüfung, die in alle Richtungen sucht, ihn als Uferbaum zählte.
+      // Zwei verschiedene Begriffe von „am Ufer", und die Prüfung hatte
+      // recht.
+      let best = null;
+      let nah = 1e9;
+      for (let dy = -10; dy <= 10; dy++) {
+        for (let dx = -10; dx <= 10; dx++) {
+          if (!isWater(self.tileAtTile(tx + dx, ty + dy))) continue;
+          const d = dx * dx + dy * dy;
+          if (d >= nah) continue;
+          nah = d;
+          best = dx;
+        }
       }
-      if (links && (!rechts || links < rechts)) return -1;
-      if (rechts) return 1;
-      return 0;
+      // Liegt das Wasser genau über oder unter der Kachel, gibt es keine
+      // Seite, zu der er sich neigen könnte.
+      if (best === null || best === 0) return 0;
+      return best < 0 ? -1 : 1;
+    }
+
+    /** Wohin ein Windbaum hier lehnt: vom Wasser weg, sonst mit dem Wind. */
+    function windNeigung(tx, ty) {
+      const seite = wasserSeite(tx, ty);
+      return seite ? -seite : inselWind;
     }
 
     /**
@@ -19727,6 +20104,18 @@ class World {
     const cliffLand = walkableTilesOf(this.tiles, REGION.CLIFFS, function (t) { return t === T.GRASS || t === T.ROCKFLOOR; });
     const cliffSand = walkableTilesOf(this.tiles, REGION.CLIFFS, function (t) { return t === T.SAND; });
 
+    // Die Stille Insel zerfällt in zwei Hälften: unten der grüne Süden
+    // mit Wanda, oben das Hochland aus Fels. Nur dort liegen Granit und
+    // Geoden, und nur dafür lohnen die letzten beiden Spitzhackenstufen.
+    // Ein Bereich, den man mit dem Werkzeug vom ersten Tag leerräumt,
+    // wäre bloß größer.
+    const isleAll = walkableTilesOf(this.tiles, REGION.ISLE, function (t) {
+      return t === T.GRASS || t === T.ROCKFLOOR || t === T.DIRT;
+    });
+    const isleLand = isleAll.filter(function (p) { return p.y >= HIGHLAND_Y; });
+    const isleHigh = isleAll.filter(function (p) { return p.y < HIGHLAND_Y; });
+    const isleSand = walkableTilesOf(this.tiles, REGION.ISLE, function (t) { return t === T.SAND; });
+
     /**
      * Die Zahlen sind MESSWERTE, keine Schätzungen.
      *
@@ -19741,70 +20130,165 @@ class World {
      * sind fest – eine doppelt so dichte Wiese ist voll, ein doppelt so
      * dichter Wald ist eine Wand.
      */
-    // Lager & Strand
-    scatter(['tree_oak', 'tree_birch', 'tree_maple'], grassCamp, 54, 78);
-    scatter(['rock_big', 'rock_small'], grassCamp, 22, 72);
-    scatter(['bush_berry', 'bush_plain'], grassCamp, 30, 58);
-    scatter(['flower_pink', 'flower_yellow', 'flower_white'], grassCamp, 72, 30);
-    scatter(['grass_tuft'], grassCamp, 96, 26);
-    scatter(['herb'], grassCamp, 24, 40);
+    /**
+     * Der Streuwurf läuft jetzt über BIOME, nicht über Bereiche.
+     *
+     * Vorher stand hier für jeden der vier Bereiche eine Liste fester
+     * Zahlen – „46 Bäume ins Lager, 78 in den Wald". Das Ergebnis waren
+     * vier Gegenden, die sich in der Dichte unterschieden und sonst in
+     * nichts: überall dieselbe Mischung aus Eiche, Birke und Ahorn,
+     * überall dieselben Blumen. Man konnte stehenbleiben und nicht sagen,
+     * wo man ist.
+     *
+     * Jetzt entscheidet das Biom, und die Biome liegen QUER zu den
+     * Bereichen (siehe `biome.js`). Ein Birkenhain besteht aus Birken,
+     * ein Nadelwald aus Kiefern und Pilzen, eine Heide fast aus nichts.
+     * Die Dichten stehen dort als Zahl je 100 Kacheln, nicht als
+     * Gesamtzahl: Ein Biom, das auf einer Insel groß und auf der nächsten
+     * klein ausfällt, wäre sonst einmal Wald und einmal Lichtung.
+     */
+    /**
+     * ZUERST das Seltene, dann der Bewuchs.
+     *
+     * Granit, Geoden und Erz hängen am Ort und nicht am Bewuchs – sie
+     * sind der Grund, überhaupt ins Hochland oder an die Klippen zu
+     * gehen. Sie brauchen viel Abstand voneinander (eine Geode alle 144
+     * Punkte), und wer zuletzt kommt, findet bei dichtem Bewuchs keinen
+     * Platz mehr: Nach dem Biomwurf blieb auf einer Insel keine einzige
+     * Geode übrig, und eine Prüfung fing das. Das Seltene wirft zuerst.
+     */
+    scatter(['rock_granite'], isleHigh, 26, 76);
+    scatter(['rock_geode'], isleHigh, 7, 144);
+    scatter(['rock_ore'], isleHigh, 10, 84);
+    scatter(['rock_ore'], isleLand, 12, 68);
+    scatter(['rock_ore'], cliffLand, 15, 84);
+    scatter(['rock_ore'], grassForest, 5, 100);
+
+    const biome = biomeFuer(this.seed);
+    const nachBiom = {};
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        const t = this.tiles[tileIndex(tx, ty)];
+        if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
+        if (farFromCamp(tx, ty) === false && regionAt(tx, ty) === REGION.CAMP) continue;
+        // Die erste Grundstücksstufe bleibt licht.
+        //
+        // Sie ist die Lichtung, die einem ohnehin gehört, und der Ort, an
+        // dem man am ersten Nachmittag anfängt. Mit der verdoppelten
+        // Dichte standen dort plötzlich 42 Dinge zum Wegräumen statt ein
+        // Dutzend – eine Woche Arbeit, bevor überhaupt etwas Eigenes
+        // hinpasst. Eine Prüfung fing das.
+        //
+        // Nur die ERSTE Stufe: Die drei gekauften Erweiterungen sollen
+        // bewachsen sein, sonst kauft man leeren Rasen.
+        if (inAnyPlot(tx, ty, 1, 0)) continue;
+        const b = biome[tileIndex(tx, ty)];
+        if (!nachBiom[b]) nachBiom[b] = [];
+        nachBiom[b].push({ x: tx, y: ty });
+      }
+    }
+    for (const b in nachBiom) {
+      const def = BIOME[b];
+      const felder = nachBiom[b];
+      if (!def || felder.length < 12) continue;
+      const je100 = function (n) { return Math.round(felder.length * n / 100); };
+      const arten = def.baeume.map(function (e) { return e[0]; });
+      const gewichte = [];
+      for (let i = 0; i < def.baeume.length; i++) {
+        for (let k = 0; k < def.baeume[i][1]; k++) gewichte.push(def.baeume[i][0]);
+      }
+      scatter(gewichte, felder, je100(def.dichteBaum), 70, function (e, tx, ty) {
+        if (e.kind === 'tree_wind') e.lehnt = windNeigung(tx, ty);
+      });
+      scatter(['bush_berry', 'bush_plain'], felder, je100(def.busch), 56);
+      for (let i = 0; i < def.boden.length; i++) {
+        const kind = def.boden[i][0];
+        // Felsen brauchen Abstand, Grasbüschel nicht: Ein Findling alle
+        // vierzig Punkte wäre eine Mauer.
+        const abstand = kind.indexOf('rock') === 0 ? 62 : 28;
+        scatter([kind], felder, je100(def.boden[i][1]), abstand);
+      }
+      if (arten.length) scatter(['feather'], felder, je100(1.2), 46);
+    }
+
+    /**
+     * Und dann doch eine Handvoll auf die Lichtung.
+     *
+     * Ganz leer darf sie nicht sein: Ein Grundstück, auf dem nichts
+     * steht, gibt am ersten Nachmittag nichts zu tun und nichts her –
+     * kein Holz, keine Beeren, keinen Grund, die Axt überhaupt
+     * auszupacken. Eine Prüfung verlangt zwischen drei und vierzig
+     * Dingen, und beide Grenzen sind richtig: genug, dass es Arbeit ist,
+     * wenig genug, dass man anfängt.
+     */
+    const lichtung = [];
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        if (!inAnyPlot(tx, ty, 1, 0)) continue;
+        if (this.tiles[tileIndex(tx, ty)] !== T.GRASS) continue;
+        if (!farFromCamp(tx, ty)) continue;
+        lichtung.push({ x: tx, y: ty });
+      }
+    }
+    scatter(['tree_oak', 'tree_birch'], lichtung, 4, 96);
+    scatter(['bush_berry'], lichtung, 3, 80);
+    scatter(['grass_tuft'], lichtung, 9, 56);
+    scatter(['flower_pink', 'flower_yellow'], lichtung, 5, 64);
+
+    // Was am BODEN hängt und nicht am Biom: der Strand und die
+    // Uferbäume. Beides gibt es, weil dort Wasser ist, nicht weil dort
+    // etwas Bestimmtes wächst.
     scatter(['shell', 'driftwood'], sandCamp, 62, 30);
     scatter(['reeds'], sandCamp, 32, 38);
     scatter(['feather'], sandCamp, 16, 44);
-    scatter(['feather'], grassCamp, 16, 48);
-    uferbaeume(grassCamp, 16, 70);
-
-    // Wald
-    scatter(['tree_oak', 'tree_pine', 'tree_birch', 'tree_maple'], grassForest, 92, 70);
-    scatter(['bush_berry'], grassForest, 28, 54);
-    scatter(['mushroom'], grassForest, 58, 30);
-    scatter(['herb'], grassForest, 32, 40);
-    scatter(['flower_violet', 'flower_white'], grassForest, 46, 34);
-    scatter(['feather'], grassForest, 22, 46);
-    scatter(['rock_big', 'rock_small'], grassForest, 20, 64);
-    scatter(['rock_ore'], grassForest, 5, 100);
-    scatter(['grass_tuft'], grassForest, 76, 28);
-
-    // Stille Insel. Sie zerfällt in zwei Hälften: unten der grüne Süden mit
-    // Wanda, oben das Hochland aus Fels. Nur dort liegen Granit und Geoden,
-    // und nur dafür lohnen die letzten beiden Spitzhackenstufen. Ein Bereich,
-    // den man mit dem Werkzeug vom ersten Tag leerräumt, wäre bloß größer.
-    const isleAll = walkableTilesOf(this.tiles, REGION.ISLE, function (t) {
-      return t === T.GRASS || t === T.ROCKFLOOR || t === T.DIRT;
-    });
-    const isleLand = isleAll.filter(function (p) { return p.y >= HIGHLAND_Y; });
-    const isleHigh = isleAll.filter(function (p) { return p.y < HIGHLAND_Y; });
-    const isleSand = walkableTilesOf(this.tiles, REGION.ISLE, function (t) { return t === T.SAND; });
-    scatter(['tree_pine', 'tree_birch'], isleLand, 20, 74);
-    scatter(['rock_ore'], isleLand, 12, 68);
-    scatter(['rock_big', 'rock_small'], isleLand, 17, 58);
-    scatter(['bush_berry'], isleLand, 11, 54);
-    scatter(['herb', 'mushroom'], isleLand, 34, 30);
-    scatter(['flower_violet', 'flower_white'], isleLand, 30, 30);
-    scatter(['grass_tuft'], isleLand, 38, 28);
     scatter(['shell', 'driftwood'], isleSand, 42, 30);
     scatter(['reeds'], isleSand, 20, 36);
-
-    // Das Hochland
-    scatter(['rock_granite'], isleHigh, 26, 76);
-    scatter(['rock_geode'], isleHigh, 7, 144);
-    scatter(['rock_big', 'rock_small'], isleHigh, 24, 60);
-    scatter(['rock_ore'], isleHigh, 10, 84);
-    scatter(['tree_pine'], isleHigh, 13, 88);
-    scatter(['herb'], isleHigh, 20, 38);
-    scatter(['grass_tuft'], isleHigh, 26, 32);
-
-    // Klippen
-    scatter(['tree_pine'], cliffLand, 32, 76);
-    scatter(['rock_big', 'rock_small'], cliffLand, 38, 56);
-    scatter(['rock_ore'], cliffLand, 15, 84);
-    scatter(['flower_violet'], cliffLand, 32, 34);
-    scatter(['herb', 'mushroom'], cliffLand, 32, 34);
     scatter(['shell', 'driftwood'], cliffSand, 34, 32);
     scatter(['feather'], cliffSand, 13, 44);
-    scatter(['grass_tuft'], cliffLand, 48, 28);
-    uferbaeume(cliffLand, 10, 76);
+    uferbaeume(grassCamp, 16, 70);
     uferbaeume(isleLand, 8, 76);
+    uferbaeume(cliffLand, 10, 76);
+
+  }
+
+  /**
+   * Wie `_tooClose`, zählt aber nur, was im Weg STEHT.
+   *
+   * Die Unterscheidung wurde nötig, als die Insel doppelt so dicht
+   * bewachsen wurde: `_tooClose` zählt jedes Grasbüschel und jede Blume
+   * mit, und mit einem Mindestabstand von 90 Punkten lag damit
+   * praktisch jede Kachel „zu nah an etwas". Die Grabstellen fanden
+   * keinen Platz mehr und blieben unter ihrer Zahl – am Fundtag kamen 13
+   * statt der doppelten Menge heraus, und eine Prüfung fing es.
+   *
+   * Eine Blume neben einer Grabstelle stört niemanden. Ein Findling
+   * schon.
+   */
+  _tooCloseSolid(x, y, r) {
+    const near = this.queryNear(x, y, r);
+    for (let i = 0; i < near.length; i++) {
+      const e = near[i];
+      if (e.gone) continue;
+      const def = defOf(e.kind);
+      if (!def || !def.solid) continue;
+      const dx = e.x - x;
+      const dy = e.y - y;
+      if (dx * dx + dy * dy < r * r) return true;
+    }
+    return false;
+  }
+
+  /** Steht schon eine Kachel dieser Art im Umkreis? */
+  _tooCloseKind(x, y, r, kind) {
+    const near = this.queryNear(x, y, r);
+    for (let i = 0; i < near.length; i++) {
+      const e = near[i];
+      if (e.gone || e.kind !== kind) continue;
+      const dx = e.x - x;
+      const dy = e.y - y;
+      if (dx * dx + dy * dy < r * r) return true;
+    }
+    return false;
   }
 
   _tooClose(x, y, r) {
@@ -20320,11 +20804,15 @@ class World {
       const count = Math.round(grund * (faktor || 1));
       let placed = 0;
       let guard = 0;
-      while (placed < count && guard++ < 400 && spots.length) {
+      while (placed < count && guard++ < 900 && spots.length) {
         const s = spots[Math.floor(rng() * spots.length)];
         const wx = (s.x + 0.5) * TILE_SIZE;
         const wy = (s.y + 0.5) * TILE_SIZE;
-        if (this._tooClose(wx, wy, 90)) continue;
+        // Grabstellen brauchen Abstand VONEINANDER (sonst ist es ein
+        // Minenfeld) und von allem, was im Weg steht. Von Blumen und
+        // Grasbüscheln nicht.
+        if (this._tooCloseKind(wx, wy, 110, 'digspot')) continue;
+        if (this._tooCloseSolid(wx, wy, 58)) continue;
         this.add(makeEntity('digspot', wx, wy));
         placed++;
       }

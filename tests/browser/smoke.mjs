@@ -2399,7 +2399,17 @@ async function run() {
       // auszusuchen und zu hoffen reicht nicht: Auf mancher Zufallsinsel liegt
       // etwas anderes näher.
       let ziel = null;
+      //
+      // Erzader, Granit und Geode fliegen raus: Alle drei brauchen eine
+      // höhere Spitzhackenstufe, und mit der Anfangsspitzhacke fällt auf
+      // sie kein einziger Trefferpunkt. Die Prüfung sah dann ein richtig
+      // gewähltes Werkzeug und trotzdem unveränderte Trefferpunkte – und
+      // meldete einen Fehler, den es nicht gab. Vorher fiel das nicht auf,
+      // weil die beiden weiter hinten in der Liste standen; seit die
+      // seltenen Erze ZUERST gestreut werden, stehen sie vorn.
       const kandidaten = g.world.entities.filter((e) => !e.gone &&
+        e.kind !== 'rock_granite' && e.kind !== 'rock_geode' &&
+        e.kind !== 'rock_ore' &&
         (e.kind.indexOf('rock_') === 0 || e.kind.indexOf('tree_') === 0));
       for (const k of kandidaten.slice(0, 60)) {
         g.player.x = k.x; g.player.y = k.y + 50; g.player.dir = 'up';
@@ -3481,6 +3491,23 @@ async function run() {
         return Math.round(sum / n);
       }
 
+      // Und dann warten, bis sich die Messstelle nicht mehr ändert.
+      //
+      // Die feste Wartezeit oben reichte nicht mehr, als die Kamera
+      // weiter herausging: Es sind mehr Bodenstücke im Bild, der Aufbau
+      // dauert länger, und die erste Messung traf wieder die leere
+      // Fläche. Gemessen wurde dann der Aufbau (0 auf 255) statt des
+      // gesuchten Sprungs beim Vorbeigehen. Jetzt wird gewartet, bis zwei
+      // Messungen hintereinander dasselbe sagen – höchstens drei
+      // Sekunden, damit eine kaputte Fläche die Prüfung nicht aufhängt.
+      let letzte = -1;
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 150));
+        const v = deckung(px + 150, py);
+        if (v != null && v === letzte) break;
+        letzte = v == null ? -1 : v;
+      }
+
       const werte = [];
       for (let schritt = 0; schritt <= 8; schritt++) {
         g.player.x = px + schritt * 130;
@@ -4243,7 +4270,7 @@ async function run() {
       const baeume = g.world.entities.filter((e) => e.kind === 'tree_wind' && !e.gone);
       let richtig = 0;
       let falsch = 0;
-      let ohneWasser = 0;
+      const ohneWasser = [];
       for (const b of baeume) {
         const tx = Math.floor(b.x / 64);
         const ty = Math.floor(b.y / 64);
@@ -4256,14 +4283,21 @@ async function run() {
             if (d < nah) { nah = d; best = dx; }
           }
         }
-        if (best === null || best === 0) { ohneWasser++; continue; }
+        if (best === null || best === 0) { ohneWasser.push(Math.sign(b.lehnt)); continue; }
         if (Math.sign(b.lehnt) === Math.sign(-best)) richtig++; else falsch++;
       }
       return {
         anzahl: baeume.length,
         versatzWind: kronenVersatz('tree_wind_0'),
         versatzEiche: kronenVersatz('tree_oak_0'),
-        richtig, falsch, ohneWasser,
+        richtig,
+        falsch,
+        ohneWasser: ohneWasser.length,
+        // Landeinwärts gibt es keine See, von der der Wind käme. Dort
+        // gilt die vorherrschende Windrichtung der Insel – und die ist
+        // für alle dieselbe, sonst wäre es kein Wind, sondern Willkür.
+        einigeRichtung: ohneWasser.length === 0
+          || ohneWasser.every(function (v) { return v === ohneWasser[0]; }),
       };
     });
     check('Die Krone des Windbaums hängt über dem Stammfuß zur Seite',
@@ -4272,6 +4306,12 @@ async function run() {
     check('Und am Ufer lehnt jeder von ihnen vom Wasser weg',
       windbaum.anzahl >= 10 && windbaum.falsch === 0 && windbaum.richtig >= 8,
       JSON.stringify(windbaum));
+    // Seit die Biome den Windbaum auch auf die Heide streuen, steht er
+    // nicht mehr nur am Ufer. Dort entscheidet die Windrichtung der
+    // Insel, und die gilt für alle – vorher fielen diese Bäume auf die
+    // Zufallsspiegelung zurück und lehnten gegeneinander.
+    check('Und landeinwärts lehnen alle in dieselbe Richtung',
+      windbaum.einigeRichtung === true, JSON.stringify(windbaum));
 
     /* ---- Die Auflösung findet wieder hoch ---- */
     // Die Nachsteuerung senkt die interne Auflösung, wenn es ruckelt, und

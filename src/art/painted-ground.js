@@ -333,6 +333,8 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
     }
   }
 
+  biomLasur(wctx, world, tx0, ty0, ring);
+
   steilkanten(wctx, world, tx0, ty0, ring);
 
   // EINMAL rechnen, zweimal benutzen: Die Farbfläche und die Risse in der
@@ -372,6 +374,42 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
  * zerfiele eine lange Küste in lauter einzeln wackelnde Kacheln.
  */
 const WAND_HOEHE = 48;
+
+/**
+ * Die Bodenlasur des Bioms.
+ *
+ * Jedes Biom bekommt einen eigenen Ton über die Grundfarbe: der
+ * Nadelwald dunkel und kühl, der Birkenhain hell, die Heide erdig, das
+ * Geröll steinig. Das ist die Hälfte dessen, was eine Gegend als Gegend
+ * lesbar macht – die andere Hälfte ist, was darauf wächst.
+ *
+ * Die Lasur hängt an der KACHEL und nicht am Stück, genau wie die
+ * übrigen Lasuren: Sonst wäre die Schnittkante zwischen zwei
+ * Bodenstücken als gerade Linie zu sehen. Und sie ist schwach gehalten –
+ * ein Nadelwald, dessen Boden sattgrün ist, sieht aus wie ein Teppich.
+ */
+function biomLasur(g, world, tx0, ty0, ring) {
+  if (!world.biomTonAtTile) return;
+  for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
+    for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
+      const t = world.tileAtTile(tx, ty);
+      if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
+      // Den TON holt der Maler von der Welt, nicht die Biomtabelle: Die
+      // Zeichenschicht soll nicht wissen, dass es Biome gibt, genauso
+      // wenig wie sie den Spielstand kennt. Sie bekommt eine Farbe.
+      const ton = world.biomTonAtTile(tx, ty);
+      if (!ton) continue;
+      const farbe = INK[ton[0]];
+      if (!farbe) continue;
+      g.save();
+      g.globalAlpha = ton[1];
+      g.fillStyle = farbe;
+      pathFrom(g, tilePatch(tx, ty, 0.7), true);
+      g.fill();
+      g.restore();
+    }
+  }
+}
 
 /**
  * Die Steilkanten im Landesinneren.
