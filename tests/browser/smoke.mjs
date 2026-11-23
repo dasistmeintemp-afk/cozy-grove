@@ -4145,6 +4145,49 @@ async function run() {
       kante.sand.dunkelste >= kante.gras.dunkelste + 30,
       JSON.stringify(kante.sand));
 
+    /* ---- Die Ebenen im Landesinneren ---- */
+    // Zwischen zwei Höhenstufen steht eine Felswand. Gemessen wie am
+    // Ufer: erfundene Welt, oben Stufe 1, in der Mitte die Wandkachel,
+    // unten Stufe 0 – und dann quer darüber gemessen.
+    const stufen = await page.evaluate(async () => {
+      const { paintGroundChunk } = await import('/src/art/painted-ground.js');
+      const { T } = await import('/src/art/tiles.js');
+      const welt = {
+        tileAtTile: (tx, ty) => (ty === 26 ? T.CLIFF : T.GRASS),
+        hoeheAtTile: (tx, ty) => (ty < 26 ? 1 : 0),
+        queryNear: () => [],
+      };
+      const st = paintGroundChunk(welt, 3, 3, null);
+      const k = document.createElement('canvas');
+      k.width = st.size; k.height = st.size;
+      const x = k.getContext('2d');
+      x.drawImage(st.wash, 0, 0, st.size, st.size);
+      x.drawImage(st.ink, 0, 0);
+      const reihe = (y) => {
+        const d = x.getImageData(0, y, st.size, 1).data;
+        let s = 0; let n = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 120) continue;
+          s += d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+          n++;
+        }
+        return n ? Math.round(s / n) : -1;
+      };
+      const yK = 26 * 64 - st.oy;
+      return {
+        oben: reihe(yK - 26),
+        wand: reihe(yK + 30),
+        unten: reihe(yK + 96),
+      };
+    });
+    check('Zwischen zwei Ebenen steht eine dunkle Felswand',
+      stufen.oben - stufen.wand >= 45 && stufen.unten - stufen.wand >= 45,
+      JSON.stringify(stufen));
+    // Beide Wiesen müssen gleich hell bleiben: Die Höhe entsteht aus der
+    // Wand dazwischen, nicht daraus, dass oben alles anders aussieht.
+    check('Die Wiesen über und unter der Kante sehen gleich aus',
+      Math.abs(stufen.oben - stufen.unten) <= 14, JSON.stringify(stufen));
+
     /* ---- Der Windbaum am Ufer ---- */
     // Zwei Dinge, und sie hängen nicht zusammen: dass die GRAFIK geneigt
     // ist, und dass die Insel sie richtig herum hinstellt.

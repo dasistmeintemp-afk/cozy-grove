@@ -12627,6 +12627,22 @@ const T = {
    * `isWalkable(tileAt(...))`.
    */
   TIDEFLAT: 8,
+  /**
+   * Die Steilkante zwischen zwei Höhenstufen.
+   *
+   * Die Insel hat Ebenen: Hochflächen, die über dem übrigen Land liegen,
+   * mit einer Felswand ringsherum. Diese Wand ist eine KACHEL und keine
+   * zweite Begehbarkeitsregel – aus genau dem Grund, der weiter unten
+   * schon beim Watt steht: `canStand` fragt nur `isWalkable(tileAt(...))`,
+   * also stimmen Kollision, Pfadsuche, Streuwurf, Hüttenplätze und Bild
+   * ohne eine einzige neue Zeile. Eine Höhenregel daneben hätte an jeder
+   * Stelle gefehlt, die sie nicht kennt – und das sind zwanzig.
+   *
+   * Eine Rampe ist deshalb auch keine eigene Sache, sondern schlicht eine
+   * LÜCKE in dieser Kachelreihe. Dort geht man hinauf, weil dort keine
+   * Wand steht.
+   */
+  CLIFF: 9,
 };
 
 const TILE_SIZE = 64;
@@ -12645,6 +12661,10 @@ const TILE_DEF = {
   8: { name: 'tideflat', base: '#cbbf9e', layer: 2, walk: true },
   5: { name: 'path', base: '#dccaa6', layer: 5, walk: true },
   6: { name: 'bridge', base: INK.wood, layer: 6, walk: true },
+  // Die Steilkante liegt auf der Ebene des Felsbodens: Sie gehört zum
+  // Fuß der oberen Fläche und soll von deren Grasnarbe überdeckt werden,
+  // nicht umgekehrt.
+  9: { name: 'cliff', base: INK.ufer, layer: 4, walk: false },
 };
 
 function isWalkable(t) {
@@ -12998,6 +13018,8 @@ function paintGroundChunk(world, ctx0, cty0, pfade) {
     }
   }
 
+  steilkanten(wctx, world, tx0, ty0, ring);
+
   // EINMAL rechnen, zweimal benutzen: Die Farbfläche und die Risse in der
   // Tinte brauchen dieselbe Geometrie. Zweimal gerechnet kostete das
   // Backen eines Stücks spürbar – und ein Stück wird gebacken, während
@@ -13035,6 +13057,124 @@ function paintGroundChunk(world, ctx0, cty0, pfade) {
  * zerfiele eine lange Küste in lauter einzeln wackelnde Kacheln.
  */
 const WAND_HOEHE = 48;
+
+/**
+ * Die Steilkanten im Landesinneren.
+ *
+ * Dieselbe Idee wie am Ufer, nur dass die Wand hier zwischen zwei
+ * Landstücken steht statt zwischen Land und Wasser. Gezeichnet wird sie
+ * auf den Kacheln, die die Weltgenerierung als `T.CLIFF` hingestellt hat
+ * – also am FUSS der oberen Fläche, nicht auf ihr.
+ *
+ * Die Form ist der übliche Kachelklecks und kein Rechteck: Er greift über
+ * die Kachelgrenze hinaus, und dadurch verschmelzen benachbarte
+ * Wandkacheln zu einer durchgehenden Wand statt zu einer Treppe.
+ */
+function steilkanten(g, world, tx0, ty0, ring) {
+  const hoehe = world.hoeheAtTile
+    ? function (tx, ty) { return world.hoeheAtTile(tx, ty); }
+    : function () { return 0; };
+  for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
+    for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
+      if (world.tileAtTile(tx, ty) !== T.CLIFF) continue;
+      const y = ty * TILE_SIZE;
+      // Der Verlauf hat dieselbe Reihenfolge wie am Ufer: oben die
+      // frische Erde unter der Grasnarbe, dann der Absturz ins Dunkle,
+      // unten wieder aufgehellt. Erst der helle Saum lässt die Narbe
+      // überhängen.
+      const grad = g.createLinearGradient(0, y - 4, 0, y + TILE_SIZE + 6);
+      grad.addColorStop(0, INK.uferLicht);
+      grad.addColorStop(0.22, INK.uferTief);
+      grad.addColorStop(0.72, INK.ufer);
+      grad.addColorStop(1, INK.uferLicht);
+      g.save();
+      g.fillStyle = grad;
+      pathFrom(g, tilePatch(tx, ty, 0.56), true);
+      g.fill();
+      // Liegt unter der Wand wieder Land, wirft sie ihren Schatten
+      // darauf. Ohne den steht die Wand auf der Wiese wie aufgeklebt.
+      if (isWalkable(world.tileAtTile(tx, ty + 1)) && hoehe(tx, ty + 1) <= hoehe(tx, ty)) {
+        g.globalAlpha = 0.3;
+        const sg = g.createLinearGradient(0, y + TILE_SIZE - 2, 0, y + TILE_SIZE + 22);
+        sg.addColorStop(0, INK.uferTief);
+        sg.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = sg;
+        g.fillRect(tx * TILE_SIZE - 4, y + TILE_SIZE - 2, TILE_SIZE + 8, 24);
+      }
+      g.restore();
+    }
+  }
+}
+
+/**
+ * Die Oberkante der Steilkanten und die Risse darin.
+ *
+ * Die Oberkante ist der wichtigste Strich im ganzen Bild der Wand: Sie
+ * ist die Linie, an der die obere Grasnarbe abbricht. Gezeichnet wird sie
+ * genau auf der Grenze zur höheren Nachbarkachel, mit demselben
+ * Eckenzittern wie alle anderen Kanten – so treffen sich die Striche
+ * zweier Nachbarkacheln.
+ */
+function steilkantenTinte(g, world, tx0, ty0, ring) {
+  const hoehe = world.hoeheAtTile
+    ? function (tx, ty) { return world.hoeheAtTile(tx, ty); }
+    : function () { return 0; };
+  const risse = [];
+  for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
+    for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
+      if (world.tileAtTile(tx, ty) !== T.CLIFF) continue;
+      const z = hoehe(tx, ty);
+      const x0 = tx * TILE_SIZE;
+      const y0 = ty * TILE_SIZE;
+      const seiten = [
+        [0, -1, [x0, y0], [x0 + TILE_SIZE, y0]],
+        [-1, 0, [x0, y0], [x0, y0 + TILE_SIZE]],
+        [1, 0, [x0 + TILE_SIZE, y0], [x0 + TILE_SIZE, y0 + TILE_SIZE]],
+        [0, 1, [x0, y0 + TILE_SIZE], [x0 + TILE_SIZE, y0 + TILE_SIZE]],
+      ];
+      for (let k = 0; k < seiten.length; k++) {
+        const sx = seiten[k][0];
+        const sy = seiten[k][1];
+        if (hoehe(tx + sx, ty + sy) <= z) continue;
+        if (!isWalkable(world.tileAtTile(tx + sx, ty + sy))) continue;
+        const a = seiten[k][2];
+        const b = seiten[k][3];
+        const ja = cornerJitter(Math.round(a[0] / 8), Math.round(a[1] / 8));
+        const jb = cornerJitter(Math.round(b[0] / 8), Math.round(b[1] / 8));
+        inkStroke(g, [
+          [a[0] + ja[0] * 0.4, a[1] + ja[1] * 0.4],
+          [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
+          [b[0] + jb[0] * 0.4, b[1] + jb[1] * 0.4],
+        ], {
+          closed: false, width: 3.0, vary: 0.4,
+          seed: hashString('sk' + tx + ':' + ty + ':' + k),
+          color: INK.line, alpha: 0.85,
+        });
+      }
+      const rng = makeRng(hashString('skr' + tx + ':' + ty));
+      const n = 1 + Math.floor(rng() * 3);
+      for (let i = 0; i < n; i++) {
+        const x = x0 + (0.15 + rng() * 0.7) * TILE_SIZE;
+        const oy = y0 + 6 + rng() * 8;
+        risse.push([x, oy, x + (rng() - 0.5) * 6, oy + TILE_SIZE * (0.3 + rng() * 0.4)]);
+      }
+    }
+  }
+  if (!risse.length) return;
+  g.save();
+  g.lineCap = 'round';
+  g.strokeStyle = INK.line;
+  g.globalAlpha = 0.3;
+  g.lineWidth = 1.9;
+  g.beginPath();
+  for (let i = 0; i < risse.length; i++) {
+    const r = risse[i];
+    g.moveTo(r[0], r[1]);
+    g.lineTo(r[2], r[3]);
+  }
+  g.stroke();
+  g.restore();
+}
 
 /**
  * Wie stark die Küstenlinie hier zittert. Dieselbe Zahl wie beim
@@ -13341,6 +13481,7 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
     2.6, INK.rockDeep, 0.65, 11);
   rockStep(g, world, tx0, ty0, r);
   uferRisse(g, waende);
+  steilkantenTinte(g, world, tx0, ty0, r);
 
   // Bodendetails: Grasbüschel, Kiesel, Wellenkringel.
   // Alles in wenigen Sammelpfaden – tausend einzelne stroke()-Aufrufe pro
@@ -18297,7 +18438,372 @@ function generateTiles(seed) {
   buildIsthmus(tiles, detail);
   flattenCamp(tiles);
   addBeachRim(tiles);
+
+  const hoehen = berechneHoehen(seed, tiles);
+  setzeSteilkanten(tiles, hoehen);
+  oeffneRampen(tiles);
+  HOEHEN_CACHE.seed = seed >>> 0;
+  HOEHEN_CACHE.data = hoehen;
   return tiles;
+}
+
+/* ---------------------------------------------------------- Höhenstufen */
+
+/**
+ * Wie viele Stufen es gibt. Zwei über dem Grundniveau, nicht mehr.
+ *
+ * Drei Ebenen ergeben schon ein Dutzend Wände und Rampen; bei vier wäre
+ * die Insel ein Labyrinth aus Umwegen, und Umwege sind das Gegenteil von
+ * gemütlich. Das Vorbild kommt mit zwei aus.
+ */
+const MAX_STUFE = 2;
+
+/**
+ * Die Höhen werden in `generateTiles` berechnet und hier gemerkt.
+ *
+ * Warum ein Zwischenspeicher und keine zweite reine Funktion: Die Höhen
+ * hängen nicht nur am Rauschen, sondern auch an der fertigen Kachelkarte
+ * (Sand bleibt immer unten, das Lager auch, die Furt ebenfalls). Eine
+ * zweite Funktion müsste die halbe Erzeugung wiederholen, und zwei
+ * Rechnungen für dieselbe Sache laufen beim ersten Zahlendreher
+ * auseinander. Die Erzeugung ist deterministisch, der Speicher deshalb
+ * nur eine Abkürzung – fragt jemand nach einem anderen Samen, wird neu
+ * erzeugt.
+ */
+const HOEHEN_CACHE = { seed: -1, data: null };
+
+/** Die Höhenstufen zu einem Samen. */
+function hoehenFuer(seed) {
+  const s = seed >>> 0;
+  if (HOEHEN_CACHE.seed !== s || !HOEHEN_CACHE.data) generateTiles(s);
+  return HOEHEN_CACHE.data;
+}
+
+/**
+ * Das Höhenfeld.
+ *
+ * Große, weiche Flecken aus eigenem Rauschen – nicht aus demselben wie das
+ * Land, sonst läge jede Hochfläche genau dort, wo ohnehin schon Felsboden
+ * ist, und die Insel hätte eine Eigenschaft weniger statt einer mehr.
+ *
+ * Vier Dinge bleiben IMMER unten, und jedes aus einem eigenen Grund:
+ * Sand und Watt, weil ein Strand flach ins Wasser läuft; das Lager, weil
+ * dort alles steht und der erste Blick nicht von einer Wand verstellt
+ * sein soll; Furt und Brücke, weil ein Übergang, vor dem eine Wand steht,
+ * kein Übergang ist; und natürlich das Wasser selbst.
+ */
+function berechneHoehen(seed, tiles) {
+  const n = makeNoise2D(seed ^ 0x27d4eb2f);
+  const hoehen = new Uint8Array(MAP_W * MAP_H);
+  const werte = [];
+  const felder = [];
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i = tileIndex(tx, ty);
+      const t = tiles[i];
+      if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
+      if (nahAmLager(tx, ty) || amUebergang(tx, ty)) continue;
+      const w = warp(n, tx * 0.055, ty * 0.055, 1.6);
+      felder.push(i);
+      werte.push(fbm(n, w[0], w[1], 3, 2.0, 0.5));
+    }
+  }
+  if (!felder.length) return hoehen;
+
+  // Die Schwellen werden GEMESSEN, nicht gesetzt.
+  //
+  // Mit festen Werten (0,555 und 0,645) schwankte das Ergebnis zwischen
+  // den Samen von 2 bis 23 Prozent oberster Ebene: Das Rauschen trifft je
+  // nach Samen einen anderen Wertebereich. Eine Insel mit 23 Prozent
+  // Hochfläche ist ein Plateau mit Küstenstreifen, eine mit 2 Prozent hat
+  // gar keine. Beides ist nicht dieses Spiel.
+  //
+  // Stattdessen werden alle Werte sortiert und bei ANTEILEN geschnitten.
+  // Dann hat jede Insel dieselbe Mischung und trotzdem ihre eigene Form.
+  const sortiert = werte.slice().sort(function (a, b) { return a - b; });
+  const s1 = sortiert[Math.floor(sortiert.length * 0.46)];
+  const s2 = sortiert[Math.floor(sortiert.length * 0.76)];
+  for (let k = 0; k < felder.length; k++) {
+    const v = werte[k];
+    hoehen[felder[k]] = v > s2 ? 2 : v > s1 ? 1 : 0;
+  }
+  glaetteHoehen(hoehen, tiles);
+  return hoehen;
+}
+
+/**
+ * Die beiden Bauplätze – dort bleibt es eben.
+ *
+ * Nicht „im Umkreis des Lagers", sondern genau die Rechtecke, die man
+ * kaufen kann, plus eine Kachel Rand. Eine Felswand mitten im eigenen
+ * Garten ist absurd, und sie wäre auch nicht wegzuräumen: Eine Steilkante
+ * ist kein Baum. Mit einem Kreis von zwölf Kacheln lag das größte
+ * Grundstück zu einem Viertel außerhalb, und die Prüfung „Gerodet gibt
+ * das Grundstück wirklich Bauplatz her" meldete 16×16 statt 23.
+ *
+ * Die Maße stehen hier und nicht als Import aus `game/plot.js`: Das Modul
+ * holt sich seinerseits `CAMP_TILE` und `MAP_W` von hier, und ein Kreis
+ * aus zwei Dateien, die einander brauchen, lädt in keiner Reihenfolge.
+ * Dass die Zahlen zu den Grundstücksstufen passen, prüft ein Test – der
+ * importiert beides und darf das.
+ */
+const FLACHE_PLAETZE = [
+  { x: CAMP_TILE.x, y: CAMP_TILE.y, hx: 17, hy: 12 },
+  { x: 9, y: 60, hx: 10, hy: 16 },
+];
+
+function nahAmLager(tx, ty) {
+  for (let i = 0; i < FLACHE_PLAETZE.length; i++) {
+    const p = FLACHE_PLAETZE[i];
+    if (Math.abs(tx - p.x) <= p.hx && Math.abs(ty - p.y) <= p.hy) return true;
+  }
+  return false;
+}
+
+/**
+ * Jeder Übergang samt Vorfeld – dort bleibt es eben.
+ *
+ * Furt, Brücke und die beiden Landengen der Stillen Insel. Sie sind die
+ * einzigen Wege zwischen den Teilen der Insel, und eine Landenge ist fünf
+ * Kacheln breit: Eine Steilkante quer darüber macht aus ihr keinen
+ * Umweg, sondern eine Sackgasse. Genau das meldete die Prüfung „Die
+ * Landengen sind Engen, keine zweite Insel" – auf einem Samen blieben
+ * zwei Kacheln Land übrig.
+ */
+function amUebergang(tx, ty) {
+  if (tx >= FORD_X0 - 4 && tx <= FORD_X1 + 4 && ty >= RIVER_Y0 - 5 && ty <= RIVER_Y1 + 5) return true;
+  if (tx >= CHANNEL_X0 - 5 && tx <= CHANNEL_X1 + 5 && ty >= BRIDGE_Y0 - 5 && ty <= BRIDGE_Y1 + 5) return true;
+  for (let k = 0; k < ISTHMUS.length; k++) {
+    const L = ISTHMUS[k];
+    if (ty < L.y0 - 3 || ty > L.y1 + 3) continue;
+    if (tx >= L.x - ISTHMUS_HALB - 5 && tx <= L.x + ISTHMUS_HALB + 5) return true;
+  }
+  return false;
+}
+
+/**
+ * Einzelne Kacheln einsammeln, die aus der Reihe tanzen.
+ *
+ * Rohes Rauschen erzeugt Hochflächen mit ausgefransten Rändern und
+ * einzelnen Kacheln mitten im Nichts. Jede davon würde später von einer
+ * Wand umstellt – aus einer einzelnen Kachel wird so ein unbegehbarer
+ * Punkt mitten auf der Wiese. Zwei Durchgänge Mehrheitsentscheid machen
+ * daraus zusammenhängende Flächen.
+ */
+function glaetteHoehen(hoehen, tiles) {
+  for (let runde = 0; runde < 2; runde++) {
+    const kopie = hoehen.slice();
+    for (let ty = 1; ty < MAP_H - 1; ty++) {
+      for (let tx = 1; tx < MAP_W - 1; tx++) {
+        const i = tileIndex(tx, ty);
+        const t = tiles[i];
+        if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
+        const zaehler = [0, 0, 0];
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            zaehler[kopie[tileIndex(tx + dx, ty + dy)]]++;
+          }
+        }
+        let beste = 0;
+        for (let z = 1; z <= MAX_STUFE; z++) if (zaehler[z] > zaehler[beste]) beste = z;
+        // Nur ändern, wenn die Nachbarschaft deutlich anders ist: Sonst
+        // frisst der Mehrheitsentscheid die Hochflächen in zwei Runden auf.
+        if (zaehler[beste] >= 6) hoehen[i] = beste;
+      }
+    }
+  }
+}
+
+/**
+ * Die Steilkanten setzen.
+ *
+ * Eine begehbare Kachel, neben der es HÖHER weitergeht, wird zur Wand.
+ * Die Wand steht damit am Fuß der oberen Fläche, nicht auf ihr – oben
+ * läuft die Grasnarbe bis an die Kante, und das ist genau der Überhang,
+ * den man im Bild sieht.
+ */
+function setzeSteilkanten(tiles, hoehen) {
+  const vorher = tiles.slice();
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i = tileIndex(tx, ty);
+      if (!isWalkable(vorher[i])) continue;
+      const z = hoehen[i];
+      let hoeher = false;
+      if (tx > 0 && hoehen[i - 1] > z && isWalkable(vorher[i - 1])) hoeher = true;
+      if (tx < MAP_W - 1 && hoehen[i + 1] > z && isWalkable(vorher[i + 1])) hoeher = true;
+      if (ty > 0 && hoehen[i - MAP_W] > z && isWalkable(vorher[i - MAP_W])) hoeher = true;
+      if (ty < MAP_H - 1 && hoehen[i + MAP_W] > z && isWalkable(vorher[i + MAP_W])) hoeher = true;
+      if (hoeher) tiles[i] = T.CLIFF;
+    }
+  }
+  STEILKANTEN_VORHER.data = vorher;
+}
+
+/** Die Kachelarten vor dem Setzen der Wände – für das Öffnen der Rampen. */
+const STEILKANTEN_VORHER = { data: null };
+
+/**
+ * Rampen öffnen, bis alles wieder erreichbar ist.
+ *
+ * Eine Rampe ist keine eigene Sache, sondern eine LÜCKE in der
+ * Wandreihe. Gesucht wird sie nicht von Hand, sondern ausgerechnet: Vom
+ * Lager aus wird geflutet; findet sich danach noch begehbares Land, das
+ * nicht erreicht wurde, wird die Wand geöffnet, die es vom Erreichten
+ * trennt. Dann wieder fluten, bis nichts mehr übrig ist.
+ *
+ * Das ist der einzige Weg, der ohne Handarbeit auskommt und trotzdem für
+ * JEDEN Samen hält. Eine von Hand gesetzte Rampe stimmt für die Insel, auf
+ * der man sie gesetzt hat.
+ *
+ * Was über WASSER getrennt liegt – die Stille Insel – bleibt getrennt:
+ * Dorthin fährt das Boot, und dafür gibt es den Steg. Die Schleife hört
+ * auf, sobald keine Wand mehr zwischen Erreichtem und Unerreichtem steht.
+ */
+function oeffneRampen(tiles) {
+  const vorher = STEILKANTEN_VORHER.data;
+  const besucht = new Uint8Array(MAP_W * MAP_H);
+  let geoeffnet = 0;
+  // Erst vom Lager aus, dann von jeder Landmasse, die danach noch übrig
+  // ist. Denn Rampen verbinden nur, was ÜBER LAND zusammenhängt – die
+  // Stille Insel liegt hinter Wasser, und ihre eigenen Hochflächen wären
+  // sonst nie geöffnet worden. Genau das meldete die Prüfung „Die Insel
+  // ist EINE Insel": 78 % erreichbar, weil vom Lager aus geflutet wurde.
+  const erster = findWalkableNear(tiles, CAMP_TILE.x, CAMP_TILE.y, 20, null);
+  if (erster) geoeffnet += oeffneVon(tiles, vorher, erster.x, erster.y, besucht);
+  for (let masse = 0; masse < 40; masse++) {
+    const start = naechsteLandmasse(tiles, besucht);
+    if (!start) break;
+    geoeffnet += oeffneVon(tiles, vorher, start[0], start[1], besucht);
+  }
+  return geoeffnet;
+}
+
+/** Rampen öffnen, bis von hier aus alles erreichbar ist. */
+function oeffneVon(tiles, vorher, sx, sy, besucht) {
+  let geoeffnet = 0;
+  let erreicht = null;
+  for (let runde = 0; runde < 120; runde++) {
+    erreicht = fluten(tiles, sx, sy);
+    const weg = billigsterDurchbruch(tiles, erreicht);
+    if (!weg || !weg.length) break;
+    for (let k = 0; k < weg.length; k++) {
+      const tx = weg[k] % MAP_W;
+      const ty = (weg[k] / MAP_W) | 0;
+      geoeffnet += oeffne(tiles, vorher, tx, ty);
+      // Drei Kacheln breit, nicht eine: Eine einzelne Lücke in einer
+      // Felswand liest sich als Loch, nicht als Weg nach oben.
+      geoeffnet += oeffne(tiles, vorher, tx + 1, ty);
+      geoeffnet += oeffne(tiles, vorher, tx - 1, ty);
+      geoeffnet += oeffne(tiles, vorher, tx, ty + 1);
+      geoeffnet += oeffne(tiles, vorher, tx, ty - 1);
+    }
+  }
+  if (erreicht) for (let i = 0; i < besucht.length; i++) if (erreicht[i]) besucht[i] = 1;
+  return geoeffnet;
+}
+
+/** Die erste begehbare Kachel, die noch zu keiner Landmasse gehört. */
+function naechsteLandmasse(tiles, besucht) {
+  for (let ty = 1; ty < MAP_H - 1; ty++) {
+    for (let tx = 1; tx < MAP_W - 1; tx++) {
+      const i = tileIndex(tx, ty);
+      if (besucht[i] || !isWalkable(tiles[i])) continue;
+      return [tx, ty];
+    }
+  }
+  return null;
+}
+
+function oeffne(tiles, vorher, tx, ty) {
+  if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return 0;
+  const i = tileIndex(tx, ty);
+  if (tiles[i] !== T.CLIFF) return 0;
+  tiles[i] = vorher[i];
+  return 1;
+}
+
+/** Flutet von einer Kachel aus über alles Begehbare. */
+function fluten(tiles, sx, sy) {
+  const erreicht = new Uint8Array(MAP_W * MAP_H);
+  const stapel = [sx, sy];
+  erreicht[tileIndex(sx, sy)] = 1;
+  while (stapel.length) {
+    const ty = stapel.pop();
+    const tx = stapel.pop();
+    const nach = [[tx + 1, ty], [tx - 1, ty], [tx, ty + 1], [tx, ty - 1]];
+    for (let k = 0; k < 4; k++) {
+      const nx = nach[k][0];
+      const ny = nach[k][1];
+      if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+      const j = tileIndex(nx, ny);
+      if (erreicht[j] || !isWalkable(tiles[j])) continue;
+      erreicht[j] = 1;
+      stapel.push(nx, ny);
+    }
+  }
+  return erreicht;
+}
+
+/**
+ * Der billigste Durchbruch vom Erreichten ins Unerreichte.
+ *
+ * Der erste Entwurf suchte EINE Wandkachel mit erreichtem und
+ * unerreichtem Nachbarn. Das reichte nicht: Wo Stufe 0 an Stufe 1 an
+ * Stufe 2 grenzt, steht die Wand zwei Kacheln dick, und dann gibt es
+ * keine solche Kachel – die Prüfung meldete 72 % erreichbare Insel.
+ *
+ * Jetzt wird vom gesamten erreichten Gebiet aus gesucht, wobei begehbare
+ * Kacheln nichts kosten und Wandkacheln eine. Gefunden wird damit die
+ * Stelle, an der am WENIGSTEN Fels weg muss – und das ist auch die, an
+ * der eine Rampe natürlich aussieht. Zurück kommen die Wandkacheln auf
+ * diesem Weg.
+ */
+function billigsterDurchbruch(tiles, erreicht) {
+  const N = MAP_W * MAP_H;
+  const kosten = new Int32Array(N).fill(0x7fffffff);
+  const woher = new Int32Array(N).fill(-1);
+  // Null-Eins-Breitensuche: zwei Schlangen statt eines Haufens. Bei nur
+  // zwei Kantengewichten ist das dasselbe wie Dijkstra, nur ohne
+  // Sortieren.
+  let jetzt = [];
+  for (let i = 0; i < N; i++) {
+    if (!erreicht[i]) continue;
+    kosten[i] = 0;
+    jetzt.push(i);
+  }
+  let ziel = -1;
+  while (jetzt.length && ziel < 0) {
+    const spaeter = [];
+    for (let q = 0; q < jetzt.length && ziel < 0; q++) {
+      const i = jetzt[q];
+      const tx = i % MAP_W;
+      const ty = (i / MAP_W) | 0;
+      const nach = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      for (let k = 0; k < 4; k++) {
+        const nx = tx + nach[k][0];
+        const ny = ty + nach[k][1];
+        if (nx < 1 || ny < 1 || nx >= MAP_W - 1 || ny >= MAP_H - 1) continue;
+        const j = tileIndex(nx, ny);
+        const wand = tiles[j] === T.CLIFF;
+        if (!wand && !isWalkable(tiles[j])) continue;
+        const neu = kosten[i] + (wand ? 1 : 0);
+        if (neu >= kosten[j]) continue;
+        kosten[j] = neu;
+        woher[j] = i;
+        if (!wand && !erreicht[j]) { ziel = j; break; }
+        if (wand) spaeter.push(j); else jetzt.push(j);
+      }
+    }
+    jetzt = spaeter;
+  }
+  if (ziel < 0) return null;
+  const weg = [];
+  for (let i = ziel; i >= 0; i = woher[i]) {
+    if (tiles[i] === T.CLIFF) weg.push(i);
+  }
+  return weg;
 }
 
 function carveRiver(tiles, detail) {
@@ -18514,9 +19020,11 @@ __e.ISLE_X1 = ISLE_X1;
 __e.DOCK_TILE = DOCK_TILE;
 __e.ISLE_DOCK_TILE = ISLE_DOCK_TILE;
 __e.HIGHLAND_Y = HIGHLAND_Y;
+__e.MAX_STUFE = MAX_STUFE;
 __e.tileIndex = tileIndex;
 __e.regionAt = regionAt;
 __e.generateTiles = generateTiles;
+__e.hoehenFuer = hoehenFuer;
 __e.findWalkableNear = findWalkableNear;
 __e.walkableTilesOf = walkableTilesOf;
 __e.startPosition = startPosition;
@@ -18851,7 +19359,7 @@ __e.TILE_SIZE = TILE_SIZE;
 __defs["src/world/world.js"] = function (__e) {
 /** Weltmodell: Kacheln, Objekte, Kollision, räumlicher Index. */
 const { T, TILE_SIZE, isWalkable, isWater } = __req("src/art/tiles.js");
-const { MAP_W, MAP_H, REGION, generateTiles, tileIndex, regionAt, walkableTilesOf, findWalkableNear, CAMP_TILE, FORD_X0, FORD_X1, RIVER_Y0, RIVER_Y1, CHANNEL_X0, CHANNEL_X1, BRIDGE_Y0, BRIDGE_Y1, DOCK_TILE, ISLE_DOCK_TILE, ALL_REGIONS, HIGHLAND_Y } = __req("src/world/worldgen.js");
+const { MAP_W, MAP_H, REGION, generateTiles, hoehenFuer, tileIndex, regionAt, walkableTilesOf, findWalkableNear, CAMP_TILE, FORD_X0, FORD_X1, RIVER_Y0, RIVER_Y1, CHANNEL_X0, CHANNEL_X1, BRIDGE_Y0, BRIDGE_Y1, DOCK_TILE, ISLE_DOCK_TILE, ALL_REGIONS, HIGHLAND_Y } = __req("src/world/worldgen.js");
 const { makeEntity, defOf, spriteFor } = __req("src/world/entities.js");
 const { makeRng, randInt, randPick, dailyRng } = __req("src/core/rng.js");
 const { syncIdCounter } = __req("src/core/util.js");
@@ -18881,6 +19389,7 @@ class World {
     this.w = MAP_W;
     this.h = MAP_H;
     this.tiles = generateTiles(this.seed);
+    this.hoehen = hoehenFuer(this.seed);
     this.entities = [];
     this.byId = Object.create(null);
     this.grid = new Array(GRID_W * GRID_H);
@@ -18901,6 +19410,20 @@ class World {
   tileAtTile(tx, ty) {
     if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return T.WATER_DEEP;
     return this.tiles[tileIndex(tx, ty)];
+  }
+
+  /**
+   * Auf welcher Höhenstufe diese Kachel liegt (0, 1 oder 2).
+   *
+   * Nur fürs BILD: Der Bodenmaler muss wissen, auf welcher Seite einer
+   * Steilkante es nach oben geht. Für das Spiel selbst ist die Höhe
+   * bedeutungslos – dort entscheidet allein, ob eine Kachel begehbar ist,
+   * und eine Steilkante ist es nicht. Genau deshalb gibt es keine zweite
+   * Begehbarkeitsregel.
+   */
+  hoeheAtTile(tx, ty) {
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return 0;
+    return this.hoehen ? this.hoehen[tileIndex(tx, ty)] : 0;
   }
 
   tileAt(px, py) {

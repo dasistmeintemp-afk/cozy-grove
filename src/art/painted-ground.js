@@ -333,6 +333,8 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
     }
   }
 
+  steilkanten(wctx, world, tx0, ty0, ring);
+
   // EINMAL rechnen, zweimal benutzen: Die Farbfläche und die Risse in der
   // Tinte brauchen dieselbe Geometrie. Zweimal gerechnet kostete das
   // Backen eines Stücks spürbar – und ein Stück wird gebacken, während
@@ -370,6 +372,124 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
  * zerfiele eine lange Küste in lauter einzeln wackelnde Kacheln.
  */
 const WAND_HOEHE = 48;
+
+/**
+ * Die Steilkanten im Landesinneren.
+ *
+ * Dieselbe Idee wie am Ufer, nur dass die Wand hier zwischen zwei
+ * Landstücken steht statt zwischen Land und Wasser. Gezeichnet wird sie
+ * auf den Kacheln, die die Weltgenerierung als `T.CLIFF` hingestellt hat
+ * – also am FUSS der oberen Fläche, nicht auf ihr.
+ *
+ * Die Form ist der übliche Kachelklecks und kein Rechteck: Er greift über
+ * die Kachelgrenze hinaus, und dadurch verschmelzen benachbarte
+ * Wandkacheln zu einer durchgehenden Wand statt zu einer Treppe.
+ */
+function steilkanten(g, world, tx0, ty0, ring) {
+  const hoehe = world.hoeheAtTile
+    ? function (tx, ty) { return world.hoeheAtTile(tx, ty); }
+    : function () { return 0; };
+  for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
+    for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
+      if (world.tileAtTile(tx, ty) !== T.CLIFF) continue;
+      const y = ty * TILE_SIZE;
+      // Der Verlauf hat dieselbe Reihenfolge wie am Ufer: oben die
+      // frische Erde unter der Grasnarbe, dann der Absturz ins Dunkle,
+      // unten wieder aufgehellt. Erst der helle Saum lässt die Narbe
+      // überhängen.
+      const grad = g.createLinearGradient(0, y - 4, 0, y + TILE_SIZE + 6);
+      grad.addColorStop(0, INK.uferLicht);
+      grad.addColorStop(0.22, INK.uferTief);
+      grad.addColorStop(0.72, INK.ufer);
+      grad.addColorStop(1, INK.uferLicht);
+      g.save();
+      g.fillStyle = grad;
+      pathFrom(g, tilePatch(tx, ty, 0.56), true);
+      g.fill();
+      // Liegt unter der Wand wieder Land, wirft sie ihren Schatten
+      // darauf. Ohne den steht die Wand auf der Wiese wie aufgeklebt.
+      if (isWalkable(world.tileAtTile(tx, ty + 1)) && hoehe(tx, ty + 1) <= hoehe(tx, ty)) {
+        g.globalAlpha = 0.3;
+        const sg = g.createLinearGradient(0, y + TILE_SIZE - 2, 0, y + TILE_SIZE + 22);
+        sg.addColorStop(0, INK.uferTief);
+        sg.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = sg;
+        g.fillRect(tx * TILE_SIZE - 4, y + TILE_SIZE - 2, TILE_SIZE + 8, 24);
+      }
+      g.restore();
+    }
+  }
+}
+
+/**
+ * Die Oberkante der Steilkanten und die Risse darin.
+ *
+ * Die Oberkante ist der wichtigste Strich im ganzen Bild der Wand: Sie
+ * ist die Linie, an der die obere Grasnarbe abbricht. Gezeichnet wird sie
+ * genau auf der Grenze zur höheren Nachbarkachel, mit demselben
+ * Eckenzittern wie alle anderen Kanten – so treffen sich die Striche
+ * zweier Nachbarkacheln.
+ */
+function steilkantenTinte(g, world, tx0, ty0, ring) {
+  const hoehe = world.hoeheAtTile
+    ? function (tx, ty) { return world.hoeheAtTile(tx, ty); }
+    : function () { return 0; };
+  const risse = [];
+  for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
+    for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
+      if (world.tileAtTile(tx, ty) !== T.CLIFF) continue;
+      const z = hoehe(tx, ty);
+      const x0 = tx * TILE_SIZE;
+      const y0 = ty * TILE_SIZE;
+      const seiten = [
+        [0, -1, [x0, y0], [x0 + TILE_SIZE, y0]],
+        [-1, 0, [x0, y0], [x0, y0 + TILE_SIZE]],
+        [1, 0, [x0 + TILE_SIZE, y0], [x0 + TILE_SIZE, y0 + TILE_SIZE]],
+        [0, 1, [x0, y0 + TILE_SIZE], [x0 + TILE_SIZE, y0 + TILE_SIZE]],
+      ];
+      for (let k = 0; k < seiten.length; k++) {
+        const sx = seiten[k][0];
+        const sy = seiten[k][1];
+        if (hoehe(tx + sx, ty + sy) <= z) continue;
+        if (!isWalkable(world.tileAtTile(tx + sx, ty + sy))) continue;
+        const a = seiten[k][2];
+        const b = seiten[k][3];
+        const ja = cornerJitter(Math.round(a[0] / 8), Math.round(a[1] / 8));
+        const jb = cornerJitter(Math.round(b[0] / 8), Math.round(b[1] / 8));
+        inkStroke(g, [
+          [a[0] + ja[0] * 0.4, a[1] + ja[1] * 0.4],
+          [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
+          [b[0] + jb[0] * 0.4, b[1] + jb[1] * 0.4],
+        ], {
+          closed: false, width: 3.0, vary: 0.4,
+          seed: hashString('sk' + tx + ':' + ty + ':' + k),
+          color: INK.line, alpha: 0.85,
+        });
+      }
+      const rng = makeRng(hashString('skr' + tx + ':' + ty));
+      const n = 1 + Math.floor(rng() * 3);
+      for (let i = 0; i < n; i++) {
+        const x = x0 + (0.15 + rng() * 0.7) * TILE_SIZE;
+        const oy = y0 + 6 + rng() * 8;
+        risse.push([x, oy, x + (rng() - 0.5) * 6, oy + TILE_SIZE * (0.3 + rng() * 0.4)]);
+      }
+    }
+  }
+  if (!risse.length) return;
+  g.save();
+  g.lineCap = 'round';
+  g.strokeStyle = INK.line;
+  g.globalAlpha = 0.3;
+  g.lineWidth = 1.9;
+  g.beginPath();
+  for (let i = 0; i < risse.length; i++) {
+    const r = risse[i];
+    g.moveTo(r[0], r[1]);
+    g.lineTo(r[2], r[3]);
+  }
+  g.stroke();
+  g.restore();
+}
 
 /**
  * Wie stark die Küstenlinie hier zittert. Dieselbe Zahl wie beim
@@ -676,6 +796,7 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
     2.6, INK.rockDeep, 0.65, 11);
   rockStep(g, world, tx0, ty0, r);
   uferRisse(g, waende);
+  steilkantenTinte(g, world, tx0, ty0, r);
 
   // Bodendetails: Grasbüschel, Kiesel, Wellenkringel.
   // Alles in wenigen Sammelpfaden – tausend einzelne stroke()-Aufrufe pro

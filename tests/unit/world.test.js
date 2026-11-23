@@ -10,6 +10,7 @@ import {
 import { T, isWalkable, isWater, TILE_SIZE } from '../../src/art/tiles.js';
 import { spriteFor, ENTITY_DEFS } from '../../src/world/entities.js';
 import { SPIRIT_IDS } from '../../src/game/spirits.js';
+import { inAnyPlotAt } from '../../src/game/plot.js';
 
 const SEED = 12345;
 
@@ -172,7 +173,14 @@ test('Tageswechsel bringt Grabstellen zurück', () => {
 
 test('Abgebaute Bäume kehren nach der Wartezeit zurück', () => {
   const world = new World(SEED).populate();
-  const tree = world.entities.find((e) => e.kind === 'tree_oak');
+  // NICHT einfach der erste Baum: Auf dem Grundstück wächst mit Absicht
+  // nichts nach, und ob der erste Baum der Liste dort steht, entscheidet
+  // der Streuwurf. Genau daran ist dieser Test einmal gescheitert, als
+  // sich die Insel änderte – geprüft wurde dann die Grundstücksregel
+  // statt des Nachwuchses.
+  const tree = world.entities.find((e) => e.kind === 'tree_oak'
+    && !inAnyPlotAt(e.x, e.y, world.plotStage, world.islePlotStage));
+  assert.ok(tree, 'kein Eichenbaum außerhalb der Grundstücke');
   tree.origin = 'tree_oak';
   tree.kind = 'tree_stump';
   tree.sprite = 'tree_stump';
@@ -193,7 +201,8 @@ test('Der zurückgekehrte Baum hat wieder eine Grafik, die es gibt', () => {
   const arten = ['tree_oak', 'tree_birch', 'tree_maple', 'tree_pine'];
   let geprueft = 0;
   for (const art of arten) {
-    const tree = world.entities.find((e) => e.kind === art);
+    const tree = world.entities.find((e) => e.kind === art
+      && !inAnyPlotAt(e.x, e.y, world.plotStage, world.islePlotStage));
     if (!tree) continue;
     const vorher = tree.sprite;
     assert.equal(vorher, spriteFor(art, tree.x, tree.y));

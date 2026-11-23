@@ -1,7 +1,7 @@
 /** Weltmodell: Kacheln, Objekte, Kollision, räumlicher Index. */
 import { T, TILE_SIZE, isWalkable, isWater } from '../art/tiles.js';
 import {
-  MAP_W, MAP_H, REGION, generateTiles, tileIndex, regionAt,
+  MAP_W, MAP_H, REGION, generateTiles, hoehenFuer, tileIndex, regionAt,
   walkableTilesOf, findWalkableNear, CAMP_TILE,
   FORD_X0, FORD_X1, RIVER_Y0, RIVER_Y1,
   CHANNEL_X0, CHANNEL_X1, BRIDGE_Y0, BRIDGE_Y1,
@@ -36,6 +36,7 @@ export class World {
     this.w = MAP_W;
     this.h = MAP_H;
     this.tiles = generateTiles(this.seed);
+    this.hoehen = hoehenFuer(this.seed);
     this.entities = [];
     this.byId = Object.create(null);
     this.grid = new Array(GRID_W * GRID_H);
@@ -56,6 +57,20 @@ export class World {
   tileAtTile(tx, ty) {
     if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return T.WATER_DEEP;
     return this.tiles[tileIndex(tx, ty)];
+  }
+
+  /**
+   * Auf welcher Höhenstufe diese Kachel liegt (0, 1 oder 2).
+   *
+   * Nur fürs BILD: Der Bodenmaler muss wissen, auf welcher Seite einer
+   * Steilkante es nach oben geht. Für das Spiel selbst ist die Höhe
+   * bedeutungslos – dort entscheidet allein, ob eine Kachel begehbar ist,
+   * und eine Steilkante ist es nicht. Genau deshalb gibt es keine zweite
+   * Begehbarkeitsregel.
+   */
+  hoeheAtTile(tx, ty) {
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return 0;
+    return this.hoehen ? this.hoehen[tileIndex(tx, ty)] : 0;
   }
 
   tileAt(px, py) {

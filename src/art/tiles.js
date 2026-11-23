@@ -24,6 +24,22 @@ export const T = {
    * `isWalkable(tileAt(...))`.
    */
   TIDEFLAT: 8,
+  /**
+   * Die Steilkante zwischen zwei Höhenstufen.
+   *
+   * Die Insel hat Ebenen: Hochflächen, die über dem übrigen Land liegen,
+   * mit einer Felswand ringsherum. Diese Wand ist eine KACHEL und keine
+   * zweite Begehbarkeitsregel – aus genau dem Grund, der weiter unten
+   * schon beim Watt steht: `canStand` fragt nur `isWalkable(tileAt(...))`,
+   * also stimmen Kollision, Pfadsuche, Streuwurf, Hüttenplätze und Bild
+   * ohne eine einzige neue Zeile. Eine Höhenregel daneben hätte an jeder
+   * Stelle gefehlt, die sie nicht kennt – und das sind zwanzig.
+   *
+   * Eine Rampe ist deshalb auch keine eigene Sache, sondern schlicht eine
+   * LÜCKE in dieser Kachelreihe. Dort geht man hinauf, weil dort keine
+   * Wand steht.
+   */
+  CLIFF: 9,
 };
 
 export const TILE_SIZE = 64;
@@ -42,6 +58,10 @@ export const TILE_DEF = {
   8: { name: 'tideflat', base: '#cbbf9e', layer: 2, walk: true },
   5: { name: 'path', base: '#dccaa6', layer: 5, walk: true },
   6: { name: 'bridge', base: INK.wood, layer: 6, walk: true },
+  // Die Steilkante liegt auf der Ebene des Felsbodens: Sie gehört zum
+  // Fuß der oberen Fläche und soll von deren Grasnarbe überdeckt werden,
+  // nicht umgekehrt.
+  9: { name: 'cliff', base: INK.ufer, layer: 4, walk: false },
 };
 
 export function isWalkable(t) {
