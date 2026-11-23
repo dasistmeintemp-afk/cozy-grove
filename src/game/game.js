@@ -103,6 +103,15 @@ import {
 } from './spirits.js';
 import { StoryBook, STAGES, storyArt, keepsakeOf, storyLine, storyClose, storyIntro } from './stories.js';
 import { charmAround, cosyLevel, cosyRadius, rewardFactor, COSY_MAX } from './cosiness.js';
+
+/**
+ * Farbradien und -flächen sind für die ursprüngliche 96er-Insel
+ * geschrieben; hier werden sie auf den aktuellen Maßstab gerechnet.
+ * Dieselbe Umrechnung wie bei den Geistern (siehe `spirits.js`) – sonst
+ * dauert das Einfärben auf einer größeren Insel entsprechend länger.
+ */
+const FARB_R = function (n) { return Math.round(n * MASSSTAB); };
+const FARB_A = function (n) { return Math.round(n * MASSSTAB * MASSSTAB); };
 import { getItem, itemName, CAT, CONDITIONAL, fishesOf } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
 import { dueAt, perksOf } from './milestones.js';
@@ -155,7 +164,7 @@ import {
   tempoFaktor, wuchtBonus, glueckBonus, emptyKitchen, kochDank,
 } from './kitchen.js';
 import { defOf, makeEntity, spriteFor } from '../world/entities.js';
-import { startPosition, REGION_NAMES, ALL_REGIONS } from '../world/worldgen.js';
+import { startPosition, REGION_NAMES, ALL_REGIONS, MASSSTAB } from '../world/worldgen.js';
 import { randInt, randPick, dailyRng } from '../core/rng.js';
 import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
@@ -264,7 +273,19 @@ const INNEN_PET_WARTET = 2.5;
  * des Symptoms: Er steht auf Sand, mit ausdrücklichem Abstand zu allem, was
  * eine Station ist.
  */
-const WANDERER_WEG = 1100;          // höchstens so weit vom Lagerfeuer
+/**
+ * Höchstens so weit vom Lagerfeuer – und das ist eine ENTFERNUNG auf der
+ * Insel, also wächst sie mit.
+ *
+ * Genau hier schlägt eine Vergrößerung zu: Die Figuren bleiben gleich
+ * groß, aber der Strand rückt weiter weg. Mit den alten 1100 Punkten
+ * fand der Wanderer auf der anderthalbmal so großen Insel überhaupt
+ * keinen Platz mehr und blieb unsichtbar – sechs Prüfungen meldeten es.
+ *
+ * Die beiden Zahlen darunter wachsen NICHT mit: Sie sind Abstände
+ * zwischen Gegenständen, und die Gegenstände sind gleich groß geblieben.
+ */
+const WANDERER_WEG = Math.round(1100 * MASSSTAB);
 const WANDERER_VON_STATION = 230;   // Boot, Laden, Truhe, Feuer, Geist
 const WANDERER_ABSTAND = 62;        // alles andere
 
@@ -1328,8 +1349,8 @@ export class Game {
     const key = 'spirit_' + spiritId;
     const ent = this.world.spiritEntity(spiritId);
     if (ent) {
-      if (!this.colorField.find(key)) this.colorField.addSource(ent.x, ent.y, 160, key);
-      else this.colorField.growByArea(key, 160000);
+      if (!this.colorField.find(key)) this.colorField.addSource(ent.x, ent.y, FARB_R(160), key);
+      else this.colorField.growByArea(key, FARB_A(160000));
       this.colorField.markDirty();
     }
 
@@ -1345,7 +1366,7 @@ export class Game {
     const self = this;
     if (keep) this.inventory.add(keep, 1);
     if (ent) {
-      this.colorField.growByArea('spirit_' + spiritId, 520000);
+      this.colorField.growByArea('spirit_' + spiritId, FARB_A(520000));
       this.colorField.markDirty();
       this.particles.burst('heart', ent.x, ent.y - 90, 8);
     }
@@ -3054,7 +3075,7 @@ export class Game {
       const level = friendshipLevel(doneN);
       this.ui.toast(spirit.name + ' · Freundschaft ' + level, 'icon_heart', 'good');
       this.audio.play('levelup');
-      this.colorField.growByArea(key, 100000);
+      this.colorField.growByArea(key, FARB_A(100000));
       this._giveGift(spirit, level, e);
     }
 
@@ -6656,7 +6677,7 @@ export class Game {
     this._note('ember', ember);
 
     // Farbe: dauerhaft, wie bei einer erledigten Bitte – nur kleiner.
-    this.colorField.growByArea('spirit_' + e.spiritId, (lieb ? 110000 : 45000) * faktor);
+    this.colorField.growByArea('spirit_' + e.spiritId, FARB_A(lieb ? 110000 : 45000) * faktor);
     this.colorField.markDirty();
 
     this.particles.burst('heart', e.x, e.y - 110, lieb ? 16 : 7);

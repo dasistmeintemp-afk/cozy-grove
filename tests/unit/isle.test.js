@@ -12,7 +12,11 @@ import assert from 'node:assert/strict';
 import {
   generateTiles, MAP_W, MAP_H, tileIndex, regionAt, REGION, REGION_NAMES,
   ALL_REGIONS, CAMP_TILE, SOUND_X0, SOUND_X1, ISLE_X1, HIGHLAND_Y,
+  MASSSTAB,
 } from '../../src/world/worldgen.js';
+
+/** Eine Kachelzahl der alten 96er-Karte auf den aktuellen Maßstab. */
+const M = function (n) { return Math.round(n * MASSSTAB); };
 import { isWalkable, T, TILE_SIZE } from '../../src/art/tiles.js';
 import { World } from '../../src/world/world.js';
 import { ColorField } from '../../src/world/colorfield.js';
@@ -152,13 +156,16 @@ test('Die Landengen sind Engen, keine zweite Insel', () => {
   // Länge der Insel war der ganze Grund für die drei Kerne.
   for (const seed of SEEDS) {
     const tiles = generateTiles(seed);
-    for (const ty of [36, 56]) {
+    // Die Zeilen und die Grenze unten sind in Kacheln der alten
+    // 96er-Karte gedacht und werden mitskaliert: Die Geografie ist
+    // dieselbe, nur in einer größeren Einheit gemessen.
+    for (const ty of [M(36), M(56)]) {
       let breite = 0;
       for (let tx = 1; tx <= ISLE_X1; tx++) {
         if (isWalkable(tiles[tileIndex(tx, ty)])) breite++;
       }
       assert.ok(breite >= 3, 'Seed ' + seed + ', Zeile ' + ty + ': nur ' + breite + ' Kacheln Land');
-      assert.ok(breite <= 14, 'Seed ' + seed + ', Zeile ' + ty + ': ' + breite
+      assert.ok(breite <= M(14), 'Seed ' + seed + ', Zeile ' + ty + ': ' + breite
         + ' Kacheln breit – das ist keine Enge mehr');
     }
   }
@@ -178,8 +185,13 @@ test('Die Insel ist groß genug, dass sich die Fahrt lohnt', () => {
     // Minuten wieder am Boot. Mit drei Kernen sind es rund 900: mehr als die
     // Klippen, weniger als das Lager. Die Untergrenze ist der eigentliche
     // Punkt, die Obergrenze hält sie davon ab, die Karte zu schlucken.
-    assert.ok(n > 600, 'Seed ' + seed + ': nur ' + n + ' Inselkacheln');
-    assert.ok(n < 1200, 'Seed ' + seed + ': ' + n + ' Kacheln, das ist die halbe Karte');
+    // Die Zahlen sind FLÄCHEN und wachsen deshalb im Quadrat des
+    // Maßstabs, nicht linear. Bei 1,5 sind aus 600 bis 1200 Kacheln
+    // 1350 bis 2700 geworden; die Insel ist genauso groß wie vorher,
+    // gemessen am Rest der Karte.
+    const f = MASSSTAB * MASSSTAB;
+    assert.ok(n > 600 * f, 'Seed ' + seed + ': nur ' + n + ' Inselkacheln');
+    assert.ok(n < 1200 * f, 'Seed ' + seed + ': ' + n + ' Kacheln, das ist die halbe Karte');
   }
 });
 

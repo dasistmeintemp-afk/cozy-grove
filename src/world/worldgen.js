@@ -18,8 +18,47 @@
 import { makeRng, makeNoise2D, fbm, hashString, randInt, randRange } from '../core/rng.js';
 import { T, TILE_SIZE, isWalkable } from '../art/tiles.js';
 
-export const MAP_W = 96;
-export const MAP_H = 96;
+/**
+ * Der Maßstab der Insel.
+ *
+ * Alles, was unten als Kachelzahl steht – Fluss, Kanal, Furt, Brücke,
+ * Lagerplatz, Steg, Inselkerne, Landengen –, ist mit diesem Faktor
+ * gerechnet. Die Zahlen davor sind die ursprüngliche 96er-Karte; so
+ * bleibt nachvollziehbar, wo die Geografie herkommt, und eine weitere
+ * Vergrößerung ist eine einzige Zahl statt dreißig.
+ *
+ * 1,5 heißt: 144 statt 96 Kacheln je Seite, also die 2,25-fache Fläche.
+ * Weiter wollte ich nicht in einem Schritt gehen – die Spielfigur läuft
+ * gleich schnell wie vorher, und eine Insel, deren Durchquerung dreimal
+ * so lange dauert, ist keine größere Welt mehr, sondern ein längerer Weg.
+ *
+ * Was NICHT mitwächst: die Grundstücke (ein Garten ist ein Garten), die
+ * Breite der Landengen und der Furt (ein Weg ist ein Weg) und die
+ * Größe der Objekte. Mitwachsen tut, was eine Fläche ist.
+ */
+export const MASSSTAB = 1.5;
+
+/** Eine Kachelzahl der alten Karte auf die neue umrechnen. */
+const M = function (n) { return Math.round(n * MASSSTAB); };
+
+/**
+ * Eine RAUSCHFREQUENZ auf den neuen Maßstab umrechnen.
+ *
+ * Das ist die Umkehrung von `M`, und sie ist nicht offensichtlich: Wenn
+ * die Insel wächst, die Frequenz aber bleibt, dann werden die Buchten,
+ * Felsflecken und Lichtungen relativ zur Insel KLEINER – die Küste wird
+ * kleinteiliger, die Landengen zerfransen. Gemessen: Eine Landenge, die
+ * fünf Kacheln breit sein soll, maß plötzlich 25, weil das Rauschen
+ * daneben eine eigene Landbrücke erfand.
+ *
+ * Mit geteilter Frequenz sieht dieselbe Insel aus wie vorher, nur
+ * größer. Das ist die vorhersagbare Wahl; feinere Küsten wären eine
+ * eigene Entscheidung und keine Nebenwirkung einer Vergrößerung.
+ */
+const F = function (n) { return n / MASSSTAB; };
+
+export const MAP_W = M(96);
+export const MAP_H = M(96);
 
 export const REGION = { CAMP: 0, FOREST: 1, CLIFFS: 2, ISLE: 3 };
 
@@ -35,18 +74,18 @@ export const REGION_NAMES = ['Lager & Strand', 'Wald', 'Klippen', 'Stille Insel'
 export const ALL_REGIONS = Object.keys(REGION).map(function (k) { return REGION[k]; });
 
 // Feste Bauwerke / Sperren
-export const RIVER_Y0 = 37;
-export const RIVER_Y1 = 41;
-export const FORD_X0 = 42;
-export const FORD_X1 = 45;
-export const CHANNEL_X0 = 59;
-export const CHANNEL_X1 = 64;
-export const CHANNEL_Y0 = 26;
-export const CHANNEL_Y1 = 74;
-export const BRIDGE_Y0 = 49;
-export const BRIDGE_Y1 = 51;
+export const RIVER_Y0 = M(37);
+export const RIVER_Y1 = M(41);
+export const FORD_X0 = M(42);
+export const FORD_X1 = M(45);
+export const CHANNEL_X0 = M(59);
+export const CHANNEL_X1 = M(64);
+export const CHANNEL_Y0 = M(26);
+export const CHANNEL_Y1 = M(74);
+export const BRIDGE_Y0 = M(49);
+export const BRIDGE_Y1 = M(51);
 
-export const CAMP_TILE = { x: 44, y: 62 };
+export const CAMP_TILE = { x: M(44), y: M(62) };
 
 /**
  * Der Sund zwischen Festland und Stiller Insel.
@@ -58,13 +97,13 @@ export const CAMP_TILE = { x: 44, y: 62 };
  * Mitte des Sunds, also auf beiden Seiten im Wasser: So bekommt kein
  * Festlandufer aus Versehen die Kennung der Insel.
  */
-export const SOUND_X0 = 17;
-export const SOUND_X1 = 21;
+export const SOUND_X0 = M(17);
+export const SOUND_X1 = M(21);
 /** Alles westlich davon gehört zur Stillen Insel. */
-export const ISLE_X1 = 19;
+export const ISLE_X1 = M(19);
 /** Wo das Boot anlegt – Festlandseite und Inselseite. */
-export const DOCK_TILE = { x: 24, y: 52 };
-export const ISLE_DOCK_TILE = { x: 14, y: 52 };
+export const DOCK_TILE = { x: M(24), y: M(52) };
+export const ISLE_DOCK_TILE = { x: M(14), y: M(52) };
 
 /**
  * Die Kerne der Insel.
@@ -81,12 +120,12 @@ export const ISLE_DOCK_TILE = { x: 14, y: 52 };
  * einem Ende zum anderen ist selbst schon etwas.
  */
 const LOBES = [
-  { x: 44, y: 60, r: 21 },   // Lager / Strand
-  { x: 40, y: 20, r: 17 },   // Wald
-  { x: 79, y: 50, r: 14 },   // Klippen
-  { x: 8, y: 24, r: 12 },    // Stille Insel – das Hochland im Norden
-  { x: 8, y: 46, r: 10 },    // Stille Insel – die Mitte, wo Wanda steht
-  { x: 9, y: 67, r: 11 },    // Stille Insel – der Süden
+  { x: M(44), y: M(60), r: M(21) },   // Lager / Strand
+  { x: M(40), y: M(20), r: M(17) },   // Wald
+  { x: M(79), y: M(50), r: M(14) },   // Klippen
+  { x: M(8), y: M(24), r: M(12) },    // Stille Insel – das Hochland im Norden
+  { x: M(8), y: M(46), r: M(10) },    // Stille Insel – die Mitte, wo Wanda steht
+  { x: M(9), y: M(67), r: M(11) },    // Stille Insel – der Süden
 ];
 
 /**
@@ -104,8 +143,8 @@ const LOBES = [
  * bis zum nächsten reicht, wäre nur eine große Scheibe.
  */
 const ISTHMUS = [
-  { x: 8, y0: 30, y1: 42 },   // Hochland ↔ Mitte
-  { x: 9, y0: 51, y1: 61 },   // Mitte ↔ Süden
+  { x: M(8), y0: M(30), y1: M(42) },   // Hochland ↔ Mitte
+  { x: M(9), y0: M(51), y1: M(61) },   // Mitte ↔ Süden
 ];
 /** Halbe Breite einer Landenge: fünf Kacheln plus Saum. */
 const ISTHMUS_HALB = 2;
@@ -117,7 +156,7 @@ const ISTHMUS_HALB = 2;
  * nur mit der dritten Spitzhackenstufe kommt. Ein Bereich, der aussieht wie
  * jeder andere, ist kein neuer Bereich.
  */
-export const HIGHLAND_Y = 36;
+export const HIGHLAND_Y = M(36);
 
 export function tileIndex(tx, ty) {
   return ty * MAP_W + tx;
@@ -163,7 +202,7 @@ export function generateTiles(seed) {
         const v = 1 - d;
         if (v > land) land = v;
       }
-      const wh = warp(detail, tx * 0.09, ty * 0.09, 1.1);
+      const wh = warp(detail, tx * F(0.09), ty * F(0.09), 1.1);
       const n = fbm(noise, wh[0], wh[1], 4, 2.0, 0.5) - 0.5;
       const h = land + n * 0.55;
 
@@ -175,20 +214,20 @@ export function generateTiles(seed) {
 
       // Felsboden auf den Klippen
       if (t === T.GRASS && tx > CHANNEL_X1) {
-        const wr = warp(noise, tx * 0.14, ty * 0.14, 1.9);
+        const wr = warp(noise, tx * F(0.14), ty * F(0.14), 1.9);
         const rock = fbm(detail, wr[0], wr[1], 3, 2.0, 0.5);
         if (rock > 0.58) t = T.ROCKFLOOR;
       }
       // Das Hochland der Stillen Insel: hier überwiegt der Fels, sonst sähe
       // der Norden aus wie die Mitte und wäre kein eigener Ort.
       if (t === T.GRASS && tx <= ISLE_X1 && ty < HIGHLAND_Y) {
-        const wh2 = warp(noise, tx * 0.13 + 200, ty * 0.13, 1.7);
+        const wh2 = warp(noise, tx * F(0.13) + 200, ty * F(0.13), 1.7);
         const fels = fbm(detail, wh2[0], wh2[1], 3, 2.0, 0.5);
         if (fels > 0.40) t = T.ROCKFLOOR;
       }
       // Trampelpfade / Lichtungen im Wald
       if (t === T.GRASS && ty < RIVER_Y0) {
-        const wd = warp(noise, tx * 0.17 + 40, ty * 0.17, 1.9);
+        const wd = warp(noise, tx * F(0.17) + 40, ty * F(0.17), 1.9);
         const dirtN = fbm(detail, wd[0], wd[1], 3, 2.0, 0.5);
         if (dirtN > 0.66) t = T.DIRT;
       }
@@ -268,7 +307,7 @@ function berechneHoehen(seed, tiles) {
       const t = tiles[i];
       if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
       if (nahAmLager(tx, ty) || amUebergang(tx, ty)) continue;
-      const w = warp(n, tx * 0.055, ty * 0.055, 1.6);
+      const w = warp(n, tx * F(0.055), ty * F(0.055), 1.6);
       felder.push(i);
       werte.push(fbm(n, w[0], w[1], 3, 2.0, 0.5));
     }
@@ -313,8 +352,10 @@ function berechneHoehen(seed, tiles) {
  * importiert beides und darf das.
  */
 const FLACHE_PLAETZE = [
+  // Die Maße der Grundstücke wachsen NICHT mit (ein Garten ist ein
+  // Garten), ihre Mittelpunkte schon.
   { x: CAMP_TILE.x, y: CAMP_TILE.y, hx: 17, hy: 12 },
-  { x: 9, y: 60, hx: 10, hy: 16 },
+  { x: M(9), y: M(60), hx: 10, hy: 16 },
 ];
 
 function nahAmLager(tx, ty) {
@@ -573,7 +614,7 @@ function billigsterDurchbruch(tiles, erreicht) {
 
 function carveRiver(tiles, detail) {
   for (let tx = 0; tx < MAP_W; tx++) {
-    const wobble = Math.round((fbm(detail, tx * 0.12, 99, 3, 2, 0.5) - 0.5) * 3);
+    const wobble = Math.round((fbm(detail, tx * F(0.12), 99, 3, 2, 0.5) - 0.5) * 3);
     const y0 = RIVER_Y0 + wobble;
     const y1 = RIVER_Y1 + wobble;
     for (let ty = y0 - 1; ty <= y1 + 1; ty++) {
@@ -592,7 +633,7 @@ function carveRiver(tiles, detail) {
 
 function carveChannel(tiles, detail) {
   for (let ty = CHANNEL_Y0; ty <= CHANNEL_Y1; ty++) {
-    const wobble = Math.round((fbm(detail, 77, ty * 0.12, 3, 2, 0.5) - 0.5) * 3);
+    const wobble = Math.round((fbm(detail, 77, ty * F(0.12), 3, 2, 0.5) - 0.5) * 3);
     for (let tx = CHANNEL_X0 + wobble - 1; tx <= CHANNEL_X1 + wobble + 1; tx++) {
       if (tx < 0 || tx >= MAP_W) continue;
       const i = tileIndex(tx, ty);
@@ -654,7 +695,7 @@ function buildIsthmus(tiles, detail) {
   for (let k = 0; k < ISTHMUS.length; k++) {
     const L = ISTHMUS[k];
     for (let ty = L.y0; ty <= L.y1; ty++) {
-      const wobble = Math.round((fbm(detail, 501 + k * 37, ty * 0.13, 3, 2, 0.5) - 0.5) * 4);
+      const wobble = Math.round((fbm(detail, 501 + k * 37, ty * F(0.13), 3, 2, 0.5) - 0.5) * 4);
       const mitte = L.x + wobble;
       for (let tx = mitte - ISTHMUS_HALB; tx <= mitte + ISTHMUS_HALB; tx++) {
         if (tx < 1 || tx > ISLE_X1) continue;

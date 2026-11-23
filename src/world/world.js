@@ -5,7 +5,7 @@ import {
   walkableTilesOf, findWalkableNear, CAMP_TILE,
   FORD_X0, FORD_X1, RIVER_Y0, RIVER_Y1,
   CHANNEL_X0, CHANNEL_X1, BRIDGE_Y0, BRIDGE_Y1,
-  DOCK_TILE, ISLE_DOCK_TILE, ALL_REGIONS, HIGHLAND_Y,
+  DOCK_TILE, ISLE_DOCK_TILE, ALL_REGIONS, HIGHLAND_Y, MASSSTAB,
 } from './worldgen.js';
 import { makeEntity, defOf, spriteFor } from './entities.js';
 import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
@@ -13,6 +13,9 @@ import { syncIdCounter } from '../core/util.js';
 import { inAnyPlot, inAnyPlotAt } from '../game/plot.js';
 import { biomeFuer, BIOME } from './biome.js';
 import { markenPlaetze } from './marken.js';
+
+/** Eine Kachelzahl der alten 96er-Karte auf den aktuellen Maßstab. */
+const M = function (n) { return Math.round(n * MASSSTAB); };
 
 const CELL = 160;
 const GRID_W = Math.ceil((MAP_W * TILE_SIZE) / CELL);
@@ -22,14 +25,22 @@ export const WORLD_W = MAP_W * TILE_SIZE;
 export const WORLD_H = MAP_H * TILE_SIZE;
 
 /** Wo die Geister zuhause sind (Kachelkoordinaten). */
+/**
+ * Wo die Geister zuhause sind, in Kacheln der alten 96er-Karte.
+ *
+ * Mit `M()` auf den aktuellen Maßstab gerechnet, genau wie die
+ * Geografie selbst – sonst säßen nach einer Vergrößerung alle sieben im
+ * Nordwesten beieinander, während die Insel um sie herum gewachsen ist.
+ * Die drei am Lager hängen ohnehin an `CAMP_TILE` und wandern mit.
+ */
 export const SPIRIT_HOMES = {
   flamey: { tx: CAMP_TILE.x, ty: CAMP_TILE.y - 3, region: REGION.CAMP },
   mira: { tx: CAMP_TILE.x - 11, ty: CAMP_TILE.y + 4, region: REGION.CAMP },
   kiesel: { tx: CAMP_TILE.x + 9, ty: CAMP_TILE.y + 11, region: REGION.CAMP },
-  bruno: { tx: 38, ty: 26, region: REGION.FOREST },
-  tobi: { tx: 44, ty: 14, region: REGION.FOREST },
-  nelly: { tx: 78, ty: 50, region: REGION.CLIFFS },
-  wanda: { tx: 8, ty: 44, region: REGION.ISLE },
+  bruno: { tx: M(38), ty: M(26), region: REGION.FOREST },
+  tobi: { tx: M(44), ty: M(14), region: REGION.FOREST },
+  nelly: { tx: M(78), ty: M(50), region: REGION.CLIFFS },
+  wanda: { tx: M(8), ty: M(44), region: REGION.ISLE },
 };
 
 export class World {

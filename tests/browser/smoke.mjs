@@ -15,6 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 // Meilenstein hätte sonst eine Zahl im Test dagegengehalten.
 import { SPIRIT_IDS } from '../../src/game/spirits.js';
 import { MILESTONES } from '../../src/game/milestones.js';
+import { MASSSTAB } from '../../src/world/worldgen.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PORT = Number(process.env.SMOKE_PORT || 8137);
@@ -1016,7 +1017,19 @@ async function run() {
       for (let i = 0; i < warOffen.length; i++) w.unlocked[i] = warOffen[i];
 
       // Welcher von einem Moment verlangte Ort kommt praktisch nie vor?
-      const schwelle = Math.max(3, Math.round(begehbar * 0.01));
+      // Eine feste Zahl, kein Anteil an der Insel.
+      //
+      // Orte wie „zuhause" oder „am Lagerfeuer" sind punktförmig: Sie
+      // gelten im Umkreis von ein paar hundert Punkten um EIN Ding. Auf
+      // einer größeren Insel wird ihr Anteil zwangsläufig kleiner, ohne
+      // dass sie schwerer zu finden wären – nach der Vergrößerung fiel
+      // „zuhause" mit 16 Treffern unter die damaligen 18, und vier
+      // Momente galten als unerreichbar. Erreichbar ist aber eine Frage
+      // der absoluten Größe der Ecke, nicht ihres Anteils an der Karte.
+      //
+      // Zehn abgetastete Kacheln sind rund zwanzig echte, also eine
+      // Fläche, über die man beim Vorbeigehen stolpert.
+      const schwelle = 10;
       const tot = [];
       for (const m of MOMENTE) {
         const o = m.wenn.ort;
@@ -2130,13 +2143,35 @@ async function run() {
       r.passt = g.ui._lastPrompt;
       g.cancelPlacing();
 
-      // Richtige Sorte, falscher Ort – weit weg vom Feuer
-      g.player.x = feuer.x + 2400;
-      g.player.y = feuer.y;
-      g.startPlacing('bench');
-      await new Promise((res) => setTimeout(res, 140));
-      r.falscherOrt = g.ui._lastPrompt;
-      g.cancelPlacing();
+      // Richtige Sorte, falscher Ort – weit genug weg vom Feuer, aber
+      // auf einem Platz, auf dem man überhaupt aufstellen DARF.
+      //
+      // Vorher stand hier schlicht `feuer.x + 2400`. Auf der kleinen
+      // Insel war das Land, auf der größeren Wasser – gemeldet wurde
+      // dann „Hier ist kein Platz frei", und die Prüfung maß die
+      // Begehbarkeit statt des Hinweises. Deshalb wird die Stelle
+      // gesucht: die erste, die weit genug weg ist und etwas annimmt.
+      const weitWeg = (function () {
+        for (let d = 600; d <= 3600; d += 120) {
+          for (const [ox, oy] of [[1, 0], [0, 1], [-1, 0], [0, -1],
+            [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]]) {
+            const x = feuer.x + ox * d;
+            const y = feuer.y + oy * d;
+            if (!g.world.canStand(x, y, 20, 12)) continue;
+            return { x: x, y: y, d: d };
+          }
+        }
+        return null;
+      }());
+      r.weitWeg = weitWeg ? weitWeg.d : null;
+      if (weitWeg) {
+        g.player.x = weitWeg.x;
+        g.player.y = weitWeg.y;
+        g.startPlacing('bench');
+        await new Promise((res) => setTimeout(res, 140));
+        r.falscherOrt = g.ui._lastPrompt;
+        g.cancelPlacing();
+      }
 
       // Falsche Sorte
       g.player.x = feuer.x + 120;
@@ -6796,7 +6831,11 @@ async function run() {
       wand1.anLeerenTagen === false, JSON.stringify(wand1));
     check('Am Besuchstag steht der Wanderer am Strand, in Sichtweite des Lagers',
       wand1.steht === true && wand1.aufSand === wand1.sandIst &&
-      wand1.zumFeuer > 0 && wand1.zumFeuer <= 1100, JSON.stringify(wand1));
+      // Die Obergrenze ist eine ENTFERNUNG auf der Insel und wächst mit
+      // ihr – wie die Regel, nach der der Platz gesucht wird. Der
+      // Abstand zur nächsten Station darunter wächst nicht: Er ist ein
+      // Abstand zwischen Dingen, und die sind gleich groß geblieben.
+      wand1.zumFeuer > 0 && wand1.zumFeuer <= 1100 * MASSSTAB, JSON.stringify(wand1));
     check('Und nicht neben dem Boot – sonst setzt man statt zu reden über',
       wand1.zurStation >= 230, JSON.stringify(wand1));
     check('Er steht auf begehbarem Boden und nicht in einem Findling',

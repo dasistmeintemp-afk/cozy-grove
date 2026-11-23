@@ -11,6 +11,25 @@
  * auf hundert Prozent. Siehe `ColorField.growByArea`.
  */
 
+import { MASSSTAB } from '../world/worldgen.js';
+
+/**
+ * Die Farbzahlen hier sind für die ursprüngliche 96er-Insel gedacht und
+ * werden auf den aktuellen Maßstab gerechnet.
+ *
+ * Auf einer anderthalbmal so großen Insel ist dieselbe Fläche nur noch
+ * halb so viel wert, und das ganze Spiel wird 2,25-mal so lang: Gemessen
+ * brauchte es nach der Vergrößerung 861 statt rund 380 Aufträge, bis die
+ * Insel farbig war – zwei Prüfungen meldeten das zu Recht als „zu zäh".
+ *
+ * Gerechnet wird HIER und nicht im Farbfeld: Das Feld ist ein
+ * Mechanismus und soll über seine eigenen Einheiten nicht lügen. Hier
+ * stehen die Spielwerte, und Spielwerte hängen an der Größe der Welt.
+ * Radien wachsen linear, Flächen im Quadrat.
+ */
+const R = function (n) { return Math.round(n * MASSSTAB); };
+const A = function (n) { return Math.round(n * MASSSTAB * MASSSTAB); };
+
 export const SPIRITS = {
   flamey: {
     id: 'flamey',
@@ -19,8 +38,8 @@ export const SPIRITS = {
     art: 'spirit_flamey',
     region: 0,
     role: 'Lagerfeuer',
-    colorStart: 312,
-    colorArea: 131000,
+    colorStart: R(312),
+    colorArea: A(131000),
     // 'cook': Die Kochstelle steht neben seinem Feuer – er sieht jedes Mal zu.
     questTypes: ['burn', 'burn', 'gather_wood', 'visit', 'craft', 'cook', 'set', 'deliver'],
     likes: ['wood', 'hardwood', 'resin'],
@@ -39,8 +58,8 @@ export const SPIRITS = {
     art: 'spirit_mira',
     region: 0,
     role: 'Wiese',
-    colorStart: 240,
-    colorArea: 127000,
+    colorStart: R(240),
+    colorArea: A(127000),
     // 'cook': Bei ihr auf der Wiese wächst fast alles, was in den Topf kommt.
     questTypes: ['gather_forage', 'find', 'decorate', 'catch_bug', 'visit', 'cook', 'set', 'grow', 'deliver'],
     // Die Dämmerblume gehört zu ihr: Sie ist die Blumenfrau der Insel, und
@@ -63,8 +82,8 @@ export const SPIRITS = {
     region: 0,
     role: 'Strand',
     water: 'sea',
-    colorStart: 240,
-    colorArea: 127000,
+    colorStart: R(240),
+    colorArea: A(127000),
     questTypes: ['catch', 'catch', 'fish', 'gather_beach', 'visit', 'set', 'deliver'],
     likes: ['shell', 'driftwood', 'fish_cod', 'fish_mackerel'],
     favourite: 'fish_cod',
@@ -83,8 +102,8 @@ export const SPIRITS = {
     region: 1,
     role: 'Wald',
     water: 'fresh',
-    colorStart: 256,
-    colorArea: 146000,
+    colorStart: R(256),
+    colorArea: A(146000),
     questTypes: ['gather_wood', 'find', 'visit', 'catch_bug', 'burn', 'set', 'grow', 'deliver'],
     likes: ['hardwood', 'resin', 'mushroom'],
     favourite: 'hardwood',
@@ -102,8 +121,8 @@ export const SPIRITS = {
     art: 'spirit_tobi',
     region: 1,
     role: 'Werkstatt',
-    colorStart: 240,
-    colorArea: 139000,
+    colorStart: R(240),
+    colorArea: A(139000),
     questTypes: ['craft', 'craft', 'gather_ore', 'visit', 'decorate', 'set', 'deliver'],
     likes: ['copper_ore', 'stone', 'shard'],
     favourite: 'shard',
@@ -121,8 +140,8 @@ export const SPIRITS = {
     art: 'spirit_nelly',
     region: 2,
     role: 'Klippen',
-    colorStart: 240,
-    colorArea: 151000,
+    colorStart: R(240),
+    colorArea: A(151000),
     // 'cook': „Ich habe für alle gedeckt. Auch für die, die nicht kommen."
     questTypes: ['find', 'visit', 'decorate', 'craft', 'gather', 'cook', 'set', 'grow', 'deliver'],
     // Bernstein dazu: Sie wohnt oben am Stein, ihr Lieblingsstück ist der
@@ -145,8 +164,8 @@ export const SPIRITS = {
     role: 'Stille Insel',
     // Ihr Kreis beginnt größer als bei allen anderen: Sie ist allein auf
     // ihrer Insel, und ein winziger Farbfleck im Nichts sähe verloren aus.
-    colorStart: 360,
-    colorArea: 158000,
+    colorStart: R(360),
+    colorArea: A(158000),
     // 'cook': Sie ist allein auf ihrer Insel. Jemand, der ihr etwas Warmes
     // hinüberbringt, ist das Freundlichste, was das Spiel zu bieten hat.
     questTypes: ['find', 'catch_bug', 'gather_beach', 'fish', 'visit', 'cook', 'set', 'deliver', 'grow'],

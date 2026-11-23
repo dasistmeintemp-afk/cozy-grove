@@ -20,7 +20,9 @@
  * Lager, das man sich woanders absteckt, hieße zwei Lager – eines mit
  * Feuer, Werkbank und Händler, und eines, das man selbst gebaut hat.
  */
-import { CAMP_TILE, MAP_W, MAP_H, TILE_SIZE, regionAt, REGION, tileIndex } from '../world/worldgen.js';
+import {
+  CAMP_TILE, MAP_W, MAP_H, TILE_SIZE, regionAt, REGION, tileIndex, MASSSTAB,
+} from '../world/worldgen.js';
 import { isWalkable } from '../art/tiles.js';
 
 /**
@@ -64,7 +66,7 @@ export const MAX_PLOT_STAGE = PLOT_STAGES.length;
  * das Rechteck um (9|60) zu rund drei Vierteln Land, und das ist der beste
  * Wert, den die schmale Insel hergibt.
  */
-export const ISLE_PLOT_TILE = { x: 9, y: 60 };
+export const ISLE_PLOT_TILE = { x: Math.round(9 * MASSSTAB), y: Math.round(60 * MASSSTAB) };
 
 export const ISLE_PLOT_STAGES = [
   { id: 1, name: 'Die Bucht', halfW: 6, halfH: 7, coins: 1000,
