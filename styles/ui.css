@@ -168,6 +168,27 @@ html, body {
 }
 
 .layer { position: absolute; }
+
+/**
+ * Die Oberfläche bekommt ihre eigene Ebene.
+ *
+ * Darunter liegt eine Zeichenfläche, die sechzig Mal in der Sekunde neu
+ * gemalt wird. Ohne eigene Ebene rechnet der Browser bei jedem dieser
+ * Bilder auch die Oberfläche darüber neu zusammen – jeden Rand, jeden
+ * Schatten, jede Farbscheibe. Gemessen hat der Tuschedurchgang an der
+ * Oberfläche deshalb rund zwei Bilder je Sekunde gekostet: Die Ränder
+ * wurden dreimal so breit, und genau das musste nun sechzig Mal in der
+ * Sekunde mitgerechnet werden.
+ *
+ * `will-change: transform` sagt dem Browser, dass sich diese Kästen
+ * unabhängig bewegen können. Er legt sie einmal ab und setzt sie
+ * danach nur noch darüber, statt sie neu zu zeichnen. Nur für die
+ * Kästen, die wirklich stillstehen – eine Ebene je Element wäre
+ * teurer als das Neuzeichnen.
+ */
+#hud-top, #quest-rail, #toolbelt {
+  will-change: transform;
+}
 .ui { pointer-events: auto; }
 
 /* ---------- Kopfzeile ---------- */
@@ -662,7 +683,7 @@ html, body {
 #panel-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(58, 45, 30, 0.4);
+  background: rgba(36, 30, 26, 0.46);
 }
 
 #panel {
@@ -675,8 +696,8 @@ html, body {
   /* Papierkorn aus zwei Punktrastern – ohne es wirkt das Creme wie Plastik. */
   background-color: var(--paper);
   background-image:
-    radial-gradient(circle at 22% 32%, rgba(74, 64, 56, 0.05) 0 1px, transparent 1.2px),
-    radial-gradient(circle at 72% 66%, rgba(74, 64, 56, 0.038) 0 1px, transparent 1.2px);
+    radial-gradient(circle at 22% 32%, rgba(36, 30, 26, 0.06) 0 1px, transparent 1.2px),
+    radial-gradient(circle at 72% 66%, rgba(36, 30, 26, 0.045) 0 1px, transparent 1.2px);
   background-size: 13px 13px, 19px 17px;
   border: 3px solid var(--edge-strong);
   border-radius: var(--r-card);
@@ -692,7 +713,7 @@ html, body {
   align-items: center;
   gap: 10px;
   padding: 11px 13px;
-  border-bottom: 2px solid var(--edge);
+  border-bottom: var(--strich) solid var(--edge);
   background: var(--paper-deep);
 }
 
@@ -705,8 +726,8 @@ html, body {
 .tab {
   padding: 6px 13px;
   border-radius: 999px;
-  border: 2px solid var(--edge-soft);
-  background: transparent;
+  border: var(--strich) solid var(--edge-soft);
+  background: var(--paper-warm);
   color: var(--ink-dim);
   cursor: pointer;
   font-size: 0.85em;
@@ -715,7 +736,13 @@ html, body {
 }
 
 .tab:hover { border-color: var(--edge); color: var(--ink); }
-.tab[aria-selected="true"] { background: var(--warm-wash); border-color: var(--edge); color: var(--ink); }
+/* Der offene Reiter ist eine Fläche, keine Tönung: Welcher Teil des
+   Fensters gerade zu sehen ist, soll man am Fleck erkennen. */
+.tab[aria-selected="true"] {
+  background: var(--warm);
+  border-color: var(--edge-strong);
+  color: #3a2409;
+}
 
 .grid {
   display: grid;
@@ -762,12 +789,23 @@ html, body {
   letter-spacing: 0.12em;
 }
 
+/**
+ * Ein Fach ist ein Fach, kein angedeutetes Rechteck.
+ *
+ * Hier stand `2px solid var(--edge-soft)` – eine zu 26 % deckende Linie,
+ * über Papier gerechnet Helligkeit 194. Auf cremefarbenem Grund ist das
+ * ein Hauch. Im Rucksack standen damit vierundzwanzig Dinge auf einer
+ * Fläche, ohne dass man gesehen hätte, wo eines aufhört und das nächste
+ * anfängt; man las die Zahlen und zählte die Reihen.
+ *
+ * Im Vorbild hat jedes Fach dieselbe dunkle Kontur wie alles andere.
+ */
 .slot {
   position: relative;
   aspect-ratio: 1 / 1;
   min-height: calc(84px * var(--ui-scale));
   border-radius: var(--r-slot);
-  border: 2px solid var(--edge-soft);
+  border: var(--strich) solid var(--edge);
   background: var(--paper-warm);
   display: flex;
   flex-direction: column;
@@ -788,13 +826,36 @@ html, body {
   min-width: calc(19px * var(--ui-scale));
   padding: 0 calc(4px * var(--ui-scale));
   border-radius: 999px;
-  background: var(--paper-deep);
-  border: 1px solid var(--edge-soft);
+  /**
+   * Die Zahl steht DUNKEL auf hell, nicht hellbraun auf cremefarben.
+   *
+   * Vorher: Papierton mit einer zu 26 % deckenden Linie darum, also eine
+   * Marke, die sich kaum vom Fach darunter abhob – und die Zahl ist das
+   * Einzige, weswegen man in die Tasche schaut. Jetzt sitzt sie auf der
+   * Tusche selbst, wie die Zählmarke im Vorbild.
+   */
+  background: var(--tusche);
+  color: var(--paper-warm);
+  border: none;
+  box-shadow: 0 1px 0 rgba(36, 30, 26, 0.3);
   font-size: calc(12px * var(--ui-scale));
-  line-height: calc(18px * var(--ui-scale));
+  line-height: calc(19px * var(--ui-scale));
   text-align: center;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+}
+
+/**
+ * Das Symbol füllt das Fach, statt darin zu schweben.
+ *
+ * Mit 22 Punkten in einem Fach von 84 nahm es ein Sechstel der Fläche
+ * ein; den Rest trug die Beschriftung. Im Vorbild ist das Bild die
+ * Hauptsache und der Name die Fußnote – man erkennt sein Zeug an der
+ * Form, nicht am Wort.
+ */
+.slot .ico {
+  width: calc(46px * var(--ui-scale));
+  height: calc(46px * var(--ui-scale));
 }
 /* Zwei Zeilen statt einer: „Pflanzenfaser" und „Nebelkristall" passen in
    kein Fach von 84 px. Abgeschnitten wurde vorher mitten im Wort, und was
@@ -818,7 +879,12 @@ html, body {
   overflow-wrap: break-word;
 }
 .slot.empty { opacity: 0.4; cursor: default; }
-.slot.sel { border-color: var(--edge-strong); background: var(--warm-wash); }
+/* Gefüllt wie das gewählte Werkzeug – aus demselben Grund. */
+.slot.sel {
+  border-color: var(--edge-strong);
+  background: var(--warm);
+  box-shadow: inset 0 0 0 2px rgba(253, 250, 242, 0.55);
+}
 
 .rows { display: flex; flex-direction: column; gap: 7px; }
 
@@ -1001,8 +1067,8 @@ html, body {
   text-align: center;
   background-color: var(--paper);
   background-image:
-    radial-gradient(circle at 22% 32%, rgba(74, 64, 56, 0.05) 0 1px, transparent 1.2px),
-    radial-gradient(circle at 72% 66%, rgba(74, 64, 56, 0.038) 0 1px, transparent 1.2px);
+    radial-gradient(circle at 22% 32%, rgba(36, 30, 26, 0.06) 0 1px, transparent 1.2px),
+    radial-gradient(circle at 72% 66%, rgba(36, 30, 26, 0.045) 0 1px, transparent 1.2px);
   background-size: 13px 13px, 19px 17px;
   border: 3px solid var(--edge-strong);
   border-radius: var(--r-card);
@@ -1032,7 +1098,7 @@ html, body {
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
-  box-shadow: 0 3px 0 rgba(74, 64, 56, 0.2);
+  box-shadow: 0 3px 0 rgba(36, 30, 26, 0.34);
 }
 
 .big-btn.primary { background: var(--warm); border-color: var(--edge-strong); color: #3a2409; }
@@ -1048,7 +1114,7 @@ html, body {
 }
 .big-btn.quiet:hover { color: var(--ink); border-color: var(--edge); }
 .big-btn:hover { filter: brightness(1.04); }
-.big-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(74, 64, 56, 0.2); }
+.big-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(36, 30, 26, 0.34); }
 
 #boot-help { margin-top: 16px; text-align: left; font-size: 0.84em; color: var(--ink-dim); }
 #boot-help summary { cursor: pointer; text-align: center; margin-bottom: 8px; font-weight: 700; color: var(--ink); }
