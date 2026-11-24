@@ -4783,9 +4783,14 @@ async function run() {
         wieseOben: reihe(yK - 60).mittel,
         wieseUnten: reihe(yK + 140).mittel,
         kanteOben: tiefstes(-4, 4),
-        wandObenDrittel: reihe(yK + 20).mittel,
-        wandUntenDrittel: reihe(yK + 50).mittel,
-        kanteFuss: tiefstes(58, 80),
+        // Die Wand ist rund 45 Punkte hoch, nicht 64: Sie wird aus der
+        // Höhenlinie extrudiert (siehe PLATEAU_HOEHE) und nicht mehr
+        // über die volle Kachel gemalt. Bei 50 lag das Messband deshalb
+        // schon unter ihrem Fuß, und die Prüfung verglich Wand mit
+        // Boden statt Wand mit Wand.
+        wandObenDrittel: reihe(yK + 14).mittel,
+        wandUntenDrittel: reihe(yK + 38).mittel,
+        kanteFuss: tiefstes(40, 62),
       };
     });
     /**
