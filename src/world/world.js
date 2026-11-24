@@ -8,7 +8,7 @@ import {
   DOCK_TILE, ISLE_DOCK_TILE, ALL_REGIONS, HIGHLAND_Y, MASSSTAB,
 } from './worldgen.js';
 import { makeEntity, defOf, spriteFor } from './entities.js';
-import { makeRng, randInt, randPick, dailyRng } from '../core/rng.js';
+import { makeRng, randInt, randPick, dailyRng, makeNoise2D, fbm } from '../core/rng.js';
 import { syncIdCounter } from '../core/util.js';
 import { inAnyPlot, inAnyPlotAt } from '../game/plot.js';
 import { biomeFuer, BIOME } from './biome.js';
@@ -362,12 +362,52 @@ export class World {
       return tx >= CHANNEL_X0 - 5 && tx <= CHANNEL_X1 + 5 && ty >= BRIDGE_Y0 - 4 && ty <= BRIDGE_Y1 + 4;
     }
 
-    function scatter(kinds, spots, count, spacing, nachbehandeln) {
+    /**
+     * Das Lichtungsfeld – wo die Insel dicht ist und wo man weit sieht.
+     *
+     * Die Dichte zu senken hat die Insel leerer gemacht, aber nicht
+     * abwechslungsreicher: Es standen überall GLEICH VIELE Bäume, nur
+     * weniger. Auf einem Bild vom Lager war kein Fleck ohne Baum und
+     * kein Fleck mit Platz – genau das heißt „alles sieht gleich aus".
+     *
+     * Im Vorbild wechseln sich Dickicht und Wiese ab. Das ist keine
+     * Frage der Anzahl, sondern der VERTEILUNG. Ein grobes Rauschen
+     * (eine Welle über etwa fünfzehn Kacheln) sagt für jede Kachel, wie
+     * dicht es dort sein soll. Wo es niedrig steht, wird ein Platz
+     * verworfen – der Baum geht nicht verloren, er wird woanders
+     * gesetzt, weil scatter weitersucht, bis die Zahl erreicht ist.
+     * Dieselbe Menge Wald, aber in Gruppen statt im Raster.
+     *
+     * Nur Bäume und Büsche folgen dem Feld. Gras, Blumen und Steine
+     * dürfen auch auf der Lichtung liegen – eine Wiese ohne Grasbüschel
+     * wäre ein Rasen, keine Lichtung.
+     */
+    const lichtRausch = makeNoise2D(this.seed ^ 0x5eed10);
+    function lichtungsFeld(tx, ty) {
+      // 2 Oktaven: die große Welle bestimmt Wald oder Wiese, die kleine
+      // franst den Rand aus, damit keine Kreise entstehen.
+      const n = fbm(lichtRausch, tx * 0.062, ty * 0.062, 2, 2, 0.45);
+      // fbm liefert 0 bis 1 mit dem Schwerpunkt bei 0,47 – NICHT -1 bis
+      // 1, wie zuerst gerechnet. Mit der falschen Annahme lag der Wert
+      // nie unter 0,59, das Feld lehnte so gut wie nichts ab, und die
+      // Insel sah danach exakt genauso aus wie davor. Nachgemessen,
+      // nicht geraten: 10 % der Fläche liegen unter 0,275, 90 % unter
+      // 0,689.
+      //
+      // Um diesen Schwerpunkt wird gespreizt, und zwar über die Ränder
+      // hinaus: Unten wird abgeschnitten, damit es Stellen gibt, an
+      // denen WIRKLICH nichts wächst, oben, damit das Dickicht nicht
+      // beliebig dicht wird.
+      return Math.max(0, Math.min(1.3, (n - 0.47) * 3.6 + 0.5));
+    }
+
+    function scatter(kinds, spots, count, spacing, nachbehandeln, nachFeld) {
       let placed = 0;
       let guard = 0;
       while (placed < count && guard++ < count * 30 && spots.length) {
         const s = spots[Math.floor(rng() * spots.length)];
         if (nearFord(s.x, s.y) || nearBridge(s.x, s.y)) continue;
+        if (nachFeld && rng() > lichtungsFeld(s.x, s.y)) continue;
         const wx = (s.x + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
         const wy = (s.y + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
         if (self._tooClose(wx, wy, spacing)) continue;
@@ -552,7 +592,7 @@ export class World {
      * das andere.
      */
     const DICHTE = 0.72;
-    const BAUM_DICHTE = 0.7;
+    const BAUM_DICHTE = 0.58;
 
     const biome = biomeFuer(this.seed);
     const nachBiom = {};
@@ -594,8 +634,8 @@ export class World {
       scatter(gewichte, felder, Math.round(je100(def.dichteBaum) * BAUM_DICHTE),
         70, function (e, tx, ty) {
         if (e.kind === 'tree_wind') e.lehnt = windNeigung(tx, ty);
-      });
-      scatter(['bush_berry', 'bush_plain'], felder, je100(def.busch), 56);
+      }, true);
+      scatter(['bush_berry', 'bush_plain'], felder, je100(def.busch), 56, null, true);
       for (let i = 0; i < def.boden.length; i++) {
         const kind = def.boden[i][0];
         // Felsen brauchen Abstand, Grasbüschel nicht: Ein Findling alle
