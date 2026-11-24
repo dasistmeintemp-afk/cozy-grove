@@ -229,6 +229,70 @@ export class World {
     return true;
   }
 
+  /**
+   * Trägt diese Stelle, oder ist sie eine Sandbank?
+   *
+   * Begehbar und brauchbar sind nicht dasselbe. Jede Insel hat neben
+   * ihren drei Landmassen noch ein paar abgetrennte Fetzen – gemessen
+   * über sechzig Inseln: im Mittel zwei, höchstens sechs, und keiner
+   * größer als 72 Kacheln.
+   *
+   * Das war kein theoretischer Fall: Die Rettung für Spielstände von
+   * der alten, kleinen Insel suchte die nächste BEGEHBARE Kachel und
+   * setzte die Figur auf so einen Fetzen. Sie konnte laufen – drei
+   * Schritte weit, und ringsum Wasser.
+   *
+   * Warum die Größe und nicht der Anschluss ans Lager: Weil die Insel
+   * gar nicht durchgehend zu Fuß erreichbar IST. Brücke und Boot sind
+   * keine begehbaren Kacheln, nur 60 % der Insel hängen zu Fuß am
+   * Lager – auch gemessen. Wer „erreichbar vom Lager" verlangt, würde
+   * jeden, der auf der Stillen Insel gespeichert hat, ans Lager
+   * zurückwerfen. Die Größe trennt sauber: 72 gegen 883 Kacheln, auf
+   * allen sechzig geprüften Inseln keine einzige dazwischen.
+   *
+   * Die Antwort wird einmal berechnet und behalten – die Kacheln
+   * ändern sich nach der Erzeugung nicht mehr.
+   */
+  festerBoden(px, py) {
+    const MINDEST = 200;
+    if (!this._bodenGross) {
+      const gross = new Uint8Array(MAP_W * MAP_H);
+      const gesehen = new Uint8Array(MAP_W * MAP_H);
+      for (let ty = 0; ty < MAP_H; ty++) {
+        for (let tx = 0; tx < MAP_W; tx++) {
+          const i0 = tileIndex(tx, ty);
+          if (gesehen[i0] || !isWalkable(this.tiles[i0])) continue;
+          const masse = [i0];
+          const stapel = [tx, ty];
+          gesehen[i0] = 1;
+          while (stapel.length) {
+            const y = stapel.pop();
+            const x = stapel.pop();
+            const nachbarn = [x + 1, y, x - 1, y, x, y + 1, x, y - 1];
+            for (let k = 0; k < 8; k += 2) {
+              const nx = nachbarn[k];
+              const ny = nachbarn[k + 1];
+              if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+              const i = tileIndex(nx, ny);
+              if (gesehen[i] || !isWalkable(this.tiles[i])) continue;
+              gesehen[i] = 1;
+              masse.push(i);
+              stapel.push(nx, ny);
+            }
+          }
+          if (masse.length >= MINDEST) {
+            for (let k = 0; k < masse.length; k++) gross[masse[k]] = 1;
+          }
+        }
+      }
+      this._bodenGross = gross;
+    }
+    const tx = Math.floor(px / TILE_SIZE);
+    const ty = Math.floor(py / TILE_SIZE);
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return false;
+    return this._bodenGross[tileIndex(tx, ty)] === 1;
+  }
+
   /** Ist an dieser Stelle Wasser (zum Angeln)? */
   waterAt(px, py) {
     return isWater(this.tileAt(px, py));

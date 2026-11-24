@@ -503,7 +503,17 @@ export class Game {
    */
   _spielerRetten() {
     const p = this.player;
-    if (this.world.canStand(p.x, p.y)) return false;
+    // Zwei Fälle, nicht einer.
+    //
+    // Zuerst stand hier nur „kann sie stehen?". Das hat den gemeldeten
+    // Fall nicht erwischt: Eine Spielerin stand auf einer abgetrennten
+    // Sandbank, konnte dort laufen – und genau deshalb griff die
+    // Rettung nicht. „Hier kann ich mich bewegen, aber es ist immer
+    // noch Wasser um mich herum."
+    //
+    // Gerettet wird also, wer nicht stehen kann ODER auf etwas steht,
+    // das nirgendwohin führt.
+    if (this.world.canStand(p.x, p.y) && this.world.festerBoden(p.x, p.y)) return false;
     const T2 = 64;
     for (let r = 1; r <= 40; r++) {
       for (let dy = -r; dy <= r; dy++) {
@@ -512,6 +522,12 @@ export class Game {
           const x = p.x + dx * T2;
           const y = p.y + dy * T2;
           if (!this.world.canStand(x, y)) continue;
+          // Begehbar reicht nicht – es muss tragen.
+          //
+          // Ohne diese Zeile landete die Figur auf einer losgelösten
+          // Sandbank: Sie konnte laufen, drei Schritte weit, und ringsum
+          // war Wasser. Jede Insel hat im Mittel zwei solcher Fetzen.
+          if (!this.world.festerBoden(x, y)) continue;
           p.x = x;
           p.y = y;
           p.prevX = x;

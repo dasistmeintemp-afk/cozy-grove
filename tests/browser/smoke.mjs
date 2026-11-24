@@ -4243,6 +4243,79 @@ async function run() {
       gestrandet.nochmal === false && gestrandet.unveraendert === true,
       JSON.stringify(gestrandet));
 
+    // Die Rettung darf nicht auf einer Sandbank enden.
+    //
+    // Die erste Fassung tat genau das. Eine Spielerin schrieb: „Ich bin
+    // jetzt auf einem Fleck, hier kann ich mich bewegen, aber es ist
+    // immer noch Wasser um mich herum." Sie stand auf einem abgetrennten
+    // Fetzen Land – begehbar, aber drei Schritte groß.
+    //
+    // Geprüft wird deshalb der schlimmste Fall: die Figur ins Wasser
+    // DIREKT NEBEN einen solchen Fetzen setzen, sodass er die nächste
+    // begehbare Kachel überhaupt ist.
+    const sandbank = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { isWalkable } = await import('/src/art/tiles.js');
+      const merk = { x: g.player.x, y: g.player.y };
+      // Den größten Fetzen suchen: alle Landmassen durchzählen, die
+      // großen (ab 200 Kacheln) verwerfen.
+      const gesehen = new Uint8Array(144 * 144);
+      let fetzen = null;
+      for (let ty = 0; ty < 144; ty++) {
+        for (let tx = 0; tx < 144; tx++) {
+          const i0 = ty * 144 + tx;
+          if (gesehen[i0] || !isWalkable(g.world.tileAtTile(tx, ty))) continue;
+          const masse = [[tx, ty]];
+          const stapel = [tx, ty];
+          gesehen[i0] = 1;
+          while (stapel.length) {
+            const y = stapel.pop();
+            const x = stapel.pop();
+            const nb = [x + 1, y, x - 1, y, x, y + 1, x, y - 1];
+            for (let k = 0; k < 8; k += 2) {
+              const nx = nb[k];
+              const ny = nb[k + 1];
+              if (nx < 0 || ny < 0 || nx >= 144 || ny >= 144) continue;
+              const i = ny * 144 + nx;
+              if (gesehen[i] || !isWalkable(g.world.tileAtTile(nx, ny))) continue;
+              gesehen[i] = 1;
+              masse.push([nx, ny]);
+              stapel.push(nx, ny);
+            }
+          }
+          if (masse.length < 200 && (!fetzen || masse.length > fetzen.length)) fetzen = masse;
+        }
+      }
+      if (!fetzen) return { keinFetzen: true };
+      const [ftx, fty] = fetzen[Math.floor(fetzen.length / 2)];
+      const r = { fetzenGross: fetzen.length };
+      g.player.x = (ftx + 0.5) * 64;
+      g.player.y = (fty + 0.5) * 64;
+      // Falls die Figur dort sogar stehen kann, ist das genau der
+      // gemeldete Zustand – sonst wird sie gleich daneben ins Wasser
+      // gesetzt und der Fetzen ist das nächstgelegene Land.
+      if (g.world.canStand(g.player.x, g.player.y)) {
+        r.standAufFetzen = true;
+      } else {
+        g.player.x = (ftx + 0.5) * 64;
+        g.player.y = (fty - 1.5) * 64;
+        r.standAufFetzen = false;
+      }
+      g._spielerRetten();
+      r.fest = g.world.canStand(g.player.x, g.player.y);
+      r.traegt = g.world.festerBoden(g.player.x, g.player.y);
+      g.player.x = merk.x;
+      g.player.y = merk.y;
+      g.player.prevX = merk.x;
+      g.player.prevY = merk.y;
+      g.camera.snapTo(merk.x, merk.y);
+      return r;
+    });
+    check('Die Rettung setzt niemanden auf eine Sandbank',
+      sandbank.keinFetzen === true
+      || (sandbank.fest === true && sandbank.traegt === true),
+      JSON.stringify(sandbank));
+
     /* ---- Die Oberfläche ist aus demselben Material wie die Welt ---- */
     // Gemessen wird die gerechnete Darstellung, nicht das Aussehen:
     // Welche Farbe hat die Kontur eines Feldes wirklich, und wie breit
