@@ -1367,7 +1367,9 @@ export class Game {
     }
 
     if (warf && this.ground) {
-      this.ground.markTileDirty(Math.floor(e.x / 64), Math.floor(e.y / 64));
+      // Der Radius des Kronenschattens gehört zum Boden, nicht hierher –
+      // deshalb die eigene Methode und nicht `markTileDirty`.
+      this.ground.markBaumDirty(e.x, e.y);
     }
   }
 
@@ -7821,11 +7823,15 @@ export class Game {
     // Der steckt im gebackenen Boden, also muss der neu entstehen – sonst
     // steht der Baum wieder da, aber der Boden unter ihm bleibt hell.
     //
-    // Einmal am Tag alles wegzuwerfen ist dafür der ehrlichste Weg: Welche
-    // Kacheln betroffen sind, weiß nur `newDay`, und der Neuaufbau fällt in
-    // den Augenblick, in dem das Bild ohnehin überblendet. Dieselbe
-    // Entscheidung wie bei den Gezeiten.
-    this.ground.clear();
+    // Einmal am Tag alles für ungültig zu erklären ist dafür der
+    // ehrlichste Weg: Welche Kacheln betroffen sind, weiß nur `newDay`,
+    // und der Neuaufbau fällt in den Augenblick, in dem das Bild ohnehin
+    // überblendet. Dieselbe Entscheidung wie bei den Gezeiten.
+    //
+    // VERALTEN, nicht leeren. Ein geleertes Stück zeichnet nichts, und
+    // „nichts" ist hier weißes Papier – 512 Punkte im Quadrat davon.
+    // Veraltet zeigt es sein gestriges Bild, bis das neue fertig ist.
+    this.ground.markAllDirty();
     // Erst das Wetter des neuen Tages, dann wachsen lassen: Regen zählt
     // doppelt, und das soll der Regen von heute sein, nicht der von gestern.
     this.weather.setDay(this.world.seed, day, this.season());

@@ -113,6 +113,81 @@ export const ORTGEIST_LOOKS = {
   },
 };
 
+/**
+ * Den durchsichtigen Rand wegschneiden.
+ *
+ * Ein gemaltes Bild entsteht großzügig: Der Weichzeichner braucht Platz,
+ * die Kontur darf überstehen, und niemand rechnet beim Malen aus, wie weit
+ * ein Grasbüschel wirklich reicht. Übrig bleibt ein Rand, der nichts
+ * enthält – und der wird trotzdem in JEDEM Bild mitgezeichnet.
+ *
+ * Gemessen, bevor das hier stand: Ein Grasbüschel ist 110 mal 94 Punkte
+ * groß und sein Inhalt 66 mal 48 – 69 Prozent leerer Rand. Pilz 70
+ * Prozent, Muschel 72, Blume 69. Das sind genau die Dinge, von denen
+ * hunderte gleichzeitig im Bild stehen: Am Lagerfeuer wurden so 7,9
+ * Millionen Bildpunkte je Bild bewegt, bei einer Bildschirmfläche von
+ * 0,9 Millionen. Achtfache Überdeckung, und mehr als die Hälfte davon
+ * war nichts.
+ *
+ * Das Bild ändert sich dabei NICHT: Weggeschnitten wird nur, was ganz
+ * durchsichtig ist, und der Ankerpunkt wandert mit. Was auf dem
+ * Bildschirm erscheint, ist Punkt für Punkt dasselbe.
+ *
+ * Symbole bleiben unberührt (`icon_`): Sie gehen als Bild in die
+ * Oberfläche, und dort sorgt ihr gleichmäßiger Rand dafür, dass ein
+ * schmales und ein breites Symbol nebeneinander gleich groß wirken.
+ */
+function zuschneiden(entry) {
+  const w = entry.w;
+  const h = entry.h;
+  if (w < 8 || h < 8) return entry;
+  let x0 = w;
+  let y0 = h;
+  let x1 = -1;
+  let y1 = -1;
+  const lagen = [entry.c, entry.g];
+  for (let k = 0; k < lagen.length; k++) {
+    const src = lagen[k];
+    if (!src || !src.width || !src.height) continue;
+    let d;
+    try {
+      d = ctx2d(src).getImageData(0, 0, src.width, src.height).data;
+    } catch (err) {
+      // Ein Bild, dessen Punkte sich nicht lesen lassen, bleibt wie es ist.
+      return entry;
+    }
+    const sw = src.width;
+    for (let y = 0; y < src.height; y++) {
+      const zeile = y * sw * 4;
+      for (let x = 0; x < sw; x++) {
+        if (d[zeile + x * 4 + 3] === 0) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  // Ganz leer oder schon eng: nichts zu tun.
+  if (x1 < x0 || y1 < y0) return entry;
+  if (x0 === 0 && y0 === 0 && x1 === w - 1 && y1 === h - 1) return entry;
+  const nw = x1 - x0 + 1;
+  const nh = y1 - y0 + 1;
+  const kopie = function (src) {
+    if (!src) return src;
+    const c = makeCanvas(nw, nh);
+    ctx2d(c).drawImage(src, -x0, -y0);
+    return c;
+  };
+  entry.c = kopie(entry.c);
+  entry.g = kopie(entry.g);
+  entry.w = nw;
+  entry.h = nh;
+  entry.ax -= x0;
+  entry.ay -= y0;
+  return entry;
+}
+
 /** Legt eine gemalte Grafik ab und skaliert sie auf Spielgröße. */
 export function addArt(name, art, scale) {
   const s = scale == null ? ART_SCALE : scale;
@@ -139,6 +214,7 @@ export function addArt(name, art, scale) {
     ay: art.ay * s,
   };
   registry[name] = entry;
+  if (name.indexOf('icon_') !== 0) zuschneiden(entry);
   return entry;
 }
 

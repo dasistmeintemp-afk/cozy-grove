@@ -106,15 +106,77 @@ export class GroundLayer {
     return false;
   }
 
-  /** Wird nach Kachelwechseln aufgerufen (Weg gelegt, Brücke gebaut). */
+  /**
+   * Wird nach Kachelwechseln aufgerufen (Weg gelegt, Brücke gebaut,
+   * Baum gefällt).
+   *
+   * Hier standen zwei Fehler übereinander, und zusammen ergaben sie das,
+   * was ein Spieler so beschrieben hat: „wenn ich einen Baum fälle, dann
+   * kommen riesige weiße Pixel und das Bild ruckelt."
+   *
+   * **Zu viel weggeworfen.** Die alte Fassung verwarf ein Feld von drei
+   * mal drei Stücken um die Kachel – neun Stücke zu je 512 mal 512
+   * Punkten, zusammen mehr als zwei Millionen Bildpunkte. Gebraucht wird
+   * davon fast nichts: Ein Kronenschatten reicht höchstens 150 Punkte
+   * weit (Halbachse 100 plus Versatz), eine geänderte Kachel samt ihrer
+   * Tinte nicht weiter als den Rand des Stücks. Das sind ein bis vier
+   * Stücke, nicht neun.
+   *
+   * **Und das Weggeworfene war sofort weg.** Ein Stück, das gelöscht ist
+   * und noch nicht neu gemalt, zeichnet NICHTS – an seiner Stelle stand
+   * das blanke Papier. 512 mal 512 Punkte blankes Papier sind genau die
+   * „riesigen weißen Pixel". Siehe `_veralten`: Jetzt bleibt das alte
+   * Bild stehen, bis das neue fertig ist.
+   */
   markTileDirty(tx, ty) {
-    const cx = Math.floor(tx / CHUNK_TILES);
-    const cy = Math.floor(ty / CHUNK_TILES);
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) this._drop(cx + dx, cy + dy);
+    const x = tx * TILE_SIZE;
+    const y = ty * TILE_SIZE;
+    this.markAreaDirty(x - CHUNK_PAD, y - CHUNK_PAD,
+      x + TILE_SIZE + CHUNK_PAD, y + TILE_SIZE + CHUNK_PAD);
+  }
+
+  /**
+   * Alle Stücke, die dieses Weltrechteck berühren, müssen neu gemalt
+   * werden. In Weltpunkten, nicht in Kacheln.
+   */
+  markAreaDirty(x0, y0, x1, y1) {
+    const cx0 = Math.floor(x0 / CHUNK_PX);
+    const cy0 = Math.floor(y0 / CHUNK_PX);
+    const cx1 = Math.floor(x1 / CHUNK_PX);
+    const cy1 = Math.floor(y1 / CHUNK_PX);
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) this._veralten(cx, cy);
     }
   }
 
+  /**
+   * Ein Baum ist gefallen – was sein Schatten berührt hat, muss neu.
+   *
+   * Der Radius steht hier und nicht beim Aufrufer, weil er zum Boden
+   * gehört: Wie weit ein Kronenschatten reicht, weiß der Bodenmaler.
+   */
+  markBaumDirty(x, y) {
+    const R = 150;
+    this.markAreaDirty(x - R, y - R, x + R, y + R);
+  }
+
+  /**
+   * Alles neu malen lassen, ohne etwas zu verlieren.
+   *
+   * Für den Tageswechsel: Über Nacht wächst Gefälltes nach, und mit ihm
+   * sein Kronenschatten. Früher wurde dafür der ganze Zwischenspeicher
+   * geleert – und bis die Stücke neu gemalt waren, war der Boden leer.
+   */
+  markAllDirty() {
+    for (const k in this.cache) this.cache[k].alt = true;
+  }
+
+  /**
+   * Wirklich leeren – nur, wenn die alten Bilder FALSCH wären.
+   *
+   * Das ist bei einem Inselwechsel der Fall und sonst nie. Überall
+   * anders ist ein veraltetes Bild besser als gar keines.
+   */
   clear() {
     this.cache = Object.create(null);
     this.order.length = 0;
@@ -136,6 +198,21 @@ export class GroundLayer {
     return cx + '|' + cy;
   }
 
+  /**
+   * Ein Stück für ungültig erklären – aber sein Bild behalten.
+   *
+   * Der Unterschied zu `delete` ist der ganze Punkt: Ein gelöschtes Stück
+   * zeichnet nichts, ein veraltetes zeichnet sein altes Bild weiter. Zwei
+   * Bilder lang einen Kronenschatten zu sehen, der nicht mehr da ist, ist
+   * ein Fehler, den niemand bemerkt. Ein weißes Rechteck von 512 Punkten
+   * Kantenlänge bemerkt jeder.
+   */
+  _veralten(cx, cy) {
+    if (cx < 0 || cy < 0 || cx >= this.cols || cy >= this.rows) return;
+    const c = this.cache[this._key(cx, cy)];
+    if (c) c.alt = true;
+  }
+
   _drop(cx, cy) {
     const key = this._key(cx, cy);
     if (!this.cache[key]) return;
@@ -148,13 +225,31 @@ export class GroundLayer {
     if (cx < 0 || cy < 0 || cx >= this.cols || cy >= this.rows) return null;
     const key = this._key(cx, cy);
     const hit = this.cache[key];
-    if (hit) {
+    if (hit && !hit.alt) {
       hit.frame = this.frame;
       const at = this.order.indexOf(key);
       if (at >= 0 && at < this.order.length - 1) {
         this.order.splice(at, 1);
         this.order.push(key);
       }
+      return hit;
+    }
+    if (hit && hit.alt) {
+      // Veraltet: neu malen, wenn das Budget es hergibt – sonst zeigt es
+      // weiter sein altes Bild. Nie nichts.
+      if (allowPaint && this.budget > 0) {
+        this.budget--;
+        const neu = paintGroundChunk(this.world, cx, cy, this.pfade || null);
+        neu.frame = this.frame;
+        this.cache[key] = neu;
+        const at = this.order.indexOf(key);
+        if (at >= 0 && at < this.order.length - 1) {
+          this.order.splice(at, 1);
+          this.order.push(key);
+        }
+        return neu;
+      }
+      hit.frame = this.frame;
       return hit;
     }
     if (!allowPaint || this.budget <= 0) return null;

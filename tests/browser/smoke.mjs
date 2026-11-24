@@ -1339,8 +1339,31 @@ async function run() {
         // Das GANZE Fenster, nicht nur sein Anfang: Hier standen zuerst
         // `d.slice(0, 2000)` – also die obersten zwei Pixelzeilen.
         const d = ctx.getImageData(sx, sy, bw, bh).data;
+        /**
+         * Ein FESTES Raster, nicht jeder siebte Bildpunkt.
+         *
+         * Vorher hing die Zahl der Stichproben an der Größe des
+         * Ausschnitts in Bildpunkten – und die hängt an der Auflösung,
+         * die der Renderer unter Last selbst nachregelt. Änderte er sie
+         * zwischen der Flut- und der Ebbe-Aufnahme, waren die beiden
+         * Reihen verschieden lang, und die Prüfung meldete „nicht
+         * gemessen" statt eines Ergebnisses. Das sah aus wie ein Fehler
+         * im Watt und war einer in der Messung.
+         *
+         * 24 mal 18 Punkte über das Fenster verteilt sind unabhängig
+         * davon, wie groß das Fenster gerade ist.
+         */
+        const NX = 24;
+        const NY = 18;
         const proben = [];
-        for (let i = 0; i < d.length; i += 4 * 7) proben.push(d[i], d[i + 1], d[i + 2]);
+        for (let gy = 0; gy < NY; gy++) {
+          for (let gx = 0; gx < NX; gx++) {
+            const x = Math.min(bw - 1, Math.floor(((gx + 0.5) / NX) * bw));
+            const y = Math.min(bh - 1, Math.floor(((gy + 0.5) / NY) * bh));
+            const i = (y * bw + x) * 4;
+            proben.push(d[i], d[i + 1], d[i + 2]);
+          }
+        }
         return { proben: proben };
       }
 
@@ -3975,7 +3998,15 @@ async function run() {
       // Rückfall auch hier auf.
       for (const name of ['hutte_hilde', 'hutte_knut', 'hutte_marei', 'hutte_pepe']) {
         const s = spr(name);
-        if (!s) { out[name] = -1; continue; }
+        // „Fehlt" ist ein eigener Wert und kein Messwert.
+        //
+        // Hier stand -1 für beides: für ein fehlendes Bild UND als Zahl.
+        // Solange der Einbruch immer positiv war, fiel das nicht auf.
+        // Nachdem die Bilder auf ihren Inhalt zugeschnitten wurden, sitzt
+        // das Messband ein paar Punkte höher, und die Mitte ist dort
+        // HELLER als Dach und Wand – der Einbruch wurde negativ, und die
+        // Prüfung hielt das für ein fehlendes Bild.
+        if (!s) { out[name] = 'fehlt'; continue; }
         const oben = band(s, 0, 0.35);
         const mitte = Math.min(band(s, 0, 0.40), band(s, 0, 0.45));
         const unten = band(s, 0, 0.50);
@@ -3986,7 +4017,7 @@ async function run() {
     // Gemessen: mit dem Fehler ein Einbruch von 29 bis 35 Helligkeitsstufen,
     // ohne ihn 6 bis 13. Die Schwelle liegt dazwischen, nicht knapp daneben.
     check('Kein Haus hat ein zweites Dach im Giebel',
-      Object.keys(giebel).every((k) => giebel[k] >= 0 && giebel[k] < 20),
+      Object.keys(giebel).every((k) => typeof giebel[k] === 'number' && giebel[k] < 20),
       JSON.stringify(giebel));
 
     /* ---- Die Bewohner ziehen ein und bleiben ---- */
@@ -4407,6 +4438,102 @@ async function run() {
     check('Und man kommt wieder heraus, wo man hineingegangen ist',
       hoehle.wiederDraussen === true && hoehle.anDerselbenStelle === true,
       JSON.stringify(hoehle));
+
+    /* ---- Ein gefällter Baum reisst kein Loch in den Boden ---- */
+    // Gemeldet: „wenn ich einen Baum fälle, dann kommen riesige weisse
+    // Pixel und das Bild ruckelt." Der Boden ist in Stücke von 512 mal
+    // 512 Punkten gebacken; beim Fällen wurden neun davon GELÖSCHT, und
+    // ein gelöschtes Stück zeichnet nichts – weisses Papier, bis es neu
+    // gemalt ist. Zwei Fehler in einem: zu viele, und zu hart.
+    const bodenloch = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const baum = g.world.entities.find(function (e) {
+        return !e.gone && e.kind.indexOf('tree_') === 0 && e.kind !== 'tree_stump';
+      });
+      if (!baum) return { keinBaum: true };
+      const merk = { x: g.player.x, y: g.player.y };
+      g.player.x = baum.x;
+      g.player.y = baum.y + 70;
+      g.player.prevX = g.player.x;
+      g.player.prevY = g.player.y;
+      g.camera.snapTo(g.player.x, g.player.y);
+      await new Promise(function (ok) { setTimeout(ok, 1400); });
+      const vorher = Object.keys(g.ground.cache).length;
+      g.ground.markBaumDirty(baum.x, baum.y);
+      r.geloescht = vorher - Object.keys(g.ground.cache).length;
+      let veraltet = 0;
+      let ohneBild = 0;
+      for (const k in g.ground.cache) {
+        const c = g.ground.cache[k];
+        if (c.alt) veraltet++;
+        // Ein Bodenstück trägt seine Fläche in `wash` und die Tinte in
+        // `ink` – nicht in `color`/`line` wie ein Objektbild.
+        if (!c.wash) ohneBild++;
+      }
+      r.veraltet = veraltet;
+      r.ohneBild = ohneBild;
+      g.player.x = merk.x;
+      g.player.y = merk.y;
+      g.player.prevX = merk.x;
+      g.player.prevY = merk.y;
+      g.camera.snapTo(merk.x, merk.y);
+      return r;
+    });
+    check('Ein gefällter Baum löscht kein Bodenstück',
+      bodenloch.keinBaum === true
+      || (bodenloch.geloescht === 0 && bodenloch.ohneBild === 0),
+      JSON.stringify(bodenloch));
+    // Ein Kronenschatten reicht höchstens 150 Punkte weit. Mehr als vier
+    // Stücke kann er damit nicht berühren – neun waren schlicht zu viel.
+    check('Und er macht höchstens vier Stücke ungültig',
+      bodenloch.keinBaum === true
+      || (bodenloch.veraltet >= 1 && bodenloch.veraltet <= 4),
+      JSON.stringify(bodenloch));
+
+    /* ---- Die Bilder tragen keinen leeren Rand mit sich herum ---- */
+    // Gemessen, bevor zugeschnitten wurde: Ein Grasbüschel war 110 mal 94
+    // Punkte gross und sein Inhalt 66 mal 48 – 69 Prozent leerer Rand, der
+    // in JEDEM Bild mitgezeichnet wurde. Am Lagerfeuer stehen hunderte
+    // solcher Dinge gleichzeitig im Bild; zusammen waren das 7,9 Millionen
+    // Bildpunkte je Bild bei 0,9 Millionen Bildschirmfläche.
+    const raender = await page.evaluate(async () => {
+      const { spr } = await import('/src/art/sprites.js');
+      const namen = ['grass_tuft', 'mushroom', 'shell', 'flower_pink',
+        'rock_small', 'tree_oak_0'];
+      const out = {};
+      for (const n of namen) {
+        const s = spr(n);
+        if (!s) { out[n] = 'fehlt'; continue; }
+        const c = document.createElement('canvas');
+        c.width = s.w;
+        c.height = s.h;
+        const g2 = c.getContext('2d');
+        g2.drawImage(s.c, 0, 0);
+        if (s.g) g2.drawImage(s.g, 0, 0);
+        const d = g2.getImageData(0, 0, s.w, s.h).data;
+        let x0 = s.w;
+        let y0 = s.h;
+        let x1 = -1;
+        let y1 = -1;
+        for (let y = 0; y < s.h; y++) {
+          for (let x = 0; x < s.w; x++) {
+            if (d[(y * s.w + x) * 4 + 3] === 0) continue;
+            if (x < x0) x0 = x;
+            if (x > x1) x1 = x;
+            if (y < y0) y0 = y;
+            if (y > y1) y1 = y;
+          }
+        }
+        const eng = (x1 - x0 + 1) * (y1 - y0 + 1);
+        out[n] = Math.round((1 - eng / (s.w * s.h)) * 100);
+      }
+      return out;
+    });
+    check('Kein Weltbild besteht zu mehr als einem Achtel aus leerem Rand',
+      Object.keys(raender).every(function (k) {
+        return typeof raender[k] === 'number' && raender[k] <= 12;
+      }), JSON.stringify(raender));
 
     /* ---- Der Augenblick des Hineingehens ---- */
     // Ein Raumwechsel ohne Übergang ist ein Schnitt: Im einen Bild steht

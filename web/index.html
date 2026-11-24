@@ -20166,6 +20166,81 @@ const ORTGEIST_LOOKS = {
   },
 };
 
+/**
+ * Den durchsichtigen Rand wegschneiden.
+ *
+ * Ein gemaltes Bild entsteht großzügig: Der Weichzeichner braucht Platz,
+ * die Kontur darf überstehen, und niemand rechnet beim Malen aus, wie weit
+ * ein Grasbüschel wirklich reicht. Übrig bleibt ein Rand, der nichts
+ * enthält – und der wird trotzdem in JEDEM Bild mitgezeichnet.
+ *
+ * Gemessen, bevor das hier stand: Ein Grasbüschel ist 110 mal 94 Punkte
+ * groß und sein Inhalt 66 mal 48 – 69 Prozent leerer Rand. Pilz 70
+ * Prozent, Muschel 72, Blume 69. Das sind genau die Dinge, von denen
+ * hunderte gleichzeitig im Bild stehen: Am Lagerfeuer wurden so 7,9
+ * Millionen Bildpunkte je Bild bewegt, bei einer Bildschirmfläche von
+ * 0,9 Millionen. Achtfache Überdeckung, und mehr als die Hälfte davon
+ * war nichts.
+ *
+ * Das Bild ändert sich dabei NICHT: Weggeschnitten wird nur, was ganz
+ * durchsichtig ist, und der Ankerpunkt wandert mit. Was auf dem
+ * Bildschirm erscheint, ist Punkt für Punkt dasselbe.
+ *
+ * Symbole bleiben unberührt (`icon_`): Sie gehen als Bild in die
+ * Oberfläche, und dort sorgt ihr gleichmäßiger Rand dafür, dass ein
+ * schmales und ein breites Symbol nebeneinander gleich groß wirken.
+ */
+function zuschneiden(entry) {
+  const w = entry.w;
+  const h = entry.h;
+  if (w < 8 || h < 8) return entry;
+  let x0 = w;
+  let y0 = h;
+  let x1 = -1;
+  let y1 = -1;
+  const lagen = [entry.c, entry.g];
+  for (let k = 0; k < lagen.length; k++) {
+    const src = lagen[k];
+    if (!src || !src.width || !src.height) continue;
+    let d;
+    try {
+      d = ctx2d(src).getImageData(0, 0, src.width, src.height).data;
+    } catch (err) {
+      // Ein Bild, dessen Punkte sich nicht lesen lassen, bleibt wie es ist.
+      return entry;
+    }
+    const sw = src.width;
+    for (let y = 0; y < src.height; y++) {
+      const zeile = y * sw * 4;
+      for (let x = 0; x < sw; x++) {
+        if (d[zeile + x * 4 + 3] === 0) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  // Ganz leer oder schon eng: nichts zu tun.
+  if (x1 < x0 || y1 < y0) return entry;
+  if (x0 === 0 && y0 === 0 && x1 === w - 1 && y1 === h - 1) return entry;
+  const nw = x1 - x0 + 1;
+  const nh = y1 - y0 + 1;
+  const kopie = function (src) {
+    if (!src) return src;
+    const c = makeCanvas(nw, nh);
+    ctx2d(c).drawImage(src, -x0, -y0);
+    return c;
+  };
+  entry.c = kopie(entry.c);
+  entry.g = kopie(entry.g);
+  entry.w = nw;
+  entry.h = nh;
+  entry.ax -= x0;
+  entry.ay -= y0;
+  return entry;
+}
+
 /** Legt eine gemalte Grafik ab und skaliert sie auf Spielgröße. */
 function addArt(name, art, scale) {
   const s = scale == null ? ART_SCALE : scale;
@@ -20192,6 +20267,7 @@ function addArt(name, art, scale) {
     ay: art.ay * s,
   };
   registry[name] = entry;
+  if (name.indexOf('icon_') !== 0) zuschneiden(entry);
   return entry;
 }
 
@@ -24233,15 +24309,77 @@ class GroundLayer {
     return false;
   }
 
-  /** Wird nach Kachelwechseln aufgerufen (Weg gelegt, Brücke gebaut). */
+  /**
+   * Wird nach Kachelwechseln aufgerufen (Weg gelegt, Brücke gebaut,
+   * Baum gefällt).
+   *
+   * Hier standen zwei Fehler übereinander, und zusammen ergaben sie das,
+   * was ein Spieler so beschrieben hat: „wenn ich einen Baum fälle, dann
+   * kommen riesige weiße Pixel und das Bild ruckelt."
+   *
+   * **Zu viel weggeworfen.** Die alte Fassung verwarf ein Feld von drei
+   * mal drei Stücken um die Kachel – neun Stücke zu je 512 mal 512
+   * Punkten, zusammen mehr als zwei Millionen Bildpunkte. Gebraucht wird
+   * davon fast nichts: Ein Kronenschatten reicht höchstens 150 Punkte
+   * weit (Halbachse 100 plus Versatz), eine geänderte Kachel samt ihrer
+   * Tinte nicht weiter als den Rand des Stücks. Das sind ein bis vier
+   * Stücke, nicht neun.
+   *
+   * **Und das Weggeworfene war sofort weg.** Ein Stück, das gelöscht ist
+   * und noch nicht neu gemalt, zeichnet NICHTS – an seiner Stelle stand
+   * das blanke Papier. 512 mal 512 Punkte blankes Papier sind genau die
+   * „riesigen weißen Pixel". Siehe `_veralten`: Jetzt bleibt das alte
+   * Bild stehen, bis das neue fertig ist.
+   */
   markTileDirty(tx, ty) {
-    const cx = Math.floor(tx / CHUNK_TILES);
-    const cy = Math.floor(ty / CHUNK_TILES);
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) this._drop(cx + dx, cy + dy);
+    const x = tx * TILE_SIZE;
+    const y = ty * TILE_SIZE;
+    this.markAreaDirty(x - CHUNK_PAD, y - CHUNK_PAD,
+      x + TILE_SIZE + CHUNK_PAD, y + TILE_SIZE + CHUNK_PAD);
+  }
+
+  /**
+   * Alle Stücke, die dieses Weltrechteck berühren, müssen neu gemalt
+   * werden. In Weltpunkten, nicht in Kacheln.
+   */
+  markAreaDirty(x0, y0, x1, y1) {
+    const cx0 = Math.floor(x0 / CHUNK_PX);
+    const cy0 = Math.floor(y0 / CHUNK_PX);
+    const cx1 = Math.floor(x1 / CHUNK_PX);
+    const cy1 = Math.floor(y1 / CHUNK_PX);
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) this._veralten(cx, cy);
     }
   }
 
+  /**
+   * Ein Baum ist gefallen – was sein Schatten berührt hat, muss neu.
+   *
+   * Der Radius steht hier und nicht beim Aufrufer, weil er zum Boden
+   * gehört: Wie weit ein Kronenschatten reicht, weiß der Bodenmaler.
+   */
+  markBaumDirty(x, y) {
+    const R = 150;
+    this.markAreaDirty(x - R, y - R, x + R, y + R);
+  }
+
+  /**
+   * Alles neu malen lassen, ohne etwas zu verlieren.
+   *
+   * Für den Tageswechsel: Über Nacht wächst Gefälltes nach, und mit ihm
+   * sein Kronenschatten. Früher wurde dafür der ganze Zwischenspeicher
+   * geleert – und bis die Stücke neu gemalt waren, war der Boden leer.
+   */
+  markAllDirty() {
+    for (const k in this.cache) this.cache[k].alt = true;
+  }
+
+  /**
+   * Wirklich leeren – nur, wenn die alten Bilder FALSCH wären.
+   *
+   * Das ist bei einem Inselwechsel der Fall und sonst nie. Überall
+   * anders ist ein veraltetes Bild besser als gar keines.
+   */
   clear() {
     this.cache = Object.create(null);
     this.order.length = 0;
@@ -24263,6 +24401,21 @@ class GroundLayer {
     return cx + '|' + cy;
   }
 
+  /**
+   * Ein Stück für ungültig erklären – aber sein Bild behalten.
+   *
+   * Der Unterschied zu `delete` ist der ganze Punkt: Ein gelöschtes Stück
+   * zeichnet nichts, ein veraltetes zeichnet sein altes Bild weiter. Zwei
+   * Bilder lang einen Kronenschatten zu sehen, der nicht mehr da ist, ist
+   * ein Fehler, den niemand bemerkt. Ein weißes Rechteck von 512 Punkten
+   * Kantenlänge bemerkt jeder.
+   */
+  _veralten(cx, cy) {
+    if (cx < 0 || cy < 0 || cx >= this.cols || cy >= this.rows) return;
+    const c = this.cache[this._key(cx, cy)];
+    if (c) c.alt = true;
+  }
+
   _drop(cx, cy) {
     const key = this._key(cx, cy);
     if (!this.cache[key]) return;
@@ -24275,13 +24428,31 @@ class GroundLayer {
     if (cx < 0 || cy < 0 || cx >= this.cols || cy >= this.rows) return null;
     const key = this._key(cx, cy);
     const hit = this.cache[key];
-    if (hit) {
+    if (hit && !hit.alt) {
       hit.frame = this.frame;
       const at = this.order.indexOf(key);
       if (at >= 0 && at < this.order.length - 1) {
         this.order.splice(at, 1);
         this.order.push(key);
       }
+      return hit;
+    }
+    if (hit && hit.alt) {
+      // Veraltet: neu malen, wenn das Budget es hergibt – sonst zeigt es
+      // weiter sein altes Bild. Nie nichts.
+      if (allowPaint && this.budget > 0) {
+        this.budget--;
+        const neu = paintGroundChunk(this.world, cx, cy, this.pfade || null);
+        neu.frame = this.frame;
+        this.cache[key] = neu;
+        const at = this.order.indexOf(key);
+        if (at >= 0 && at < this.order.length - 1) {
+          this.order.splice(at, 1);
+          this.order.push(key);
+        }
+        return neu;
+      }
+      hit.frame = this.frame;
       return hit;
     }
     if (!allowPaint || this.budget <= 0) return null;
@@ -41258,7 +41429,9 @@ class Game {
     }
 
     if (warf && this.ground) {
-      this.ground.markTileDirty(Math.floor(e.x / 64), Math.floor(e.y / 64));
+      // Der Radius des Kronenschattens gehört zum Boden, nicht hierher –
+      // deshalb die eigene Methode und nicht `markTileDirty`.
+      this.ground.markBaumDirty(e.x, e.y);
     }
   }
 
@@ -47712,11 +47885,15 @@ class Game {
     // Der steckt im gebackenen Boden, also muss der neu entstehen – sonst
     // steht der Baum wieder da, aber der Boden unter ihm bleibt hell.
     //
-    // Einmal am Tag alles wegzuwerfen ist dafür der ehrlichste Weg: Welche
-    // Kacheln betroffen sind, weiß nur `newDay`, und der Neuaufbau fällt in
-    // den Augenblick, in dem das Bild ohnehin überblendet. Dieselbe
-    // Entscheidung wie bei den Gezeiten.
-    this.ground.clear();
+    // Einmal am Tag alles für ungültig zu erklären ist dafür der
+    // ehrlichste Weg: Welche Kacheln betroffen sind, weiß nur `newDay`,
+    // und der Neuaufbau fällt in den Augenblick, in dem das Bild ohnehin
+    // überblendet. Dieselbe Entscheidung wie bei den Gezeiten.
+    //
+    // VERALTEN, nicht leeren. Ein geleertes Stück zeichnet nichts, und
+    // „nichts" ist hier weißes Papier – 512 Punkte im Quadrat davon.
+    // Veraltet zeigt es sein gestriges Bild, bis das neue fertig ist.
+    this.ground.markAllDirty();
     // Erst das Wetter des neuen Tages, dann wachsen lassen: Regen zählt
     // doppelt, und das soll der Regen von heute sein, nicht der von gestern.
     this.weather.setDay(this.world.seed, day, this.season());
