@@ -3496,6 +3496,113 @@ function paintGrassTuft(opts) {
   return made(res, w, h, cx, baseY);
 }
 
+/**
+ * Der Farn – die Pflanze des Sumpfes.
+ *
+ * Er ist das, was ein Biom auf einen Blick erkennbar macht: eine Form,
+ * die es sonst nirgends gibt. Grasbüschel und Blumen stehen überall;
+ * ein Wedel mit gefiederten Blättchen sagt sofort „hier ist es feucht
+ * und schattig".
+ *
+ * Gezeichnet wird er als drei bis fünf Wedel von einem Punkt aus, jeder
+ * eine gebogene Mittelrippe mit paarweise sitzenden Fiedern. Die Fiedern
+ * werden zum Ende hin kürzer – daran erkennt man einen Farnwedel und
+ * nicht an seiner Farbe.
+ */
+function paintFarn(opts) {
+  const o = opts || {};
+  const w = 96;
+  const h = 86;
+  const seed = o.seed || 1811;
+  const cx = w / 2;
+  const baseY = h - 8;
+  const rng = makeRng(seed);
+
+  const wedel = [];
+  const n = 3 + Math.floor(rng() * 3);
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0.5 : i / (n - 1);
+    // Die Wedel stehen AUFWÄRTS und fächern nur leicht.
+    //
+    // Mit ±0,75 Fächerung und bis zu 0,6 Bogen lagen sie fast waagerecht
+    // und das Ganze sah aus wie ein Seestern. Ein Farnwedel wächst nach
+    // oben und biegt sich erst an der Spitze nach außen – deshalb
+    // schmaler Fächer, kleiner Bogen, und der Bogen zeigt nach außen
+    // statt in eine Zufallsrichtung.
+    const winkel = -Math.PI / 2 + (t - 0.5) * 1.05 + (rng() - 0.5) * 0.14;
+    const laenge = 42 + rng() * 26;
+    const bogen = (t - 0.5) * 0.5 + (rng() - 0.5) * 0.14;
+    wedel.push({ winkel: winkel, laenge: laenge, bogen: bogen });
+  }
+
+  /** Die Punkte entlang einer Mittelrippe. */
+  function rippe(we) {
+    const pts = [];
+    for (let k = 0; k <= 8; k++) {
+      const u = k / 8;
+      const a = we.winkel + we.bogen * u;
+      pts.push([
+        cx + Math.cos(a) * we.laenge * u,
+        baseY + Math.sin(a) * we.laenge * u,
+      ]);
+    }
+    return pts;
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    wash: function (g) {
+      // Die Wedel als breite, weiche Striche – erst daraus wird eine
+      // Pflanze und nicht ein Gerippe aus Linien.
+      g.save();
+      g.strokeStyle = o.laub || ink.leafDark;
+      g.lineCap = 'round';
+      g.globalAlpha = 0.72;
+      for (let i = 0; i < wedel.length; i++) {
+        const pts = rippe(wedel[i]);
+        for (let k = 1; k < pts.length; k++) {
+          const u = k / (pts.length - 1);
+          g.lineWidth = 15 * (1 - u * 0.75);
+          g.beginPath();
+          g.moveTo(pts[k - 1][0], pts[k - 1][1]);
+          g.lineTo(pts[k][0], pts[k][1]);
+          g.stroke();
+        }
+      }
+      g.restore();
+      wash(g, smoothClosed(blob(cx, baseY - 4, 16, 7, seed + 1, 0.22, 10), 4),
+        o.laub || ink.leafDeep, { seed: seed + 2, alpha: 0.6 });
+    },
+    ink: function (g) {
+      for (let i = 0; i < wedel.length; i++) {
+        const pts = rippe(wedel[i]);
+        inkStroke(g, pts, {
+          closed: false, width: 1.9, vary: 0.3,
+          seed: seed + 10 + i, alpha: 0.6, color: ink.line,
+        });
+        // Die Fiedern, paarweise und nach außen kürzer werdend.
+        for (let k = 2; k < pts.length; k++) {
+          const u = k / (pts.length - 1);
+          const p = pts[k];
+          const v = pts[k - 1];
+          const dx = p[0] - v[0];
+          const dy = p[1] - v[1];
+          const len = Math.hypot(dx, dy) || 1;
+          const l = 11 * (1 - u * 0.8) + 2;
+          for (const sgn of [-1, 1]) {
+            inkLine(g, p[0], p[1],
+              p[0] + (-dy / len) * l * sgn + (dx / len) * 3,
+              p[1] + (dx / len) * l * sgn + (dy / len) * 3,
+              { width: 1.4, bend: 0.3 * sgn, seed: seed + 40 + i * 9 + k, alpha: 0.45 });
+          }
+        }
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
 function paintReeds(opts) {
   const o = opts || {};
   const w = 86;
@@ -4092,6 +4199,7 @@ __e.paintRainmushroom = paintRainmushroom;
 __e.paintFogcrystal = paintFogcrystal;
 __e.paintFlower = paintFlower;
 __e.paintGrassTuft = paintGrassTuft;
+__e.paintFarn = paintFarn;
 __e.paintReeds = paintReeds;
 __e.paintMushroom = paintMushroom;
 __e.paintHerb = paintHerb;
@@ -15519,12 +15627,19 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
          * eine mit 40 % Wahrscheinlichkeit) – der Unterschied zwischen
          * Strand und Watt muss man SEHEN, nicht erraten.
          */
-        for (let k = 0; k < 3; k++) {
-          const y = (ty + (k + 0.5) / 3 + (rng() - 0.5) * 0.12) * TILE_SIZE;
+        //
+        // Vier Züge statt drei, seit die Kamera weiter draußen steht:
+        // Dieselbe Kachel bekommt jetzt zwei Drittel der Bildpunkte von
+        // früher, und feine Linien verschwinden beim Verkleinern zuerst.
+        // Gemessen am Unterschied zwischen Ebbe und Flut: Er war von
+        // rund 28 auf 7 Prozent geänderter Bildpunkte gefallen – das
+        // Watt war technisch da und optisch weg.
+        for (let k = 0; k < 4; k++) {
+          const y = (ty + (k + 0.5) / 4 + (rng() - 0.5) * 0.1) * TILE_SIZE;
           rippel.push([
             (tx - 0.15) * TILE_SIZE, y,
             (tx + 1.15) * TILE_SIZE, y + (rng() - 0.5) * 7,
-            4 + rng() * 5,
+            5 + rng() * 5,
           ]);
         }
         // Dazwischen liegt, was das Wasser liegen gelassen hat.
@@ -18092,6 +18207,19 @@ const ENTITY_DEFS = {
     sprite: 'grass_tuft', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('fiber', 1, 1), respawn: 1, sway: true, category: 'forage',
   },
+  /**
+   * Der Farn.
+   *
+   * Erntbar wie Kraut und mit demselben Ertrag: Er ist die Pflanze, an
+   * der man den Sumpf erkennt, und eine Pflanze, die man nur ansehen
+   * darf, ist Deko. Dass er dasselbe gibt wie Kraut, ist Absicht – eine
+   * neue Zutat nur für ein neues Biom wäre eine Rezeptliste mehr, ohne
+   * dass irgendwo etwas Neues entstünde.
+   */
+  farn: {
+    sprite: 'farn', variants: 3, solid: false, reachR: 58, tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
+  },
   mushroom: {
     sprite: 'mushroom', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('mushroom', 1, 1), respawn: 1, category: 'forage',
@@ -18737,7 +18865,7 @@ __defs["src/art/sprites.js"] = function (__e) {
 const { makeCanvas, ctx2d } = __req("src/core/util.js");
 const { INK } = __req("src/art/painted.js");
 const { paintWrack, paintGerippe, paintSteinkreis, paintTorbogen, paintLeuchtturm, paintHohlerBaum, paintMuehle } = __req("src/art/painted-marken.js");
-const { paintTree, paintPine, paintStump, paintLogBarrier, paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft, paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot, paintFeather, paintStardust, paintMoonflower, paintRainmushroom, paintFogcrystal, paintCrop, paintSeedPouch } = __req("src/art/painted.js");
+const { paintTree, paintPine, paintStump, paintLogBarrier, paintFarn, paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft, paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot, paintFeather, paintStardust, paintMoonflower, paintRainmushroom, paintFogcrystal, paintCrop, paintSeedPouch } = __req("src/art/painted.js");
 const { paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench, paintBoat, paintMailbox, paintKitchen, paintHouse, paintLantern, paintTravelLamp, paintWanderer, paintBench, paintFence, paintFlowerbed, paintBirdhouse, paintWindchime, paintRug, paintSignpost, paintCrate, paintChest, paintMemory, paintTool, paintButterfly, paintBird, paintSeli, paintSpirit, paintFlameSpirit, paintFox } = __req("src/art/painted-camp.js");
 const { trachtFuer, TRACHTEN } = __req("src/game/tracht.js");
 const { paintInselbild } = __req("src/art/painted-bild.js");
@@ -19072,6 +19200,9 @@ function initArt() {
   addArt('flower_violet', paintFlower({ seed: 141, petal: INK.petalViolet }));
   addArt('flower_white', paintFlower({ seed: 147, petal: INK.petalWhite }));
   addArt('flower_dusk', paintFlower({ seed: 153, petal: INK.petalDusk }));
+  // Der Farn – die Pflanze des Sumpfes, in drei Fassungen wie alles,
+  // wovon viele nebeneinander stehen.
+  for (let v = 0; v < 3; v++) addArt('farn_' + v, paintFarn({ seed: 1811 + v * 23 }));
 
   /* --- Lager --- */
   addArt('campfire', paintCampfire({ seed: 211 }));
@@ -20585,10 +20716,14 @@ const BIOM = {
   HEIDE: 3,
   BLUMENWIESE: 4,
   GEROELL: 5,
+  SUMPF: 6,
+  OBSTWIESE: 7,
+  TOTHOLZ: 8,
 };
 
 const BIOM_NAMEN = [
   'Wiese', 'Birkenhain', 'Nadelwald', 'Heide', 'Blumenwiese', 'Geröll',
+  'Sumpf', 'Obstwiese', 'Totholz',
 ];
 
 /**
@@ -20654,6 +20789,47 @@ const BIOME = {
       ['flower_violet', 6], ['grass_tuft', 14], ['herb', 4]],
     ton: ['grassLight', 0.22],
   },
+  [BIOM.SUMPF]: {
+    name: 'Sumpf',
+    // Schilf und Farn, kaum ein Baum und die nassesten Füße der Insel.
+    // Der Sumpf ist der einzige Ort, an dem Schilf im Landesinneren
+    // steht – sonst wächst es nur am Sandufer, und genau deshalb liest
+    // man ihn sofort als „hier steht Wasser im Boden".
+    baeume: [['tree_birch', 3], ['tree_wind', 1]],
+    dichteBaum: 3,
+    busch: 2,
+    boden: [['reeds', 22], ['farn', 15], ['mushroom', 9], ['grass_tuft', 7]],
+    ton: ['dirtDark', 0.24],
+  },
+  [BIOM.OBSTWIESE]: {
+    name: 'Obstwiese',
+    // Ahorn trägt als einziger Baum Früchte (siehe `paintTree`, `fruit`),
+    // und hier steht er in Reihen statt vereinzelt. Dazu Beerenbüsche –
+    // das ist die Gegend, in die man geht, wenn man etwas zum Kochen
+    // braucht.
+    baeume: [['tree_maple', 9], ['tree_oak', 2]],
+    dichteBaum: 10,
+    busch: 11,
+    boden: [['grass_tuft', 14], ['flower_yellow', 7], ['flower_white', 5],
+      ['herb', 7]],
+    ton: ['grassLight', 0.16],
+  },
+  [BIOM.TOTHOLZ]: {
+    name: 'Totholz',
+    // Ein alter Kahlschlag: lauter Stümpfe, dazwischen Pilze und Farn
+    // und nur vereinzelt ein nachgewachsener Baum. Die Stümpfe lassen
+    // sich nicht wegräumen – das ist der Punkt. Hier hat jemand vor
+    // langer Zeit gearbeitet und ist nie wiedergekommen.
+    //
+    // Deshalb auch nur vier je 100 Kacheln: Ein Feld voller fester
+    // Hindernisse ist ein Irrgarten, eine Handvoll ist eine Geschichte.
+    baeume: [['tree_pine', 2], ['tree_birch', 1]],
+    dichteBaum: 2.5,
+    busch: 3,
+    boden: [['tree_stump', 4], ['mushroom', 14], ['farn', 10],
+      ['grass_tuft', 9], ['herb', 4]],
+    ton: ['leafDeep', 0.12],
+  },
   [BIOM.GEROELL]: {
     name: 'Geröll',
     baeume: [['tree_pine', 2]],
@@ -20673,10 +20849,13 @@ const BIOME = {
  * Drittel der Insel bedeckt, ist ein Punkt.
  */
 const BIOME_JE_BEREICH = {
-  [REGION.CAMP]: [BIOM.WIESE, BIOM.BIRKENHAIN, BIOM.BLUMENWIESE],
-  [REGION.FOREST]: [BIOM.NADELWALD, BIOM.BIRKENHAIN, BIOM.WIESE, BIOM.BLUMENWIESE],
-  [REGION.CLIFFS]: [BIOM.NADELWALD, BIOM.HEIDE, BIOM.GEROELL, BIOM.WIESE],
-  [REGION.ISLE]: [BIOM.HEIDE, BIOM.NADELWALD, BIOM.GEROELL, BIOM.BIRKENHAIN],
+  [REGION.CAMP]: [BIOM.WIESE, BIOM.OBSTWIESE, BIOM.BIRKENHAIN, BIOM.BLUMENWIESE],
+  [REGION.FOREST]: [BIOM.NADELWALD, BIOM.BIRKENHAIN, BIOM.SUMPF, BIOM.TOTHOLZ,
+    BIOM.WIESE],
+  [REGION.CLIFFS]: [BIOM.NADELWALD, BIOM.HEIDE, BIOM.GEROELL, BIOM.TOTHOLZ,
+    BIOM.WIESE],
+  [REGION.ISLE]: [BIOM.HEIDE, BIOM.SUMPF, BIOM.NADELWALD, BIOM.GEROELL,
+    BIOM.BIRKENHAIN],
 };
 
 const CACHE = { seed: -1, data: null };
@@ -20714,7 +20893,7 @@ function biomeFuer(seed) {
    * Biom. Die Anteile sind ungleich: Das erste Biom einer Liste ist der
    * Grundton des Bereichs, das letzte das Ausrufezeichen.
    */
-  const ANTEILE = [0.40, 0.27, 0.20, 0.13];
+  const ANTEILE = [0.32, 0.23, 0.18, 0.15, 0.12];
   const proBereich = {};
   for (let ty = 0; ty < MAP_H; ty++) {
     for (let tx = 0; tx < MAP_W; tx++) {

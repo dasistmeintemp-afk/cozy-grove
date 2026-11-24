@@ -934,12 +934,19 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
          * eine mit 40 % Wahrscheinlichkeit) – der Unterschied zwischen
          * Strand und Watt muss man SEHEN, nicht erraten.
          */
-        for (let k = 0; k < 3; k++) {
-          const y = (ty + (k + 0.5) / 3 + (rng() - 0.5) * 0.12) * TILE_SIZE;
+        //
+        // Vier Züge statt drei, seit die Kamera weiter draußen steht:
+        // Dieselbe Kachel bekommt jetzt zwei Drittel der Bildpunkte von
+        // früher, und feine Linien verschwinden beim Verkleinern zuerst.
+        // Gemessen am Unterschied zwischen Ebbe und Flut: Er war von
+        // rund 28 auf 7 Prozent geänderter Bildpunkte gefallen – das
+        // Watt war technisch da und optisch weg.
+        for (let k = 0; k < 4; k++) {
+          const y = (ty + (k + 0.5) / 4 + (rng() - 0.5) * 0.1) * TILE_SIZE;
           rippel.push([
             (tx - 0.15) * TILE_SIZE, y,
             (tx + 1.15) * TILE_SIZE, y + (rng() - 0.5) * 7,
-            4 + rng() * 5,
+            5 + rng() * 5,
           ]);
         }
         // Dazwischen liegt, was das Wasser liegen gelassen hat.

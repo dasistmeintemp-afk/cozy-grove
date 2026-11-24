@@ -38,10 +38,14 @@ export const BIOM = {
   HEIDE: 3,
   BLUMENWIESE: 4,
   GEROELL: 5,
+  SUMPF: 6,
+  OBSTWIESE: 7,
+  TOTHOLZ: 8,
 };
 
 export const BIOM_NAMEN = [
   'Wiese', 'Birkenhain', 'Nadelwald', 'Heide', 'Blumenwiese', 'Geröll',
+  'Sumpf', 'Obstwiese', 'Totholz',
 ];
 
 /**
@@ -107,6 +111,47 @@ export const BIOME = {
       ['flower_violet', 6], ['grass_tuft', 14], ['herb', 4]],
     ton: ['grassLight', 0.22],
   },
+  [BIOM.SUMPF]: {
+    name: 'Sumpf',
+    // Schilf und Farn, kaum ein Baum und die nassesten Füße der Insel.
+    // Der Sumpf ist der einzige Ort, an dem Schilf im Landesinneren
+    // steht – sonst wächst es nur am Sandufer, und genau deshalb liest
+    // man ihn sofort als „hier steht Wasser im Boden".
+    baeume: [['tree_birch', 3], ['tree_wind', 1]],
+    dichteBaum: 3,
+    busch: 2,
+    boden: [['reeds', 22], ['farn', 15], ['mushroom', 9], ['grass_tuft', 7]],
+    ton: ['dirtDark', 0.24],
+  },
+  [BIOM.OBSTWIESE]: {
+    name: 'Obstwiese',
+    // Ahorn trägt als einziger Baum Früchte (siehe `paintTree`, `fruit`),
+    // und hier steht er in Reihen statt vereinzelt. Dazu Beerenbüsche –
+    // das ist die Gegend, in die man geht, wenn man etwas zum Kochen
+    // braucht.
+    baeume: [['tree_maple', 9], ['tree_oak', 2]],
+    dichteBaum: 10,
+    busch: 11,
+    boden: [['grass_tuft', 14], ['flower_yellow', 7], ['flower_white', 5],
+      ['herb', 7]],
+    ton: ['grassLight', 0.16],
+  },
+  [BIOM.TOTHOLZ]: {
+    name: 'Totholz',
+    // Ein alter Kahlschlag: lauter Stümpfe, dazwischen Pilze und Farn
+    // und nur vereinzelt ein nachgewachsener Baum. Die Stümpfe lassen
+    // sich nicht wegräumen – das ist der Punkt. Hier hat jemand vor
+    // langer Zeit gearbeitet und ist nie wiedergekommen.
+    //
+    // Deshalb auch nur vier je 100 Kacheln: Ein Feld voller fester
+    // Hindernisse ist ein Irrgarten, eine Handvoll ist eine Geschichte.
+    baeume: [['tree_pine', 2], ['tree_birch', 1]],
+    dichteBaum: 2.5,
+    busch: 3,
+    boden: [['tree_stump', 4], ['mushroom', 14], ['farn', 10],
+      ['grass_tuft', 9], ['herb', 4]],
+    ton: ['leafDeep', 0.12],
+  },
   [BIOM.GEROELL]: {
     name: 'Geröll',
     baeume: [['tree_pine', 2]],
@@ -126,10 +171,13 @@ export const BIOME = {
  * Drittel der Insel bedeckt, ist ein Punkt.
  */
 export const BIOME_JE_BEREICH = {
-  [REGION.CAMP]: [BIOM.WIESE, BIOM.BIRKENHAIN, BIOM.BLUMENWIESE],
-  [REGION.FOREST]: [BIOM.NADELWALD, BIOM.BIRKENHAIN, BIOM.WIESE, BIOM.BLUMENWIESE],
-  [REGION.CLIFFS]: [BIOM.NADELWALD, BIOM.HEIDE, BIOM.GEROELL, BIOM.WIESE],
-  [REGION.ISLE]: [BIOM.HEIDE, BIOM.NADELWALD, BIOM.GEROELL, BIOM.BIRKENHAIN],
+  [REGION.CAMP]: [BIOM.WIESE, BIOM.OBSTWIESE, BIOM.BIRKENHAIN, BIOM.BLUMENWIESE],
+  [REGION.FOREST]: [BIOM.NADELWALD, BIOM.BIRKENHAIN, BIOM.SUMPF, BIOM.TOTHOLZ,
+    BIOM.WIESE],
+  [REGION.CLIFFS]: [BIOM.NADELWALD, BIOM.HEIDE, BIOM.GEROELL, BIOM.TOTHOLZ,
+    BIOM.WIESE],
+  [REGION.ISLE]: [BIOM.HEIDE, BIOM.SUMPF, BIOM.NADELWALD, BIOM.GEROELL,
+    BIOM.BIRKENHAIN],
 };
 
 const CACHE = { seed: -1, data: null };
@@ -167,7 +215,7 @@ export function biomeFuer(seed) {
    * Biom. Die Anteile sind ungleich: Das erste Biom einer Liste ist der
    * Grundton des Bereichs, das letzte das Ausrufezeichen.
    */
-  const ANTEILE = [0.40, 0.27, 0.20, 0.13];
+  const ANTEILE = [0.32, 0.23, 0.18, 0.15, 0.12];
   const proBereich = {};
   for (let ty = 0; ty < MAP_H; ty++) {
     for (let tx = 0; tx < MAP_W; tx++) {

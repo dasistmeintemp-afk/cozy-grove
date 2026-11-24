@@ -66,6 +66,9 @@ const SPRITE_NAMES = (function () {
   for (let i = 0; i < trees.length; i++) {
     for (let v = 0; v < 3; v++) names.push(trees[i] + '_' + v);
   }
+  // Der Farn steht in drei Fassungen wie alles, wovon viele nebeneinander
+  // stehen – die Objektdefinition nennt nur den Rumpf.
+  for (let v = 0; v < 3; v++) names.push('farn_' + v);
   for (let f = 0; f < 4; f++) names.push('flame_' + f);
   for (let i = 0; i < MEMORY_KINDS.length; i++) {
     names.push('memory_' + MEMORY_KINDS[i]);

@@ -1136,6 +1136,113 @@ export function paintGrassTuft(opts) {
   return made(res, w, h, cx, baseY);
 }
 
+/**
+ * Der Farn – die Pflanze des Sumpfes.
+ *
+ * Er ist das, was ein Biom auf einen Blick erkennbar macht: eine Form,
+ * die es sonst nirgends gibt. Grasbüschel und Blumen stehen überall;
+ * ein Wedel mit gefiederten Blättchen sagt sofort „hier ist es feucht
+ * und schattig".
+ *
+ * Gezeichnet wird er als drei bis fünf Wedel von einem Punkt aus, jeder
+ * eine gebogene Mittelrippe mit paarweise sitzenden Fiedern. Die Fiedern
+ * werden zum Ende hin kürzer – daran erkennt man einen Farnwedel und
+ * nicht an seiner Farbe.
+ */
+export function paintFarn(opts) {
+  const o = opts || {};
+  const w = 96;
+  const h = 86;
+  const seed = o.seed || 1811;
+  const cx = w / 2;
+  const baseY = h - 8;
+  const rng = makeRng(seed);
+
+  const wedel = [];
+  const n = 3 + Math.floor(rng() * 3);
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0.5 : i / (n - 1);
+    // Die Wedel stehen AUFWÄRTS und fächern nur leicht.
+    //
+    // Mit ±0,75 Fächerung und bis zu 0,6 Bogen lagen sie fast waagerecht
+    // und das Ganze sah aus wie ein Seestern. Ein Farnwedel wächst nach
+    // oben und biegt sich erst an der Spitze nach außen – deshalb
+    // schmaler Fächer, kleiner Bogen, und der Bogen zeigt nach außen
+    // statt in eine Zufallsrichtung.
+    const winkel = -Math.PI / 2 + (t - 0.5) * 1.05 + (rng() - 0.5) * 0.14;
+    const laenge = 42 + rng() * 26;
+    const bogen = (t - 0.5) * 0.5 + (rng() - 0.5) * 0.14;
+    wedel.push({ winkel: winkel, laenge: laenge, bogen: bogen });
+  }
+
+  /** Die Punkte entlang einer Mittelrippe. */
+  function rippe(we) {
+    const pts = [];
+    for (let k = 0; k <= 8; k++) {
+      const u = k / 8;
+      const a = we.winkel + we.bogen * u;
+      pts.push([
+        cx + Math.cos(a) * we.laenge * u,
+        baseY + Math.sin(a) * we.laenge * u,
+      ]);
+    }
+    return pts;
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    wash: function (g) {
+      // Die Wedel als breite, weiche Striche – erst daraus wird eine
+      // Pflanze und nicht ein Gerippe aus Linien.
+      g.save();
+      g.strokeStyle = o.laub || ink.leafDark;
+      g.lineCap = 'round';
+      g.globalAlpha = 0.72;
+      for (let i = 0; i < wedel.length; i++) {
+        const pts = rippe(wedel[i]);
+        for (let k = 1; k < pts.length; k++) {
+          const u = k / (pts.length - 1);
+          g.lineWidth = 15 * (1 - u * 0.75);
+          g.beginPath();
+          g.moveTo(pts[k - 1][0], pts[k - 1][1]);
+          g.lineTo(pts[k][0], pts[k][1]);
+          g.stroke();
+        }
+      }
+      g.restore();
+      wash(g, smoothClosed(blob(cx, baseY - 4, 16, 7, seed + 1, 0.22, 10), 4),
+        o.laub || ink.leafDeep, { seed: seed + 2, alpha: 0.6 });
+    },
+    ink: function (g) {
+      for (let i = 0; i < wedel.length; i++) {
+        const pts = rippe(wedel[i]);
+        inkStroke(g, pts, {
+          closed: false, width: 1.9, vary: 0.3,
+          seed: seed + 10 + i, alpha: 0.6, color: ink.line,
+        });
+        // Die Fiedern, paarweise und nach außen kürzer werdend.
+        for (let k = 2; k < pts.length; k++) {
+          const u = k / (pts.length - 1);
+          const p = pts[k];
+          const v = pts[k - 1];
+          const dx = p[0] - v[0];
+          const dy = p[1] - v[1];
+          const len = Math.hypot(dx, dy) || 1;
+          const l = 11 * (1 - u * 0.8) + 2;
+          for (const sgn of [-1, 1]) {
+            inkLine(g, p[0], p[1],
+              p[0] + (-dy / len) * l * sgn + (dx / len) * 3,
+              p[1] + (dx / len) * l * sgn + (dy / len) * 3,
+              { width: 1.4, bend: 0.3 * sgn, seed: seed + 40 + i * 9 + k, alpha: 0.45 });
+          }
+        }
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
 export function paintReeds(opts) {
   const o = opts || {};
   const w = 86;

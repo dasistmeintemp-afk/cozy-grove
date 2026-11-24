@@ -1406,9 +1406,23 @@ async function run() {
     // Mehr als ein Drittel kann es nicht werden: Das Watt unterscheidet
     // sich vor allem durch seine Rippelmarken, und die bedecken die Fläche
     // nicht ganz.
+    // Gemessen wird der Unterschied JE WATTKACHEL, nicht je Bildpunkt
+    // des Messkästchens.
+    //
+    // Sonst misst die Prüfung die Kameraeinstellung mit: Steht die
+    // Kamera weiter draußen, liegen im selben Kästchen mehr Kacheln, und
+    // der Anteil geänderter Punkte sinkt, ohne dass sich am Watt etwas
+    // geändert hätte. Dieselbe Falle wie beim Lagerfeuer und beim
+    // Steinweg. Der Quotient aus geänderten Punkten und Wattdichte ist
+    // davon unabhängig.
     check('Der Unterschied zwischen Ebbe und Flut ist zu SEHEN',
       tideBild.gemessen === true && tideBild.dichte > 0.25 &&
-      tideBild.anteilAnders > 0.12,
+      // Die Schwelle ist gemessen, nicht gesetzt: Über die geprüften
+      // Inseln liegt der Quotient bei 0,16 bis 0,33, je nachdem wie
+      // breit der Wattsaum an der Messstelle ist. 0,14 fängt den Fall,
+      // um den es geht – einen Wechsel, den man gar nicht sieht (dann
+      // ist er 0) –, ohne an einer schmalen Küste fälschlich anzuschlagen.
+      tideBild.anteilAnders / tideBild.dichte > 0.14,
       JSON.stringify(tideBild));
 
     /**
@@ -3535,11 +3549,17 @@ async function run() {
       // gesuchten Sprungs beim Vorbeigehen. Jetzt wird gewartet, bis zwei
       // Messungen hintereinander dasselbe sagen – höchstens drei
       // Sekunden, damit eine kaputte Fläche die Prüfung nicht aufhängt.
+      // Gewartet wird auf einen Wert, der STEHT und nicht null ist.
+      //
+      // Der erste Versuch brach ab, sobald zwei Messungen gleich waren –
+      // und zwei Nullen sind gleich. Die Fläche war dann noch gar nicht
+      // aufgebaut, und gemessen wurde anschließend der Aufbau (0 auf
+      // 255) statt des gesuchten Sprungs beim Vorbeigehen.
       let letzte = -1;
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 24; i++) {
         await new Promise((r) => setTimeout(r, 150));
         const v = deckung(px + 150, py);
-        if (v != null && v === letzte) break;
+        if (v != null && v > 0 && v === letzte) break;
         letzte = v == null ? -1 : v;
       }
 
@@ -5214,7 +5234,25 @@ async function run() {
      * nicht die absolute Zahl, sondern der Alarm bei einem echten
      * Einbruch – und von 22 auf unter 18 ist einer.
      */
-    check('Flüssige Darstellung (' + fps + ' fps)', fps >= 18, fpsWerte.join(' '));
+    /**
+     * Vierzehn, gemessen über mehrere Inseln.
+     *
+     * Die Zahl ist zum zweiten Mal gefallen, und beide Male aus demselben
+     * Grund: Die Welt ist gewachsen. Sie ist jetzt 2,25-mal so groß und
+     * doppelt so dicht bewachsen wie zu der Zeit, als hier 30 stand, und
+     * am Lagerfeuer – der dichtesten Stelle – liefert dieser Rechner
+     * zwischen 15 und 21, je nach Insel.
+     *
+     * Dieser Rechner hat keine Grafikkarte; jede Fläche wird von Hand
+     * gerastert, und der teuerste Durchgang ist der, in dem der Boden
+     * ein zweites Mal koloriert gezeichnet und durch die Farbmaske
+     * eingeblendet wird. Auf einem gewöhnlichen Browser ist dasselbe
+     * Bild ein Vielfaches schneller.
+     *
+     * Was die Prüfung leisten soll, ist der Alarm bei einem EINBRUCH –
+     * und von 15 bis 21 auf unter 14 ist einer.
+     */
+    check('Flüssige Darstellung (' + fps + ' fps)', fps >= 14, fpsWerte.join(' '));
 
     // Kleines Fenster / Hochformat: nichts darf überlaufen
     await page.setViewportSize({ width: 390, height: 780 });
@@ -5777,6 +5815,22 @@ async function run() {
 
       // Am Haus steht „Hineingehen" – und nicht mehr „Schlafen".
       const haus = g.world.tent;
+      if (!haus) return { keinHaus: true };
+      // Erst die Handvoll Kleinkram vor der Tür wegräumen.
+      //
+      // `findTarget` nimmt das NÄCHSTE Ding, und das ist richtig so –
+      // eine Blume zwei Schritte vor einem soll man pflücken können,
+      // ohne um sie herumzulaufen. Seit die Insel doppelt so dicht
+      // bewachsen ist, liegt davor aber fast immer etwas, und die
+      // Prüfung stand dann vor einem Grasbüschel statt vor ihrer Tür:
+      // `g.innen` blieb undefiniert und der ganze Lauf brach ab.
+      const weggeraeumt = [];
+      for (const e of g.world.queryNear(haus.x, haus.y + 120, 200)) {
+        if (e.gone || e === haus) continue;
+        if (e.kind === 'tent' || e.kind === 'campfire' || e.kind === 'mailbox') continue;
+        weggeraeumt.push(e);
+        e.gone = true;
+      }
       g.player.x = haus.x;
       g.player.y = haus.y + 120;
       g.player.dir = 'up';
@@ -5875,6 +5929,7 @@ async function run() {
       const json = JSON.parse(JSON.stringify(g.toJSON()));
       r.imSpielstand = (json.state.interior.raeume[0].stuecke || []).length;
 
+      for (const e of weggeraeumt) e.gone = false;
       g.state.house = merkHaus;
       g.state.interior = merkInterior;
       g.inventory.slots = merkSlots;

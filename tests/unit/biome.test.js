@@ -105,6 +105,51 @@ test('Die Heide ist offen, der Nadelwald dicht', () => {
   }
 });
 
+test('Der Sumpf ist der einzige Ort mit Schilf im Landesinneren', () => {
+  // Schilf wächst sonst nur am Sandufer. Dass es mitten auf der Insel
+  // steht, ist das Zeichen, an dem man den Sumpf erkennt – und das
+  // funktioniert nur, wenn es wirklich nirgends sonst steht.
+  for (const seed of SEEDS) {
+    const welt = new World(seed).populate();
+    const karte = biomeFuer(seed);
+    let imSumpf = 0;
+    let woanders = 0;
+    for (const e of welt.entities) {
+      if (e.gone || e.kind !== 'reeds') continue;
+      const tx = Math.floor(e.x / TILE_SIZE);
+      const ty = Math.floor(e.y / TILE_SIZE);
+      // Das Ufer zählt nicht mit: Dort gehört Schilf hin.
+      if (welt.tileAtTile(tx, ty) === T.SAND) continue;
+      if (karte[tileIndex(tx, ty)] === BIOM.SUMPF) imSumpf++; else woanders++;
+    }
+    assert.ok(imSumpf > 20, 'Seed ' + seed + ': nur ' + imSumpf + ' Schilf im Sumpf');
+    assert.equal(woanders, 0,
+      'Seed ' + seed + ': ' + woanders + ' Schilf außerhalb von Sumpf und Ufer');
+  }
+});
+
+test('Das Totholz ist eine Geschichte, kein Irrgarten', () => {
+  // Stümpfe lassen sich nicht wegräumen – das ist der Punkt an ihnen.
+  // Genau deshalb dürfen es nicht zu viele sein: Ein Feld voller fester
+  // Hindernisse ist ein Irrgarten, eine Handvoll ist eine Geschichte.
+  for (const seed of SEEDS) {
+    const welt = new World(seed).populate();
+    const karte = biomeFuer(seed);
+    const flaeche = biomStand(karte, welt.tiles);
+    if (!flaeche[BIOM.TOTHOLZ] || flaeche[BIOM.TOTHOLZ] < 60) continue;
+    let stuempfe = 0;
+    for (const e of welt.entities) {
+      if (e.gone || e.kind !== 'tree_stump') continue;
+      const i = tileIndex(Math.floor(e.x / TILE_SIZE), Math.floor(e.y / TILE_SIZE));
+      if (karte[i] === BIOM.TOTHOLZ) stuempfe++;
+    }
+    const je100 = (stuempfe / flaeche[BIOM.TOTHOLZ]) * 100;
+    assert.ok(je100 > 1, 'Seed ' + seed + ': nur ' + stuempfe + ' Stümpfe im Totholz');
+    assert.ok(je100 < 7, 'Seed ' + seed + ': ' + Math.round(je100)
+      + ' Stümpfe je 100 Kacheln – das ist ein Irrgarten');
+  }
+});
+
 test('Jedes Biom hat eine eigene Handschrift am Boden', () => {
   // Zwei Biome, die dasselbe Kleinzeug streuen, sind dasselbe Biom mit
   // zwei Namen. Geprüft wird die Tabelle selbst: Keine zwei Listen

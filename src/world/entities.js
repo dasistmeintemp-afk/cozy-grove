@@ -172,6 +172,19 @@ export const ENTITY_DEFS = {
     sprite: 'grass_tuft', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('fiber', 1, 1), respawn: 1, sway: true, category: 'forage',
   },
+  /**
+   * Der Farn.
+   *
+   * Erntbar wie Kraut und mit demselben Ertrag: Er ist die Pflanze, an
+   * der man den Sumpf erkennt, und eine Pflanze, die man nur ansehen
+   * darf, ist Deko. Dass er dasselbe gibt wie Kraut, ist Absicht – eine
+   * neue Zutat nur für ein neues Biom wäre eine Rezeptliste mehr, ohne
+   * dass irgendwo etwas Neues entstünde.
+   */
+  farn: {
+    sprite: 'farn', variants: 3, solid: false, reachR: 58, tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
+  },
   mushroom: {
     sprite: 'mushroom', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('mushroom', 1, 1), respawn: 1, category: 'forage',

@@ -12,7 +12,7 @@ import {
   paintLeuchtturm, paintHohlerBaum, paintMuehle,
 } from './painted-marken.js';
 import {
-  paintTree, paintPine, paintStump, paintLogBarrier,
+  paintTree, paintPine, paintStump, paintLogBarrier, paintFarn,
   paintRock, paintRockslide, paintBush, paintFlower, paintGrassTuft,
   paintReeds, paintMushroom, paintHerb, paintShell, paintDriftwood, paintDigspot,
   paintFeather, paintStardust,
@@ -378,6 +378,9 @@ export function initArt() {
   addArt('flower_violet', paintFlower({ seed: 141, petal: INK.petalViolet }));
   addArt('flower_white', paintFlower({ seed: 147, petal: INK.petalWhite }));
   addArt('flower_dusk', paintFlower({ seed: 153, petal: INK.petalDusk }));
+  // Der Farn – die Pflanze des Sumpfes, in drei Fassungen wie alles,
+  // wovon viele nebeneinander stehen.
+  for (let v = 0; v < 3; v++) addArt('farn_' + v, paintFarn({ seed: 1811 + v * 23 }));
 
   /* --- Lager --- */
   addArt('campfire', paintCampfire({ seed: 211 }));
