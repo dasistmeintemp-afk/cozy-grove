@@ -244,11 +244,116 @@ export function generateTiles(seed) {
   addBeachRim(tiles);
 
   const hoehen = berechneHoehen(seed, tiles);
+  strandUnterDerKlippe(tiles, hoehen);
   setzeSteilkanten(tiles, hoehen);
   oeffneRampen(tiles);
   HOEHEN_CACHE.seed = seed >>> 0;
   HOEHEN_CACHE.data = hoehen;
   return tiles;
+}
+
+/**
+ * Unter der Klippe liegt Strand, nicht Wiese.
+ *
+ * Der Saum zwischen Klippenfuss und Wasser war vorher zum grössten Teil
+ * Gras: gemessen zwei bis drei Kacheln Sand und darüber noch drei bis
+ * sechs Kacheln Wiese, bevor die Wand kam. Im Bild las sich das als
+ * zweite, tiefere Wiese – nicht als Küste.
+ *
+ * Gewollt ist die Abfolge des Vorbilds: oben die Hochfläche, dann der
+ * Absturz, dann SAND, dann Meer. Also wird alles, was unterhalb der
+ * Klippe liegt und ans Meer grenzt, zu Strand.
+ *
+ * Zwei Dinge bleiben ausgenommen. Das Lager und die Grundstücke: Dort
+ * soll man bauen und pflanzen, und auf Sand wächst nichts. Und die
+ * Ufer von Fluss und Sund: Ein Sandstrand an einem Bach im Landesinneren
+ * wäre eine Verwechslung von „am Wasser" mit „am Meer".
+ */
+function strandUnterDerKlippe(tiles, hoehen) {
+  const abstand = wasserAbstand(tiles);
+  const amMeer = meerNaehe(tiles);
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i = tileIndex(tx, ty);
+      if (tiles[i] !== T.GRASS) continue;
+      if (hoehen[i] !== 0) continue;
+      if (nahAmLager(tx, ty)) continue;
+      // Nur der äussere Saum, und nur am offenen Meer.
+      if (abstand[i] > 5 || !amMeer[i]) continue;
+      tiles[i] = T.SAND;
+    }
+  }
+}
+
+/**
+ * Welche Kacheln an das offene Meer grenzen – und welche nur an Fluss
+ * oder Sund.
+ *
+ * Das Meer ist die Wasserfläche, die den Kartenrand berührt. Alles
+ * andere Wasser ist Binnenwasser, auch wenn es genauso aussieht.
+ */
+function meerNaehe(tiles) {
+  const meer = new Uint8Array(MAP_W * MAP_H);
+  const q = [];
+  for (let tx = 0; tx < MAP_W; tx++) {
+    for (const ty of [0, MAP_H - 1]) {
+      const i = tileIndex(tx, ty);
+      if (isWalkable(tiles[i]) || meer[i]) continue;
+      meer[i] = 1;
+      q.push(tx, ty);
+    }
+  }
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (const tx of [0, MAP_W - 1]) {
+      const i = tileIndex(tx, ty);
+      if (isWalkable(tiles[i]) || meer[i]) continue;
+      meer[i] = 1;
+      q.push(tx, ty);
+    }
+  }
+  let kopf = 0;
+  while (kopf < q.length) {
+    const x = q[kopf++];
+    const y = q[kopf++];
+    const nb = [x + 1, y, x - 1, y, x, y + 1, x, y - 1];
+    for (let k = 0; k < 8; k += 2) {
+      const nx = nb[k];
+      const ny = nb[k + 1];
+      if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+      const i = tileIndex(nx, ny);
+      if (meer[i] || isWalkable(tiles[i])) continue;
+      meer[i] = 1;
+      q.push(nx, ny);
+    }
+  }
+  // Und jetzt: Welches LAND liegt im Umkreis von sechs Kacheln am Meer?
+  const nah = new Uint8Array(MAP_W * MAP_H);
+  const q2 = [];
+  const tiefe = new Int16Array(MAP_W * MAP_H).fill(-1);
+  for (let i = 0; i < meer.length; i++) {
+    if (!meer[i]) continue;
+    tiefe[i] = 0;
+    q2.push(i % MAP_W, Math.floor(i / MAP_W));
+  }
+  kopf = 0;
+  while (kopf < q2.length) {
+    const x = q2[kopf++];
+    const y = q2[kopf++];
+    const d = tiefe[tileIndex(x, y)];
+    if (d >= 6) continue;
+    const nb = [x + 1, y, x - 1, y, x, y + 1, x, y - 1];
+    for (let k = 0; k < 8; k += 2) {
+      const nx = nb[k];
+      const ny = nb[k + 1];
+      if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+      const i = tileIndex(nx, ny);
+      if (tiefe[i] >= 0) continue;
+      tiefe[i] = d + 1;
+      nah[i] = 1;
+      q2.push(nx, ny);
+    }
+  }
+  return nah;
 }
 
 /* ---------------------------------------------------------- Höhenstufen */
@@ -306,68 +411,108 @@ export function hoehenFuer(seed) {
 function berechneHoehen(seed, tiles) {
   const n = makeNoise2D(seed ^ 0x27d4eb2f);
   const hoehen = new Uint8Array(MAP_W * MAP_H);
-  const werte = [];
-  const felder = [];
+
+  /**
+   * Die Klippe liegt AUSSEN, nicht mitten in der Welt.
+   *
+   * Vorher entschied ein Rauschfeld über die Höhe, und das streute
+   * Hochflächen über die ganze Insel. Egal wie gross und wie wenige sie
+   * waren: Ihre Ränder liefen quer durch die Wiese, und eine Wand
+   * mitten im Gelände stört mehr, als sie hergibt – man läuft dagegen,
+   * sucht die Rampe und hat nichts davon.
+   *
+   * Im Vorbild liegt der Absatz dort, wo er hingehört: Das Landesinnere
+   * ist eine zusammenhängende Hochfläche, aussen fällt sie zum Strand
+   * ab. Die Klippe ist damit der RAND der Insel und kein Hindernis in
+   * ihr – man sieht sie von aussen und läuft oben darauf herum.
+   *
+   * Gerechnet wird sie deshalb aus dem Abstand zum Wasser, nicht aus
+   * einem Rauschfeld: Was weiter als ein paar Kacheln vom Meer weg
+   * liegt, ist oben. Das Rauschen verschiebt nur noch die Breite dieses
+   * Saums, damit die Kante nicht wie mit dem Zirkel gezogen aussieht.
+   */
+  // Fünf Kacheln, nicht sieben: Unter der Klippe soll STRAND liegen,
+  // und ein Strand von sieben Kacheln ist eine Wüste. Siehe
+  // `strandUnterDerKlippe`.
+  const SAUM = 5;
+  const abstand = wasserAbstand(tiles);
   for (let ty = 0; ty < MAP_H; ty++) {
     for (let tx = 0; tx < MAP_W; tx++) {
       const i = tileIndex(tx, ty);
       const t = tiles[i];
       if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
-      if (nahAmLager(tx, ty) || amUebergang(tx, ty)) continue;
-      /**
-       * Grobes Rauschen, nicht feines.
-       *
-       * Mit 0,055 und drei Oktaven entstanden viele kleine Flecken, und
-       * jeder Fleck bringt seinen eigenen Rand mit: gemessen rund 760
-       * Klippenkacheln je Insel, verteilt als Geäder quer durch die
-       * Wiese. Eine Landschaft hat ein paar große Hochflächen und nicht
-       * vierzig kleine.
-       *
-       * 0,028 bei zwei Oktaven macht Flecken von der doppelten
-       * Kantenlänge – also ungefähr halb so viel Rand bei gleicher
-       * Fläche. Die zweite Oktave bleibt, damit die Ränder nicht zu
-       * Kreisen werden.
-       */
-      const w = warp(n, tx * F(0.028), ty * F(0.028), 1.3);
-      felder.push(i);
-      werte.push(fbm(n, w[0], w[1], 2, 2.0, 0.45));
+      // Der Saum wackelt zwischen vier und zehn Kacheln.
+      const w = fbm(n, tx * F(0.035), ty * F(0.035), 2, 2.0, 0.5);
+      const breite = SAUM + Math.round((w - 0.5) * 6);
+      if (abstand[i] > breite) hoehen[i] = 1;
     }
   }
-  if (!felder.length) return hoehen;
-
-  // Die Schwellen werden GEMESSEN, nicht gesetzt.
-  //
-  // Mit festen Werten (0,555 und 0,645) schwankte das Ergebnis zwischen
-  // den Samen von 2 bis 23 Prozent oberster Ebene: Das Rauschen trifft je
-  // nach Samen einen anderen Wertebereich. Eine Insel mit 23 Prozent
-  // Hochfläche ist ein Plateau mit Küstenstreifen, eine mit 2 Prozent hat
-  // gar keine. Beides ist nicht dieses Spiel.
-  //
-  // Stattdessen werden alle Werte sortiert und bei ANTEILEN geschnitten.
-  // Dann hat jede Insel dieselbe Mischung und trotzdem ihre eigene Form.
   /**
-   * ZWEI Ebenen, nicht drei.
+   * Lager und Grundstücke bekommen EINE Höhe – die ihrer Umgebung.
    *
-   * Drei Ebenen heißt zwei Sorten Grenze – zwischen 0 und 1 und zwischen
-   * 1 und 2 –, und die zweite liegt mitten in der ersten Hochfläche. Im
-   * Bild liefen dadurch Klippen durch Gegenden, die eben aussehen
-   * sollten, und die Insel wirkte zerschnitten statt gestuft.
+   * Hier wurden sie vorher einfach übersprungen und blieben damit auf
+   * null. Mitten in einer Hochfläche ist das kein ebener Platz, sondern
+   * eine Senke – und rings um das Lager stand dann eine Mauer. Gemessen:
+   * bis zu 49 Klippenkacheln je Insel lagen mehr als vierzehn Kacheln
+   * vom Wasser entfernt, also tief im Land, und fast alle davon waren
+   * dieser Rand.
    *
-   * Das Vorbild hat im Kern genau einen Absatz: unten der Strand, oben
-   * die Wiese. Terrassen gibt es, aber wenige und große.
-   *
-   * 28 Prozent Hochfläche: genug, dass es sie wirklich gibt, wenig
-   * genug, dass sie ein Ort bleibt und keine zweite Insel.
+   * Übersprungen ist also falsch; richtig ist „so hoch wie ringsum".
+   * Welche Höhe das ist, sagt dieselbe Abstandsregel an der Mitte des
+   * Lagers – liegt es im Landesinneren, liegt das Lager oben, und die
+   * Klippe bleibt draussen am Rand, wo sie hingehört.
    */
-  const sortiert = werte.slice().sort(function (a, b) { return a - b; });
-  const s1 = sortiert[Math.floor(sortiert.length * 0.72)];
-  for (let k = 0; k < felder.length; k++) {
-    hoehen[felder[k]] = werte[k] > s1 ? 1 : 0;
+  const lagerHoch = hoehen[tileIndex(CAMP_TILE.x, CAMP_TILE.y)];
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      if (!nahAmLager(tx, ty)) continue;
+      const i = tileIndex(tx, ty);
+      const t = tiles[i];
+      if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
+      hoehen[i] = lagerHoch;
+    }
   }
   glaetteHoehen(hoehen, tiles);
   entferneSplitter(hoehen, tiles);
   glaetteHoehen(hoehen, tiles);
   return hoehen;
+}
+
+/**
+ * Wie weit jede Kachel vom Wasser weg liegt, in Kacheln.
+ *
+ * Eine Flutfüllung vom Wasser aus – billiger und genauer als für jede
+ * Kachel in alle Richtungen zu suchen, und sie liefert denselben Wert
+ * für Inseln jeder Form.
+ */
+function wasserAbstand(tiles) {
+  const d = new Int16Array(MAP_W * MAP_H).fill(-1);
+  const schlange = [];
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i = tileIndex(tx, ty);
+      if (isWalkable(tiles[i])) continue;
+      d[i] = 0;
+      schlange.push(tx, ty);
+    }
+  }
+  let kopf = 0;
+  while (kopf < schlange.length) {
+    const x = schlange[kopf++];
+    const y = schlange[kopf++];
+    const hier = d[tileIndex(x, y)];
+    const nb = [x + 1, y, x - 1, y, x, y + 1, x, y - 1];
+    for (let k = 0; k < 8; k += 2) {
+      const nx = nb[k];
+      const ny = nb[k + 1];
+      if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+      const i = tileIndex(nx, ny);
+      if (d[i] >= 0) continue;
+      d[i] = hier + 1;
+      schlange.push(nx, ny);
+    }
+  }
+  return d;
 }
 
 /**
@@ -546,7 +691,18 @@ function setzeSteilkanten(tiles, hoehen) {
        * die Wand, also wird hier entschieden, wo keine stehen darf. Ein
        * Übergang, vor dem eine Wand steht, ist kein Übergang.
        */
-      if (hoeher && !amUebergang(tx, ty)) tiles[i] = T.CLIFF;
+      /**
+       * Weder auf einem Übergang noch auf einem Bauplatz steht eine Wand.
+       *
+       * Die Höhen sind für Lager und Grundstücke schon eingeebnet – aber
+       * eine Kachel wird zur Wand, weil ihr NACHBAR höher ist, und der
+       * liegt ausserhalb. An der Kante eines Grundstücks stand damit eine
+       * Wand auf dem Grundstück: eine Mauer mitten im eigenen Garten, die
+       * sich nicht wegräumen lässt, denn eine Steilkante ist kein Baum.
+       * Dieselbe Falle wie bei der Furt, und eine Prüfung hat beide
+       * gefunden.
+       */
+      if (hoeher && !amUebergang(tx, ty) && !nahAmLager(tx, ty)) tiles[i] = T.CLIFF;
     }
   }
   STEILKANTEN_VORHER.data = vorher;

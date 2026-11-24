@@ -29,23 +29,45 @@ import { TILE_DEF, T } from './tiles.js';
  */
 export const SEASON_PALETTE = {
   spring: {
-    grass: '#c3dd85', grassLight: '#dcecab', grassDark: '#9cbb62',
-    leaf: '#a9d05e', leafLight: '#d0e88f', leafDark: '#7ba644', leafDeep: '#557d2f',
-    birchLeaf: '#c8de79', birchLight: '#e4f0aa', birchDark: '#9dbb58', birchDeep: '#77953d',
+    // Dieselbe Drehung wie im Sommer, nur vierzehn Grad: Der Frühling
+    // darf heller und eine Spur gelber bleiben – junges Laub IST
+    // gelblicher –, aber nicht mehr khakifarben.
+    grass: '#a9dd7a', grassLight: '#c7ec9f', grassDark: '#82bb59',
+    leaf: '#88d054', leafLight: '#b5e883', leafDark: '#5fa63c', leafDeep: '#3e7d29',
+    birchLeaf: '#abde6e', birchLight: '#cff09e', birchDark: '#81bb4f', birchDeep: '#5e9536',
     // Der Ahorn treibt aus: junges Grün mit einem rötlichen Rand, wie die
     // Blüten echter Ahorne im März. Bliebe er herbstlich orange, stünden
     // mitten im Frühling zwei Dutzend Bäume herum, die tot aussehen.
     autumn: '#b7cf6a', autumnLight: '#d9e79a', autumnDark: '#8fae4a', autumnDeep: '#a06a4e',
-    moss: '#aec377',
+    moss: '#97c36d',
   },
   summer: {
     // Sattes, tiefes Grün – der Hochsommer soll nicht wie der Frühling
     // aussehen, sonst ist ein halbes Jahr lang dasselbe Bild.
-    grass: '#a9cc6c', grassLight: '#c9de92', grassDark: '#84a44f',
-    leaf: '#8bb845', leafLight: '#b6d474', leafDark: '#628c33', leafDeep: '#436526',
-    birchLeaf: '#a9c95e', birchLight: '#cfe28c', birchDark: '#82a046', birchDeep: '#5f7c30',
+    /**
+     * Die Grüns liegen im GRÜNsektor, nicht im gelben.
+     *
+     * Beide Bilder nebeneinander gemessen, Farbtöne in Sektoren zu
+     * dreissig Grad: Im Vorbild tragen fünf Sektoren über fünf Prozent,
+     * der grösste ist Gelbgrün mit 32 Prozent – das Gras. Bei uns waren
+     * es zwei Sektoren, Gelb mit 83 Prozent und Orange, und Gelbgrün
+     * stand bei NULL.
+     *
+     * Die Ursache war ein Zahlenbereich: Unsere Grüns lagen bei 73 bis
+     * 92 Grad, und bei 90 Grad endet der Gelbsektor. Das Gras des
+     * Vorbilds liegt bei 93. Zehn bis zwanzig Grad bei einer Farbe, die
+     * über die halbe Bildfläche einnimmt – damit kippt alles ins
+     * Senffarbene. Helligkeit (146 gegen 146) und Sättigung (45 gegen
+     * 41 Prozent) stimmten die ganze Zeit; nur der Ton war falsch.
+     *
+     * Jeder Ton wurde um sechzehn Grad gedreht und um sechs Punkte
+     * gesättigt, die Helligkeit blieb unangetastet.
+     */
+    grass: '#88cc60', grassLight: '#aede85', grassDark: '#67a445',
+    leaf: '#65b83a', leafLight: '#95d467', leafDark: '#448c2b', leafDeep: '#2d6520',
+    birchLeaf: '#86c952', birchLight: '#b1e27e', birchDark: '#64a03c', birchDeep: '#467c29',
     autumn: '#9dbb52', autumnLight: '#c3d883', autumnDark: '#77953a', autumnDeep: '#8a6a3c',
-    moss: '#94ac60',
+    moss: '#7aac56',
   },
   autumn: {
     // Das Gras bleibt GRÜN, auch im Herbst.
@@ -59,12 +81,15 @@ export const SEASON_PALETTE = {
     //
     // Jetzt liegt Grün 23 Stufen über Rot. Gelblicher als im Sommer
     // bleibt es trotzdem, sonst wäre es kein Herbst.
-    grass: '#aec163', grassLight: '#cbd78f', grassDark: '#8a9d4a',
+    // Im Herbst nur zehn Grad: Das Gras soll gelblicher bleiben als im
+    // Sommer – sonst ist es kein Herbst –, aber auch hier war Khaki zu
+    // viel des Guten.
+    grass: '#9bc15b', grassLight: '#bcd786', grassDark: '#7a9d44',
     leaf: '#d8a94e', leafLight: '#eecb84', leafDark: '#b7822f', leafDeep: '#8d5a21',
     birchLeaf: '#e0c761', birchLight: '#f2e096', birchDark: '#b89b41', birchDeep: '#8e7530',
     // Im Herbst brennt der Ahorn – hier steht die Grundpalette, und genau
     // deshalb ist das die Jahreszeit, für die diese Insel gemalt wurde.
-    moss: '#b0ab63',
+    moss: '#a7b05c',
   },
   winter: {
     // Kühl und hell, aber mit erkennbarem Grün: Bei #d3e0d4 lag die Sättigung

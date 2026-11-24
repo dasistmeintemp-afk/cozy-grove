@@ -63,14 +63,27 @@ test('Die Insel hat wirklich mehrere Ebenen', () => {
       assert.ok(zaehler[z] > land * 0.04,
         'Seed ' + seed + ': Stufe ' + z + ' hat nur ' + zaehler[z] + ' von ' + land + ' Kacheln');
     }
-    // Und die unterste muss die größte bleiben – sonst steht man ständig
-    // oben und das Besondere daran ist weg.
-    assert.ok(zaehler[0] > land * 0.45,
-      'Seed ' + seed + ': die Grundebene hat nur ' + zaehler[0] + ' von ' + land);
-    // Die Gegenprobe zur Verkleinerung: Die Hochfläche darf nicht so
-    // gross werden, dass die Grundebene zur Ausnahme wird.
-    assert.ok(zaehler[1] < land * 0.4,
-      'Seed ' + seed + ': die Hochfläche hat ' + zaehler[1] + ' von ' + land);
+    /**
+     * Die Hochfläche IST die Insel, die Grundebene ist ihr Saum.
+     *
+     * Hier stand das Gegenteil: „die unterste Ebene muss die größte
+     * bleiben". Das galt, solange die Hochflächen aus einem Rauschfeld
+     * kamen und über die Insel verteilt lagen – dann wäre eine
+     * Mehrheit oben gleichbedeutend mit „überall Klippen".
+     *
+     * Seit die Klippe am RAND liegt, ist es umgekehrt: Das
+     * Landesinnere ist die Hochfläche, und unten liegt der Küstensaum
+     * mit dem Strand. Eine Grundebene, die die Mehrheit hätte, wäre
+     * eine Insel, die fast nur aus Strand besteht.
+     *
+     * Geprüft wird jetzt, dass es beides WIRKLICH gibt: Der Saum darf
+     * weder verschwinden noch die Insel auffressen.
+     */
+    assert.ok(zaehler[0] > land * 0.15,
+      'Seed ' + seed + ': der Küstensaum hat nur ' + zaehler[0] + ' von ' + land);
+    assert.ok(zaehler[0] < land * 0.5,
+      'Seed ' + seed + ': der Küstensaum hat ' + zaehler[0] + ' von ' + land
+      + ' – das ist keine Insel mehr, sondern ein Strand');
   }
 });
 

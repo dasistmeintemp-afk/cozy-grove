@@ -2434,27 +2434,48 @@ const { blob, teardrop, smoothClosed, offsetShape, pathFrom, clipTo, inkStroke, 
 const { makeRng } = __req("src/core/rng.js");
 
 /** Die Farbwelt: warmes Papier, Tinte in Sepia statt Schwarz. */
+/**
+ * Die Palette.
+ *
+ * **Warum die Grüns gedreht wurden.** Beide Bilder nebeneinander gemessen,
+ * Farbtöne in Sektoren zu dreissig Grad: Im Vorbild tragen fünf Sektoren
+ * mehr als fünf Prozent – Rot 11, Orange 29, Gelb 14, GELBGRÜN 32, Cyan 9.
+ * Bei uns waren es zwei: Orange 39 und Gelb 57. Gelbgrün: null.
+ *
+ * Die Ursache war ein einziger Zahlenbereich. Unsere Grüns lagen alle bei
+ * 71 bis 91 Grad – das ist der GELB-Sektor, nicht der grüne. Das Gras des
+ * Vorbilds liegt bei 93. Zwanzig Grad Unterschied bei einer Farbe, die
+ * über die halbe Bildfläche einnimmt, kippen das ganze Bild ins
+ * Senffarbene. Helligkeit und Sättigung stimmten dabei die ganze Zeit
+ * (146 gegen 146, 45 gegen 41 Prozent) – deshalb war es so schwer zu
+ * sehen und so leicht zu beheben.
+ *
+ * Jeder Grünton wurde um achtzehn Grad gedreht und um sechs Punkte
+ * gesättigt, die Helligkeit blieb. Die Nadelbäume lagen schon bei 98 bis
+ * 111 Grad und bekamen nur vier Grad, sonst wären sie blaustichig
+ * geworden.
+ */
 const INK = {
   line: TUSCHE,
   lineSoft: '#7a6f5e',
   paper: '#f8f3e7',
   paperShade: '#ece4d0',
 
-  leaf: '#9ec455',
-  leafLight: '#c6e085',
-  leafDark: '#71993c',
-  leafDeep: '#4e732b',
-  pine: '#5d8a42',
-  pineDark: '#3d6636',
-  pineLight: '#82ab4d',
+  leaf: '#75c449',
+  leafLight: '#a3e078',
+  leafDark: '#4e9933',
+  leafDeep: '#337324',
+  pine: '#528a3a',
+  pineDark: '#346630',
+  pineLight: '#5eab43',
   autumn: '#e2a04c',
   autumnLight: '#f2c87e',
   autumnDark: '#c07a30',
   autumnDeep: '#9a5721',
-  birchLeaf: '#bcd66e',
-  birchLight: '#dcea9f',
-  birchDark: '#94b352',
-  birchDeep: '#6f8d38',
+  birchLeaf: '#96d661',
+  birchLight: '#bfea91',
+  birchDark: '#70b347',
+  birchDeep: '#508d30',
 
   trunk: '#d7bf94',
   trunkShade: '#a98a5d',
@@ -2463,19 +2484,19 @@ const INK = {
   birchBark: '#f2ece0',
   birchShade: '#cfc6ae',
 
-  grass: '#bcd67f',
-  grassLight: '#d8e7a6',
-  grassDark: '#95b45c',
+  grass: '#9ad672',
+  grassLight: '#bde798',
+  grassDark: '#74b451',
 
   sand: '#f7edd4',
   sandShade: '#e8d7ae',
   dirt: '#cdb185',
   dirtDark: '#9d8358',
 
-  water: '#63c8c9',
-  waterLight: '#9ce0de',
-  waterDeep: '#36a6b0',
-  waterDark: '#248a97',
+  water: '#51c9c2',
+  waterLight: '#88e0d8',
+  waterDeep: '#26aeb0',
+  waterDark: '#1e9197',
   foam: '#f0fbf9',
 
   // Die Uferwand: warme Erde, oben im Schatten der überhängenden
@@ -2487,7 +2508,7 @@ const INK = {
   rock: '#dcd8c6',
   rockShade: '#aeb2a0',
   rockDeep: '#8d9282',
-  moss: '#a4b96e',
+  moss: '#87b963',
   copper: '#e08a4a',
 
   warm: '#eaa74e',
@@ -10812,11 +10833,116 @@ function generateTiles(seed) {
   addBeachRim(tiles);
 
   const hoehen = berechneHoehen(seed, tiles);
+  strandUnterDerKlippe(tiles, hoehen);
   setzeSteilkanten(tiles, hoehen);
   oeffneRampen(tiles);
   HOEHEN_CACHE.seed = seed >>> 0;
   HOEHEN_CACHE.data = hoehen;
   return tiles;
+}
+
+/**
+ * Unter der Klippe liegt Strand, nicht Wiese.
+ *
+ * Der Saum zwischen Klippenfuss und Wasser war vorher zum grössten Teil
+ * Gras: gemessen zwei bis drei Kacheln Sand und darüber noch drei bis
+ * sechs Kacheln Wiese, bevor die Wand kam. Im Bild las sich das als
+ * zweite, tiefere Wiese – nicht als Küste.
+ *
+ * Gewollt ist die Abfolge des Vorbilds: oben die Hochfläche, dann der
+ * Absturz, dann SAND, dann Meer. Also wird alles, was unterhalb der
+ * Klippe liegt und ans Meer grenzt, zu Strand.
+ *
+ * Zwei Dinge bleiben ausgenommen. Das Lager und die Grundstücke: Dort
+ * soll man bauen und pflanzen, und auf Sand wächst nichts. Und die
+ * Ufer von Fluss und Sund: Ein Sandstrand an einem Bach im Landesinneren
+ * wäre eine Verwechslung von „am Wasser" mit „am Meer".
+ */
+function strandUnterDerKlippe(tiles, hoehen) {
+  const abstand = wasserAbstand(tiles);
+  const amMeer = meerNaehe(tiles);
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i = tileIndex(tx, ty);
+      if (tiles[i] !== T.GRASS) continue;
+      if (hoehen[i] !== 0) continue;
+      if (nahAmLager(tx, ty)) continue;
+      // Nur der äussere Saum, und nur am offenen Meer.
+      if (abstand[i] > 5 || !amMeer[i]) continue;
+      tiles[i] = T.SAND;
+    }
+  }
+}
+
+/**
+ * Welche Kacheln an das offene Meer grenzen – und welche nur an Fluss
+ * oder Sund.
+ *
+ * Das Meer ist die Wasserfläche, die den Kartenrand berührt. Alles
+ * andere Wasser ist Binnenwasser, auch wenn es genauso aussieht.
+ */
+function meerNaehe(tiles) {
+  const meer = new Uint8Array(MAP_W * MAP_H);
+  const q = [];
+  for (let tx = 0; tx < MAP_W; tx++) {
+    for (const ty of [0, MAP_H - 1]) {
+      const i = tileIndex(tx, ty);
+      if (isWalkable(tiles[i]) || meer[i]) continue;
+      meer[i] = 1;
+      q.push(tx, ty);
+    }
+  }
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (const tx of [0, MAP_W - 1]) {
+      const i = tileIndex(tx, ty);
+      if (isWalkable(tiles[i]) || meer[i]) continue;
+      meer[i] = 1;
+      q.push(tx, ty);
+    }
+  }
+  let kopf = 0;
+  while (kopf < q.length) {
+    const x = q[kopf++];
+    const y = q[kopf++];
+    const nb = [x + 1, y, x - 1, y, x, y + 1, x, y - 1];
+    for (let k = 0; k < 8; k += 2) {
+      const nx = nb[k];
+      const ny = nb[k + 1];
+      if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+      const i = tileIndex(nx, ny);
+      if (meer[i] || isWalkable(tiles[i])) continue;
+      meer[i] = 1;
+      q.push(nx, ny);
+    }
+  }
+  // Und jetzt: Welches LAND liegt im Umkreis von sechs Kacheln am Meer?
+  const nah = new Uint8Array(MAP_W * MAP_H);
+  const q2 = [];
+  const tiefe = new Int16Array(MAP_W * MAP_H).fill(-1);
+  for (let i = 0; i < meer.length; i++) {
+    if (!meer[i]) continue;
+    tiefe[i] = 0;
+    q2.push(i % MAP_W, Math.floor(i / MAP_W));
+  }
+  kopf = 0;
+  while (kopf < q2.length) {
+    const x = q2[kopf++];
+    const y = q2[kopf++];
+    const d = tiefe[tileIndex(x, y)];
+    if (d >= 6) continue;
+    const nb = [x + 1, y, x - 1, y, x, y + 1, x, y - 1];
+    for (let k = 0; k < 8; k += 2) {
+      const nx = nb[k];
+      const ny = nb[k + 1];
+      if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+      const i = tileIndex(nx, ny);
+      if (tiefe[i] >= 0) continue;
+      tiefe[i] = d + 1;
+      nah[i] = 1;
+      q2.push(nx, ny);
+    }
+  }
+  return nah;
 }
 
 /* ---------------------------------------------------------- Höhenstufen */
@@ -10874,68 +11000,108 @@ function hoehenFuer(seed) {
 function berechneHoehen(seed, tiles) {
   const n = makeNoise2D(seed ^ 0x27d4eb2f);
   const hoehen = new Uint8Array(MAP_W * MAP_H);
-  const werte = [];
-  const felder = [];
+
+  /**
+   * Die Klippe liegt AUSSEN, nicht mitten in der Welt.
+   *
+   * Vorher entschied ein Rauschfeld über die Höhe, und das streute
+   * Hochflächen über die ganze Insel. Egal wie gross und wie wenige sie
+   * waren: Ihre Ränder liefen quer durch die Wiese, und eine Wand
+   * mitten im Gelände stört mehr, als sie hergibt – man läuft dagegen,
+   * sucht die Rampe und hat nichts davon.
+   *
+   * Im Vorbild liegt der Absatz dort, wo er hingehört: Das Landesinnere
+   * ist eine zusammenhängende Hochfläche, aussen fällt sie zum Strand
+   * ab. Die Klippe ist damit der RAND der Insel und kein Hindernis in
+   * ihr – man sieht sie von aussen und läuft oben darauf herum.
+   *
+   * Gerechnet wird sie deshalb aus dem Abstand zum Wasser, nicht aus
+   * einem Rauschfeld: Was weiter als ein paar Kacheln vom Meer weg
+   * liegt, ist oben. Das Rauschen verschiebt nur noch die Breite dieses
+   * Saums, damit die Kante nicht wie mit dem Zirkel gezogen aussieht.
+   */
+  // Fünf Kacheln, nicht sieben: Unter der Klippe soll STRAND liegen,
+  // und ein Strand von sieben Kacheln ist eine Wüste. Siehe
+  // `strandUnterDerKlippe`.
+  const SAUM = 5;
+  const abstand = wasserAbstand(tiles);
   for (let ty = 0; ty < MAP_H; ty++) {
     for (let tx = 0; tx < MAP_W; tx++) {
       const i = tileIndex(tx, ty);
       const t = tiles[i];
       if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
-      if (nahAmLager(tx, ty) || amUebergang(tx, ty)) continue;
-      /**
-       * Grobes Rauschen, nicht feines.
-       *
-       * Mit 0,055 und drei Oktaven entstanden viele kleine Flecken, und
-       * jeder Fleck bringt seinen eigenen Rand mit: gemessen rund 760
-       * Klippenkacheln je Insel, verteilt als Geäder quer durch die
-       * Wiese. Eine Landschaft hat ein paar große Hochflächen und nicht
-       * vierzig kleine.
-       *
-       * 0,028 bei zwei Oktaven macht Flecken von der doppelten
-       * Kantenlänge – also ungefähr halb so viel Rand bei gleicher
-       * Fläche. Die zweite Oktave bleibt, damit die Ränder nicht zu
-       * Kreisen werden.
-       */
-      const w = warp(n, tx * F(0.028), ty * F(0.028), 1.3);
-      felder.push(i);
-      werte.push(fbm(n, w[0], w[1], 2, 2.0, 0.45));
+      // Der Saum wackelt zwischen vier und zehn Kacheln.
+      const w = fbm(n, tx * F(0.035), ty * F(0.035), 2, 2.0, 0.5);
+      const breite = SAUM + Math.round((w - 0.5) * 6);
+      if (abstand[i] > breite) hoehen[i] = 1;
     }
   }
-  if (!felder.length) return hoehen;
-
-  // Die Schwellen werden GEMESSEN, nicht gesetzt.
-  //
-  // Mit festen Werten (0,555 und 0,645) schwankte das Ergebnis zwischen
-  // den Samen von 2 bis 23 Prozent oberster Ebene: Das Rauschen trifft je
-  // nach Samen einen anderen Wertebereich. Eine Insel mit 23 Prozent
-  // Hochfläche ist ein Plateau mit Küstenstreifen, eine mit 2 Prozent hat
-  // gar keine. Beides ist nicht dieses Spiel.
-  //
-  // Stattdessen werden alle Werte sortiert und bei ANTEILEN geschnitten.
-  // Dann hat jede Insel dieselbe Mischung und trotzdem ihre eigene Form.
   /**
-   * ZWEI Ebenen, nicht drei.
+   * Lager und Grundstücke bekommen EINE Höhe – die ihrer Umgebung.
    *
-   * Drei Ebenen heißt zwei Sorten Grenze – zwischen 0 und 1 und zwischen
-   * 1 und 2 –, und die zweite liegt mitten in der ersten Hochfläche. Im
-   * Bild liefen dadurch Klippen durch Gegenden, die eben aussehen
-   * sollten, und die Insel wirkte zerschnitten statt gestuft.
+   * Hier wurden sie vorher einfach übersprungen und blieben damit auf
+   * null. Mitten in einer Hochfläche ist das kein ebener Platz, sondern
+   * eine Senke – und rings um das Lager stand dann eine Mauer. Gemessen:
+   * bis zu 49 Klippenkacheln je Insel lagen mehr als vierzehn Kacheln
+   * vom Wasser entfernt, also tief im Land, und fast alle davon waren
+   * dieser Rand.
    *
-   * Das Vorbild hat im Kern genau einen Absatz: unten der Strand, oben
-   * die Wiese. Terrassen gibt es, aber wenige und große.
-   *
-   * 28 Prozent Hochfläche: genug, dass es sie wirklich gibt, wenig
-   * genug, dass sie ein Ort bleibt und keine zweite Insel.
+   * Übersprungen ist also falsch; richtig ist „so hoch wie ringsum".
+   * Welche Höhe das ist, sagt dieselbe Abstandsregel an der Mitte des
+   * Lagers – liegt es im Landesinneren, liegt das Lager oben, und die
+   * Klippe bleibt draussen am Rand, wo sie hingehört.
    */
-  const sortiert = werte.slice().sort(function (a, b) { return a - b; });
-  const s1 = sortiert[Math.floor(sortiert.length * 0.72)];
-  for (let k = 0; k < felder.length; k++) {
-    hoehen[felder[k]] = werte[k] > s1 ? 1 : 0;
+  const lagerHoch = hoehen[tileIndex(CAMP_TILE.x, CAMP_TILE.y)];
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      if (!nahAmLager(tx, ty)) continue;
+      const i = tileIndex(tx, ty);
+      const t = tiles[i];
+      if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
+      hoehen[i] = lagerHoch;
+    }
   }
   glaetteHoehen(hoehen, tiles);
   entferneSplitter(hoehen, tiles);
   glaetteHoehen(hoehen, tiles);
   return hoehen;
+}
+
+/**
+ * Wie weit jede Kachel vom Wasser weg liegt, in Kacheln.
+ *
+ * Eine Flutfüllung vom Wasser aus – billiger und genauer als für jede
+ * Kachel in alle Richtungen zu suchen, und sie liefert denselben Wert
+ * für Inseln jeder Form.
+ */
+function wasserAbstand(tiles) {
+  const d = new Int16Array(MAP_W * MAP_H).fill(-1);
+  const schlange = [];
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i = tileIndex(tx, ty);
+      if (isWalkable(tiles[i])) continue;
+      d[i] = 0;
+      schlange.push(tx, ty);
+    }
+  }
+  let kopf = 0;
+  while (kopf < schlange.length) {
+    const x = schlange[kopf++];
+    const y = schlange[kopf++];
+    const hier = d[tileIndex(x, y)];
+    const nb = [x + 1, y, x - 1, y, x, y + 1, x, y - 1];
+    for (let k = 0; k < 8; k += 2) {
+      const nx = nb[k];
+      const ny = nb[k + 1];
+      if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+      const i = tileIndex(nx, ny);
+      if (d[i] >= 0) continue;
+      d[i] = hier + 1;
+      schlange.push(nx, ny);
+    }
+  }
+  return d;
 }
 
 /**
@@ -11114,7 +11280,18 @@ function setzeSteilkanten(tiles, hoehen) {
        * die Wand, also wird hier entschieden, wo keine stehen darf. Ein
        * Übergang, vor dem eine Wand steht, ist kein Übergang.
        */
-      if (hoeher && !amUebergang(tx, ty)) tiles[i] = T.CLIFF;
+      /**
+       * Weder auf einem Übergang noch auf einem Bauplatz steht eine Wand.
+       *
+       * Die Höhen sind für Lager und Grundstücke schon eingeebnet – aber
+       * eine Kachel wird zur Wand, weil ihr NACHBAR höher ist, und der
+       * liegt ausserhalb. An der Kante eines Grundstücks stand damit eine
+       * Wand auf dem Grundstück: eine Mauer mitten im eigenen Garten, die
+       * sich nicht wegräumen lässt, denn eine Steilkante ist kein Baum.
+       * Dieselbe Falle wie bei der Furt, und eine Prüfung hat beide
+       * gefunden.
+       */
+      if (hoeher && !amUebergang(tx, ty) && !nahAmLager(tx, ty)) tiles[i] = T.CLIFF;
     }
   }
   STEILKANTEN_VORHER.data = vorher;
@@ -48873,23 +49050,45 @@ const { TILE_DEF, T } = __req("src/art/tiles.js");
  */
 const SEASON_PALETTE = {
   spring: {
-    grass: '#c3dd85', grassLight: '#dcecab', grassDark: '#9cbb62',
-    leaf: '#a9d05e', leafLight: '#d0e88f', leafDark: '#7ba644', leafDeep: '#557d2f',
-    birchLeaf: '#c8de79', birchLight: '#e4f0aa', birchDark: '#9dbb58', birchDeep: '#77953d',
+    // Dieselbe Drehung wie im Sommer, nur vierzehn Grad: Der Frühling
+    // darf heller und eine Spur gelber bleiben – junges Laub IST
+    // gelblicher –, aber nicht mehr khakifarben.
+    grass: '#a9dd7a', grassLight: '#c7ec9f', grassDark: '#82bb59',
+    leaf: '#88d054', leafLight: '#b5e883', leafDark: '#5fa63c', leafDeep: '#3e7d29',
+    birchLeaf: '#abde6e', birchLight: '#cff09e', birchDark: '#81bb4f', birchDeep: '#5e9536',
     // Der Ahorn treibt aus: junges Grün mit einem rötlichen Rand, wie die
     // Blüten echter Ahorne im März. Bliebe er herbstlich orange, stünden
     // mitten im Frühling zwei Dutzend Bäume herum, die tot aussehen.
     autumn: '#b7cf6a', autumnLight: '#d9e79a', autumnDark: '#8fae4a', autumnDeep: '#a06a4e',
-    moss: '#aec377',
+    moss: '#97c36d',
   },
   summer: {
     // Sattes, tiefes Grün – der Hochsommer soll nicht wie der Frühling
     // aussehen, sonst ist ein halbes Jahr lang dasselbe Bild.
-    grass: '#a9cc6c', grassLight: '#c9de92', grassDark: '#84a44f',
-    leaf: '#8bb845', leafLight: '#b6d474', leafDark: '#628c33', leafDeep: '#436526',
-    birchLeaf: '#a9c95e', birchLight: '#cfe28c', birchDark: '#82a046', birchDeep: '#5f7c30',
+    /**
+     * Die Grüns liegen im GRÜNsektor, nicht im gelben.
+     *
+     * Beide Bilder nebeneinander gemessen, Farbtöne in Sektoren zu
+     * dreissig Grad: Im Vorbild tragen fünf Sektoren über fünf Prozent,
+     * der grösste ist Gelbgrün mit 32 Prozent – das Gras. Bei uns waren
+     * es zwei Sektoren, Gelb mit 83 Prozent und Orange, und Gelbgrün
+     * stand bei NULL.
+     *
+     * Die Ursache war ein Zahlenbereich: Unsere Grüns lagen bei 73 bis
+     * 92 Grad, und bei 90 Grad endet der Gelbsektor. Das Gras des
+     * Vorbilds liegt bei 93. Zehn bis zwanzig Grad bei einer Farbe, die
+     * über die halbe Bildfläche einnimmt – damit kippt alles ins
+     * Senffarbene. Helligkeit (146 gegen 146) und Sättigung (45 gegen
+     * 41 Prozent) stimmten die ganze Zeit; nur der Ton war falsch.
+     *
+     * Jeder Ton wurde um sechzehn Grad gedreht und um sechs Punkte
+     * gesättigt, die Helligkeit blieb unangetastet.
+     */
+    grass: '#88cc60', grassLight: '#aede85', grassDark: '#67a445',
+    leaf: '#65b83a', leafLight: '#95d467', leafDark: '#448c2b', leafDeep: '#2d6520',
+    birchLeaf: '#86c952', birchLight: '#b1e27e', birchDark: '#64a03c', birchDeep: '#467c29',
     autumn: '#9dbb52', autumnLight: '#c3d883', autumnDark: '#77953a', autumnDeep: '#8a6a3c',
-    moss: '#94ac60',
+    moss: '#7aac56',
   },
   autumn: {
     // Das Gras bleibt GRÜN, auch im Herbst.
@@ -48903,12 +49102,15 @@ const SEASON_PALETTE = {
     //
     // Jetzt liegt Grün 23 Stufen über Rot. Gelblicher als im Sommer
     // bleibt es trotzdem, sonst wäre es kein Herbst.
-    grass: '#aec163', grassLight: '#cbd78f', grassDark: '#8a9d4a',
+    // Im Herbst nur zehn Grad: Das Gras soll gelblicher bleiben als im
+    // Sommer – sonst ist es kein Herbst –, aber auch hier war Khaki zu
+    // viel des Guten.
+    grass: '#9bc15b', grassLight: '#bcd786', grassDark: '#7a9d44',
     leaf: '#d8a94e', leafLight: '#eecb84', leafDark: '#b7822f', leafDeep: '#8d5a21',
     birchLeaf: '#e0c761', birchLight: '#f2e096', birchDark: '#b89b41', birchDeep: '#8e7530',
     // Im Herbst brennt der Ahorn – hier steht die Grundpalette, und genau
     // deshalb ist das die Jahreszeit, für die diese Insel gemalt wurde.
-    moss: '#b0ab63',
+    moss: '#a7b05c',
   },
   winter: {
     // Kühl und hell, aber mit erkennbarem Grün: Bei #d3e0d4 lag die Sättigung

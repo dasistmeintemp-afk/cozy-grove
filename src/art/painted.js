@@ -18,27 +18,48 @@ import {
 import { makeRng } from '../core/rng.js';
 
 /** Die Farbwelt: warmes Papier, Tinte in Sepia statt Schwarz. */
+/**
+ * Die Palette.
+ *
+ * **Warum die Grüns gedreht wurden.** Beide Bilder nebeneinander gemessen,
+ * Farbtöne in Sektoren zu dreissig Grad: Im Vorbild tragen fünf Sektoren
+ * mehr als fünf Prozent – Rot 11, Orange 29, Gelb 14, GELBGRÜN 32, Cyan 9.
+ * Bei uns waren es zwei: Orange 39 und Gelb 57. Gelbgrün: null.
+ *
+ * Die Ursache war ein einziger Zahlenbereich. Unsere Grüns lagen alle bei
+ * 71 bis 91 Grad – das ist der GELB-Sektor, nicht der grüne. Das Gras des
+ * Vorbilds liegt bei 93. Zwanzig Grad Unterschied bei einer Farbe, die
+ * über die halbe Bildfläche einnimmt, kippen das ganze Bild ins
+ * Senffarbene. Helligkeit und Sättigung stimmten dabei die ganze Zeit
+ * (146 gegen 146, 45 gegen 41 Prozent) – deshalb war es so schwer zu
+ * sehen und so leicht zu beheben.
+ *
+ * Jeder Grünton wurde um achtzehn Grad gedreht und um sechs Punkte
+ * gesättigt, die Helligkeit blieb. Die Nadelbäume lagen schon bei 98 bis
+ * 111 Grad und bekamen nur vier Grad, sonst wären sie blaustichig
+ * geworden.
+ */
 export const INK = {
   line: TUSCHE,
   lineSoft: '#7a6f5e',
   paper: '#f8f3e7',
   paperShade: '#ece4d0',
 
-  leaf: '#9ec455',
-  leafLight: '#c6e085',
-  leafDark: '#71993c',
-  leafDeep: '#4e732b',
-  pine: '#5d8a42',
-  pineDark: '#3d6636',
-  pineLight: '#82ab4d',
+  leaf: '#75c449',
+  leafLight: '#a3e078',
+  leafDark: '#4e9933',
+  leafDeep: '#337324',
+  pine: '#528a3a',
+  pineDark: '#346630',
+  pineLight: '#5eab43',
   autumn: '#e2a04c',
   autumnLight: '#f2c87e',
   autumnDark: '#c07a30',
   autumnDeep: '#9a5721',
-  birchLeaf: '#bcd66e',
-  birchLight: '#dcea9f',
-  birchDark: '#94b352',
-  birchDeep: '#6f8d38',
+  birchLeaf: '#96d661',
+  birchLight: '#bfea91',
+  birchDark: '#70b347',
+  birchDeep: '#508d30',
 
   trunk: '#d7bf94',
   trunkShade: '#a98a5d',
@@ -47,19 +68,19 @@ export const INK = {
   birchBark: '#f2ece0',
   birchShade: '#cfc6ae',
 
-  grass: '#bcd67f',
-  grassLight: '#d8e7a6',
-  grassDark: '#95b45c',
+  grass: '#9ad672',
+  grassLight: '#bde798',
+  grassDark: '#74b451',
 
   sand: '#f7edd4',
   sandShade: '#e8d7ae',
   dirt: '#cdb185',
   dirtDark: '#9d8358',
 
-  water: '#63c8c9',
-  waterLight: '#9ce0de',
-  waterDeep: '#36a6b0',
-  waterDark: '#248a97',
+  water: '#51c9c2',
+  waterLight: '#88e0d8',
+  waterDeep: '#26aeb0',
+  waterDark: '#1e9197',
   foam: '#f0fbf9',
 
   // Die Uferwand: warme Erde, oben im Schatten der überhängenden
@@ -71,7 +92,7 @@ export const INK = {
   rock: '#dcd8c6',
   rockShade: '#aeb2a0',
   rockDeep: '#8d9282',
-  moss: '#a4b96e',
+  moss: '#87b963',
   copper: '#e08a4a',
 
   warm: '#eaa74e',
