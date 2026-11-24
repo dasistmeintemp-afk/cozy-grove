@@ -4316,6 +4316,98 @@ async function run() {
       || (sandbank.fest === true && sandbank.traegt === true),
       JSON.stringify(sandbank));
 
+    /* ---- In die Höhle und wieder heraus ---- */
+    // Der ganze Weg in einem Stück: hineingehen, etwas abbauen, hinaus.
+    // Jeder Schritt einzeln geprüft wäre dreimal derselbe Aufbau und
+    // würde die eine Frage nicht beantworten, auf die es ankommt – ob
+    // man am Ende wieder draußen steht, wo man hineingegangen ist.
+    const hoehle = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const eingang = g.world.entities.find(function (x) {
+        return x.kind === 'hoehle_eingang' && !x.gone;
+      });
+      if (!eingang) return { keinEingang: true };
+      const vorher = { x: g.player.x, y: g.player.y };
+      g.player.x = eingang.x;
+      g.player.y = eingang.y + 80;
+      r.rein = g.betritteOrt('hoehle');
+      r.drinnen = g.drinnen();
+      r.inhalt = g.ortInhalt().length;
+      // Was es NUR hier gibt: Eine Höhle mit demselben Kram wie draußen
+      // ist eine Abkürzung, kein Ort.
+      r.eigenes = g.ortInhalt().filter(function (x) {
+        return x.kind === 'kristallader' || x.kind === 'leuchtmoos';
+      }).length;
+      // Drinnen ist es dunkler als im Zimmer – das ist der Ort, nicht
+      // die Uhrzeit.
+      r.dunkel = g.innenDunkel();
+      // Vor einen Erzbrocken stellen und so lange schlagen, bis er weg
+      // ist. Die Zahl der Schläge kommt aus der Objekttabelle, nicht aus
+      // einer Zahl hier – sonst prüft die Prüfung ihre eigene Annahme.
+      /**
+       * Die KRISTALLADER, nicht das Erz.
+       *
+       * Zuerst schlug diese Prüfung auf einen Erzbrocken ein und blieb
+       * rot: Erz verlangt die Spitzhacke ab Stufe 2, Granit ab 3, die
+       * Geode ab 4 – mit der Anfangsausrüstung war in der ganzen Höhle
+       * nichts zu holen. Das war kein Fehler der Prüfung, sondern einer
+       * der Höhle, und sie hat ihn gefunden, weil sie mit dem Werkzeug
+       * des ersten Tages geschlagen hat statt mit einem gedachten.
+       */
+      const erz = g.ortInhalt().find(function (x) { return x.kind === 'kristallader'; });
+      r.erzGefunden = !!erz;
+      if (erz) {
+        const vorhin = g.inventory.count('stone') + g.inventory.count('hoehlenkristall');
+        g.innen.x = erz.x;
+        g.innen.y = erz.y + 30;
+        g.player.dir = 'up';
+        for (let i = 0; i < 12; i++) {
+          g.player.busy = 0;
+          g.player.swing = 0;
+          g._innenInteract();
+        }
+        r.wegGeschlagen = g.ortInhalt().length < r.inhalt;
+        r.bekommen = (g.inventory.count('stone') + g.inventory.count('hoehlenkristall')) > vorhin;
+        // Und es ist wirklich der Höhlenfund, nicht nur irgendein Stein.
+        r.kristall = g.inventory.count('hoehlenkristall') > 0;
+        // Und am nächsten Morgen ist es wieder da.
+        g.day.day += 9;
+        g._innenorteNachwachsen();
+        r.nachgewachsen = g.ortInhalt().length === r.inhalt;
+        g.day.day -= 9;
+      }
+      // Hinaus: im Ausgang stehen und drücken.
+      const o = g.ort();
+      g.innen.x = o.w / 2;
+      g.innen.y = o.h - 20;
+      g._innenInteract();
+      r.wiederDraussen = !g.drinnen();
+      r.anDerselbenStelle = Math.round(Math.hypot(
+        g.player.x - eingang.x, g.player.y - (eingang.y + 80))) < 4;
+      g.player.x = vorher.x;
+      g.player.y = vorher.y;
+      g.player.prevX = vorher.x;
+      g.player.prevY = vorher.y;
+      g.camera.snapTo(vorher.x, vorher.y);
+      return r;
+    });
+    check('Man kann in die Höhle gehen und findet dort etwas',
+      hoehle.rein === true && hoehle.drinnen === true && hoehle.inhalt >= 8
+      && hoehle.erzGefunden === true, JSON.stringify(hoehle));
+    check('Und zwar Dinge, die es nur in der Höhle gibt',
+      hoehle.eigenes >= 4, JSON.stringify(hoehle));
+    check('In der Höhle ist es dunkel, nicht nur abends',
+      hoehle.dunkel > 0.3, JSON.stringify(hoehle));
+    check('Die Kristallader lässt sich mit der ersten Spitzhacke abbauen',
+      hoehle.wegGeschlagen === true && hoehle.bekommen === true
+      && hoehle.kristall === true, JSON.stringify(hoehle));
+    check('Und sie wächst nach',
+      hoehle.nachgewachsen === true, JSON.stringify(hoehle));
+    check('Und man kommt wieder heraus, wo man hineingegangen ist',
+      hoehle.wiederDraussen === true && hoehle.anDerselbenStelle === true,
+      JSON.stringify(hoehle));
+
     /* ---- Die Oberfläche ist aus demselben Material wie die Welt ---- */
     // Gemessen wird die gerechnete Darstellung, nicht das Aussehen:
     // Welche Farbe hat die Kontur eines Feldes wirklich, und wie breit

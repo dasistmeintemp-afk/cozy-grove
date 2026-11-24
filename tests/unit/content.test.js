@@ -39,6 +39,9 @@ const SPRITE_NAMES = (function () {
     'sapling_maple_0', 'sapling_maple_1', 'sapling_pine_0', 'sapling_pine_1',
     'flower_pink', 'flower_yellow', 'flower_violet', 'flower_white',
     'campfire', 'tent', 'stall', 'workbench', 'kitchen', 'boat', 'mailbox', 'chest',
+    // Die Eingänge in die Innenorte und was nur drinnen wächst
+    'hoehle_eingang', 'muehle_tuer',
+    'kristallader', 'leuchtmoos', 'mehlsack',
     'lantern', 'bench', 'fence', 'flowerbed', 'birdhouse', 'windchime',
     'rug', 'signpost', 'crate', 'chest', 'path_tile', 'bridge', 'moonlamp',
     // Deko zum Einrichten

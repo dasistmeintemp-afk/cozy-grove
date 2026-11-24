@@ -48,6 +48,16 @@ const LIST = [
   // Aus dem Hochland der Stillen Insel. Ein neuer Bereich braucht etwas, das
   // es nur dort gibt – sonst ist er eine größere Fläche mit demselben Kram.
   it('granite', 'Granit', CAT.MATERIAL, 19, 0),
+  /**
+   * Was es NUR in der Höhle und NUR in der Mühle gibt.
+   *
+   * Ein Ort, in dem dieselben Dinge liegen wie draußen, ist eine Abkürzung
+   * und kein Ort. Die drei hier sind der Grund hinzugehen: Leuchtmoos und
+   * Höhlenkristall wachsen nirgends sonst, und Mehl bekommt man nur dort,
+   * wo gemahlen wird.
+   */
+  it('leuchtmoos', 'Leuchtmoos', CAT.MATERIAL, 16, 2),
+  it('mehl', 'Mehl', CAT.MATERIAL, 14, 1),
   it('fiber', 'Pflanzenfaser', CAT.MATERIAL, 2, 1),
   it('resin', 'Harz', CAT.MATERIAL, 7, 2),
   it('clay', 'Ton', CAT.MATERIAL, 4, 0),
@@ -73,6 +83,10 @@ const LIST = [
   it('bottle', 'Flaschenpost', CAT.RELIC, 10, 3),
   it('gem', 'Meerkristall', CAT.RELIC, 45, 10),
   it('amber', 'Bernstein', CAT.RELIC, 70, 14),
+  // Der Höhlenkristall ist das Stück, wegen dem man in die Höhle geht.
+  // Teurer als der Meerkristall, billiger als Bernstein: Er soll sich
+  // lohnen, ohne alles andere wertlos zu machen.
+  it('hoehlenkristall', 'Höhlenkristall', CAT.RELIC, 58, 11),
   it('coin_pouch', 'Münzbeutel', CAT.RELIC, 0, 0, { opens: [40, 90] }),
 
   // Fische

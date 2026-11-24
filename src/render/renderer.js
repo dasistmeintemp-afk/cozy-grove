@@ -13,7 +13,7 @@
  */
 import { makeCanvas, ctx2d, clamp } from '../core/util.js';
 import { drawSprite, spr, ensureBild } from '../art/sprites.js';
-import { defOf } from '../world/entities.js';
+import { defOf, spriteFor } from '../world/entities.js';
 import { getItem } from '../game/items.js';
 import { campfireLevelFor } from '../game/recipes.js';
 import { seasonTint } from '../game/seasons.js';
@@ -348,6 +348,15 @@ export class Renderer {
         sprite: (item && item.prop) || null, x: s.x, itemId: s.id,
       });
     }
+    // Was in einer Höhle oder in der Mühle steht. Es kommt aus derselben
+    // Liste wie die Möbel und sortiert sich mit ein – nur heißt sein Bild
+    // anders: Möbel tragen ihr Bild am Gegenstand, ein Felsbrocken an
+    // seiner Objektart.
+    const inhalt = game.ortInhalt();
+    for (let i = 0; i < inhalt.length; i++) {
+      const e = inhalt[i];
+      liste.push({ y: e.y, flach: false, sprite: spriteFor(e.kind, e.x, e.y), x: e.x });
+    }
     // Das Tier sortiert sich mit ein – sonst säße es vor dem Tisch, an dem
     // es gerade vorbeigelaufen ist.
     const tier = game.innenPetBild();
@@ -417,6 +426,48 @@ export class Renderer {
     lc.clearRect(0, 0, this.w, this.h);
     // Ein tiefes Blau, kein Grau: Abendlicht ist kalt, Lampenlicht warm, und
     // erst der Unterschied macht die Laterne gemütlich.
+    /**
+     * Im Zimmer ist das Dunkel Abend, in der Höhle ist es Fels.
+     *
+     * Zwei Unterschiede, und beide waren zuerst falsch. Erstens die
+     * FARBE: Ein tiefes Blau ist Abendlicht und richtig fürs Zimmer; in
+     * einer Höhle gibt es keinen Abend, dort ist es braunschwarz. Mit
+     * dem Blau sah die Höhle aus wie ein Zimmer bei Nacht.
+     *
+     * Zweitens die FLÄCHE: Der Überzug lag über dem ganzen Bild, also
+     * auch über dem Papier rings um den Raum. Im Bild war dann alles
+     * gleich grau getönt – der Raum nicht dunkler als sein Rand, und
+     * damit war die Dunkelheit keine Eigenschaft des Ortes mehr,
+     * sondern ein Filter über dem Bildschirm. Jetzt endet sie am Raum.
+     */
+    const ort = game.ort ? game.ort() : null;
+    if (ort) {
+      const raum = game.raum();
+      const rx = bx;
+      const ry = by - raum.wand;
+      const rw = raum.w;
+      const rh = raum.h + raum.wand;
+      lc.setTransform(z, 0, 0, z, 0, 0);
+      lc.fillStyle = 'rgba(28,23,18,' + t.toFixed(3) + ')';
+      lc.fillRect(rx, ry, rw, rh);
+      // Und der Ausgang leuchtet hinein: dieselbe Stelle, an der das
+      // gemalte Tageslicht sitzt, damit Bild und Licht übereinstimmen.
+      lc.globalCompositeOperation = 'destination-out';
+      const ax = bx + raum.w / 2;
+      const ay = by + raum.h;
+      const loch = lc.createRadialGradient(ax, ay, 10, ax, ay, raum.h * 0.8);
+      loch.addColorStop(0, 'rgba(0,0,0,0.9)');
+      loch.addColorStop(0.5, 'rgba(0,0,0,0.4)');
+      loch.addColorStop(1, 'rgba(0,0,0,0)');
+      lc.fillStyle = loch;
+      lc.fillRect(rx, ry, rw, rh);
+      this._screen(lc);
+      lc.globalCompositeOperation = 'source-over';
+      this._screen(ctx);
+      ctx.drawImage(this.lightCanvas, 0, 0);
+      return;
+    }
+
     lc.fillStyle = 'rgba(42,44,78,' + t.toFixed(3) + ')';
     lc.fillRect(0, 0, this.w, this.h);
 

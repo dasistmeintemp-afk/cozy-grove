@@ -316,6 +316,7 @@ export class World {
     this._placeBarriers();
     this._placeBoats();
     this._setzeMarken();
+    this._setzeHoehlen();
     this._scatterNature(rng);
     this._placeSpirits();
     return this;
@@ -344,8 +345,83 @@ export class World {
       e.markeId = p.marke.id;
       this.add(e);
       this.marken.push({ id: p.marke.id, name: p.marke.name, x: e.x, y: e.y });
+      /**
+       * Und an die Mühle kommt eine Tür.
+       *
+       * Sie ist ein eigenes Objekt und nicht Teil des Mühlenbildes. Der
+       * Grund ist nicht die Zeichnung, sondern die Reichweite: Die Marke
+       * selbst sperrt 86 Punkte um ihre Mitte, und wer ein Gebäude
+       * anspricht, steht davor, nicht darin. Eine Tür als eigenes Objekt
+       * hat ihren eigenen, kleinen Umkreis genau dort, wo man steht.
+       *
+       * Etwas unterhalb der Mitte: Dadurch wird sie NACH dem Turm
+       * gezeichnet und steht vor ihm statt dahinter.
+       */
+      if (p.marke.id === 'muehle') {
+        const tuer = makeEntity('muehle_tuer', e.x, e.y + 14);
+        this.add(tuer);
+        this.muehleTuer = tuer;
+      }
     }
     return this.marken;
+  }
+
+  /**
+   * Höhleneingänge in die Steilkanten setzen.
+   *
+   * Eine Höhle gehört in einen Hang, nicht auf eine Wiese – deshalb wird
+   * nach einer Klippenkachel gesucht, unter der (also südlich, zum
+   * Betrachter hin) begehbarer Boden liegt. Genau dort sieht ein Loch im
+   * Fels nach einem Loch im Fels aus.
+   *
+   * Drei Stück je Insel, weit auseinander. Weniger wäre auf einer Insel
+   * dieser Größe eine Rarität, die man nie findet; mehr machte aus der
+   * Höhle eine Sorte Gelände.
+   */
+  _setzeHoehlen() {
+    const MIN_ABSTAND = 34;
+    const gesetzt = [];
+    const kandidaten = [];
+    for (let ty = 2; ty < MAP_H - 3; ty++) {
+      for (let tx = 2; tx < MAP_W - 2; tx++) {
+        if (this.tiles[tileIndex(tx, ty)] !== T.CLIFF) continue;
+        // Davor muss man stehen können, und zwar zwei Kacheln weit:
+        // Mit nur einer stand der Eingang in einer Nische, aus der man
+        // ihn nicht ansprechen konnte.
+        if (!isWalkable(this.tiles[tileIndex(tx, ty + 1)])) continue;
+        if (!isWalkable(this.tiles[tileIndex(tx, ty + 2)])) continue;
+        if (!isWalkable(this.tiles[tileIndex(tx - 1, ty + 1)])) continue;
+        if (!isWalkable(this.tiles[tileIndex(tx + 1, ty + 1)])) continue;
+        kandidaten.push({ tx: tx, ty: ty });
+      }
+    }
+    // Von der Mitte weg sortieren, damit die drei nicht alle am selben
+    // Hang hängen: Der erste nimmt, was kommt, jeder weitere braucht
+    // Abstand zu allen vorigen.
+    const rng = makeRng(this.seed ^ 0x40c1e);
+    for (let i = kandidaten.length - 1; i > 0; i--) {
+      const k = Math.floor(rng() * (i + 1));
+      const t = kandidaten[i];
+      kandidaten[i] = kandidaten[k];
+      kandidaten[k] = t;
+    }
+    this.hoehlen = [];
+    for (let i = 0; i < kandidaten.length && this.hoehlen.length < 3; i++) {
+      const k = kandidaten[i];
+      let weit = true;
+      for (let j = 0; j < gesetzt.length; j++) {
+        const dx = gesetzt[j].tx - k.tx;
+        const dy = gesetzt[j].ty - k.ty;
+        if (dx * dx + dy * dy < MIN_ABSTAND * MIN_ABSTAND) { weit = false; break; }
+      }
+      if (!weit) continue;
+      gesetzt.push(k);
+      const e = makeEntity('hoehle_eingang',
+        (k.tx + 0.5) * TILE_SIZE, (k.ty + 1) * TILE_SIZE);
+      this.add(e);
+      this.hoehlen.push({ x: e.x, y: e.y });
+    }
+    return this.hoehlen;
   }
 
   _placeCamp() {

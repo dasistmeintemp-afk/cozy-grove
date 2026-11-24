@@ -32,6 +32,10 @@ import {
   klemmeInRaum, gruppen, gruppenPunkte,
 } from './interior.js';
 import {
+  innenOrtFuer, inhaltFuer, imOrt, amAusgang, emptyInnenorte, innenorteAus,
+  ORT_RAND,
+} from './innenorte.js';
+import {
   wandererAm, besuchFuer, emptyWanderer, heuteGetauscht, heuteGegruesst,
   tauschZahl, andenkenFuer,
   MITBRINGSEL, SAETZE as WANDER_SAETZE, naechsterBesuch,
@@ -170,7 +174,7 @@ import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { UI } from '../ui/ui.js';
 import { Panels } from '../ui/panels.js';
-import { ensureRoom, seliBilder, ensureBild } from '../art/sprites.js';
+import { ensureRoom, ensureInnenort, seliBilder, ensureBild } from '../art/sprites.js';
 import { applyUiScale } from '../ui/uiscale.js';
 import * as storage from '../core/storage.js';
 import * as savefile from '../core/savefile.js';
@@ -458,6 +462,7 @@ export class Game {
       records: emptyRecords(),
       wishes: emptyWishes(),
       interior: emptyInterior(),
+      innenorte: emptyInnenorte(),
       wanderer: emptyWanderer(),
       termine: Object.create(null),
       kapitel: emptyKapitel(),
@@ -576,6 +581,7 @@ export class Game {
       staerkung: emptyKitchen(),
       feste: emptyFeste(),
       interior: emptyInterior(),
+      innenorte: emptyInnenorte(),
       wanderer: emptyWanderer(),
       termine: Object.create(null),
       kapitel: emptyKapitel(),
@@ -612,6 +618,9 @@ export class Game {
     this.state.interior = interiorAus(
       this.state.interior, this.state.house || 1,
       function (id) { const it = getItem(id); return !!(it && it.prop); });
+    // Dasselbe für die Innenorte: Ein alter Spielstand kennt sie nicht,
+    // und ein neuer soll nur das Veränderliche mitbringen.
+    this.state.innenorte = innenorteAus(this.state.innenorte);
     // Was Seli beim Ausruhen zuletzt gedacht hat. Steht im Spielstand, damit
     // sie sich nach dem Neuladen nicht mit denselben acht Sätzen begrüßt.
     if (!Array.isArray(this.state.gedanken)) this.state.gedanken = [];
@@ -2815,6 +2824,8 @@ export class Game {
       // in jedem Haus. Vorher war das Haus ein Knopf, der die Nacht auslöste,
       // und die vier Ausbaustufen hatten kein Innen.
       case 'tent': this.betritt(); break;
+      case 'hoehle': this.betritteOrt('hoehle'); break;
+      case 'muehle': this.betritteOrt('muehle'); break;
       case 'bridge': this._tryBridge(entity); break;
       case 'boat': this._takeBoat(entity); break;
       case 'mail': this.openPanel('mail'); break;
@@ -5564,8 +5575,26 @@ export class Game {
     return raumZahl(this.state.house || 1);
   }
 
+  /**
+   * Der Innenort, in dem Seli gerade steht – oder null.
+   *
+   * Das ist die EINE Abfrage, an der sich alles entscheidet. Drinnen heißt
+   * entweder „im eigenen Zimmer" oder „in einer Höhle", und die beiden haben
+   * außer dem Weg auf den Bildschirm fast nichts gemeinsam: Im Zimmer zählt
+   * Gemütlichkeit, in der Höhle schlägt man Erz ab. Statt beide Fälle
+   * ineinanderzuschieben, fragt jede Stelle hier nach.
+   */
+  ort() {
+    return this.innen && this.innen.ort ? innenOrtFuer(this.innen.ort) : null;
+  }
+
   /** Der Raum, in dem Seli gerade steht (draußen: der vordere). */
   raum() {
+    const o = this.ort();
+    // `stufe: 0` ist kein Platzhalter, sondern die Aussage: Dieser Raum
+    // gehört zu keiner Ausbaustufe. Alles, was an der Stufe hängt – Bett,
+    // Verbindungstür, Fenster –, gibt es hier nicht.
+    if (o) return { stufe: 0, name: o.name, w: o.w, h: o.h, wand: o.wand };
     return raumFuer(this.state.house || 1, this.raumIndex());
   }
 
@@ -5604,7 +5633,38 @@ export class Game {
 
   /** Was im Zimmer steht. */
   innenStuecke(index) {
+    // In einer Höhle steht nichts von dir – dort steht, was die Insel
+    // dort hingelegt hat, und das kommt aus `ortInhalt()`.
+    if (this.ort()) return [];
     return this.raumStand(index).stuecke;
+  }
+
+  /**
+   * Was in einem Innenort steht – Erz, Pilze, Federn.
+   *
+   * Die Einträge nennen eine Objektart aus `entities.js`, und das ist der
+   * halbe Grund, warum diese Liste so kurz ist: Werkzeug, Schläge, Ausbeute
+   * und Nachwachsdauer stehen dort schon. Ein Erz in der Höhle verhält sich
+   * damit von selbst wie eins am Hang.
+   *
+   * Was abgebaut wurde, steht im Spielstand (`state.innenorte`) und nicht
+   * hier – die Plätze sind für alle Spielstände dieselben.
+   */
+  ortInhalt() {
+    const o = this.ort();
+    if (!o) return [];
+    if (!this._ortInhalt) this._ortInhalt = Object.create(null);
+    if (!this._ortInhalt[o.id]) this._ortInhalt[o.id] = inhaltFuer(o.id, this.world.seed);
+    const stand = this.state.innenorte || (this.state.innenorte = emptyInnenorte());
+    const liste = this._ortInhalt[o.id];
+    const raus = [];
+    for (let i = 0; i < liste.length; i++) {
+      const e = liste[i];
+      const st = stand[e.id];
+      if (st && st.gone) continue;
+      raus.push(e);
+    }
+    return raus;
   }
 
   /**
@@ -5833,11 +5893,14 @@ export class Game {
 
   /** Was an der Wand hängt. */
   innenWand(index) {
+    if (this.ort()) return [];
     return this.raumStand(index).wand;
   }
 
   /** Wo das Bett steht – in Raumkoordinaten. */
   bettPunkt() {
+    // In einer Höhle schläft niemand.
+    if (this.ort()) return null;
     return bettFuer(this.raum());
   }
 
@@ -5852,6 +5915,12 @@ export class Game {
    * ohne sie festsitzt.
    */
   innenDunkel() {
+    const o = this.ort();
+    // In einer Höhle ist Dunkelheit kein Abend, sondern der Ort selbst –
+    // auch mittags. Nachts kommt die Dämmerung obendrauf, aber gedeckelt:
+    // Ein Raum, in dem man gar nichts mehr sieht, ist kein Ort, sondern
+    // eine schwarze Fläche.
+    if (o) return Math.min(0.62, o.dunkel + (this.day.isDark() ? INNEN_NACHT : 0));
     return this.day.isDark() ? INNEN_NACHT : 0;
   }
 
@@ -5887,6 +5956,8 @@ export class Game {
    * beim ersten Hineingehen und beim Wechsel.
    */
   raumSprite() {
+    const o = this.ort();
+    if (o) return ensureInnenort(o.id, this.world.seed);
     return ensureRoom(this.state.house || 1, this.ausstattung().id, this.raumIndex());
   }
 
@@ -6024,6 +6095,43 @@ export class Game {
   }
 
   /**
+   * Einen Innenort betreten – Höhle oder Mühle.
+   *
+   * Fast dasselbe wie `betritt()`, und bewusst nicht dieselbe Methode: Das
+   * Hineingehen ins eigene Haus bringt Tier und Gast mit, malt das Zimmer
+   * nach Ausstattung und setzt Seli vor ihre Tür. Hier gilt nichts davon.
+   * Zusammengelegt wäre daraus eine Methode mit zwei Hälften geworden, von
+   * denen je eine nicht ausgeführt wird – und die liest niemand mehr.
+   */
+  betritteOrt(id) {
+    const o = innenOrtFuer(id);
+    if (!o || this.innen) return false;
+    this.stehAuf(true);
+    this.cancelPlacing();
+    this.fishing.cancel();
+    // Etwas oberhalb des Ausgangs, nicht mittendrin: Steht sie genau
+    // darin, verdeckt sie ihn – und das Erste, was man von einer Höhle
+    // sieht, soll der Weg zurück sein.
+    this.innen = { x: o.w / 2, y: o.h - 58, raum: 0, ort: o.id };
+    this.player.moving = false;
+    this.player.frame = 0;
+    this.player.dir = 'up';
+    // Das Bild wird erst hier gemalt, falls es das noch nicht gibt.
+    this.raumSprite();
+    // Tier und Gast bleiben draußen: Ein Besuch, der einem in die Höhle
+    // folgt, stünde dort im Dunkeln herum und hätte nichts zu sagen.
+    this.innenPet = null;
+    this.innenGast = null;
+    this.audio.play('ui');
+    this.ui.clearBubbles();
+    this._blasenLeeren();
+    this.ui.toast(o.name, 'icon_map');
+    this.invalidate();
+    this.save();
+    return true;
+  }
+
+  /**
    * Durch die Verbindungstür in den anderen Raum.
    *
    * Kein Ladebildschirm und keine Kamerafahrt: Man steht drüben, wo man
@@ -6035,6 +6143,8 @@ export class Game {
    */
   wechsleRaum() {
     if (!this.innen) return false;
+    // Ein Innenort hat genau einen Raum und genau einen Ausgang.
+    if (this.ort()) return false;
     if (this.raumZahl() < 2) return false;
     this.stehAufInnen(true);
     this.cancelPlacing();
@@ -6096,9 +6206,129 @@ export class Game {
     return true;
   }
 
+  /**
+   * Was in einem Innenort gerade vor Seli liegt – oder null.
+   *
+   * Dieselbe Idee wie `this.target` draußen: der Punkt vor der Nase, und
+   * was dort in Reichweite steht. Nur ohne Gitter, denn ein Dutzend Dinge
+   * durchzuzählen ist billiger als eine zweite Raumaufteilung.
+   */
+  _ortZiel() {
+    const o = this.ort();
+    if (!o) return null;
+    const p = this._innenVorDerNase(26);
+    const inhalt = this.ortInhalt();
+    let best = null;
+    let bestD = Infinity;
+    for (let i = 0; i < inhalt.length; i++) {
+      const e = inhalt[i];
+      const def = defOf(e.kind);
+      if (!def || !def.tool) continue;
+      const dx = e.x - p.x;
+      const dy = e.y - 10 - p.y;
+      const d = dx * dx + dy * dy;
+      const r = def.reachR || 80;
+      if (d > r * r || d >= bestD) continue;
+      best = e;
+      bestD = d;
+    }
+    return best;
+  }
+
+  /**
+   * Etwas in einem Innenort abschlagen oder aufheben.
+   *
+   * Absichtlich kurz: Werkzeugwahl, Zahl der Schläge, Ausbeute und
+   * Nachwachsdauer liest diese Methode aus derselben Tabelle wie `useTool`
+   * draußen. Was sie SELBST entscheidet, ist nur, wo der Stand steht – im
+   * Spielstand unter `innenorte`, nicht an einem Weltobjekt, denn Weltobjekte
+   * gibt es hier keine.
+   */
+  _ortAbbauen(e) {
+    const def = defOf(e.kind);
+    if (!def || !def.tool) return;
+    const stand = this.state.innenorte || (this.state.innenorte = emptyInnenorte());
+    const st = stand[e.id] || (stand[e.id] = { gone: false, respawnDay: 0, hp: 0 });
+    let tool = this.player.tool;
+    if (def.tool !== tool.id) {
+      const idx = TOOLS.map(function (x) { return x.id; }).indexOf(def.tool);
+      if (idx < 0) {
+        this.ui.toast('Dafür brauchst du: ' + def.tool, 'icon_star');
+        return;
+      }
+      this.selectTool(idx);
+      tool = this.player.tool;
+    }
+    const level = this.player.levels[tool.id] || 1;
+    if (def.minLevel && level < def.minLevel) {
+      this.ui.toast(tool.name + ' Stufe ' + def.minLevel + ' nötig', 'icon_lock', 'bad');
+      return;
+    }
+    this.player.startSwing();
+    this.audio.play({ axe: 'chop', pickaxe: 'mine', shovel: 'dig' }[tool.id] || 'forage');
+    const noetig = def.hits || 1;
+    st.hp = (st.hp || 0) + 1;
+    if (st.hp < noetig) { this.invalidate(); return; }
+    st.hp = 0;
+    st.gone = true;
+    // Nachwachsen wie draußen: Dieselbe Rechnung, damit eine Höhle nicht
+    // schneller leer ist als ein Hang – und nicht langsamer.
+    st.respawnDay = this.day.day + regrowDays(def.respawn || 3, this.season());
+    const drops = def.yield ? def.yield(level, Math.random) : [];
+    const bekommen = [];
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      const rein = this.inventory.add(d.id, d.n);
+      if (rein > 0) bekommen.push({ id: d.id, n: rein });
+      if (rein < d.n) this.ui.toast('Tasche ist voll!', 'icon_bag', 'bad');
+    }
+    if (bekommen.length) {
+      this.ui.toastItems(bekommen);
+      this.audio.play('pickup');
+    }
+    this.invalidate();
+    this.save();
+  }
+
+  /**
+   * Was in den Innenorten über Nacht nachwächst.
+   *
+   * Läuft beim Tageswechsel, zusammen mit allem anderen, was nachwächst.
+   * Ohne das wäre die erste Höhle nach drei Besuchen für immer leer.
+   */
+  _innenorteNachwachsen() {
+    const stand = this.state.innenorte;
+    if (!stand) return;
+    for (const k in stand) {
+      const st = stand[k];
+      if (!st || !st.gone) continue;
+      if (st.respawnDay && this.day.day < st.respawnDay) continue;
+      st.gone = false;
+      st.respawnDay = 0;
+      st.hp = 0;
+    }
+  }
+
   /** Ist dieser Punkt im Zimmer begehbar? */
   _innenBegehbar(x, y) {
     const raum = this.raum();
+    const o = this.ort();
+    if (o) {
+      if (!imOrt(x, y, o)) return false;
+      // Um Felsbrocken und Mühlstein geht es herum, über Pilze hinweg.
+      // Die Unterscheidung macht `solid` in `entities.js` – dieselbe, die
+      // draußen entscheidet, und keine zweite daneben.
+      const inhalt = this.ortInhalt();
+      for (let i = 0; i < inhalt.length; i++) {
+        const def = defOf(inhalt[i].kind);
+        if (!def || !def.solid) continue;
+        const dx = inhalt[i].x - x;
+        const dy = inhalt[i].y - y;
+        const r = (def.blockR || 24) + 10;
+        if (dx * dx + dy * dy < r * r) return false;
+      }
+      return true;
+    }
     if (!imRaum(x, y, raum)) return false;
     // Durchs Bett geht es nicht – es steht da wie jedes Möbelstück. In der
     // Kammer steht keines.
@@ -6364,6 +6594,21 @@ export class Game {
         : (this.placing.reason || 'Hier passt es nicht') + ' · X abbrechen');
       return;
     }
+    const o = this.ort();
+    if (o) {
+      if (amAusgang(this.innen.x, this.innen.y, o)) {
+        this.ui.setPrompt('Hinausgehen');
+        return;
+      }
+      const ziel = this._ortZiel();
+      if (ziel) {
+        const def = defOf(ziel.kind);
+        this.ui.setPrompt(def && def.tool === 'pickaxe' ? 'Abbauen' : 'Aufheben');
+        return;
+      }
+      this.ui.setPrompt('');
+      return;
+    }
     if (amBett(this.innen.x, this.innen.y, this.raum())) {
       this.ui.setPrompt('Schlafen');
       return;
@@ -6407,6 +6652,13 @@ export class Game {
 
   _innenInteract() {
     if (this.placing) { this._innenPlatzieren(); return; }
+    const o = this.ort();
+    if (o) {
+      if (amAusgang(this.innen.x, this.innen.y, o)) { this.verlaesst(); return; }
+      const ziel = this._ortZiel();
+      if (ziel) this._ortAbbauen(ziel);
+      return;
+    }
     if (amBett(this.innen.x, this.innen.y, this.raum())) { this.sleep(false); return; }
     if (anDerTuer(this.innen.x, this.innen.y, this.raum())) { this.verlaesst(); return; }
     if (anDerInnenTuer(this.innen.x, this.innen.y, this.raum())) { this.wechsleRaum(); return; }
@@ -7041,6 +7293,14 @@ export class Game {
     if (this.inventory.count(itemId) <= 0) return;
     // Drinnen wird nicht gesät und nicht gepflastert: Ein Beet im Zimmer
     // hätte keine Sonne, und ein Wegstück endete an der Wand.
+    // In einer Höhle wird nichts aufgestellt. Nicht aus Strenge, sondern
+    // weil es dort nicht gespeichert würde: Der Inhalt eines Innenortes
+    // steht in einer Tabelle, nicht im Spielstand – eine Bank, die beim
+    // nächsten Hineingehen weg ist, wäre schlimmer als gar keine.
+    if (this.ort()) {
+      this.ui.toast('Hier lässt sich nichts hinstellen', item.icon);
+      return;
+    }
     if (this.innen && (item.plant || item.tile || item.pflanzt)) {
       this.ui.toast(item.tile ? 'Wege gibt es nur draußen' : 'Das gehört nach draußen',
         item.icon);
@@ -7404,6 +7664,9 @@ export class Game {
     // Prüfung die ECHTE Reihenfolge nachspielte statt einer bequemen.
     this._gezeitenNachfuehren();
     this.world.newDay(day, this._todayWorldEffects());
+    // Und in den Höhlen wächst es ebenso nach. Eigene Zeile, weil der
+    // Inhalt eines Innenortes nicht in der Welt steht – siehe `ortInhalt`.
+    this._innenorteNachwachsen();
     // Über Nacht wächst Gefälltes nach, und mit ihm sein Kronenschatten.
     // Der steckt im gebackenen Boden, also muss der neu entstehen – sonst
     // steht der Baum wieder da, aber der Boden unter ihm bleibt hell.

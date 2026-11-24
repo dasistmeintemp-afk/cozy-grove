@@ -8341,6 +8341,1104 @@ __e.paintInselbild = paintInselbild;
 
 };
 
+__defs["src/art/painted-innenorte.js"] = function (__e) {
+/**
+ * Höhle und Mühlenboden von innen.
+ *
+ * Dieselbe Bauart wie das Zimmer in `painted-interior.js`: EIN Bild, Wand
+ * oben, Boden darunter, Ausgang unten in der Mitte. Der Unterschied liegt
+ * nicht in der Technik, sondern darin, was ein Raum über sich erzählt.
+ *
+ * **Die Höhle muss nach Stein riechen.** Kein Zimmerboden, keine gerade
+ * Kante: Die Wand ist eine zerklüftete Linie, der Boden ist Fels mit
+ * Pfützen, und vom Ausgang her fällt Tageslicht herein. Das Licht ist der
+ * wichtigste Teil – ohne es ist eine Höhle ein brauner Kasten, mit ihm ein
+ * Ort, von dem man weiß, wo draußen liegt.
+ *
+ * **Die Mühle muss nach Arbeit riechen.** Bretter, Mehlstaub, ein
+ * Mahlwerk, das die halbe Wand einnimmt, und ein Fenster, durch das man die
+ * Flügel vorbeiziehen sieht. Sie ist der Gegenentwurf zur Höhle: hell,
+ * eckig, von Menschen gebaut.
+ */
+const { offsetShape, inkStroke, inkLine, wash, paintObject, smoothClosed, blob, groundShadow } = __req("src/art/brush.js");
+const { INK: ink, fill, made, poly, dot } = __req("src/art/painted.js");
+const { makeRng } = __req("src/core/rng.js");
+
+/**
+ * Die Steintöne der Höhle.
+ *
+ * Kühler und dunkler als jeder Fels draußen. Der Grund ist nicht Realismus,
+ * sondern Unterscheidbarkeit: Eine Höhle in denselben warmen Sandtönen wie
+ * die Klippe davor sähe aus wie ein Stück Klippe, das man von vorn sieht.
+ */
+const STEIN = {
+  wand: '#6e6760',
+  wandTief: '#46423c',
+  wandLicht: '#8d8578',
+  // Der Boden ist WÄRMER als die Decke, nicht nur heller.
+  //
+  // In der ersten Fassung war beides dasselbe Grau in zwei Helligkeiten,
+  // und das Bild hatte keine einzige warme Stelle – grau in grau ist
+  // keine Farbe, sondern ein fehlendes Bild. Jetzt zieht der Boden ins
+  // Sandfarbene, weil dort Staub liegt und das Tageslicht hinfällt.
+  boden: '#9a8d79',
+  bodenTief: '#6b6155',
+  bodenLicht: '#c0ae8f',
+  pfuetze: '#6f8e92',
+  pfuetzeLicht: '#9cc0c0',
+  tag: '#f3ecd6',
+  tropfstein: '#9b9488',
+  // Die Flechten an der Wand sind der einzige warme Ton hier drin – ohne
+  // sie ist das Bild grau in grau, und grau in grau ist keine Farbe,
+  // sondern ein fehlendes Bild.
+  flechte: '#7d9850',
+  flechteHell: '#a6c06a',
+  funkel: '#bfe2e6',
+};
+
+/**
+ * Eine Höhle malen.
+ *
+ * @param {object} opts w, h (Boden), wand (Wandhöhe), ausgang ({x, w}), seed
+ */
+function paintHoehle(opts) {
+  const o = opts || {};
+  const rw = o.w || 780;
+  const rh = o.h || 480;
+  const wand = o.wand || 150;
+  const seed = o.seed || 4200;
+  const ausX = o.ausgang ? o.ausgang.x : rw / 2 - 55;
+  const ausW = o.ausgang ? o.ausgang.w : 110;
+  const w = rw;
+  const h = wand + rh;
+  const rng = makeRng(seed);
+
+  // Die Deckenkante ist das Gesicht der Höhle.
+  //
+  // Eine gerade Linie zwischen Decke und Boden macht aus jedem Raum einen
+  // Karton – beim Zimmer ist das richtig, hier wäre es falsch. Die Kante
+  // zackt deshalb. Sie wird EINMAL gewürfelt und für Fläche, Schatten und
+  // Kontur wiederverwendet, sonst liegen die drei nicht übereinander.
+  const kante = [];
+  const stufen = 9;
+  for (let i = 0; i <= stufen; i++) {
+    const t = i / stufen;
+    const bauch = Math.sin(t * Math.PI) * 16;
+    kante.push([t * w, wand - bauch + (rng() - 0.5) * 26]);
+  }
+  const decke = smoothClosed(kante.concat([[w, 0], [0, 0]]), 2);
+  const bodenFlaeche = smoothClosed(kante.concat([[w, h], [0, h]]), 2);
+
+  /**
+   * Tropfsteine hängen von der DECKE, nicht aus der Luft.
+   *
+   * In der ersten Fassung begannen sie bei `wand - 40`, also knapp über
+   * dem Boden – im Bild hingen sieben graue Dreiecke frei im Raum, und
+   * man sah nicht, woran. Sie beginnen jetzt ganz oben am Bildrand und
+   * reichen unterschiedlich weit herunter: Erst dadurch wird die obere
+   * Fläche zu einer Decke und nicht zu einer Wand.
+   */
+  const zapfen = [];
+  for (let i = 0; i < 8; i++) {
+    const cx = 44 + (i + rng() * 0.5) * ((w - 88) / 8);
+    const lang = wand * (0.3 + rng() * 0.62);
+    const breit = 13 + rng() * 11;
+    zapfen.push(smoothClosed([
+      [cx - breit, -6], [cx + breit, -6],
+      [cx + breit * 0.34, lang * 0.66], [cx, lang],
+      [cx - breit * 0.34, lang * 0.66],
+    ], 2));
+  }
+
+  /**
+   * Und die Gegenstücke wachsen vom Boden hoch.
+   *
+   * Sie stehen direkt unter der Deckenkante, also ganz hinten im Raum.
+   * Ohne sie steht die Kante wie eine Tapetenkante da; mit ihnen hat der
+   * Raum eine Tiefe, die man nicht erklären muss.
+   */
+  const stumpen = [];
+  for (let i = 0; i < 6; i++) {
+    const cx = 70 + (i + rng() * 0.5) * ((w - 140) / 6);
+    const fuss = wand + 10 + rng() * 22;
+    const hoch = 30 + rng() * 48;
+    const breit = 15 + rng() * 11;
+    stumpen.push(smoothClosed([
+      [cx - breit, fuss], [cx - breit * 0.3, fuss - hoch * 0.66],
+      [cx, fuss - hoch], [cx + breit * 0.3, fuss - hoch * 0.66],
+      [cx + breit, fuss],
+    ], 2));
+  }
+
+  /**
+   * Der Ausgang: ein heller Bogen unten in der Mitte.
+   *
+   * Die erste Fassung war ein kleiner weißer Hügel – im Bild ein
+   * Sandhaufen, kein Weg nach draußen. Jetzt ist er hoch genug, dass man
+   * eine Figur hindurchgehen sieht, und er hat zwei dunkle Felspfosten
+   * daneben. Erst die machen aus einem hellen Fleck eine Öffnung.
+   */
+  const bogenH = 104;
+  const bogen = [];
+  /**
+   * Ein Bogen, keine Zeltform.
+   *
+   * `sin(t*PI)` sieht nach einem Bogen aus, wenn man die Formel liest,
+   * und ergibt gezeichnet eine Spitze: Die Kurve steigt an den Rändern
+   * senkrecht an und läuft oben zusammen. Im Bild stand dort ein
+   * weißes Zelt. Eine Ellipse tut, was gemeint war – flach oben,
+   * senkrecht an den Seiten.
+   */
+  for (let i = 0; i <= 18; i++) {
+    const winkel = Math.PI - (i / 18) * Math.PI;
+    bogen.push([
+      ausX + ausW / 2 + Math.cos(winkel) * (ausW / 2),
+      h + 6 - Math.sin(winkel) * bogenH,
+    ]);
+  }
+  const ausgang = smoothClosed(bogen.concat([[ausX + ausW, h + 8], [ausX, h + 8]]), 2);
+  const pfostenL = smoothClosed([
+    [ausX - 46, h], [ausX - 34, h - bogenH * 0.8],
+    [ausX - 4, h - bogenH * 0.5], [ausX + 6, h],
+  ], 2);
+  const pfostenR = smoothClosed([
+    [ausX + ausW - 6, h], [ausX + ausW + 4, h - bogenH * 0.5],
+    [ausX + ausW + 34, h - bogenH * 0.8], [ausX + ausW + 46, h],
+  ], 2);
+
+  // Pfützen auf dem Boden: Sie sind der Grund, warum der Boden nicht flach
+  // wirkt, und sie fangen das Licht vom Ausgang.
+  const pfuetzen = [];
+  for (let i = 0; i < 5; i++) {
+    const cx = 80 + rng() * (w - 160);
+    const cy = wand + 80 + rng() * (rh - 180);
+    pfuetzen.push(smoothClosed(blob(cx, cy, 32 + rng() * 38, 12 + rng() * 11,
+      seed + i * 17, 0.26, 14), 3));
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 2.4,
+    outline: 1.5,
+    shadow: null,
+    wash: function (g) {
+      wash(g, bodenFlaeche, STEIN.boden, { seed: seed + 3, scale: 1.03 });
+      wash(g, decke, STEIN.wand, { seed: seed + 1, scale: 1.04 });
+      // Ganz oben am Bildrand am dunkelsten: Das Licht kommt von unten,
+      // vom Ausgang – genau umgekehrt wie überall sonst im Spiel. Das ist
+      // der Trick, der eine Höhle zur Höhle macht.
+      wash(g, offsetShape(decke, 0, -wand * 0.55, 0.96), STEIN.wandTief,
+        { seed: seed + 2, alpha: 0.7 });
+      wash(g, offsetShape(decke, 0, wand * 0.42, 0.9), STEIN.wandLicht,
+        { seed: seed + 5, alpha: 0.26 });
+      // Der Boden wird nach hinten dunkler.
+      wash(g, poly([[0, wand - 6], [w, wand - 6], [w, wand + 110], [0, wand + 110]], 2),
+        STEIN.bodenTief, { seed: seed + 6, alpha: 0.5 });
+
+      for (let i = 0; i < stumpen.length; i++) {
+        wash(g, stumpen[i], STEIN.tropfstein, { seed: seed + 80 + i, alpha: 0.9 });
+      }
+
+      /**
+       * Das Tageslicht aus dem Ausgang – als Verlauf, nicht als Fläche.
+       *
+       * Zuerst war das ein Trapez, dann drei gestapelte Trapeze. Beide
+       * Male sah man im Bild genau das: ein Vieleck mit geraden Kanten,
+       * das aussah wie ein Fehler in der Fläche und nicht wie Licht.
+       *
+       * Licht hat keine Kanten, also darf hier auch keine sein. Ein
+       * runder Verlauf vom Ausgang her ist der einzige Weg dahin – die
+       * gemalten Lasuren des Spiels können das nicht, weil sie immer
+       * eine Form mit Rand sind. Das ist die eine Stelle im Bild, an der
+       * nicht gemalt, sondern gerechnet wird, und sie ist es wert.
+       */
+      const lx = ausX + ausW / 2;
+      const ly = h - 6;
+      const schein = g.createRadialGradient(lx, ly, 18, lx, ly, rh * 0.95);
+      schein.addColorStop(0, 'rgba(246,238,214,0.62)');
+      schein.addColorStop(0.35, 'rgba(246,238,214,0.26)');
+      schein.addColorStop(0.72, 'rgba(246,238,214,0.08)');
+      schein.addColorStop(1, 'rgba(246,238,214,0)');
+      g.save();
+      g.fillStyle = schein;
+      g.fillRect(0, wand - 10, w, rh + 20);
+      g.restore();
+      wash(g, pfostenL, STEIN.wandTief, { seed: seed + 96, alpha: 0.8 });
+      wash(g, pfostenR, STEIN.wandTief, { seed: seed + 97, alpha: 0.8 });
+      wash(g, ausgang, STEIN.tag, { seed: seed + 98, alpha: 0.95, scale: 1.01 });
+
+      for (let i = 0; i < pfuetzen.length; i++) {
+        wash(g, pfuetzen[i], STEIN.pfuetze, { seed: seed + 30 + i, alpha: 0.72 });
+        wash(g, offsetShape(pfuetzen[i], -4, -3, 0.5), STEIN.pfuetzeLicht,
+          { seed: seed + 40 + i, alpha: 0.5 });
+      }
+      for (let i = 0; i < zapfen.length; i++) {
+        wash(g, zapfen[i], STEIN.tropfstein, { seed: seed + 50 + i, alpha: 0.78 });
+        // Die Spitze heller – dort läuft das Wasser zusammen.
+        wash(g, offsetShape(zapfen[i], 0, 14, 0.45), STEIN.wandLicht,
+          { seed: seed + 56 + i, alpha: 0.4 });
+      }
+    },
+    shape: function (g) {
+      /**
+       * Moos und Flechten an der Decke.
+       *
+       * In der ersten Fassung lagen sie bei halber Deckung über grauem
+       * Stein – das Grün verschwand und übrig blieben graue Klumpen in
+       * einer Reihe. Jetzt decken sie voll, hängen in Büscheln am Rand
+       * der Decke und sind die einzige warme Farbe im Bild. Ohne sie ist
+       * es grau in grau, und grau in grau ist keine Farbe, sondern ein
+       * fehlendes Bild.
+       */
+      // In Büscheln, nicht einzeln verstreut: Drei, vier Tupfen dicht
+      // beieinander lesen sich als Moospolster, derselbe Tupfen allein
+      // als Fleck. Einzeln verstreut sahen sie aus wie Schmutz.
+      // Über die Breite verteilt, nicht frei gewürfelt: Sieben freie
+      // Würfe landeten alle in derselben Bildhälfte, und die andere war
+      // kahl. Jedes Büschel bekommt deshalb sein Siebtel.
+      for (let i = 0; i < 7; i++) {
+        const bx = 40 + (i + rng() * 0.7) * ((w - 80) / 7);
+        const by = wand - 26 - rng() * 44;
+        for (let k = 0; k < 3 + Math.floor(rng() * 3); k++) {
+          g.fillStyle = k % 2 ? STEIN.flechteHell : STEIN.flechte;
+          g.globalAlpha = 0.78 + rng() * 0.22;
+          fill(g, smoothClosed(blob(bx + (rng() - 0.5) * 46, by + (rng() - 0.5) * 26,
+            6 + rng() * 9, 4 + rng() * 6, seed + 200 + i * 7 + k, 0.34, 9), 3));
+        }
+      }
+      g.globalAlpha = 1;
+      // Geröll auf dem Boden – kleine dunkle Brocken, damit der Boden
+      // nicht wie gegossen aussieht.
+      g.fillStyle = STEIN.bodenTief;
+      for (let i = 0; i < 18; i++) {
+        const x = 30 + rng() * (w - 60);
+        const y = wand + 40 + rng() * (rh - 70);
+        g.globalAlpha = 0.3 + rng() * 0.25;
+        fill(g, smoothClosed(blob(x, y, 5 + rng() * 10, 3 + rng() * 6,
+          seed + 250 + i, 0.3, 8), 3));
+      }
+      g.globalAlpha = 1;
+    },
+    detail: function (g) {
+      // Funkeln in der Decke: der Hinweis darauf, dass hier etwas zu holen
+      // ist. Sparsam – drei Dutzend Glitzerpunkte wären ein Discoball.
+      for (let i = 0; i < 9; i++) {
+        const x = 40 + rng() * (w - 80);
+        const y = 20 + rng() * (wand - 60);
+        dot(g, null, x, y, 2.4 + rng() * 2, STEIN.funkel, seed + 300 + i);
+      }
+      /**
+       * Risse im Boden – in Steinfarbe, nicht in Tusche.
+       *
+       * `inkLine` setzt seine Farbe SELBST und überschreibt dabei
+       * `strokeStyle`; ohne `color` zeichnet es tiefschwarz. Das war hier
+       * zuerst der Fall, und im Bild lagen tiefschwarze Striche auf dem
+       * hellen Höhlenboden, die aussahen wie Kratzer auf der Linse.
+       * Dieselbe Falle gilt für jeden anderen `inkLine`-Aufruf in dieser
+       * Datei.
+       */
+      for (let i = 0; i < 6; i++) {
+        const x = 60 + rng() * (w - 120);
+        const y = wand + 70 + rng() * (rh - 150);
+        inkLine(g, x, y, x + (rng() - 0.5) * 110, y + (rng() - 0.5) * 44,
+          { bend: 0.3, seed: seed + 400 + i, color: STEIN.bodenTief,
+            alpha: 0.32, width: 1.6 });
+      }
+    },
+    ink: function (g) {
+      // Die Deckenkante als eigener Strich – OFFEN gezeichnet, nicht als
+      // geschlossene Form: Eine Kontur um die ganze Deckenfläche hätte
+      // einen Rahmen am Bildrand ergeben, und ein Rahmen macht aus dem
+      // Raum wieder ein Bild von einem Raum.
+      inkStroke(g, smoothClosed(kante, 2), {
+        closed: false, width: 2.6, seed: seed + 11, vary: 0.6,
+      });
+      for (let i = 0; i < zapfen.length; i++) {
+        inkStroke(g, zapfen[i], { width: 1.9, seed: seed + 60 + i, vary: 0.5 });
+      }
+      for (let i = 0; i < stumpen.length; i++) {
+        inkStroke(g, stumpen[i], { width: 1.9, seed: seed + 85 + i, vary: 0.5 });
+      }
+      for (let i = 0; i < pfuetzen.length; i++) {
+        inkStroke(g, pfuetzen[i], { width: 1.5, seed: seed + 70 + i, vary: 0.6 });
+      }
+      inkStroke(g, pfostenL, { width: 2.2, seed: seed + 115, vary: 0.5 });
+      inkStroke(g, pfostenR, { width: 2.2, seed: seed + 116, vary: 0.5 });
+      inkStroke(g, ausgang, { width: 2.6, seed: seed + 12, vary: 0.4 });
+    },
+  });
+  return made(res, w, h, 0, 0);
+}
+
+/** Die Mühle von innen: Bretter, Mehl und ein Mahlwerk. */
+const MUEHLE = {
+  wand: '#c3a173',
+  holz: '#c49a66',
+  holzTief: '#9a7342',
+  balkenTief: '#6d5233',
+  steinLicht: '#d6d0c0',
+  eisen: '#8d949b',
+  tuerLicht: '#e7d7b2',
+  wandTief: '#9a7a50',
+  wandLicht: '#dcc096',
+  boden: '#d6bb8e',
+  bodenTief: '#ad8d60',
+  balken: '#8e6d45',
+  stein: '#b9b3a4',
+  steinTief: '#8d887b',
+  mehl: '#f7f1df',
+  fenster: '#dceaee',
+  fensterTief: '#aac6cf',
+  sack: '#e0d2ad',
+  sackTief: '#bda97f',
+};
+
+/**
+ * Den Mahlboden malen.
+ *
+ * Das Mahlwerk steht links an der Wand und ist absichtlich groß: Es ist der
+ * Grund, hier zu sein, und ein Mühlstein, den man suchen muss, erzählt
+ * nichts. Rechts das Fenster, durch das ein Flügel vorbeizieht – das ist
+ * der einzige Hinweis darauf, dass man in einem Turm steht und nicht in
+ * einem Schuppen.
+ */
+function paintMuehleInnen(opts) {
+  const o = opts || {};
+  const rw = o.w || 720;
+  const rh = o.h || 440;
+  const wand = o.wand || 185;
+  const seed = o.seed || 5200;
+  const ausX = o.ausgang ? o.ausgang.x : rw / 2 - 55;
+  const ausW = o.ausgang ? o.ausgang.w : 110;
+  const w = rw;
+  const h = wand + rh;
+  const rng = makeRng(seed);
+
+  const wandFlaeche = poly([[0, 0], [w, 0], [w, wand], [0, wand]], 2);
+  const bodenFlaeche = poly([[0, wand], [w, wand], [w, h], [0, h]], 2);
+
+  /**
+   * Die Tür muss man SEHEN.
+   *
+   * In der ersten Fassung war sie ein 26 Punkt hoher Streifen am
+   * untersten Bildrand – im Bild nicht vorhanden, weil dort die
+   * Werkzeugleiste liegt. Jetzt ist sie ein richtiger Türrahmen mit
+   * Sturz und hellem Spalt: der einzige Ausgang, und er darf nicht
+   * geraten werden müssen.
+   */
+  const tuerH = 118;
+  const tuer = poly([
+    [ausX, h - tuerH], [ausX + ausW, h - tuerH], [ausX + ausW, h], [ausX, h],
+  ], 2);
+  const sturz = poly([
+    [ausX - 16, h - tuerH - 16], [ausX + ausW + 16, h - tuerH - 16],
+    [ausX + ausW + 16, h - tuerH], [ausX - 16, h - tuerH],
+  ], 2);
+
+  // Das Fenster rechts, rund – ein Turmfenster, kein Hausfenster.
+  const fx = w - 142;
+  const fy = 52;
+  const fenster = smoothClosed(blob(fx, fy + 42, 56, 54, seed + 9, 0.05, 22), 3);
+
+  /**
+   * Das Mahlwerk – der Grund, hier zu sein.
+   *
+   * Die erste Fassung waren zwei flache Scheiben übereinander. Im Bild
+   * war das eine graue Schüssel, und niemand hätte darin eine Mühle
+   * erkannt. Ein Mühlstein sieht von der Seite nicht rund aus, sondern
+   * wie ein dicker Zylinder: Deckfläche als Ellipse, darunter eine
+   * gerade Kante von Handbreit Höhe. Dazu gehören drei Dinge, ohne die
+   * es kein Mahlwerk ist – der Bottich, auf dem er steht, der Trichter
+   * darüber, in den das Korn kommt, und die Welle, die beides verbindet.
+   */
+  const mx = 176;
+  const mBoden = wand + 238;
+  const steinH = 46;
+  const steinR = 104;
+  const steinRy = 36;
+  // Der Bottich: ein Fass aus Brettern, auf dem der Stein liegt.
+  const bottich = poly([
+    [mx - steinR - 6, mBoden - 84], [mx + steinR + 6, mBoden - 84],
+    [mx + steinR - 10, mBoden], [mx - steinR + 10, mBoden],
+  ], 2);
+  // Die Seitenwand des Steins.
+  const steinKante = poly([
+    [mx - steinR, mBoden - 84 - steinH], [mx + steinR, mBoden - 84 - steinH],
+    [mx + steinR, mBoden - 84], [mx - steinR, mBoden - 84],
+  ], 2);
+  // Die Deckfläche.
+  const steinDeck = smoothClosed(
+    blob(mx, mBoden - 84 - steinH, steinR, steinRy, seed + 21, 0.04, 24), 3);
+  // Der Trichter darüber: oben weit, unten eng.
+  const trichterOben = wand + 24;
+  const trichterUnten = mBoden - 84 - steinH - 26;
+  const trichter = poly([
+    [mx - 76, trichterOben], [mx + 76, trichterOben],
+    [mx + 26, trichterUnten], [mx - 26, trichterUnten],
+  ], 2);
+
+  // Die Säcke rechts hinten – unterschiedlich prall, sonst sind es Eier.
+  const saecke = [];
+  for (let i = 0; i < 3; i++) {
+    const sx = w - 246 + i * 82 + rng() * 10;
+    const sy = wand + 112 + (i % 2) * 44;
+    const b = 36 + rng() * 10;
+    saecke.push(smoothClosed([
+      [sx - b, sy + 52], [sx - b + 4, sy - 10], [sx - 14, sy - 36],
+      [sx - 2, sy - 44], [sx + 14, sy - 34], [sx + b - 6, sy - 8],
+      [sx + b, sy + 52],
+    ], 3));
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 2.2,
+    outline: 1.5,
+    shadow: null,
+    wash: function (g) {
+      wash(g, wandFlaeche, MUEHLE.wand, { seed: seed + 1, scale: 1.05 });
+      wash(g, offsetShape(wandFlaeche, 0, wand * 0.44, 0.9), MUEHLE.wandTief,
+        { seed: seed + 2, alpha: 0.46 });
+      wash(g, bodenFlaeche, MUEHLE.boden, { seed: seed + 3, scale: 1.04 });
+      wash(g, poly([[0, wand], [w, wand], [w, wand + 36], [0, wand + 36]], 2),
+        MUEHLE.bodenTief, { seed: seed + 4, alpha: 0.42 });
+
+      wash(g, fenster, MUEHLE.fenster, { seed: seed + 10, scale: 1.03 });
+      wash(g, offsetShape(fenster, 0, 16, 0.6), MUEHLE.fensterTief,
+        { seed: seed + 11, alpha: 0.5 });
+      // Der Lichtfleck, den das Fenster auf die Dielen wirft – schräg,
+      // weil das Fenster rechts oben sitzt. Ein senkrechter Fleck hätte
+      // ausgesehen, als käme das Licht von der Decke.
+      wash(g, smoothClosed([
+        [fx - 54, wand + 14], [fx + 62, wand + 6],
+        [fx + 96, wand + 172], [fx - 108, wand + 186],
+      ], 3), MUEHLE.mehl, { seed: seed + 12, alpha: 0.3 });
+
+      wash(g, trichter, MUEHLE.holz, { seed: seed + 18, scale: 1.02 });
+      wash(g, offsetShape(trichter, 22, 0, 0.5), MUEHLE.holzTief,
+        { seed: seed + 19, alpha: 0.4 });
+      wash(g, bottich, MUEHLE.holz, { seed: seed + 24, scale: 1.02 });
+      wash(g, offsetShape(bottich, 26, 10, 0.55), MUEHLE.holzTief,
+        { seed: seed + 25, alpha: 0.45 });
+      wash(g, steinKante, MUEHLE.steinTief, { seed: seed + 22, scale: 1.01 });
+      wash(g, steinDeck, MUEHLE.stein, { seed: seed + 23, scale: 1.02 });
+      // Der Lichtrand auf der Deckfläche – ohne ihn ist der Stein ein Loch.
+      wash(g, offsetShape(steinDeck, -14, -8, 0.6), MUEHLE.steinLicht,
+        { seed: seed + 26, alpha: 0.5 });
+
+      for (let i = 0; i < saecke.length; i++) {
+        wash(g, saecke[i], MUEHLE.sack, { seed: seed + 30 + i, scale: 1.03 });
+        wash(g, offsetShape(saecke[i], 12, 14, 0.6), MUEHLE.sackTief,
+          { seed: seed + 35 + i, alpha: 0.45 });
+      }
+      wash(g, sturz, MUEHLE.balken, { seed: seed + 41, alpha: 0.85 });
+      wash(g, tuer, MUEHLE.tuerLicht, { seed: seed + 40, alpha: 0.8 });
+
+      // Mehlstaub auf den Dielen rings um den Stein. Er ist das, was den
+      // Raum benutzt aussehen lässt – ein sauberer Mahlboden wäre ein Modell.
+      for (let i = 0; i < 8; i++) {
+        const x = mx + (rng() - 0.5) * 320;
+        const y = mBoden - 30 + rng() * 120;
+        wash(g, smoothClosed(blob(x, y, 32 + rng() * 46, 13 + rng() * 16,
+          seed + 60 + i, 0.3, 14), 3), MUEHLE.mehl,
+        { seed: seed + 70 + i, alpha: 0.42 });
+      }
+    },
+    shape: function (g) {
+      /**
+       * Die Balken an der Wand – BREIT, nicht als Linie.
+       *
+       * Zuerst waren es Striche von sieben Punkten Breite. Im Bild sah
+       * das aus wie vier lange Haare an einer Tapete. Ein Balken ist
+       * eine Fläche mit zwei Kanten, und erst dadurch steht die Wand.
+       */
+      for (let i = 1; i < 5; i++) {
+        const x = (w * i) / 5 + (rng() - 0.5) * 10;
+        const b = 13 + rng() * 5;
+        const balken = poly([[x - b, -4], [x + b, -4], [x + b, wand], [x - b, wand]], 2);
+        wash(g, balken, MUEHLE.balken, { seed: seed + 90 + i, alpha: 0.72 });
+        wash(g, offsetShape(balken, b * 0.7, 0, 0.5), MUEHLE.balkenTief,
+          { seed: seed + 95 + i, alpha: 0.4 });
+      }
+      // Die Dielen: nur ein paar Fugen, und sie laufen quer. Sieben
+      // durchgehende Linien über die ganze Breite sahen aus wie eine
+      // Leiter, die jemand hingelegt hat.
+      // Kurze Stücke, nicht durchgehend: Vier Linien über die ganze
+      // Breite liefen im Bild quer durch Mühlstein und Säcke hindurch
+      // und sahen aus wie gespannte Drähte. Eine Fuge, die man hinter
+      // einem Sack weiterlaufen sieht, ist schlimmer als gar keine.
+      for (let i = 1; i < 5; i++) {
+        const y = wand + (rh * i) / 5;
+        const x0 = 40 + rng() * (w * 0.3);
+        const laenge = 120 + rng() * 180;
+        inkLine(g, x0, y, x0 + laenge, y + (rng() - 0.5) * 6,
+          { bend: 0.02, seed: seed + 80 + i, color: MUEHLE.bodenTief,
+            alpha: 0.26, width: 1.6 });
+      }
+    },
+    detail: function (g) {
+      // Die Welle vom Trichter hinauf in die Decke: Sie verbindet
+      // drinnen und draußen – oben drehen sich die Flügel.
+      inkLine(g, mx, wand + 30, mx - 8, -6,
+        { bend: 0.015, seed: seed + 100, color: MUEHLE.balken, width: 13 });
+      // Die Reifen um den Bottich.
+      // Nur so breit wie der Bottich an dieser Höhe. Mit der vollen
+      // Steinbreite standen sie links und rechts über das Fass hinaus
+      // in der Luft.
+      for (let i = 0; i < 2; i++) {
+        const t = 0.25 + i * 0.45;
+        const y = mBoden - 84 + t * 84;
+        const halb = (steinR + 6) - t * 16;
+        inkLine(g, mx - halb, y, mx + halb, y - 2,
+          { bend: 0.03, seed: seed + 104 + i, color: MUEHLE.eisen, width: 5 });
+      }
+      // Das Kreuz im Fenster.
+      inkLine(g, fx - 52, fy + 42, fx + 52, fy + 42,
+        { bend: 0.04, seed: seed + 101, color: MUEHLE.balken, width: 5 });
+      inkLine(g, fx, fy - 8, fx, fy + 92,
+        { bend: 0.04, seed: seed + 102, color: MUEHLE.balken, width: 5 });
+      // Die Bretter der Tür.
+      for (let i = 1; i < 4; i++) {
+        const x = ausX + (ausW * i) / 4;
+        inkLine(g, x, h - tuerH + 8, x, h - 6,
+          { bend: 0.01, seed: seed + 140 + i, color: MUEHLE.balkenTief, width: 3 });
+      }
+    },
+    ink: function (g) {
+      inkLine(g, 0, wand, w, wand, { bend: 0.012, seed: seed + 110, width: 2.4 });
+      inkStroke(g, fenster, { width: 2.4, seed: seed + 111, vary: 0.4 });
+      inkStroke(g, trichter, { width: 2.2, seed: seed + 117, vary: 0.4 });
+      inkStroke(g, bottich, { width: 2.2, seed: seed + 118, vary: 0.4 });
+      inkStroke(g, steinKante, { width: 2.2, seed: seed + 112, vary: 0.4 });
+      inkStroke(g, steinDeck, { width: 2.6, seed: seed + 113, vary: 0.4 });
+      for (let i = 0; i < saecke.length; i++) {
+        inkStroke(g, saecke[i], { width: 2, seed: seed + 120 + i, vary: 0.5 });
+      }
+      inkStroke(g, sturz, { width: 2.2, seed: seed + 131, vary: 0.4 });
+      inkStroke(g, tuer, { width: 2.4, seed: seed + 130, vary: 0.4 });
+    },
+  });
+  return made(res, w, h, 0, 0);
+}
+
+/**
+ * Der Höhleneingang, von außen gesehen.
+ *
+ * Ein Felsvorsprung mit einem dunklen Loch darin. Das Loch ist das Ganze:
+ * Es muss schwarz genug sein, dass man von weitem sieht, dass es dort
+ * weitergeht – ein halbdunkler Fleck sähe aus wie ein Schatten am Hang.
+ *
+ * Der Fels ringsum ist kein Schmuck, sondern die Erklärung für das Loch.
+ * Ohne ihn läge auf der Wiese ein schwarzer Fleck.
+ */
+function paintHoehleEingang(opts) {
+  const o = opts || {};
+  const seed = o.seed || 6100;
+  const w = 164;
+  const h = 132;
+  const rng = makeRng(seed);
+
+  const fels = smoothClosed([
+    [8, h - 4], [12, h - 54], [34, h - 92], [70, h - 112],
+    [104, h - 106], [136, h - 78], [152, h - 34], [156, h - 4],
+  ], 3);
+  // Das Loch: unten breit, oben gerundet – eine Öffnung, durch die man
+  // gebückt hineingeht, kein Mauseloch und kein Tor.
+  const loch = [];
+  for (let i = 0; i <= 16; i++) {
+    const winkel = Math.PI - (i / 16) * Math.PI;
+    loch.push([
+      w / 2 + Math.cos(winkel) * 38,
+      h - 6 - Math.sin(winkel) * 62,
+    ]);
+  }
+  const oeffnung = smoothClosed(loch.concat([[w / 2 + 38, h - 4], [w / 2 - 38, h - 4]]), 2);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 2,
+    outline: 1.4,
+    shadow: function (g) { groundShadow(g, w / 2, h - 6, 72, 15, seed, 0.2); },
+    wash: function (g) {
+      wash(g, fels, ink.rock, { seed: seed + 1, scale: 1.03 });
+      wash(g, offsetShape(fels, 14, 16, 0.72), ink.rockShade,
+        { seed: seed + 2, alpha: 0.55 });
+      wash(g, offsetShape(fels, -16, -12, 0.5), '#eceadd',
+        { seed: seed + 3, alpha: 0.4 });
+      // Zweimal dunkel übereinander: Eine Lasur allein bleibt durchsichtig,
+      // und durch ein Loch im Berg sieht man nun einmal nichts.
+      wash(g, oeffnung, '#3a352f', { seed: seed + 4, alpha: 0.95, scale: 1.02 });
+      wash(g, offsetShape(oeffnung, 0, 10, 0.86), '#211e1a',
+        { seed: seed + 5, alpha: 0.9 });
+      // Gras am Fuß – es setzt den Fels auf den Boden.
+      for (let i = 0; i < 5; i++) {
+        const x = 16 + rng() * (w - 32);
+        wash(g, smoothClosed(blob(x, h - 8, 16 + rng() * 14, 7 + rng() * 5,
+          seed + 20 + i, 0.3, 10), 3), ink.grassDark,
+        { seed: seed + 30 + i, alpha: 0.55 });
+      }
+    },
+    detail: function (g) {
+      // Risse im Fels.
+      inkLine(g, 36, h - 84, 58, h - 40,
+        { bend: 0.25, seed: seed + 40, color: ink.rockDeep, alpha: 0.45, width: 1.8 });
+      inkLine(g, 124, h - 70, 110, h - 26,
+        { bend: 0.2, seed: seed + 41, color: ink.rockDeep, alpha: 0.45, width: 1.8 });
+    },
+    ink: function (g) {
+      inkStroke(g, fels, { width: 2.4, seed: seed + 50, vary: 0.5 });
+      inkStroke(g, oeffnung, { width: 2.6, seed: seed + 51, vary: 0.4 });
+    },
+  });
+  return made(res, w, h, w / 2, h - 4);
+}
+
+/**
+ * Die Tür an der Mühle.
+ *
+ * Klein, schlicht und bewusst fast nur Umriss: Sie steht vor dem gemalten
+ * Mühlenturm und darf ihn nicht überdecken. Was sie leisten muss, ist
+ * einzig, dass man sie als Tür erkennt und nicht als Brett.
+ */
+function paintMuehleTuer(opts) {
+  const o = opts || {};
+  const seed = o.seed || 6200;
+  const w = 76;
+  const h = 104;
+  const rahmen = poly([[8, h - 4], [8, 22], [38, 6], [68, 22], [68, h - 4]], 2);
+  const blatt = poly([[16, h - 6], [16, 28], [38, 15], [60, 28], [60, h - 6]], 2);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.8,
+    outline: 1.4,
+    shadow: function (g) { groundShadow(g, w / 2, h - 6, 32, 9, seed, 0.2); },
+    wash: function (g) {
+      wash(g, rahmen, MUEHLE.balken, { seed: seed + 1, scale: 1.03 });
+      wash(g, blatt, MUEHLE.holz, { seed: seed + 2, scale: 1.02 });
+      wash(g, offsetShape(blatt, 10, 8, 0.6), MUEHLE.holzTief,
+        { seed: seed + 3, alpha: 0.4 });
+    },
+    detail: function (g) {
+      for (let i = 1; i < 3; i++) {
+        const x = 16 + (44 * i) / 3;
+        inkLine(g, x, 24, x, h - 10,
+          { bend: 0.01, seed: seed + 10 + i, color: MUEHLE.balkenTief, width: 2.4 });
+      }
+      // Der Griff – ohne ihn ist es ein Brett.
+      dot(g, null, 52, h - 46, 4, MUEHLE.eisen, seed + 20);
+    },
+    ink: function (g) {
+      inkStroke(g, rahmen, { width: 2.2, seed: seed + 30, vary: 0.4 });
+      inkStroke(g, blatt, { width: 2, seed: seed + 31, vary: 0.4 });
+    },
+  });
+  return made(res, w, h, w / 2, h - 4);
+}
+
+/**
+ * Die Kristallader – der Grund, eine Höhle überhaupt zu betreten.
+ *
+ * Ein Felsklotz, aus dem Kristalle wachsen. Die Kristalle müssen die
+ * Hauptsache sein, nicht der Stein: Aus zwei Schritten Entfernung soll man
+ * sehen, dass hier etwas anderes liegt als der graue Brocken daneben.
+ * Deshalb sind sie groß, hell und kühl gegen den warmen Höhlenboden.
+ */
+function paintKristallader(opts) {
+  const o = opts || {};
+  const seed = o.seed || 6300;
+  const w = 96;
+  const h = 92;
+  const rng = makeRng(seed);
+  const basis = smoothClosed(blob(w / 2, h - 18, 40, 20, seed + 1, 0.22, 14), 3);
+
+  // Drei Kristalle verschiedener Länge, leicht gefächert. Gleich lange
+  // Kristalle sehen aus wie eine Gabel.
+  const spitzen = [];
+  const winkel = [-0.42, -0.04, 0.38];
+  for (let i = 0; i < 3; i++) {
+    const fx = w / 2 + (i - 1) * 19 + (rng() - 0.5) * 5;
+    const fy = h - 24;
+    const lang = 34 + (i === 1 ? 20 : 0) + rng() * 10;
+    const br = 9 + rng() * 4;
+    const a = winkel[i];
+    const sx = fx + Math.sin(a) * lang;
+    const sy = fy - Math.cos(a) * lang;
+    spitzen.push([
+      [fx - br, fy], [fx + br, fy],
+      [sx + br * 0.3, sy + lang * 0.2], [sx, sy], [sx - br * 0.3, sy + lang * 0.2],
+    ]);
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.8,
+    outline: 1.4,
+    shadow: function (g) { groundShadow(g, w / 2, h - 10, 40, 11, seed, 0.22); },
+    wash: function (g) {
+      wash(g, basis, ink.rock, { seed: seed + 2, scale: 1.03 });
+      wash(g, offsetShape(basis, 8, 6, 0.7), ink.rockShade, { seed: seed + 3, alpha: 0.5 });
+      for (let i = 0; i < spitzen.length; i++) {
+        const k = smoothClosed(spitzen[i], 2);
+        wash(g, k, STEIN.funkel, { seed: seed + 10 + i, scale: 1.02 });
+        // Die Lichtkante an der linken Flanke: Ohne sie ist ein Kristall
+        // eine blaue Fläche, mit ihr ist er durchsichtig.
+        wash(g, offsetShape(k, -4, -6, 0.44), '#f2fbfb',
+          { seed: seed + 16 + i, alpha: 0.72 });
+        wash(g, offsetShape(k, 5, 8, 0.4), '#7fb6c4',
+          { seed: seed + 22 + i, alpha: 0.5 });
+      }
+    },
+    ink: function (g) {
+      inkStroke(g, basis, { width: 2.2, seed: seed + 30, vary: 0.5 });
+      for (let i = 0; i < spitzen.length; i++) {
+        inkStroke(g, smoothClosed(spitzen[i], 2),
+          { width: 2.1, seed: seed + 40 + i, vary: 0.35 });
+      }
+    },
+  });
+  return made(res, w, h, w / 2, h - 8);
+}
+
+/** Leuchtmoos: ein Polster, das von innen glimmt. */
+function paintLeuchtmoos(opts) {
+  const o = opts || {};
+  const seed = o.seed || 6400;
+  const w = 64;
+  const h = 44;
+  const rng = makeRng(seed);
+  const polster = [];
+  for (let i = 0; i < 5; i++) {
+    polster.push(smoothClosed(blob(
+      14 + rng() * (w - 28), h - 12 - rng() * 14,
+      9 + rng() * 8, 6 + rng() * 5, seed + i * 13, 0.3, 11), 3));
+  }
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.6,
+    outline: 1.2,
+    shadow: function (g) { groundShadow(g, w / 2, h - 7, 22, 7, seed, 0.14); },
+    wash: function (g) {
+      for (let i = 0; i < polster.length; i++) {
+        wash(g, polster[i], i % 2 ? '#9fd59a' : '#7dbd8d',
+          { seed: seed + 20 + i, scale: 1.04 });
+        // Der Glimmkern – heller als das Moos selbst, sonst leuchtet
+        // nichts, sondern es ist nur grün.
+        wash(g, offsetShape(polster[i], 0, -2, 0.42), '#e6f7c8',
+          { seed: seed + 30 + i, alpha: 0.8 });
+      }
+    },
+    detail: function (g) {
+      for (let i = 0; i < 6; i++) {
+        dot(g, null, 12 + rng() * (w - 24), h - 14 - rng() * 14,
+          1.8 + rng() * 1.6, '#f4ffe0', seed + 40 + i);
+      }
+    },
+    ink: function (g) {
+      for (let i = 0; i < polster.length; i++) {
+        inkStroke(g, polster[i], { width: 1.5, seed: seed + 50 + i, vary: 0.6 });
+      }
+    },
+  });
+  return made(res, w, h, w / 2, h - 6);
+}
+
+/** Der Mehlsack: offen, mit Mehl obenauf. */
+function paintMehlsack(opts) {
+  const o = opts || {};
+  const seed = o.seed || 6500;
+  const w = 72;
+  const h = 86;
+  const sack = smoothClosed([
+    [14, h - 6], [12, h - 42], [20, h - 62], [34, h - 70],
+    [50, h - 64], [58, h - 44], [60, h - 6],
+  ], 3);
+  const mehl = smoothClosed(blob(36, h - 66, 20, 9, seed + 2, 0.24, 12), 3);
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.8,
+    outline: 1.3,
+    shadow: function (g) { groundShadow(g, w / 2, h - 8, 28, 9, seed, 0.2); },
+    wash: function (g) {
+      wash(g, sack, MUEHLE.sack, { seed: seed + 3, scale: 1.03 });
+      wash(g, offsetShape(sack, 12, 10, 0.6), MUEHLE.sackTief,
+        { seed: seed + 4, alpha: 0.45 });
+      wash(g, mehl, MUEHLE.mehl, { seed: seed + 5, scale: 1.03 });
+    },
+    detail: function (g) {
+      // Die Schnur um den Hals – sie macht aus einem Beutel einen Sack.
+      inkLine(g, 18, h - 52, 56, h - 54,
+        { bend: 0.08, seed: seed + 10, color: MUEHLE.balkenTief, width: 3 });
+    },
+    ink: function (g) {
+      inkStroke(g, sack, { width: 2, seed: seed + 20, vary: 0.5 });
+      inkStroke(g, mehl, { width: 1.6, seed: seed + 21, vary: 0.5 });
+    },
+  });
+  return made(res, w, h, w / 2, h - 6);
+}
+
+__e.paintHoehle = paintHoehle;
+__e.paintMuehleInnen = paintMuehleInnen;
+__e.paintHoehleEingang = paintHoehleEingang;
+__e.paintMuehleTuer = paintMuehleTuer;
+__e.paintKristallader = paintKristallader;
+__e.paintLeuchtmoos = paintLeuchtmoos;
+__e.paintMehlsack = paintMehlsack;
+
+};
+
+__defs["src/game/innenorte.js"] = function (__e) {
+/**
+ * Innenorte – Orte auf der Insel, in die man hineingehen kann.
+ *
+ * Das Hausinnere gab es schon, und es ist bewusst ein Sonderfall: ein Raum,
+ * den man EINRICHTET. Was fehlte, war das andere Innen – die Höhle in der
+ * Klippe, der Mahlboden der Mühle. Orte, die man betritt, weil dort etwas
+ * ist, und nicht, weil man dort etwas hinstellt.
+ *
+ * **Warum ein eigenes Modul und nicht `interior.js`.** Die beiden haben fast
+ * nichts gemeinsam außer der Tatsache, dass man drinnen steht. Im Zimmer
+ * zählt Gemütlichkeit, es gibt Wandplätze, Abstandsregeln, Ausstattungen und
+ * vier Ausbaustufen. In einer Höhle gibt es nichts davon; dort stehen Dinge,
+ * wo sie stehen, und man schlägt sie ab. Die Regeln des Zimmers in die Höhle
+ * zu zwingen hätte beide schlechter gemacht.
+ *
+ * **Was sie sich dagegen teilen: den Weg auf den Bildschirm.** Der ganze
+ * Raum ist immer zu sehen, es gibt keine Kamera, keinen Kachelboden und kein
+ * Wetter – genau wie im Zimmer. Deshalb läuft ein Innenort durch dieselbe
+ * Zeichenkette (`drawInterior`) und durch dieselbe Bewegung. Nur was
+ * DRINSTEHT, kommt von hier.
+ *
+ * **Der Inhalt hängt an der Insel, nicht am Zufall des Augenblicks.** Eine
+ * Höhle, die bei jedem Besuch anders aussieht, ist kein Ort. Die Dinge
+ * stehen deshalb an Plätzen, die aus dem Inselwurf berechnet werden – wer
+ * sich merkt, wo die Geode lag, findet sie morgen wieder dort.
+ */
+const { makeRng } = __req("src/core/rng.js");
+
+/**
+ * Wie groß ein Innenort ist, in Bildpunkten.
+ *
+ * Dieselbe Bedingung wie beim Zimmer: Der Ort muss ganz auf eine normale
+ * Zeichenfläche passen. `wand` ist die gemalte Höhe oben – Felswand oder
+ * Bretterwand –, sie gehört nicht zum begehbaren Boden.
+ */
+const INNENORTE = [
+  {
+    id: 'hoehle',
+    name: 'Die Höhle',
+    w: 780, h: 480, wand: 150,
+    /**
+     * Wie dunkel es hier ist, über die Grundhelligkeit hinaus.
+     *
+     * Im Zimmer wird es nie richtig dunkel, weil dort nichts Pflicht sein
+     * soll. In einer Höhle ist das Gegenteil richtig: Dunkelheit IST der
+     * Ort. Nur eben nicht so dunkel, dass man ohne Laterne nichts findet –
+     * die Wände leuchten schwach, und das muss reichen.
+     */
+    dunkel: 0.46,
+    hinweis: 'Höhle betreten',
+  },
+  {
+    id: 'muehle',
+    name: 'Die Mühle',
+    w: 720, h: 440, wand: 185,
+    dunkel: 0.12,
+    hinweis: 'Mühle betreten',
+  },
+];
+
+const INNENORT_IDS = INNENORTE.map(function (o) { return o.id; });
+
+function innenOrtFuer(id) {
+  for (let i = 0; i < INNENORTE.length; i++) {
+    if (INNENORTE[i].id === id) return INNENORTE[i];
+  }
+  return null;
+}
+
+/**
+ * Wo der Ausgang liegt – unten in der Mitte, wie die Haustür.
+ *
+ * Eine Höhle, deren Ausgang woanders liegt als die Tür jedes anderen
+ * Innenraums, ist nur ein Rätsel ohne Lösung. Dass es IMMER unten in der
+ * Mitte hinausgeht, ist die Art von Regel, die man nach dem ersten Mal nie
+ * wieder nachschlagen muss.
+ */
+/**
+ * Breiter als die Figur.
+ *
+ * Mit 110 Punkten stand Seli beim Hineingehen genau davor und verdeckte
+ * den Bogen vollständig – im Bild war kein Ausgang zu sehen, nur eine
+ * Figur mit Hut. Ein Ausgang, den man erst findet, wenn man weggeht,
+ * ist keiner.
+ */
+const AUSGANG_BREITE = 156;
+const AUSGANG_TIEFE = 62;
+
+function ausgangFuer(ort) {
+  return { x: Math.round(ort.w / 2 - AUSGANG_BREITE / 2), w: AUSGANG_BREITE };
+}
+
+/** Steht sie im Ausgang? */
+function amAusgang(x, y, ort) {
+  const a = ausgangFuer(ort);
+  return y > ort.h - AUSGANG_TIEFE && x > a.x - 20 && x < a.x + a.w + 20;
+}
+
+/** Der Rand, den der Boden ringsum frei lässt. */
+const ORT_RAND = 26;
+
+/** Liegt der Punkt auf dem begehbaren Boden? */
+function imOrt(x, y, ort) {
+  return x > ORT_RAND && x < ort.w - ORT_RAND
+    && y > ORT_RAND && y < ort.h - ORT_RAND;
+}
+
+/**
+ * Was in einem Innenort steht.
+ *
+ * Die Einträge nennen eine Objektart aus `entities.js` – `rock_ore`,
+ * `mushroom` und so weiter. Das ist Absicht und spart die halbe Arbeit:
+ * Werkzeug, Zahl der Schläge, Ausbeute und Nachwachsdauer stehen dort schon,
+ * und ein Erz in der Höhle verhält sich damit genau wie eins am Hang. Eine
+ * zweite Tabelle daneben wäre eine zweite Wahrheit.
+ *
+ * **Warum fest verteilt und nicht gestreut.** Ein Innenort ist klein genug,
+ * dass man ihn sich merkt. Gestreute Plätze hätten ihn zu einem Raum
+ * gemacht, in dem jedes Mal irgendwo irgendwas liegt – und genau das ist
+ * der Unterschied zwischen einem Ort und einer Kiste.
+ */
+const INHALT = {
+  /**
+   * Die Höhle.
+   *
+   * Die festen Brocken liegen weit auseinander, und zwar gemessen: Eine
+   * Prüfung verlangt zwischen je zweien mehr als ihre beiden Sperrkreise
+   * plus eine Figurenbreite. Beim ersten Entwurf standen Erz und Geode
+   * 93 Punkte auseinander – zusammen eine Mauer, durch die man nicht
+   * hindurchkommt, und in einem Raum ohne Wegfindung steht man dann fest.
+   *
+   * Erz und Geode gehören deshalb an die Ränder, das Weiche in die Mitte.
+   */
+  hoehle: [
+    /**
+     * Sechs feste Brocken, auf einem weiten Raster.
+     *
+     * Das ist keine Gestaltungslaune, sondern eine gemessene Grenze: Eine
+     * Prüfung verlangt zwischen je zwei festen Dingen mehr als ihre
+     * beiden Sperrkreise plus eine Figurenbreite. Beim zweiten Entwurf
+     * waren es acht Brocken, und zwei davon standen 97 Punkte
+     * auseinander – zusammen eine Mauer. In einem Raum ohne Wegfindung
+     * steht man dann fest, und der einzige Ausgang ist dahinter.
+     *
+     * Lieber sechs Dinge, an denen man vorbeikommt, als acht, zwischen
+     * denen man klemmt.
+     */
+    { kind: 'kristallader', x: 0.08, y: 0.14 },
+    { kind: 'rock_ore', x: 0.36, y: 0.10 },
+    { kind: 'rock_ore', x: 0.64, y: 0.14 },
+    // Die Geode ist das Stück, wegen dem man wiederkommt – eine je
+    // Höhle, seitlich hinten, wo man sie erst beim zweiten Blick sieht.
+    { kind: 'rock_geode', x: 0.92, y: 0.22 },
+    { kind: 'kristallader', x: 0.14, y: 0.52 },
+    { kind: 'rock_granite', x: 0.86, y: 0.60 },
+    // Und das Weiche dazwischen – darüber läuft man hinweg.
+    { kind: 'leuchtmoos', x: 0.46, y: 0.40 },
+    { kind: 'leuchtmoos', x: 0.08, y: 0.80 },
+    { kind: 'leuchtmoos', x: 0.90, y: 0.88 },
+    { kind: 'mushroom', x: 0.24, y: 0.86 },
+    { kind: 'mushroom', x: 0.40, y: 0.92 },
+    { kind: 'mushroom', x: 0.66, y: 0.46 },
+  ],
+  muehle: [
+    // In der Mühle wird nichts abgebaut – hier liegt, was ein Müller
+    // liegen lässt. Deshalb nur Kleinkram, und der wächst täglich nach.
+    { kind: 'mehlsack', x: 0.14, y: 0.74 },
+    { kind: 'mehlsack', x: 0.30, y: 0.88 },
+    { kind: 'mehlsack', x: 0.86, y: 0.84 },
+    { kind: 'herb', x: 0.12, y: 0.42 },
+    { kind: 'feather', x: 0.70, y: 0.30 },
+  ],
+};
+
+/**
+ * Die Dinge eines Innenortes, einmal berechnet.
+ *
+ * Der Inselwurf geht mit ein, damit zwei Höhlen auf derselben Insel nicht
+ * Punkt für Punkt gleich aussehen – die Plätze wackeln ein wenig, die
+ * Reihenfolge bleibt.
+ */
+function inhaltFuer(ortId, seed) {
+  const ort = innenOrtFuer(ortId);
+  const liste = INHALT[ortId] || [];
+  if (!ort) return [];
+  const rng = makeRng(seed * 31 + ortId.length * 7717);
+  const raus = [];
+  for (let i = 0; i < liste.length; i++) {
+    const e = liste[i];
+    const bx = ORT_RAND + e.x * (ort.w - ORT_RAND * 2);
+    const by = ORT_RAND + e.y * (ort.h - ORT_RAND * 2);
+    raus.push({
+      id: ortId + '_' + i,
+      kind: e.kind,
+      // Nur ein kleiner Versatz. Zuerst waren es 26 Punkte, und damit
+      // konnten zwei Brocken im ungünstigen Wurf 46 Punkte näher
+      // zusammenrücken als geplant – genug, um die Lücke zwischen ihnen
+      // zu schließen. Der Abstand ist das Wichtigere.
+      x: Math.round(bx + (rng() - 0.5) * 11),
+      y: Math.round(by + (rng() - 0.5) * 9),
+      hp: 0,
+      gone: false,
+      respawnDay: 0,
+    });
+  }
+  return raus;
+}
+
+/** Der leere Stand eines Innenortes im Spielstand. */
+function emptyInnenorte() {
+  return Object.create(null);
+}
+
+/**
+ * Was vom Innenort im Spielstand landet.
+ *
+ * Nur das Veränderliche: was abgebaut wurde und wann es wiederkommt. Die
+ * Plätze stehen in der Tabelle oben und werden nie gespeichert – sonst
+ * würde ein alter Spielstand eine neue Höhle in alter Form festhalten.
+ */
+function innenorteAus(roh) {
+  const raus = emptyInnenorte();
+  if (!roh || typeof roh !== 'object') return raus;
+  for (const k in roh) {
+    const e = roh[k];
+    if (!e || typeof e !== 'object') continue;
+    raus[k] = {
+      gone: !!e.gone,
+      respawnDay: Number(e.respawnDay) || 0,
+      hp: Number(e.hp) || 0,
+    };
+  }
+  return raus;
+}
+
+__e.INNENORTE = INNENORTE;
+__e.INNENORT_IDS = INNENORT_IDS;
+__e.AUSGANG_BREITE = AUSGANG_BREITE;
+__e.AUSGANG_TIEFE = AUSGANG_TIEFE;
+__e.ORT_RAND = ORT_RAND;
+__e.innenOrtFuer = innenOrtFuer;
+__e.ausgangFuer = ausgangFuer;
+__e.amAusgang = amAusgang;
+__e.imOrt = imOrt;
+__e.inhaltFuer = inhaltFuer;
+__e.emptyInnenorte = emptyInnenorte;
+__e.innenorteAus = innenorteAus;
+
+};
+
 __defs["src/art/painted-saison.js"] = function (__e) {
 /**
  * Die vier Jahresgaben – was nur in einer Jahreszeit am Boden liegt.
@@ -17444,6 +18542,16 @@ const LIST = [
   // Aus dem Hochland der Stillen Insel. Ein neuer Bereich braucht etwas, das
   // es nur dort gibt – sonst ist er eine größere Fläche mit demselben Kram.
   it('granite', 'Granit', CAT.MATERIAL, 19, 0),
+  /**
+   * Was es NUR in der Höhle und NUR in der Mühle gibt.
+   *
+   * Ein Ort, in dem dieselben Dinge liegen wie draußen, ist eine Abkürzung
+   * und kein Ort. Die drei hier sind der Grund hinzugehen: Leuchtmoos und
+   * Höhlenkristall wachsen nirgends sonst, und Mehl bekommt man nur dort,
+   * wo gemahlen wird.
+   */
+  it('leuchtmoos', 'Leuchtmoos', CAT.MATERIAL, 16, 2),
+  it('mehl', 'Mehl', CAT.MATERIAL, 14, 1),
   it('fiber', 'Pflanzenfaser', CAT.MATERIAL, 2, 1),
   it('resin', 'Harz', CAT.MATERIAL, 7, 2),
   it('clay', 'Ton', CAT.MATERIAL, 4, 0),
@@ -17469,6 +18577,10 @@ const LIST = [
   it('bottle', 'Flaschenpost', CAT.RELIC, 10, 3),
   it('gem', 'Meerkristall', CAT.RELIC, 45, 10),
   it('amber', 'Bernstein', CAT.RELIC, 70, 14),
+  // Der Höhlenkristall ist das Stück, wegen dem man in die Höhle geht.
+  // Teurer als der Meerkristall, billiger als Bernstein: Er soll sich
+  // lohnen, ohne alles andere wertlos zu machen.
+  it('hoehlenkristall', 'Höhlenkristall', CAT.RELIC, 58, 11),
   it('coin_pouch', 'Münzbeutel', CAT.RELIC, 0, 0, { opens: [40, 90] }),
 
   // Fische
@@ -18150,6 +19262,47 @@ const ENTITY_DEFS = {
     sprite: 'rock_small', solid: true, blockR: 20, reachR: 72, tool: TOOL.PICK, hits: 1,
     yield: drop('stone', 1, 2), respawn: 1, category: 'rock',
   },
+  /**
+   * Die Kristallader – nur in der Höhle.
+   *
+   * Sie ist die Antwort auf einen echten Fehler: Die erste Höhle enthielt
+   * Erz, Granit und eine Geode, und alle drei brauchen die Spitzhacke
+   * ab Stufe 2, 3 beziehungsweise 4. Wer am ersten Tag hineinging, konnte
+   * NICHTS davon anrühren – eine Prüfung hat es gefunden, weil sie mit
+   * der Anfangsausrüstung geschlagen hat statt mit einer gedachten.
+   *
+   * Die Ader geht mit der ersten Spitzhacke. Damit hat die Höhle etwas
+   * für den ersten Besuch und etwas für später, und beides ist dasselbe
+   * Werkzeug auf verschiedenen Stufen.
+   */
+  kristallader: {
+    sprite: 'kristallader', solid: true, blockR: 30, reachR: 84,
+    tool: TOOL.PICK, minLevel: 1, hits: 3,
+    yield: function (level, rng) {
+      const out = [
+        { id: 'hoehlenkristall', n: 1 },
+        { id: 'stone', n: randInt(rng, 1, 2) },
+      ];
+      if (level >= 3 && rng() < 0.3) out.push({ id: 'hoehlenkristall', n: 1 });
+      return out;
+    },
+    respawn: 3, category: 'rock',
+  },
+
+  /** Leuchtmoos an der Höhlenwand – mit der Hand, wie jedes Kraut. */
+  leuchtmoos: {
+    sprite: 'leuchtmoos', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
+    yield: drop('leuchtmoos', 1, 2), respawn: 1, sway: true, category: 'forage',
+    // Es leuchtet wirklich: in der Höhle der einzige eigene Lichtpunkt.
+    light: 90,
+  },
+
+  /** Der Mehlsack in der Mühle. */
+  mehlsack: {
+    sprite: 'mehlsack', solid: false, reachR: 72, tool: TOOL.HAND, hits: 1,
+    yield: drop('mehl', 1, 2), respawn: 1, category: 'forage',
+  },
+
   rock_ore: {
     sprite: 'rock_ore', solid: true, blockR: 28, reachR: 80, tool: TOOL.PICK, minLevel: 2, hits: 4,
     yield: function (level, rng) {
@@ -18346,6 +19499,23 @@ const ENTITY_DEFS = {
   // Beeren findet, soll damit etwas anfangen können.
   kitchen: { sprite: 'kitchen', solid: true, blockR: 54, blockH: 26, reachR: 104, category: 'station', station: 'kitchen' },
   bridge_spot: { sprite: 'signpost', solid: false, reachR: 120, category: 'station', station: 'bridge' },
+
+  /**
+   * Die Eingänge, durch die man in einen Innenort geht.
+   *
+   * Beide sind FEST: Man läuft nicht durch einen Felsvorsprung hindurch
+   * und nicht durch eine Tür, ohne sie zu benutzen. Der Blockradius ist
+   * schmaler als das Bild – sonst stünde man zum Hineingehen zu weit weg
+   * und der Hinweis erschiene nie.
+   */
+  hoehle_eingang: {
+    sprite: 'hoehle_eingang', solid: true, blockR: 46, blockH: 20,
+    reachR: 116, category: 'station', station: 'hoehle', priority: 40,
+  },
+  muehle_tuer: {
+    sprite: 'muehle_tuer', solid: true, blockR: 26, blockH: 12,
+    reachR: 104, category: 'station', station: 'muehle', priority: 40,
+  },
   /**
    * Das Ruderboot: an beiden Ufern eines. Nicht fest, damit man am schmalen
    * Anleger nicht daran hängen bleibt.
@@ -18869,6 +20039,8 @@ const { paintTree, paintPine, paintStump, paintLogBarrier, paintFarn, paintRock,
 const { paintCampfire, paintFlame, paintTent, paintStall, paintWorkbench, paintBoat, paintMailbox, paintKitchen, paintHouse, paintLantern, paintTravelLamp, paintWanderer, paintBench, paintFence, paintFlowerbed, paintBirdhouse, paintWindchime, paintRug, paintSignpost, paintCrate, paintChest, paintMemory, paintTool, paintButterfly, paintBird, paintSeli, paintSpirit, paintFlameSpirit, paintFox } = __req("src/art/painted-camp.js");
 const { trachtFuer, TRACHTEN } = __req("src/game/tracht.js");
 const { paintInselbild } = __req("src/art/painted-bild.js");
+const { paintHoehle, paintMuehleInnen, paintHoehleEingang, paintMuehleTuer, paintKristallader, paintLeuchtmoos, paintMehlsack } = __req("src/art/painted-innenorte.js");
+const { innenOrtFuer, ausgangFuer } = __req("src/game/innenorte.js");
 const { paintPetal, paintSunstone, paintMapleleaf, paintFrostflower, paintSapling } = __req("src/art/painted-saison.js");
 const { SETZLINGE, SETZLING_IDS, STUFEN } = __req("src/game/saplings.js");
 const { paintSternbild } = __req("src/art/painted-sternbild.js");
@@ -19102,6 +20274,18 @@ function initArt() {
   addArt('marke_leuchtturm', paintLeuchtturm({ seed: 841 }), 0.8);
   addArt('marke_baum', paintHohlerBaum({ seed: 851 }), 0.8);
   addArt('marke_muehle', paintMuehle({ seed: 861 }), 0.8);
+
+  /* --- Die Eingänge, durch die man hineingeht --- */
+  // Nicht skaliert: Sie sind so groß gemalt, wie sie im Spiel stehen
+  // sollen. Eine Tür, die kleiner ist als die Figur davor, lädt niemanden
+  // ein, es zu versuchen.
+  addArt('hoehle_eingang', paintHoehleEingang({ seed: 6100 }));
+  addArt('muehle_tuer', paintMuehleTuer({ seed: 6200 }));
+
+  /* --- Und was es nur drinnen gibt --- */
+  addArt('kristallader', paintKristallader({ seed: 6300 }));
+  addArt('leuchtmoos', paintLeuchtmoos({ seed: 6400 }));
+  addArt('mehlsack', paintMehlsack({ seed: 6500 }));
 
   /* --- Die Bewohner und ihre Hütten --- */
   // Die Figuren entstehen beim Geistermaler: `lebt: true` gibt ihnen Füße
@@ -19406,6 +20590,11 @@ function buildIcons() {
     ['hedgehogbox', 'hedgehogbox'], ['feeder', 'feeder'],
     ['steppingstones', 'steppingstones'], ['arch', 'arch'],
     ['clothesline', 'clothesline'], ['bookstack', 'bookstack'],
+    // Was es nur in Höhle und Mühle gibt. Der Höhlenkristall borgt sich
+    // das Bild der Ader, aus der er stammt – ein eigenes Symbol für ein
+    // einzelnes Kristall wäre dasselbe Bild in kleiner.
+    ['leuchtmoos', 'leuchtmoos'], ['mehl', 'mehlsack'],
+    ['hoehlenkristall', 'kristallader'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = registry[reuse[i][1]];
@@ -19512,6 +20701,33 @@ function ensureBild(skizze) {
   return name;
 }
 
+/**
+ * Das Bild eines Innenortes – Höhle oder Mühle.
+ *
+ * Wie `ensureRoom`: erst beim ersten Hineingehen gemalt. Ein großes Bild,
+ * das niemand ansieht, ist Arbeit umsonst – und anders als beim Zimmer gibt
+ * es Spielstände, in denen man nie eine Höhle betritt.
+ *
+ * Der Inselwurf geht in den Namen ein, nicht nur in die Zeichnung: Sonst
+ * behielte die zweite Insel das Bild der ersten, denn das Register lebt
+ * länger als ein Spielstand.
+ */
+function ensureInnenort(ortId, seed) {
+  const ort = innenOrtFuer(ortId);
+  if (!ort) return null;
+  const name = 'ort_' + ortId + '_' + (seed >>> 0);
+  if (registry[name]) return name;
+  const opts = {
+    w: ort.w, h: ort.h, wand: ort.wand,
+    ausgang: ausgangFuer(ort),
+    seed: 4200 + (seed % 9973) + ortId.length * 131,
+  };
+  const art = ortId === 'muehle' ? paintMuehleInnen(opts) : paintHoehle(opts);
+  art.line = makeCanvas(1, 1);
+  addArt(name, art);
+  return name;
+}
+
 function ensureRoom(stufe, ausstattungId, index) {
   const i = index | 0;
   const r = raumFuer(stufe, i);
@@ -19548,6 +20764,7 @@ __e.isArtReady = isArtReady;
 __e.initArt = initArt;
 __e.seliBilder = seliBilder;
 __e.ensureBild = ensureBild;
+__e.ensureInnenort = ensureInnenort;
 __e.ensureRoom = ensureRoom;
 
 };
@@ -21636,6 +22853,7 @@ class World {
     this._placeBarriers();
     this._placeBoats();
     this._setzeMarken();
+    this._setzeHoehlen();
     this._scatterNature(rng);
     this._placeSpirits();
     return this;
@@ -21664,8 +22882,83 @@ class World {
       e.markeId = p.marke.id;
       this.add(e);
       this.marken.push({ id: p.marke.id, name: p.marke.name, x: e.x, y: e.y });
+      /**
+       * Und an die Mühle kommt eine Tür.
+       *
+       * Sie ist ein eigenes Objekt und nicht Teil des Mühlenbildes. Der
+       * Grund ist nicht die Zeichnung, sondern die Reichweite: Die Marke
+       * selbst sperrt 86 Punkte um ihre Mitte, und wer ein Gebäude
+       * anspricht, steht davor, nicht darin. Eine Tür als eigenes Objekt
+       * hat ihren eigenen, kleinen Umkreis genau dort, wo man steht.
+       *
+       * Etwas unterhalb der Mitte: Dadurch wird sie NACH dem Turm
+       * gezeichnet und steht vor ihm statt dahinter.
+       */
+      if (p.marke.id === 'muehle') {
+        const tuer = makeEntity('muehle_tuer', e.x, e.y + 14);
+        this.add(tuer);
+        this.muehleTuer = tuer;
+      }
     }
     return this.marken;
+  }
+
+  /**
+   * Höhleneingänge in die Steilkanten setzen.
+   *
+   * Eine Höhle gehört in einen Hang, nicht auf eine Wiese – deshalb wird
+   * nach einer Klippenkachel gesucht, unter der (also südlich, zum
+   * Betrachter hin) begehbarer Boden liegt. Genau dort sieht ein Loch im
+   * Fels nach einem Loch im Fels aus.
+   *
+   * Drei Stück je Insel, weit auseinander. Weniger wäre auf einer Insel
+   * dieser Größe eine Rarität, die man nie findet; mehr machte aus der
+   * Höhle eine Sorte Gelände.
+   */
+  _setzeHoehlen() {
+    const MIN_ABSTAND = 34;
+    const gesetzt = [];
+    const kandidaten = [];
+    for (let ty = 2; ty < MAP_H - 3; ty++) {
+      for (let tx = 2; tx < MAP_W - 2; tx++) {
+        if (this.tiles[tileIndex(tx, ty)] !== T.CLIFF) continue;
+        // Davor muss man stehen können, und zwar zwei Kacheln weit:
+        // Mit nur einer stand der Eingang in einer Nische, aus der man
+        // ihn nicht ansprechen konnte.
+        if (!isWalkable(this.tiles[tileIndex(tx, ty + 1)])) continue;
+        if (!isWalkable(this.tiles[tileIndex(tx, ty + 2)])) continue;
+        if (!isWalkable(this.tiles[tileIndex(tx - 1, ty + 1)])) continue;
+        if (!isWalkable(this.tiles[tileIndex(tx + 1, ty + 1)])) continue;
+        kandidaten.push({ tx: tx, ty: ty });
+      }
+    }
+    // Von der Mitte weg sortieren, damit die drei nicht alle am selben
+    // Hang hängen: Der erste nimmt, was kommt, jeder weitere braucht
+    // Abstand zu allen vorigen.
+    const rng = makeRng(this.seed ^ 0x40c1e);
+    for (let i = kandidaten.length - 1; i > 0; i--) {
+      const k = Math.floor(rng() * (i + 1));
+      const t = kandidaten[i];
+      kandidaten[i] = kandidaten[k];
+      kandidaten[k] = t;
+    }
+    this.hoehlen = [];
+    for (let i = 0; i < kandidaten.length && this.hoehlen.length < 3; i++) {
+      const k = kandidaten[i];
+      let weit = true;
+      for (let j = 0; j < gesetzt.length; j++) {
+        const dx = gesetzt[j].tx - k.tx;
+        const dy = gesetzt[j].ty - k.ty;
+        if (dx * dx + dy * dy < MIN_ABSTAND * MIN_ABSTAND) { weit = false; break; }
+      }
+      if (!weit) continue;
+      gesetzt.push(k);
+      const e = makeEntity('hoehle_eingang',
+        (k.tx + 0.5) * TILE_SIZE, (k.ty + 1) * TILE_SIZE);
+      this.add(e);
+      this.hoehlen.push({ x: e.x, y: e.y });
+    }
+    return this.hoehlen;
   }
 
   _placeCamp() {
@@ -23243,6 +24536,21 @@ const RECIPES = [
     [{ id: 'stone', n: 4 }]),
   r('torch', 'Fackel', { id: 'torch', n: 1 },
     [{ id: 'wood', n: 3 }, { id: 'resin', n: 2 }, { id: 'fiber', n: 1 }]),
+  /**
+   * Das Moosglas – wofür das Leuchtmoos aus der Höhle gut ist.
+   *
+   * Eine Prüfung verlangt, dass jeder seltene Fund eine Verwendung hat:
+   * „Verwendung" heißt Bauplan, Gericht oder ein Geist, der sich freut –
+   * verkaufen zählt nicht, denn das kann man mit Holz auch. Ohne diesen
+   * Bauplan wäre das Leuchtmoos nur ein zweiter Name für Geld, und die
+   * Höhle hätte nichts gebracht als einen Umweg.
+   *
+   * Es leuchtet schwächer als die Laterne und kostet kein Feuer: das
+   * erste Licht, das man aufstellen kann, ohne etwas dafür zu verbrennen.
+   */
+  r('moosglas', 'Moosglas', { id: 'lantern', n: 1 },
+    [{ id: 'leuchtmoos', n: 3 }, { id: 'stone', n: 2 }, { id: 'fiber', n: 2 }],
+    { note: 'Leuchtet von selbst – das Moos braucht kein Feuer.' }),
 
   // Ab Feuerstufe 2
   r('lantern', 'Laterne', { id: 'lantern', n: 1 },
@@ -23382,6 +24690,13 @@ const RECIPES = [
   r('stonelamp', 'Steinlaterne', { id: 'moonlamp', n: 1 },
     [{ id: 'granite', n: 8 }, { id: 'copper_ore', n: 4 }, { id: 'gem', n: 1 }],
     { ember: 18, fire: 3, needs: 'insel', note: 'Leuchtet so weit wie die Mondlaterne.' }),
+  // Und wofür der Höhlenkristall gut ist: derselbe Grund wie beim
+  // Leuchtmoos, nur eine Stufe höher. Der Kristallbogen ist das
+  // teuerste Stück Deko im Buch – und das einzige, für das man in alle
+  // drei Höhlen muss.
+  r('kristallbogen', 'Kristallbogen', { id: 'arch', n: 1 },
+    [{ id: 'hoehlenkristall', n: 4 }, { id: 'granite', n: 4 }, { id: 'leuchtmoos', n: 3 }],
+    { ember: 20, fire: 3, note: 'Die Kristalle glimmen, wenn es dunkel wird.' }),
   r('gravel', 'Steinweg aus Granit', { id: 'path_tile', n: 12 },
     [{ id: 'granite', n: 3 }, { id: 'stone', n: 4 }],
     { ember: 6, fire: 2, needs: 'insel', note: 'Zwölf Wegstücke auf einmal.' }),
@@ -24175,7 +25490,7 @@ __defs["src/render/renderer.js"] = function (__e) {
  */
 const { makeCanvas, ctx2d, clamp } = __req("src/core/util.js");
 const { drawSprite, spr, ensureBild } = __req("src/art/sprites.js");
-const { defOf } = __req("src/world/entities.js");
+const { defOf, spriteFor } = __req("src/world/entities.js");
 const { getItem } = __req("src/game/items.js");
 const { campfireLevelFor } = __req("src/game/recipes.js");
 const { seasonTint } = __req("src/game/seasons.js");
@@ -24510,6 +25825,15 @@ class Renderer {
         sprite: (item && item.prop) || null, x: s.x, itemId: s.id,
       });
     }
+    // Was in einer Höhle oder in der Mühle steht. Es kommt aus derselben
+    // Liste wie die Möbel und sortiert sich mit ein – nur heißt sein Bild
+    // anders: Möbel tragen ihr Bild am Gegenstand, ein Felsbrocken an
+    // seiner Objektart.
+    const inhalt = game.ortInhalt();
+    for (let i = 0; i < inhalt.length; i++) {
+      const e = inhalt[i];
+      liste.push({ y: e.y, flach: false, sprite: spriteFor(e.kind, e.x, e.y), x: e.x });
+    }
     // Das Tier sortiert sich mit ein – sonst säße es vor dem Tisch, an dem
     // es gerade vorbeigelaufen ist.
     const tier = game.innenPetBild();
@@ -24579,6 +25903,48 @@ class Renderer {
     lc.clearRect(0, 0, this.w, this.h);
     // Ein tiefes Blau, kein Grau: Abendlicht ist kalt, Lampenlicht warm, und
     // erst der Unterschied macht die Laterne gemütlich.
+    /**
+     * Im Zimmer ist das Dunkel Abend, in der Höhle ist es Fels.
+     *
+     * Zwei Unterschiede, und beide waren zuerst falsch. Erstens die
+     * FARBE: Ein tiefes Blau ist Abendlicht und richtig fürs Zimmer; in
+     * einer Höhle gibt es keinen Abend, dort ist es braunschwarz. Mit
+     * dem Blau sah die Höhle aus wie ein Zimmer bei Nacht.
+     *
+     * Zweitens die FLÄCHE: Der Überzug lag über dem ganzen Bild, also
+     * auch über dem Papier rings um den Raum. Im Bild war dann alles
+     * gleich grau getönt – der Raum nicht dunkler als sein Rand, und
+     * damit war die Dunkelheit keine Eigenschaft des Ortes mehr,
+     * sondern ein Filter über dem Bildschirm. Jetzt endet sie am Raum.
+     */
+    const ort = game.ort ? game.ort() : null;
+    if (ort) {
+      const raum = game.raum();
+      const rx = bx;
+      const ry = by - raum.wand;
+      const rw = raum.w;
+      const rh = raum.h + raum.wand;
+      lc.setTransform(z, 0, 0, z, 0, 0);
+      lc.fillStyle = 'rgba(28,23,18,' + t.toFixed(3) + ')';
+      lc.fillRect(rx, ry, rw, rh);
+      // Und der Ausgang leuchtet hinein: dieselbe Stelle, an der das
+      // gemalte Tageslicht sitzt, damit Bild und Licht übereinstimmen.
+      lc.globalCompositeOperation = 'destination-out';
+      const ax = bx + raum.w / 2;
+      const ay = by + raum.h;
+      const loch = lc.createRadialGradient(ax, ay, 10, ax, ay, raum.h * 0.8);
+      loch.addColorStop(0, 'rgba(0,0,0,0.9)');
+      loch.addColorStop(0.5, 'rgba(0,0,0,0.4)');
+      loch.addColorStop(1, 'rgba(0,0,0,0)');
+      lc.fillStyle = loch;
+      lc.fillRect(rx, ry, rw, rh);
+      this._screen(lc);
+      lc.globalCompositeOperation = 'source-over';
+      this._screen(ctx);
+      ctx.drawImage(this.lightCanvas, 0, 0);
+      return;
+    }
+
     lc.fillStyle = 'rgba(42,44,78,' + t.toFixed(3) + ')';
     lc.fillRect(0, 0, this.w, this.h);
 
@@ -32969,6 +34335,9 @@ const HINTS = {
   signpost: 'Werkbank.',
   bridge_kit: 'Werkbank. Öffnet die Klippen.',
   granite: 'Im Hochland der Stillen Insel, ab Spitzhacke Stufe 3.',
+  leuchtmoos: 'Wächst nur in den Höhlen. Mit der Hand.',
+  hoehlenkristall: 'Aus den Kristalladern in den Höhlen.',
+  mehl: 'In der alten Mühle, aus den Säcken am Mahlstein.',
   amber: 'Aus Geoden im Hochland, ab Spitzhacke Stufe 4.',
   table: 'Aus dem Katalog – kommt am nächsten Morgen mit der Post.',
   chair: 'Aus dem Katalog.',
@@ -38255,6 +39624,7 @@ const { todayOf, shoalIndex, EVENTS } = __req("src/game/calendar.js");
 const { festOn, festSatz, SCHMUCK_RADIUS, SCHMUCK_ANZAHL, SCHMUCK_ABSTAND, emptyFeste } = __req("src/game/festivals.js");
 const { emptyDaybook, daybookHasContent } = __req("src/game/daybook.js");
 const { raumFuer, raeumeFuer, raumZahl, tuerFuer, anDerTuer, imRaum, platzFrei, stueckAn, maxStuecke, gemuetlichkeit, wohnBonus, wohnStufe, emptyInterior, interiorAus, RAND, emptyRaum, anDerInnenTuer, innenTuerFuer, INNENTUER_TIEFE, bettFuer, amBett, ausstattungFuer, AUSSTATTUNG_IDS, wandPlatzFrei, wandStueckAn, wandHoehe, maxWandStuecke, WAND_RAND, WAND_ABSTAND, klemmeInRaum, gruppen, gruppenPunkte } = __req("src/game/interior.js");
+const { innenOrtFuer, inhaltFuer, imOrt, amAusgang, emptyInnenorte, innenorteAus, ORT_RAND } = __req("src/game/innenorte.js");
 const { wandererAm, besuchFuer, emptyWanderer, heuteGetauscht, heuteGegruesst, tauschZahl, andenkenFuer, MITBRINGSEL, SAETZE: WANDER_SAETZE, naechsterBesuch } = __req("src/game/wanderer.js");
 const { emptyKapitel, neueKapitel, jetzigesKapitel, naechstesKapitel, kapitelHat, kapitelStand } = __req("src/game/kapitel.js");
 const { emptyMomente, lageAus, faelligerMoment, merke: merkeMoment, gefundene: gefundeneMomente, momenteStand } = __req("src/game/momente.js");
@@ -38312,7 +39682,7 @@ const { num } = __req("src/core/util.js");
 const { audio } = __req("src/core/audio.js");
 const { UI } = __req("src/ui/ui.js");
 const { Panels } = __req("src/ui/panels.js");
-const { ensureRoom, seliBilder, ensureBild } = __req("src/art/sprites.js");
+const { ensureRoom, ensureInnenort, seliBilder, ensureBild } = __req("src/art/sprites.js");
 const { applyUiScale } = __req("src/ui/uiscale.js");
 const storage = __req("src/core/storage.js");
 const savefile = __req("src/core/savefile.js");
@@ -38600,6 +39970,7 @@ class Game {
       records: emptyRecords(),
       wishes: emptyWishes(),
       interior: emptyInterior(),
+      innenorte: emptyInnenorte(),
       wanderer: emptyWanderer(),
       termine: Object.create(null),
       kapitel: emptyKapitel(),
@@ -38718,6 +40089,7 @@ class Game {
       staerkung: emptyKitchen(),
       feste: emptyFeste(),
       interior: emptyInterior(),
+      innenorte: emptyInnenorte(),
       wanderer: emptyWanderer(),
       termine: Object.create(null),
       kapitel: emptyKapitel(),
@@ -38754,6 +40126,9 @@ class Game {
     this.state.interior = interiorAus(
       this.state.interior, this.state.house || 1,
       function (id) { const it = getItem(id); return !!(it && it.prop); });
+    // Dasselbe für die Innenorte: Ein alter Spielstand kennt sie nicht,
+    // und ein neuer soll nur das Veränderliche mitbringen.
+    this.state.innenorte = innenorteAus(this.state.innenorte);
     // Was Seli beim Ausruhen zuletzt gedacht hat. Steht im Spielstand, damit
     // sie sich nach dem Neuladen nicht mit denselben acht Sätzen begrüßt.
     if (!Array.isArray(this.state.gedanken)) this.state.gedanken = [];
@@ -40957,6 +42332,8 @@ class Game {
       // in jedem Haus. Vorher war das Haus ein Knopf, der die Nacht auslöste,
       // und die vier Ausbaustufen hatten kein Innen.
       case 'tent': this.betritt(); break;
+      case 'hoehle': this.betritteOrt('hoehle'); break;
+      case 'muehle': this.betritteOrt('muehle'); break;
       case 'bridge': this._tryBridge(entity); break;
       case 'boat': this._takeBoat(entity); break;
       case 'mail': this.openPanel('mail'); break;
@@ -43706,8 +45083,26 @@ class Game {
     return raumZahl(this.state.house || 1);
   }
 
+  /**
+   * Der Innenort, in dem Seli gerade steht – oder null.
+   *
+   * Das ist die EINE Abfrage, an der sich alles entscheidet. Drinnen heißt
+   * entweder „im eigenen Zimmer" oder „in einer Höhle", und die beiden haben
+   * außer dem Weg auf den Bildschirm fast nichts gemeinsam: Im Zimmer zählt
+   * Gemütlichkeit, in der Höhle schlägt man Erz ab. Statt beide Fälle
+   * ineinanderzuschieben, fragt jede Stelle hier nach.
+   */
+  ort() {
+    return this.innen && this.innen.ort ? innenOrtFuer(this.innen.ort) : null;
+  }
+
   /** Der Raum, in dem Seli gerade steht (draußen: der vordere). */
   raum() {
+    const o = this.ort();
+    // `stufe: 0` ist kein Platzhalter, sondern die Aussage: Dieser Raum
+    // gehört zu keiner Ausbaustufe. Alles, was an der Stufe hängt – Bett,
+    // Verbindungstür, Fenster –, gibt es hier nicht.
+    if (o) return { stufe: 0, name: o.name, w: o.w, h: o.h, wand: o.wand };
     return raumFuer(this.state.house || 1, this.raumIndex());
   }
 
@@ -43746,7 +45141,38 @@ class Game {
 
   /** Was im Zimmer steht. */
   innenStuecke(index) {
+    // In einer Höhle steht nichts von dir – dort steht, was die Insel
+    // dort hingelegt hat, und das kommt aus `ortInhalt()`.
+    if (this.ort()) return [];
     return this.raumStand(index).stuecke;
+  }
+
+  /**
+   * Was in einem Innenort steht – Erz, Pilze, Federn.
+   *
+   * Die Einträge nennen eine Objektart aus `entities.js`, und das ist der
+   * halbe Grund, warum diese Liste so kurz ist: Werkzeug, Schläge, Ausbeute
+   * und Nachwachsdauer stehen dort schon. Ein Erz in der Höhle verhält sich
+   * damit von selbst wie eins am Hang.
+   *
+   * Was abgebaut wurde, steht im Spielstand (`state.innenorte`) und nicht
+   * hier – die Plätze sind für alle Spielstände dieselben.
+   */
+  ortInhalt() {
+    const o = this.ort();
+    if (!o) return [];
+    if (!this._ortInhalt) this._ortInhalt = Object.create(null);
+    if (!this._ortInhalt[o.id]) this._ortInhalt[o.id] = inhaltFuer(o.id, this.world.seed);
+    const stand = this.state.innenorte || (this.state.innenorte = emptyInnenorte());
+    const liste = this._ortInhalt[o.id];
+    const raus = [];
+    for (let i = 0; i < liste.length; i++) {
+      const e = liste[i];
+      const st = stand[e.id];
+      if (st && st.gone) continue;
+      raus.push(e);
+    }
+    return raus;
   }
 
   /**
@@ -43975,11 +45401,14 @@ class Game {
 
   /** Was an der Wand hängt. */
   innenWand(index) {
+    if (this.ort()) return [];
     return this.raumStand(index).wand;
   }
 
   /** Wo das Bett steht – in Raumkoordinaten. */
   bettPunkt() {
+    // In einer Höhle schläft niemand.
+    if (this.ort()) return null;
     return bettFuer(this.raum());
   }
 
@@ -43994,6 +45423,12 @@ class Game {
    * ohne sie festsitzt.
    */
   innenDunkel() {
+    const o = this.ort();
+    // In einer Höhle ist Dunkelheit kein Abend, sondern der Ort selbst –
+    // auch mittags. Nachts kommt die Dämmerung obendrauf, aber gedeckelt:
+    // Ein Raum, in dem man gar nichts mehr sieht, ist kein Ort, sondern
+    // eine schwarze Fläche.
+    if (o) return Math.min(0.62, o.dunkel + (this.day.isDark() ? INNEN_NACHT : 0));
     return this.day.isDark() ? INNEN_NACHT : 0;
   }
 
@@ -44029,6 +45464,8 @@ class Game {
    * beim ersten Hineingehen und beim Wechsel.
    */
   raumSprite() {
+    const o = this.ort();
+    if (o) return ensureInnenort(o.id, this.world.seed);
     return ensureRoom(this.state.house || 1, this.ausstattung().id, this.raumIndex());
   }
 
@@ -44166,6 +45603,43 @@ class Game {
   }
 
   /**
+   * Einen Innenort betreten – Höhle oder Mühle.
+   *
+   * Fast dasselbe wie `betritt()`, und bewusst nicht dieselbe Methode: Das
+   * Hineingehen ins eigene Haus bringt Tier und Gast mit, malt das Zimmer
+   * nach Ausstattung und setzt Seli vor ihre Tür. Hier gilt nichts davon.
+   * Zusammengelegt wäre daraus eine Methode mit zwei Hälften geworden, von
+   * denen je eine nicht ausgeführt wird – und die liest niemand mehr.
+   */
+  betritteOrt(id) {
+    const o = innenOrtFuer(id);
+    if (!o || this.innen) return false;
+    this.stehAuf(true);
+    this.cancelPlacing();
+    this.fishing.cancel();
+    // Etwas oberhalb des Ausgangs, nicht mittendrin: Steht sie genau
+    // darin, verdeckt sie ihn – und das Erste, was man von einer Höhle
+    // sieht, soll der Weg zurück sein.
+    this.innen = { x: o.w / 2, y: o.h - 58, raum: 0, ort: o.id };
+    this.player.moving = false;
+    this.player.frame = 0;
+    this.player.dir = 'up';
+    // Das Bild wird erst hier gemalt, falls es das noch nicht gibt.
+    this.raumSprite();
+    // Tier und Gast bleiben draußen: Ein Besuch, der einem in die Höhle
+    // folgt, stünde dort im Dunkeln herum und hätte nichts zu sagen.
+    this.innenPet = null;
+    this.innenGast = null;
+    this.audio.play('ui');
+    this.ui.clearBubbles();
+    this._blasenLeeren();
+    this.ui.toast(o.name, 'icon_map');
+    this.invalidate();
+    this.save();
+    return true;
+  }
+
+  /**
    * Durch die Verbindungstür in den anderen Raum.
    *
    * Kein Ladebildschirm und keine Kamerafahrt: Man steht drüben, wo man
@@ -44177,6 +45651,8 @@ class Game {
    */
   wechsleRaum() {
     if (!this.innen) return false;
+    // Ein Innenort hat genau einen Raum und genau einen Ausgang.
+    if (this.ort()) return false;
     if (this.raumZahl() < 2) return false;
     this.stehAufInnen(true);
     this.cancelPlacing();
@@ -44238,9 +45714,129 @@ class Game {
     return true;
   }
 
+  /**
+   * Was in einem Innenort gerade vor Seli liegt – oder null.
+   *
+   * Dieselbe Idee wie `this.target` draußen: der Punkt vor der Nase, und
+   * was dort in Reichweite steht. Nur ohne Gitter, denn ein Dutzend Dinge
+   * durchzuzählen ist billiger als eine zweite Raumaufteilung.
+   */
+  _ortZiel() {
+    const o = this.ort();
+    if (!o) return null;
+    const p = this._innenVorDerNase(26);
+    const inhalt = this.ortInhalt();
+    let best = null;
+    let bestD = Infinity;
+    for (let i = 0; i < inhalt.length; i++) {
+      const e = inhalt[i];
+      const def = defOf(e.kind);
+      if (!def || !def.tool) continue;
+      const dx = e.x - p.x;
+      const dy = e.y - 10 - p.y;
+      const d = dx * dx + dy * dy;
+      const r = def.reachR || 80;
+      if (d > r * r || d >= bestD) continue;
+      best = e;
+      bestD = d;
+    }
+    return best;
+  }
+
+  /**
+   * Etwas in einem Innenort abschlagen oder aufheben.
+   *
+   * Absichtlich kurz: Werkzeugwahl, Zahl der Schläge, Ausbeute und
+   * Nachwachsdauer liest diese Methode aus derselben Tabelle wie `useTool`
+   * draußen. Was sie SELBST entscheidet, ist nur, wo der Stand steht – im
+   * Spielstand unter `innenorte`, nicht an einem Weltobjekt, denn Weltobjekte
+   * gibt es hier keine.
+   */
+  _ortAbbauen(e) {
+    const def = defOf(e.kind);
+    if (!def || !def.tool) return;
+    const stand = this.state.innenorte || (this.state.innenorte = emptyInnenorte());
+    const st = stand[e.id] || (stand[e.id] = { gone: false, respawnDay: 0, hp: 0 });
+    let tool = this.player.tool;
+    if (def.tool !== tool.id) {
+      const idx = TOOLS.map(function (x) { return x.id; }).indexOf(def.tool);
+      if (idx < 0) {
+        this.ui.toast('Dafür brauchst du: ' + def.tool, 'icon_star');
+        return;
+      }
+      this.selectTool(idx);
+      tool = this.player.tool;
+    }
+    const level = this.player.levels[tool.id] || 1;
+    if (def.minLevel && level < def.minLevel) {
+      this.ui.toast(tool.name + ' Stufe ' + def.minLevel + ' nötig', 'icon_lock', 'bad');
+      return;
+    }
+    this.player.startSwing();
+    this.audio.play({ axe: 'chop', pickaxe: 'mine', shovel: 'dig' }[tool.id] || 'forage');
+    const noetig = def.hits || 1;
+    st.hp = (st.hp || 0) + 1;
+    if (st.hp < noetig) { this.invalidate(); return; }
+    st.hp = 0;
+    st.gone = true;
+    // Nachwachsen wie draußen: Dieselbe Rechnung, damit eine Höhle nicht
+    // schneller leer ist als ein Hang – und nicht langsamer.
+    st.respawnDay = this.day.day + regrowDays(def.respawn || 3, this.season());
+    const drops = def.yield ? def.yield(level, Math.random) : [];
+    const bekommen = [];
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      const rein = this.inventory.add(d.id, d.n);
+      if (rein > 0) bekommen.push({ id: d.id, n: rein });
+      if (rein < d.n) this.ui.toast('Tasche ist voll!', 'icon_bag', 'bad');
+    }
+    if (bekommen.length) {
+      this.ui.toastItems(bekommen);
+      this.audio.play('pickup');
+    }
+    this.invalidate();
+    this.save();
+  }
+
+  /**
+   * Was in den Innenorten über Nacht nachwächst.
+   *
+   * Läuft beim Tageswechsel, zusammen mit allem anderen, was nachwächst.
+   * Ohne das wäre die erste Höhle nach drei Besuchen für immer leer.
+   */
+  _innenorteNachwachsen() {
+    const stand = this.state.innenorte;
+    if (!stand) return;
+    for (const k in stand) {
+      const st = stand[k];
+      if (!st || !st.gone) continue;
+      if (st.respawnDay && this.day.day < st.respawnDay) continue;
+      st.gone = false;
+      st.respawnDay = 0;
+      st.hp = 0;
+    }
+  }
+
   /** Ist dieser Punkt im Zimmer begehbar? */
   _innenBegehbar(x, y) {
     const raum = this.raum();
+    const o = this.ort();
+    if (o) {
+      if (!imOrt(x, y, o)) return false;
+      // Um Felsbrocken und Mühlstein geht es herum, über Pilze hinweg.
+      // Die Unterscheidung macht `solid` in `entities.js` – dieselbe, die
+      // draußen entscheidet, und keine zweite daneben.
+      const inhalt = this.ortInhalt();
+      for (let i = 0; i < inhalt.length; i++) {
+        const def = defOf(inhalt[i].kind);
+        if (!def || !def.solid) continue;
+        const dx = inhalt[i].x - x;
+        const dy = inhalt[i].y - y;
+        const r = (def.blockR || 24) + 10;
+        if (dx * dx + dy * dy < r * r) return false;
+      }
+      return true;
+    }
     if (!imRaum(x, y, raum)) return false;
     // Durchs Bett geht es nicht – es steht da wie jedes Möbelstück. In der
     // Kammer steht keines.
@@ -44506,6 +46102,21 @@ class Game {
         : (this.placing.reason || 'Hier passt es nicht') + ' · X abbrechen');
       return;
     }
+    const o = this.ort();
+    if (o) {
+      if (amAusgang(this.innen.x, this.innen.y, o)) {
+        this.ui.setPrompt('Hinausgehen');
+        return;
+      }
+      const ziel = this._ortZiel();
+      if (ziel) {
+        const def = defOf(ziel.kind);
+        this.ui.setPrompt(def && def.tool === 'pickaxe' ? 'Abbauen' : 'Aufheben');
+        return;
+      }
+      this.ui.setPrompt('');
+      return;
+    }
     if (amBett(this.innen.x, this.innen.y, this.raum())) {
       this.ui.setPrompt('Schlafen');
       return;
@@ -44549,6 +46160,13 @@ class Game {
 
   _innenInteract() {
     if (this.placing) { this._innenPlatzieren(); return; }
+    const o = this.ort();
+    if (o) {
+      if (amAusgang(this.innen.x, this.innen.y, o)) { this.verlaesst(); return; }
+      const ziel = this._ortZiel();
+      if (ziel) this._ortAbbauen(ziel);
+      return;
+    }
     if (amBett(this.innen.x, this.innen.y, this.raum())) { this.sleep(false); return; }
     if (anDerTuer(this.innen.x, this.innen.y, this.raum())) { this.verlaesst(); return; }
     if (anDerInnenTuer(this.innen.x, this.innen.y, this.raum())) { this.wechsleRaum(); return; }
@@ -45183,6 +46801,14 @@ class Game {
     if (this.inventory.count(itemId) <= 0) return;
     // Drinnen wird nicht gesät und nicht gepflastert: Ein Beet im Zimmer
     // hätte keine Sonne, und ein Wegstück endete an der Wand.
+    // In einer Höhle wird nichts aufgestellt. Nicht aus Strenge, sondern
+    // weil es dort nicht gespeichert würde: Der Inhalt eines Innenortes
+    // steht in einer Tabelle, nicht im Spielstand – eine Bank, die beim
+    // nächsten Hineingehen weg ist, wäre schlimmer als gar keine.
+    if (this.ort()) {
+      this.ui.toast('Hier lässt sich nichts hinstellen', item.icon);
+      return;
+    }
     if (this.innen && (item.plant || item.tile || item.pflanzt)) {
       this.ui.toast(item.tile ? 'Wege gibt es nur draußen' : 'Das gehört nach draußen',
         item.icon);
@@ -45546,6 +47172,9 @@ class Game {
     // Prüfung die ECHTE Reihenfolge nachspielte statt einer bequemen.
     this._gezeitenNachfuehren();
     this.world.newDay(day, this._todayWorldEffects());
+    // Und in den Höhlen wächst es ebenso nach. Eigene Zeile, weil der
+    // Inhalt eines Innenortes nicht in der Welt steht – siehe `ortInhalt`.
+    this._innenorteNachwachsen();
     // Über Nacht wächst Gefälltes nach, und mit ihm sein Kronenschatten.
     // Der steckt im gebackenen Boden, also muss der neu entstehen – sonst
     // steht der Baum wieder da, aber der Boden unter ihm bleibt hell.

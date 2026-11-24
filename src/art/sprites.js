@@ -32,6 +32,11 @@ import {
 import { trachtFuer, TRACHTEN } from '../game/tracht.js';
 import { paintInselbild } from './painted-bild.js';
 import {
+  paintHoehle, paintMuehleInnen, paintHoehleEingang, paintMuehleTuer,
+  paintKristallader, paintLeuchtmoos, paintMehlsack,
+} from './painted-innenorte.js';
+import { innenOrtFuer, ausgangFuer } from '../game/innenorte.js';
+import {
   paintPetal, paintSunstone, paintMapleleaf, paintFrostflower, paintSapling,
 } from './painted-saison.js';
 import { SETZLINGE, SETZLING_IDS, STUFEN } from '../game/saplings.js';
@@ -280,6 +285,18 @@ export function initArt() {
   addArt('marke_leuchtturm', paintLeuchtturm({ seed: 841 }), 0.8);
   addArt('marke_baum', paintHohlerBaum({ seed: 851 }), 0.8);
   addArt('marke_muehle', paintMuehle({ seed: 861 }), 0.8);
+
+  /* --- Die Eingänge, durch die man hineingeht --- */
+  // Nicht skaliert: Sie sind so groß gemalt, wie sie im Spiel stehen
+  // sollen. Eine Tür, die kleiner ist als die Figur davor, lädt niemanden
+  // ein, es zu versuchen.
+  addArt('hoehle_eingang', paintHoehleEingang({ seed: 6100 }));
+  addArt('muehle_tuer', paintMuehleTuer({ seed: 6200 }));
+
+  /* --- Und was es nur drinnen gibt --- */
+  addArt('kristallader', paintKristallader({ seed: 6300 }));
+  addArt('leuchtmoos', paintLeuchtmoos({ seed: 6400 }));
+  addArt('mehlsack', paintMehlsack({ seed: 6500 }));
 
   /* --- Die Bewohner und ihre Hütten --- */
   // Die Figuren entstehen beim Geistermaler: `lebt: true` gibt ihnen Füße
@@ -584,6 +601,11 @@ function buildIcons() {
     ['hedgehogbox', 'hedgehogbox'], ['feeder', 'feeder'],
     ['steppingstones', 'steppingstones'], ['arch', 'arch'],
     ['clothesline', 'clothesline'], ['bookstack', 'bookstack'],
+    // Was es nur in Höhle und Mühle gibt. Der Höhlenkristall borgt sich
+    // das Bild der Ader, aus der er stammt – ein eigenes Symbol für ein
+    // einzelnes Kristall wäre dasselbe Bild in kleiner.
+    ['leuchtmoos', 'leuchtmoos'], ['mehl', 'mehlsack'],
+    ['hoehlenkristall', 'kristallader'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = registry[reuse[i][1]];
@@ -687,6 +709,33 @@ export function ensureBild(skizze) {
   const name = 'bild_' + k.replace(':', '_');
   if (registry[name]) return name;
   addArt(name, paintInselbild(skizze));
+  return name;
+}
+
+/**
+ * Das Bild eines Innenortes – Höhle oder Mühle.
+ *
+ * Wie `ensureRoom`: erst beim ersten Hineingehen gemalt. Ein großes Bild,
+ * das niemand ansieht, ist Arbeit umsonst – und anders als beim Zimmer gibt
+ * es Spielstände, in denen man nie eine Höhle betritt.
+ *
+ * Der Inselwurf geht in den Namen ein, nicht nur in die Zeichnung: Sonst
+ * behielte die zweite Insel das Bild der ersten, denn das Register lebt
+ * länger als ein Spielstand.
+ */
+export function ensureInnenort(ortId, seed) {
+  const ort = innenOrtFuer(ortId);
+  if (!ort) return null;
+  const name = 'ort_' + ortId + '_' + (seed >>> 0);
+  if (registry[name]) return name;
+  const opts = {
+    w: ort.w, h: ort.h, wand: ort.wand,
+    ausgang: ausgangFuer(ort),
+    seed: 4200 + (seed % 9973) + ortId.length * 131,
+  };
+  const art = ortId === 'muehle' ? paintMuehleInnen(opts) : paintHoehle(opts);
+  art.line = makeCanvas(1, 1);
+  addArt(name, art);
   return name;
 }
 

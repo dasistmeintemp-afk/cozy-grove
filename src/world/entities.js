@@ -115,6 +115,47 @@ export const ENTITY_DEFS = {
     sprite: 'rock_small', solid: true, blockR: 20, reachR: 72, tool: TOOL.PICK, hits: 1,
     yield: drop('stone', 1, 2), respawn: 1, category: 'rock',
   },
+  /**
+   * Die Kristallader – nur in der Höhle.
+   *
+   * Sie ist die Antwort auf einen echten Fehler: Die erste Höhle enthielt
+   * Erz, Granit und eine Geode, und alle drei brauchen die Spitzhacke
+   * ab Stufe 2, 3 beziehungsweise 4. Wer am ersten Tag hineinging, konnte
+   * NICHTS davon anrühren – eine Prüfung hat es gefunden, weil sie mit
+   * der Anfangsausrüstung geschlagen hat statt mit einer gedachten.
+   *
+   * Die Ader geht mit der ersten Spitzhacke. Damit hat die Höhle etwas
+   * für den ersten Besuch und etwas für später, und beides ist dasselbe
+   * Werkzeug auf verschiedenen Stufen.
+   */
+  kristallader: {
+    sprite: 'kristallader', solid: true, blockR: 30, reachR: 84,
+    tool: TOOL.PICK, minLevel: 1, hits: 3,
+    yield: function (level, rng) {
+      const out = [
+        { id: 'hoehlenkristall', n: 1 },
+        { id: 'stone', n: randInt(rng, 1, 2) },
+      ];
+      if (level >= 3 && rng() < 0.3) out.push({ id: 'hoehlenkristall', n: 1 });
+      return out;
+    },
+    respawn: 3, category: 'rock',
+  },
+
+  /** Leuchtmoos an der Höhlenwand – mit der Hand, wie jedes Kraut. */
+  leuchtmoos: {
+    sprite: 'leuchtmoos', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
+    yield: drop('leuchtmoos', 1, 2), respawn: 1, sway: true, category: 'forage',
+    // Es leuchtet wirklich: in der Höhle der einzige eigene Lichtpunkt.
+    light: 90,
+  },
+
+  /** Der Mehlsack in der Mühle. */
+  mehlsack: {
+    sprite: 'mehlsack', solid: false, reachR: 72, tool: TOOL.HAND, hits: 1,
+    yield: drop('mehl', 1, 2), respawn: 1, category: 'forage',
+  },
+
   rock_ore: {
     sprite: 'rock_ore', solid: true, blockR: 28, reachR: 80, tool: TOOL.PICK, minLevel: 2, hits: 4,
     yield: function (level, rng) {
@@ -311,6 +352,23 @@ export const ENTITY_DEFS = {
   // Beeren findet, soll damit etwas anfangen können.
   kitchen: { sprite: 'kitchen', solid: true, blockR: 54, blockH: 26, reachR: 104, category: 'station', station: 'kitchen' },
   bridge_spot: { sprite: 'signpost', solid: false, reachR: 120, category: 'station', station: 'bridge' },
+
+  /**
+   * Die Eingänge, durch die man in einen Innenort geht.
+   *
+   * Beide sind FEST: Man läuft nicht durch einen Felsvorsprung hindurch
+   * und nicht durch eine Tür, ohne sie zu benutzen. Der Blockradius ist
+   * schmaler als das Bild – sonst stünde man zum Hineingehen zu weit weg
+   * und der Hinweis erschiene nie.
+   */
+  hoehle_eingang: {
+    sprite: 'hoehle_eingang', solid: true, blockR: 46, blockH: 20,
+    reachR: 116, category: 'station', station: 'hoehle', priority: 40,
+  },
+  muehle_tuer: {
+    sprite: 'muehle_tuer', solid: true, blockR: 26, blockH: 12,
+    reachR: 104, category: 'station', station: 'muehle', priority: 40,
+  },
   /**
    * Das Ruderboot: an beiden Ufern eines. Nicht fest, damit man am schmalen
    * Anleger nicht daran hängen bleibt.

@@ -54,6 +54,21 @@ export const RECIPES = [
     [{ id: 'stone', n: 4 }]),
   r('torch', 'Fackel', { id: 'torch', n: 1 },
     [{ id: 'wood', n: 3 }, { id: 'resin', n: 2 }, { id: 'fiber', n: 1 }]),
+  /**
+   * Das Moosglas – wofür das Leuchtmoos aus der Höhle gut ist.
+   *
+   * Eine Prüfung verlangt, dass jeder seltene Fund eine Verwendung hat:
+   * „Verwendung" heißt Bauplan, Gericht oder ein Geist, der sich freut –
+   * verkaufen zählt nicht, denn das kann man mit Holz auch. Ohne diesen
+   * Bauplan wäre das Leuchtmoos nur ein zweiter Name für Geld, und die
+   * Höhle hätte nichts gebracht als einen Umweg.
+   *
+   * Es leuchtet schwächer als die Laterne und kostet kein Feuer: das
+   * erste Licht, das man aufstellen kann, ohne etwas dafür zu verbrennen.
+   */
+  r('moosglas', 'Moosglas', { id: 'lantern', n: 1 },
+    [{ id: 'leuchtmoos', n: 3 }, { id: 'stone', n: 2 }, { id: 'fiber', n: 2 }],
+    { note: 'Leuchtet von selbst – das Moos braucht kein Feuer.' }),
 
   // Ab Feuerstufe 2
   r('lantern', 'Laterne', { id: 'lantern', n: 1 },
@@ -193,6 +208,13 @@ export const RECIPES = [
   r('stonelamp', 'Steinlaterne', { id: 'moonlamp', n: 1 },
     [{ id: 'granite', n: 8 }, { id: 'copper_ore', n: 4 }, { id: 'gem', n: 1 }],
     { ember: 18, fire: 3, needs: 'insel', note: 'Leuchtet so weit wie die Mondlaterne.' }),
+  // Und wofür der Höhlenkristall gut ist: derselbe Grund wie beim
+  // Leuchtmoos, nur eine Stufe höher. Der Kristallbogen ist das
+  // teuerste Stück Deko im Buch – und das einzige, für das man in alle
+  // drei Höhlen muss.
+  r('kristallbogen', 'Kristallbogen', { id: 'arch', n: 1 },
+    [{ id: 'hoehlenkristall', n: 4 }, { id: 'granite', n: 4 }, { id: 'leuchtmoos', n: 3 }],
+    { ember: 20, fire: 3, note: 'Die Kristalle glimmen, wenn es dunkel wird.' }),
   r('gravel', 'Steinweg aus Granit', { id: 'path_tile', n: 12 },
     [{ id: 'granite', n: 3 }, { id: 'stone', n: 4 }],
     { ember: 6, fire: 2, needs: 'insel', note: 'Zwölf Wegstücke auf einmal.' }),
