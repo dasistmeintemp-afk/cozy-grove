@@ -4191,6 +4191,58 @@ async function run() {
     check('Zwölf Bäume verdunkeln den Boden unter sich merklich',
       schatten.unterschied >= 8, JSON.stringify(schatten));
 
+    /* ---- Niemand wacht im Wasser auf ---- */
+    // Ein Spielstand merkt sich die Stelle, an der man aufgehört hat –
+    // bis sich die Insel darunter ändert. Beim Umbau von 96 auf 144
+    // Kacheln lagen alle gespeicherten Koordinaten woanders: Wer vorher
+    // im Lager stand, stand danach im Meer und konnte sich nicht mehr
+    // bewegen. Kein Knopf, kein Hinweis, nur eine Figur, die nicht geht.
+    //
+    // Geprüft wird nicht der Umbau, sondern die Regel dahinter: Wer
+    // nicht stehen kann, wird auf festen Boden gesetzt. Dasselbe kann
+    // eine aufgestellte Hütte, ein nachgewachsener Findling oder die
+    // Flut auslösen.
+    const gestrandet = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const { isWater } = await import('/src/art/tiles.js');
+      const merk = { x: g.player.x, y: g.player.y };
+      const r = {};
+      // Eine Wasserkachel weit draußen suchen – genau die Lage, in der
+      // ein alter Spielstand landete.
+      let ziel = null;
+      for (let ty = 4; ty < 140 && !ziel; ty++) {
+        for (let tx = 4; tx < 140; tx++) {
+          if (!isWater(g.world.tileAtTile(tx, ty))) continue;
+          if (!isWater(g.world.tileAtTile(tx + 2, ty + 2))) continue;
+          ziel = { x: (tx + 0.5) * 64, y: (ty + 0.5) * 64 };
+          break;
+        }
+      }
+      if (!ziel) return { keinWasser: true };
+      g.player.x = ziel.x;
+      g.player.y = ziel.y;
+      r.vorherFest = g.world.canStand(g.player.x, g.player.y);
+      r.gerettet = g._spielerRetten();
+      r.nachherFest = g.world.canStand(g.player.x, g.player.y);
+      r.verschoben = Math.round(Math.hypot(g.player.x - ziel.x, g.player.y - ziel.y));
+      // Und wer schon fest steht, wird nicht angefasst.
+      const festX = g.player.x;
+      r.nochmal = g._spielerRetten();
+      r.unveraendert = g.player.x === festX;
+      g.player.x = merk.x;
+      g.player.y = merk.y;
+      g.player.prevX = merk.x;
+      g.player.prevY = merk.y;
+      g.camera.snapTo(merk.x, merk.y);
+      return r;
+    });
+    check('Wer im Wasser landet, steht gleich darauf wieder an Land',
+      gestrandet.vorherFest === false && gestrandet.gerettet === true
+      && gestrandet.nachherFest === true, JSON.stringify(gestrandet));
+    check('Und wer fest steht, wird nicht verschoben',
+      gestrandet.nochmal === false && gestrandet.unveraendert === true,
+      JSON.stringify(gestrandet));
+
     /* ---- Die Oberfläche ist aus demselben Material wie die Welt ---- */
     // Gemessen wird die gerechnete Darstellung, nicht das Aussehen:
     // Welche Farbe hat die Kontur eines Feldes wirklich, und wie breit
@@ -5235,13 +5287,14 @@ async function run() {
      * Einbruch – und von 22 auf unter 18 ist einer.
      */
     /**
-     * Vierzehn, gemessen über mehrere Inseln.
+     * Achtzehn, gemessen über mehrere Inseln.
      *
-     * Die Zahl ist zum zweiten Mal gefallen, und beide Male aus demselben
-     * Grund: Die Welt ist gewachsen. Sie ist jetzt 2,25-mal so groß und
-     * doppelt so dicht bewachsen wie zu der Zeit, als hier 30 stand, und
-     * am Lagerfeuer – der dichtesten Stelle – liefert dieser Rechner
-     * zwischen 15 und 21, je nach Insel.
+     * Die Zahl stand kurz bei 14, weil die Insel zu dicht bewachsen war.
+     * Mit der zurückgenommenen Dichte (32 statt 45 Gegenstände je 100
+     * Kacheln) liefert dieser Rechner am Lagerfeuer – der dichtesten
+     * Stelle – wieder 21 bis 25, je nach Insel. Eine Schwelle, die
+     * weit unter dem Gemessenen liegt, meldet nichts mehr; sie geht
+     * deshalb mit nach oben, sobald die Luft wieder da ist.
      *
      * Dieser Rechner hat keine Grafikkarte; jede Fläche wird von Hand
      * gerastert, und der teuerste Durchgang ist der, in dem der Boden
@@ -5250,9 +5303,9 @@ async function run() {
      * Bild ein Vielfaches schneller.
      *
      * Was die Prüfung leisten soll, ist der Alarm bei einem EINBRUCH –
-     * und von 15 bis 21 auf unter 14 ist einer.
+     * und von 21 bis 25 auf unter 18 ist einer.
      */
-    check('Flüssige Darstellung (' + fps + ' fps)', fps >= 14, fpsWerte.join(' '));
+    check('Flüssige Darstellung (' + fps + ' fps)', fps >= 18, fpsWerte.join(' '));
 
     // Kleines Fenster / Hochformat: nichts darf überlaufen
     await page.setViewportSize({ width: 390, height: 780 });

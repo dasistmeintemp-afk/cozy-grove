@@ -478,6 +478,56 @@ export class Game {
     this.inventory.add('fiber', 4);
   }
 
+  /**
+   * Niemand darf im Wasser aufwachen.
+   *
+   * Ein Spielstand merkt sich die Stelle, an der man aufgehört hat. Das
+   * ist richtig – bis sich die Insel darunter ändert. Als die Karte von
+   * 96 auf 144 Kacheln wuchs, lagen alle gespeicherten Koordinaten
+   * plötzlich woanders: Wer vor dem Umbau mitten im Lager stand, stand
+   * danach im Meer und konnte sich nicht mehr bewegen, weil `canStand`
+   * dort nichts erlaubt. Kein Knopf, kein Hinweis, nichts – nur eine
+   * Figur, die nicht geht.
+   *
+   * Das hätte es nie geben dürfen, und zwar unabhängig vom Umbau: Auch
+   * eine aufgestellte Hütte, ein nachgewachsener Findling oder die Flut
+   * können die Stelle unter jemandem unbegehbar machen. Deshalb steht
+   * hier kein Umrechnen alter Koordinaten, sondern die allgemeine
+   * Regel – nach dem Laden wird geprüft, und wer nicht stehen kann,
+   * wird auf die nächste feste Stelle gesetzt.
+   *
+   * Gesucht wird in Ringen von innen nach außen: So landet man beim
+   * nächstgelegenen festen Boden und nicht irgendwo. Findet sich im
+   * Umkreis nichts, geht es zurück an den Anfang – das Lager gibt es
+   * immer.
+   */
+  _spielerRetten() {
+    const p = this.player;
+    if (this.world.canStand(p.x, p.y)) return false;
+    const T2 = 64;
+    for (let r = 1; r <= 40; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = p.x + dx * T2;
+          const y = p.y + dy * T2;
+          if (!this.world.canStand(x, y)) continue;
+          p.x = x;
+          p.y = y;
+          p.prevX = x;
+          p.prevY = y;
+          return true;
+        }
+      }
+    }
+    const start = startPosition(this.world.tiles);
+    p.x = start.x;
+    p.y = start.y;
+    p.prevX = start.x;
+    p.prevY = start.y;
+    return true;
+  }
+
   _loadFrom(save) {
     this.world = new World(save.seed);
     this.world.populate();
@@ -485,6 +535,7 @@ export class Game {
     this.day = DayCycle.fromJSON(save.day);
     this.day.dayMinutes = this.settings.dayMinutes;
     this.player = Player.fromJSON(save.player);
+    this._spielerRetten();
     this.inventory = Inventory.fromJSON(save.inventory);
     this.quests = QuestBook.fromJSON(save.quests);
     this.stories = StoryBook.fromJSON(save.stories);
@@ -3511,18 +3562,36 @@ export class Game {
     ];
     for (let i = 0; i < stuecke.length; i++) {
       const st = stuecke[i];
-      // Jedes Stück zuerst an seinem Platz, sonst gespiegelt: Der Strand ist
-      // schmal, und bei festen Abständen landete die Laterne reihenweise im
-      // Wasser – gemessen an einer Insel, auf der von drei Stücken nur zwei
-      // standen. Passt beides nicht, bleibt es weg; ein Lager darf lückenhaft
-      // sein, eine Laterne auf dem Wasser nicht.
-      let x = punkt.x + st.dx + (rng() - 0.5) * 10;
-      let y = punkt.y + st.dy + (rng() - 0.5) * 10;
-      if (!isWalkable(this.world.tileAt(x, y))) {
-        x = punkt.x - st.dx;
-        y = punkt.y + st.dy;
-        if (!isWalkable(this.world.tileAt(x, y))) continue;
+      /**
+       * Jedes Stück an seinem Platz – und wenn der nicht geht, daneben.
+       *
+       * Der Strand ist schmal, und bei festen Abständen landete die
+       * Laterne reihenweise im Wasser. Zuerst standen deshalb zwei
+       * Versuche hier: der vorgesehene Platz und sein Spiegelbild. Das
+       * reichte nicht – auf einer Insel fielen ALLE DREI Stücke aus,
+       * und Jule saß ohne ihr Lager da. Eine Prüfung hat es gefunden.
+       *
+       * Jetzt wird der Platz gedreht: acht Richtungen im selben
+       * Abstand, danach derselbe Kranz enger. Ein Lager darf lückenhaft
+       * sein – eine Laterne auf dem Wasser nicht, und gar kein Lager
+       * erst recht nicht.
+       */
+      const r = Math.hypot(st.dx, st.dy) || 1;
+      const a0 = Math.atan2(st.dy, st.dx);
+      let x = null;
+      let y = null;
+      for (let k = 0; k < 16 && x === null; k++) {
+        // Erst der vorgesehene Winkel, dann abwechselnd nach beiden
+        // Seiten – so bleibt das Lager so nah an seiner Form wie möglich.
+        const schritt = Math.ceil(k / 2) * (Math.PI / 4) * (k % 2 ? 1 : -1);
+        const weite = r * (k < 8 ? 1 : 0.62);
+        const px = punkt.x + Math.cos(a0 + schritt) * weite + (rng() - 0.5) * 8;
+        const py = punkt.y + Math.sin(a0 + schritt) * weite + (rng() - 0.5) * 8;
+        if (!isWalkable(this.world.tileAt(px, py))) continue;
+        x = px;
+        y = py;
       }
+      if (x === null) continue;
       const e = makeEntity('decor', x, y, { itemId: st.id, flat: st.flat });
       e.sprite = st.id;
       e.blockR = st.flat ? 0 : 22;

@@ -532,6 +532,28 @@ export class World {
     scatter(['rock_ore'], cliffLand, 15, 84);
     scatter(['rock_ore'], grassForest, 5, 100);
 
+    /**
+     * Wie voll die Insel insgesamt ist – ein Faktor über alle Biome.
+     *
+     * Gemessen am Vorbild stand auf einem Bildschirm ungefähr ein
+     * Gegenstand je Kachel, und danach war die Dichte eingestellt: 45
+     * Gegenstände je 100 begehbare Kacheln statt 25. Im eigenen Spiel
+     * war das zu viel – man sah vor lauter Bäumen das Lager nicht mehr.
+     *
+     * Der Grund, warum dieselbe Zahl dort richtig und hier falsch ist:
+     * Im Vorbild sind die Gegenstände KLEINER im Verhältnis zur Kachel.
+     * Ein Baum dort verdeckt ein Viertel dessen, was unser Baum
+     * verdeckt – dichter stehen heißt dort voller, hier zugewachsen.
+     *
+     * 0,72 bringt rund 33 je 100 Kacheln: deutlich voller als die
+     * leeren 25 von vorher, aber eine Insel, auf der man noch etwas
+     * sieht. Bäume bekommen zusätzlich 0,7, weil sie fest sind und die
+     * Sicht verstellen; Blumen und Grasbüschel tun weder das eine noch
+     * das andere.
+     */
+    const DICHTE = 0.72;
+    const BAUM_DICHTE = 0.7;
+
     const biome = biomeFuer(this.seed);
     const nachBiom = {};
     for (let ty = 0; ty < MAP_H; ty++) {
@@ -559,13 +581,18 @@ export class World {
       const def = BIOME[b];
       const felder = nachBiom[b];
       if (!def || felder.length < 12) continue;
-      const je100 = function (n) { return Math.round(felder.length * n / 100); };
+      const je100 = function (n) {
+        return Math.round((felder.length * n / 100) * DICHTE);
+      };
       const arten = def.baeume.map(function (e) { return e[0]; });
       const gewichte = [];
       for (let i = 0; i < def.baeume.length; i++) {
         for (let k = 0; k < def.baeume[i][1]; k++) gewichte.push(def.baeume[i][0]);
       }
-      scatter(gewichte, felder, je100(def.dichteBaum), 70, function (e, tx, ty) {
+      // Bäume dünner als das Kleinzeug: Sie sind fest und verstellen die
+      // Sicht, ein Grasbüschel tut weder das eine noch das andere.
+      scatter(gewichte, felder, Math.round(je100(def.dichteBaum) * BAUM_DICHTE),
+        70, function (e, tx, ty) {
         if (e.kind === 'tree_wind') e.lehnt = windNeigung(tx, ty);
       });
       scatter(['bush_berry', 'bush_plain'], felder, je100(def.busch), 56);
