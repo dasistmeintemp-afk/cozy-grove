@@ -6217,6 +6217,7 @@ export class Game {
     // Damit verschwanden auch Selis eigene Gedanken beim Sitzen im Zimmer,
     // die genau dort erscheinen sollen.
     this._blasenLeeren();
+    tuerBlende('unten');
     this.invalidate();
     return true;
   }
@@ -6253,6 +6254,7 @@ export class Game {
     this.ui.clearBubbles();
     this._blasenLeeren();
     this.ui.toast(o.name, 'icon_map');
+    tuerBlende('unten');
     this.invalidate();
     this.save();
     return true;
@@ -6296,6 +6298,9 @@ export class Game {
     this._innenGastStart();
     this.audio.play('ui');
     this._blasenLeeren();
+    // Von der Mitte her: Die Verbindungstür sitzt oben in der Wand, nicht
+    // unten – eine Blende, die vom Boden aufgeht, zeigte auf die falsche Tür.
+    tuerBlende('mitte');
     this.invalidate();
     this.save();
     return true;
@@ -6328,6 +6333,10 @@ export class Game {
     this.audio.play('ui');
     this.camera.snapTo(this.player.x, this.player.y - 6);
     this.syncHouse();
+    // Hinaus geht es durch dieselbe Tür – also dieselbe Blende. Dass sie
+    // in beide Richtungen gleich aussieht, ist kein Sparen: Ein anderer
+    // Übergang nach draußen würde behaupten, es sei ein anderer Weg.
+    tuerBlende('unten');
     this.invalidate();
     this.save();
     return true;
@@ -8385,6 +8394,54 @@ export class Game {
 }
 
 /* ---------------- Hilfsfunktionen ---------------- */
+
+/**
+ * Die Türblende – der Augenblick des Hineingehens.
+ *
+ * Sie wird NACH dem Wechsel gestartet, nicht davor, und das ist eine
+ * bewusste Entscheidung: Eine Blende, die erst zuläuft, dann wechselt und
+ * dann aufgeht, müsste den Wechsel um eine Fünftelsekunde verzögern. Damit
+ * würde aus `betritteOrt()` etwas, das nicht sofort gilt – und jede Stelle,
+ * die danach fragt, ob man drinnen ist, bekäme für zwei Bilder lang die
+ * falsche Antwort. Dieselbe Falle wie bei einem Spielstand, der asynchron
+ * geschrieben wird.
+ *
+ * Also: Der Wechsel geschieht sofort, und die Blende liegt im ersten
+ * Augenblick dunkel über dem neuen Bild und zieht sich dann auf. Man sieht
+ * dasselbe – einen Raum, der aufgeht –, und das Spiel lügt nicht über
+ * seinen eigenen Zustand.
+ *
+ * @param {string} woher 'unten' (Tür) oder 'mitte'
+ */
+function tuerBlende(woher) {
+  const buehne = document.getElementById('stage');
+  if (!buehne) return;
+  let el = document.getElementById('tuerblende');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'tuerblende';
+    buehne.appendChild(el);
+  }
+  const punkt = woher === 'mitte' ? '50% 50%' : '50% 100%';
+  // Erst hart zu – ohne Übergang, sonst sieht man das Zulaufen.
+  el.classList.remove('auf');
+  el.classList.add('zu');
+  el.style.clipPath = 'circle(150% at ' + punkt + ')';
+  buehne.classList.remove('eintritt');
+  // Ein erzwungenes Nachrechnen: Ohne das fasst der Browser „zu" und
+  // „auf" zu einem einzigen Schritt zusammen, und es blendet nichts.
+  void el.offsetWidth;
+  el.classList.remove('zu');
+  el.classList.add('auf');
+  el.style.clipPath = 'circle(150% at ' + punkt + ')';
+  buehne.classList.add('eintritt');
+  if (tuerBlende._t) clearTimeout(tuerBlende._t);
+  tuerBlende._t = setTimeout(function () {
+    buehne.classList.remove('eintritt');
+    el.classList.remove('auf');
+    el.style.clipPath = '';
+  }, 460);
+}
 
 function ensureFade() {
   let el = document.getElementById('fadeout');

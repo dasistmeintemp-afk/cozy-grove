@@ -4408,6 +4408,44 @@ async function run() {
       hoehle.wiederDraussen === true && hoehle.anDerselbenStelle === true,
       JSON.stringify(hoehle));
 
+    /* ---- Der Augenblick des Hineingehens ---- */
+    // Ein Raumwechsel ohne Übergang ist ein Schnitt: Im einen Bild steht
+    // man draußen vor dem Fels, im nächsten mitten in der Höhle. Geprüft
+    // wird nicht, dass es hübsch aussieht, sondern dass die Blende im
+    // ersten Augenblick wirklich deckt und hinterher wirklich weg ist –
+    // eine Blende, die hängen bleibt, ist ein schwarzer Bildschirm.
+    const blende = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const merk = { x: g.player.x, y: g.player.y };
+      const r = {};
+      g.betritteOrt('hoehle');
+      const el = document.getElementById('tuerblende');
+      r.gibtEs = !!el;
+      if (el) {
+        r.sofort = Math.round(parseFloat(getComputedStyle(el).opacity) * 100) / 100;
+        r.klasse = el.className;
+      }
+      await new Promise(function (ok) { setTimeout(ok, 700); });
+      if (el) r.danach = Math.round(parseFloat(getComputedStyle(el).opacity) * 100) / 100;
+      // Und beim Hinausgehen genauso.
+      g.verlaesst();
+      r.beimRaus = el ? Math.round(parseFloat(getComputedStyle(el).opacity) * 100) / 100 : null;
+      await new Promise(function (ok) { setTimeout(ok, 700); });
+      r.rausDanach = el ? Math.round(parseFloat(getComputedStyle(el).opacity) * 100) / 100 : null;
+      g.player.x = merk.x;
+      g.player.y = merk.y;
+      g.player.prevX = merk.x;
+      g.player.prevY = merk.y;
+      g.camera.snapTo(merk.x, merk.y);
+      return r;
+    });
+    check('Beim Hineingehen liegt eine Blende über dem Bild',
+      blende.gibtEs === true && blende.sofort >= 0.9, JSON.stringify(blende));
+    check('Und sie ist danach wieder ganz weg',
+      blende.danach === 0 && blende.rausDanach === 0, JSON.stringify(blende));
+    check('Hinausgehen blendet genauso',
+      blende.beimRaus >= 0.9, JSON.stringify(blende));
+
     /* ---- Der Geist, der in der Höhle wohnt ---- */
     // Eine Höhle mit Erz darin ist ein Rohstofflager. Was sie zu einem
     // Ort macht, ist jemand, der dort ist und etwas von einem will.

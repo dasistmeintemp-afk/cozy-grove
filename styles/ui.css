@@ -1191,6 +1191,62 @@ body.ruhe #toolbelt {
   #quest-rail { display: none; }
 }
 
+/* ---------- Türblende: der Augenblick des Hineingehens ---------- */
+/*
+ * Ein Raumwechsel ohne Übergang ist ein Schnitt: Im einen Bild steht man
+ * draußen vor dem Fels, im nächsten mitten in der Höhle. Man SIEHT das
+ * Hineingehen nicht, man stellt es hinterher fest.
+ *
+ * Die Blende macht daraus einen Augenblick. Sie liegt im Moment des
+ * Wechsels dunkel über dem Bild und öffnet sich dann von der Stelle her,
+ * durch die man gegangen ist – unten in der Mitte beim Hineingehen, weil
+ * dort jede Tür sitzt.
+ *
+ * Kurz gehalten: 0,42 Sekunden. Ein längerer Übergang ist beim ersten Mal
+ * schön und beim zwanzigsten ein Ladebildschirm.
+ *
+ * `clip-path` statt einer gemalten Maske, weil der Browser das auf der
+ * Grafikkarte macht – auf dem Telefon kostet die Blende damit nichts, und
+ * gerade dort wäre ein ruckelnder Übergang schlimmer als gar keiner.
+ */
+#tuerblende {
+  position: absolute;
+  inset: 0;
+  z-index: 46;
+  pointer-events: none;
+  background: #171f1a;
+  opacity: 0;
+  clip-path: circle(0% at 50% 100%);
+}
+
+#tuerblende.zu {
+  opacity: 1;
+  clip-path: circle(150% at 50% 100%);
+}
+
+#tuerblende.auf {
+  opacity: 0;
+  clip-path: circle(150% at 50% 100%);
+  transition: opacity 0.42s ease-out, clip-path 0.42s ease-out;
+}
+
+/*
+ * Und der Raum selbst kommt entgegen.
+ *
+ * Nur die Blende aufzuziehen sah aus, als hätte jemand das Licht
+ * angeschaltet. Dass das Bild dabei aus einer Spur Ferne nach vorn
+ * kommt, ist das, was aus dem Lichtschalter ein Hineingehen macht –
+ * derselbe Trick wie bei einer Kamerafahrt, nur drei Hundertstel weit.
+ */
+#stage.eintritt canvas {
+  animation: eintritt 0.42s ease-out;
+}
+
+@keyframes eintritt {
+  from { transform: scale(0.965); }
+  to { transform: scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
