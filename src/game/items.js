@@ -57,7 +57,13 @@ const LIST = [
    * wo gemahlen wird.
    */
   it('leuchtmoos', 'Leuchtmoos', CAT.MATERIAL, 16, 2),
-  it('mehl', 'Mehl', CAT.MATERIAL, 14, 1),
+  // Mehl zählt als Gesammeltes, nicht als Material.
+  //
+  // Das ist keine Spitzfindigkeit, sondern eine Regel der Küche: Eine
+  // Prüfung verlangt, dass jede Zutat etwas ist, das wächst – kein Fisch,
+  // kein Falter, kein Werkstoff. Mehl aus der Mühle steht damit neben
+  // Beeren und Kraut, und das ist genau die Reihe, in die es gehört.
+  it('mehl', 'Mehl', CAT.FORAGE, 14, 1),
   it('fiber', 'Pflanzenfaser', CAT.MATERIAL, 2, 1),
   it('resin', 'Harz', CAT.MATERIAL, 7, 2),
   it('clay', 'Ton', CAT.MATERIAL, 4, 0),
@@ -249,6 +255,7 @@ const LIST = [
   it('dish_flowersalad', 'Blütensalat', CAT.DISH, 40, 0),
   it('dish_herbtea', 'Kräutertee', CAT.DISH, 38, 0),
   it('dish_mushroompan', 'Pilzpfanne', CAT.DISH, 52, 0),
+  it('dish_mehlkuchen', 'Mehlkuchen', CAT.DISH, 78, 0),
   it('dish_violetsyrup', 'Glockensirup', CAT.DISH, 50, 0),
   it('dish_forestsoup', 'Waldsuppe', CAT.DISH, 62, 0),
   it('dish_berrycake', 'Beerenkuchen', CAT.DISH, 58, 0),

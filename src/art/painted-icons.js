@@ -594,6 +594,7 @@ export const ICON_PAINTERS = {
   dish_flowersalad: function () { return schuessel(420, ink.leaf, ink.leafDark, 'blueten'); },
   dish_herbtea: function () { return tasse(430, '#9dc06a', '#7ba045'); },
   dish_mushroompan: function () { return schuessel(440, '#c98a63', '#a56b48', 'kappen'); },
+  dish_mehlkuchen: function () { return schuessel(445, '#e8cf9b', '#c4a469', 'punkte'); },
   dish_violetsyrup: function () { return glas(450, ink.petalViolet, '#8e77b8'); },
   dish_forestsoup: function () { return schuessel(460, '#b98a52', '#94693a', 'kappen'); },
   dish_berrycake: function () { return kuchen(470, ink.petalPink, ink.berry); },

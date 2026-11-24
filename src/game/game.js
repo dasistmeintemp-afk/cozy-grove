@@ -36,6 +36,9 @@ import {
   ORT_RAND,
 } from './innenorte.js';
 import {
+  ortgeistFuer, offeneBitte, ketteFertig, emptyOrtgeister, ortgeisterAus,
+} from './ortgeister.js';
+import {
   wandererAm, besuchFuer, emptyWanderer, heuteGetauscht, heuteGegruesst,
   tauschZahl, andenkenFuer,
   MITBRINGSEL, SAETZE as WANDER_SAETZE, naechsterBesuch,
@@ -463,6 +466,7 @@ export class Game {
       wishes: emptyWishes(),
       interior: emptyInterior(),
       innenorte: emptyInnenorte(),
+      ortgeister: emptyOrtgeister(),
       wanderer: emptyWanderer(),
       termine: Object.create(null),
       kapitel: emptyKapitel(),
@@ -582,6 +586,7 @@ export class Game {
       feste: emptyFeste(),
       interior: emptyInterior(),
       innenorte: emptyInnenorte(),
+      ortgeister: emptyOrtgeister(),
       wanderer: emptyWanderer(),
       termine: Object.create(null),
       kapitel: emptyKapitel(),
@@ -621,6 +626,7 @@ export class Game {
     // Dasselbe für die Innenorte: Ein alter Spielstand kennt sie nicht,
     // und ein neuer soll nur das Veränderliche mitbringen.
     this.state.innenorte = innenorteAus(this.state.innenorte);
+    this.state.ortgeister = ortgeisterAus(this.state.ortgeister);
     // Was Seli beim Ausruhen zuletzt gedacht hat. Steht im Spielstand, damit
     // sie sich nach dem Neuladen nicht mit denselben acht Sätzen begrüßt.
     if (!Array.isArray(this.state.gedanken)) this.state.gedanken = [];
@@ -5640,6 +5646,127 @@ export class Game {
   }
 
   /**
+   * Der Geist, der in diesem Innenort wohnt – oder null.
+   *
+   * Er steht NICHT in `ortInhalt()`: Dort stehen Dinge, die man abschlägt,
+   * und das ist er ausdrücklich nicht. Zwei Listen sind hier billiger als
+   * eine Liste mit einer Ausnahme darin.
+   */
+  ortGeist() {
+    const o = this.ort();
+    return o ? ortgeistFuer(o.id) : null;
+  }
+
+  /** Sein Stand im Spielstand – wird angelegt, wenn es ihn noch nicht gibt. */
+  ortGeistStand(id) {
+    if (!this.state.ortgeister) this.state.ortgeister = emptyOrtgeister();
+    const stand = this.state.ortgeister;
+    if (!stand[id]) stand[id] = { stufe: 0, gegeben: 0, letzterTag: 0 };
+    return stand[id];
+  }
+
+  /** Wo er im Raum steht und welches Bild er gerade trägt. */
+  ortGeistBild() {
+    const g = this.ortGeist();
+    const o = this.ort();
+    if (!g || !o) return null;
+    // Zwei Bilder im Wechsel, wie bei jedem Geist draußen – ein Geist,
+    // der stillsteht, sieht aus wie ein Möbelstück.
+    const f = Math.floor(this.time * 1.6) % 2;
+    return {
+      sprite: g.art + '_' + f,
+      x: ORT_RAND + g.x * (o.w - ORT_RAND * 2),
+      y: ORT_RAND + g.y * (o.h - ORT_RAND * 2),
+    };
+  }
+
+  /** Steht Seli nah genug, um mit ihm zu reden? */
+  ortGeistInReichweite() {
+    const b = this.ortGeistBild();
+    if (!b) return false;
+    const dx = b.x - this.innen.x;
+    const dy = b.y - this.innen.y;
+    return dx * dx + dy * dy < 110 * 110;
+  }
+
+  /**
+   * Mit dem Ortsgeist reden – und ihm bringen, was er wollte.
+   *
+   * Eine Methode für beides, weil es für den Spieler auch eine Handlung
+   * ist: Man geht hin, und wenn man hat, was er braucht, gibt man es ihm.
+   * Ein eigener Knopf zum Übergeben wäre ein Schritt mehr für nichts.
+   */
+  redeMitOrtgeist() {
+    const g = this.ortGeist();
+    if (!g) return false;
+    const b = this.ortGeistBild();
+    const stand = this.ortGeistStand(g.id);
+    const bitte = offeneBitte(g, stand.stufe);
+    /**
+     * Seine Blase hängt am BILDSCHIRM, nicht an der Welt.
+     *
+     * Derselbe Grund wie beim Gast im Zimmer: Drinnen gibt es keine
+     * Weltkoordinaten, und eine Blase, die welche bekommt, erscheint
+     * irgendwo auf der Insel – bei einer Figur, die dort nicht steht.
+     */
+    const sagen = (liste) => {
+      const satz = liste[Math.floor(Math.random() * liste.length)];
+      const off = this.innenOffset || { x: 0, y: 0, zoom: 1 };
+      this.ui.bubbleAtScreen(
+        (off.x + b.x) * (off.zoom || 1),
+        (off.y + b.y - 120) * (off.zoom || 1),
+        satz);
+    };
+    this.audio.play('ui');
+
+    // Die Dauerbitte gibt es einmal am Tag. Ohne diese Grenze könnte man
+    // mit genug Moos in der Tasche in einer Minute reich werden, und der
+    // Ort wäre eine Geldmaschine statt eines Ortes.
+    const fertig = ketteFertig(g, stand.stufe);
+    if (fertig && stand.letzterTag === this.day.day) {
+      sagen(g.saetze.fertig);
+      return true;
+    }
+
+    let hatAlles = true;
+    for (let i = 0; i < bitte.will.length; i++) {
+      if (this.inventory.count(bitte.will[i].id) < bitte.will[i].n) hatAlles = false;
+    }
+    if (!hatAlles) {
+      // Was er will, steht als Blase da – und als Hinweis mit Zahlen,
+      // denn „bring mir Moos" ohne Menge ist ein Rätsel.
+      sagen([bitte.satz]);
+      const fehlt = bitte.will.map((w) => {
+        const item = getItem(w.id);
+        return (item ? item.name : w.id) + ' ' + this.inventory.count(w.id) + '/' + w.n;
+      }).join(' · ');
+      this.ui.toast(fehlt, 'icon_star');
+      return true;
+    }
+
+    for (let i = 0; i < bitte.will.length; i++) {
+      this.inventory.remove(bitte.will[i].id, bitte.will[i].n);
+    }
+    const bekommen = [];
+    for (let i = 0; i < bitte.lohn.items.length; i++) {
+      const l = bitte.lohn.items[i];
+      const rein = this.inventory.add(l.id, l.n);
+      if (rein > 0) bekommen.push({ id: l.id, n: rein });
+    }
+    this.state.coins = (this.state.coins || 0) + bitte.lohn.coins;
+    stand.gegeben++;
+    stand.letzterTag = this.day.day;
+    if (!fertig) stand.stufe++;
+    sagen(g.saetze.dank);
+    if (bekommen.length) this.ui.toastItems(bekommen);
+    this.ui.toast('+' + bitte.lohn.coins + ' Münzen', 'icon_coin', 'good');
+    this.audio.play('pickup');
+    this.invalidate();
+    this.save();
+    return true;
+  }
+
+  /**
    * Was in einem Innenort steht – Erz, Pilze, Federn.
    *
    * Die Einträge nennen eine Objektart aus `entities.js`, und das ist der
@@ -6327,6 +6454,13 @@ export class Game {
         const r = (def.blockR || 24) + 10;
         if (dx * dx + dy * dy < r * r) return false;
       }
+      // Durch den Geist geht man nicht hindurch.
+      const geist = this.ortGeistBild();
+      if (geist) {
+        const gdx = geist.x - x;
+        const gdy = geist.y - y;
+        if (gdx * gdx + gdy * gdy < 34 * 34) return false;
+      }
       return true;
     }
     if (!imRaum(x, y, raum)) return false;
@@ -6600,6 +6734,12 @@ export class Game {
         this.ui.setPrompt('Hinausgehen');
         return;
       }
+      // Der Geist kommt vor dem Abbauen: Wer neben ihm steht, will mit
+      // ihm reden und nicht den Stein hinter ihm anschlagen.
+      if (this.ortGeistInReichweite()) {
+        this.ui.setPrompt('Reden');
+        return;
+      }
       const ziel = this._ortZiel();
       if (ziel) {
         const def = defOf(ziel.kind);
@@ -6655,6 +6795,7 @@ export class Game {
     const o = this.ort();
     if (o) {
       if (amAusgang(this.innen.x, this.innen.y, o)) { this.verlaesst(); return; }
+      if (this.ortGeistInReichweite()) { this.redeMitOrtgeist(); return; }
       const ziel = this._ortZiel();
       if (ziel) this._ortAbbauen(ziel);
       return;

@@ -89,6 +89,17 @@ export const GERICHTE = [
     id: 'dish_mushroompan', name: 'Pilzpfanne', staerkung: 'kraeftig',
     zutaten: [{ id: 'mushroom', n: 3 }, { id: 'herb', n: 1 }],
   },
+  /**
+   * Der Mehlkuchen – das einzige Gericht, für das man in die Mühle muss.
+   *
+   * Mehl gibt es nur dort, und ohne ein Gericht daraus wäre es ein
+   * Material, das man ansammelt und verkauft. Ein Ort, dessen Fund nur
+   * Geld ist, ist ein Geldautomat mit Dach.
+   */
+  {
+    id: 'dish_mehlkuchen', name: 'Mehlkuchen', staerkung: 'kraeftig',
+    zutaten: [{ id: 'mehl', n: 2 }, { id: 'berry', n: 2 }],
+  },
   {
     id: 'dish_violetsyrup', name: 'Glockensirup', staerkung: 'glueck',
     zutaten: [{ id: 'flower_violet', n: 3 }],

@@ -238,6 +238,7 @@ export const HINTS = {
   dish_flowersalad: 'Kochstelle – aus Blumen und Kraut.',
   dish_herbtea: 'Kochstelle – Kraut und eine Sternblume.',
   dish_mushroompan: 'Kochstelle – aus Pilzen.',
+  dish_mehlkuchen: 'Kochstelle – aus Mehl aus der Mühle.',
   dish_violetsyrup: 'Kochstelle – aus Glockenblumen.',
   dish_forestsoup: 'Kochstelle – Pilze, Kraut, Beeren.',
   dish_berrycake: 'Kochstelle – viele Beeren.',

@@ -4408,6 +4408,57 @@ async function run() {
       hoehle.wiederDraussen === true && hoehle.anDerselbenStelle === true,
       JSON.stringify(hoehle));
 
+    /* ---- Der Geist, der in der Höhle wohnt ---- */
+    // Eine Höhle mit Erz darin ist ein Rohstofflager. Was sie zu einem
+    // Ort macht, ist jemand, der dort ist und etwas von einem will.
+    const glimm = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const r = {};
+      const vorher = { x: g.player.x, y: g.player.y };
+      g.betritteOrt('hoehle');
+      const geist = g.ortGeist();
+      const bild = g.ortGeistBild();
+      r.name = geist && geist.name;
+      r.steht = !!bild;
+      // Neben ihn stellen.
+      g.innen.x = bild.x - 46;
+      g.innen.y = bild.y + 26;
+      r.reichweite = g.ortGeistInReichweite();
+      // Durch ihn hindurch geht es nicht.
+      r.fest = g._innenBegehbar(bild.x, bild.y) === false;
+      // Ohne das Verlangte ändert sich nichts – das ist die Hälfte der
+      // Prüfung: Ein Geist, der auch ohne Gabe weiterrückt, hat keine
+      // Bitte, sondern einen Knopf.
+      g.inventory.remove('leuchtmoos', 99);
+      const stufe0 = g.ortGeistStand('glimm').stufe;
+      g.redeMitOrtgeist();
+      r.ohneGabe = g.ortGeistStand('glimm').stufe === stufe0;
+      // Mit dem Verlangten: Stufe steigt, Moos ist weg, Münzen da.
+      g.inventory.add('leuchtmoos', 3);
+      const muenzen = g.state.coins;
+      g.redeMitOrtgeist();
+      r.stufeRauf = g.ortGeistStand('glimm').stufe === stufe0 + 1;
+      r.moosWeg = g.inventory.count('leuchtmoos') === 0;
+      r.bezahlt = g.state.coins > muenzen;
+      // Und die nächste Bitte ist eine andere.
+      r.naechste = g.ortGeistStand('glimm').stufe;
+      g.verlaesst();
+      g.player.x = vorher.x;
+      g.player.y = vorher.y;
+      g.player.prevX = vorher.x;
+      g.player.prevY = vorher.y;
+      g.camera.snapTo(vorher.x, vorher.y);
+      return r;
+    });
+    check('In der Höhle wohnt ein Geist, und man kommt nicht durch ihn hindurch',
+      glimm.name === 'Glimm' && glimm.steht === true
+      && glimm.reichweite === true && glimm.fest === true, JSON.stringify(glimm));
+    check('Ohne das Verlangte rückt seine Bitte nicht weiter',
+      glimm.ohneGabe === true, JSON.stringify(glimm));
+    check('Mit dem Verlangten schon – und er bezahlt dafür',
+      glimm.stufeRauf === true && glimm.moosWeg === true
+      && glimm.bezahlt === true, JSON.stringify(glimm));
+
     /* ---- Die Oberfläche ist aus demselben Material wie die Welt ---- */
     // Gemessen wird die gerechnete Darstellung, nicht das Aussehen:
     // Welche Farbe hat die Kontur eines Feldes wirklich, und wie breit

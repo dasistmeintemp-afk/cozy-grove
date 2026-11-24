@@ -91,6 +91,28 @@ export const SPIRIT_LOOKS = {
   wanda: { fur: '#c6d9d6', furShade: '#9db8b4', accent: '#e2a24c', ears: 'long', hat: 'scarf', blink: true },
 };
 
+/**
+ * Die beiden, die drinnen wohnen.
+ *
+ * Getrennt von `SPIRIT_LOOKS`, obwohl sie derselbe Maler malt: Jene Liste
+ * ist der Spiegel der sieben Inselgeister, und Prüfungen vergleichen sie
+ * Eintrag für Eintrag mit `SPIRITS`. Zwei Fremde darin hätten jede dieser
+ * Prüfungen zu einer Sonderfallprüfung gemacht.
+ *
+ * Glimm ist blass und kühl – er lebt im Dunkeln und leuchtet selbst.
+ * Knarr ist mehlig und warm, mit der Mütze eines Müllers.
+ */
+export const ORTGEIST_LOOKS = {
+  glimm: {
+    fur: '#cfe0e2', furShade: '#a3bcc0', accent: '#a6c06a',
+    ears: 'long', hat: 'none', blink: true,
+  },
+  knarr: {
+    fur: '#eee6d0', furShade: '#c9bd9d', accent: '#9a7342',
+    ears: 'round', hat: 'cap', blink: true,
+  },
+};
+
 /** Legt eine gemalte Grafik ab und skaliert sie auf Spielgröße. */
 export function addArt(name, art, scale) {
   const s = scale == null ? ART_SCALE : scale;
@@ -529,6 +551,12 @@ export function initArt() {
   for (const id in SPIRIT_LOOKS) {
     for (let f = 0; f < 2; f++) {
       addArt('spirit_' + id + '_' + f, paintSpirit(SPIRIT_LOOKS[id], f, { seed: 401 + id.charCodeAt(0) }));
+    }
+  }
+  for (const id in ORTGEIST_LOOKS) {
+    for (let f = 0; f < 2; f++) {
+      addArt('ortgeist_' + id + '_' + f,
+        paintSpirit(ORTGEIST_LOOKS[id], f, { seed: 611 + id.charCodeAt(0) }));
     }
   }
   addArt('spirit_flamey_0', paintFlameSpirit(0));

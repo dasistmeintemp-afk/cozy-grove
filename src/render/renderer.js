@@ -357,6 +357,12 @@ export class Renderer {
       const e = inhalt[i];
       liste.push({ y: e.y, flach: false, sprite: spriteFor(e.kind, e.x, e.y), x: e.x });
     }
+    // Und der Geist, der dort wohnt – er sortiert sich mit ein wie alles
+    // andere, sonst stünde er vor dem Felsen, hinter dem er steht.
+    const ortgeist = game.ortGeistBild();
+    if (ortgeist) {
+      liste.push({ y: ortgeist.y, flach: false, sprite: ortgeist.sprite, x: ortgeist.x });
+    }
     // Das Tier sortiert sich mit ein – sonst säße es vor dem Tisch, an dem
     // es gerade vorbeigelaufen ist.
     const tier = game.innenPetBild();
