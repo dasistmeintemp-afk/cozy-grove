@@ -21221,8 +21221,25 @@ class AudioEngine {
       return;
     }
     const ctx = this.ctx;
+    /**
+     * Die Hauptsumme blendet auf, statt zu stehen.
+     *
+     * Zweite Sicherung gegen denselben Ärger: Was immer in der ersten
+     * Zehntelsekunde losgeht – ein Knacken beim Anlaufen, ein Ton, der
+     * zu früh kommt –, es trifft niemanden mit voller Lautstärke. Eine
+     * Viertelsekunde hört man nicht als Einblenden, aber sie nimmt
+     * jedem Einsatz die Spitze.
+     *
+     * Sie ersetzt nicht die Reparatur am Zeitgeber (siehe
+     * `_scheduleMusic`), sondern steht daneben: Die eine behebt die
+     * Ursache, die andere begrenzt den Schaden, falls je eine andere
+     * Ursache dazukommt.
+     */
     this.master = ctx.createGain();
-    this.master.gain.value = this.enabled ? this.volume : 0;
+    const ziel = this.enabled ? this.volume : 0;
+    this.master.gain.value = 0;
+    this.master.gain.setValueAtTime(0, ctx.currentTime);
+    this.master.gain.linearRampToValueAtTime(ziel, ctx.currentTime + 0.25);
     this.master.connect(ctx.destination);
 
     this.sfxBus = ctx.createGain();
@@ -21338,9 +21355,23 @@ class AudioEngine {
     a.rain.gain.gain.setTargetAtTime(a.rain.peak * (rain || 0), t, 1.5);
   }
 
+  /**
+   * Lautstärke von Hand – und das hat Vorrang vor dem Einblenden.
+   *
+   * `gain.value =` setzt nur den Grundwert; eine laufende Rampe
+   * überschreibt ihn weiter. Wer den Ton in der Viertelsekunde nach dem
+   * Start ausschaltet, hätte ihn ohne `cancelScheduledValues` gleich
+   * wieder aufgehen hören.
+   */
+  _setzeHauptlaut(wert) {
+    if (!this.master) return;
+    if (this.ctx) this.master.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.master.gain.value = wert;
+  }
+
   setEnabled(on) {
     this.enabled = on;
-    if (this.master) this.master.gain.value = on ? this.volume : 0;
+    this._setzeHauptlaut(on ? this.volume : 0);
   }
 
   setMusic(on) {
@@ -21352,7 +21383,7 @@ class AudioEngine {
 
   setVolume(v) {
     this.volume = v;
-    if (this.master && this.enabled) this.master.gain.value = v;
+    if (this.enabled) this._setzeHauptlaut(v);
   }
 
   /**
@@ -21560,6 +21591,36 @@ class AudioEngine {
     const w = this._weise || WEISE_STANDARD;
     const toene = w.toene;
     const beat = w.beat;
+
+    /**
+     * Verpasste Töne werden übersprungen, nicht nachgeholt.
+     *
+     * Das hier war ein echter, lauter Fehler. Der Zeitgeber läuft in
+     * einem `setInterval`; die Uhr des Tonsystems läuft davon
+     * unabhängig weiter. Sobald der Haupt-Thread blockiert ist – beim
+     * Start, wenn Welt und Bilder entstehen – oder der Browser das
+     * Zeitglied drosselt, weil der Reiter im Hintergrund liegt, stockt
+     * nur der Zeitgeber.
+     *
+     * Beim nächsten Tick holte die Schleife dann ALLES nach: jeden Ton,
+     * der in der Zwischenzeit fällig gewesen wäre, mit einem Zeitpunkt
+     * in der VERGANGENHEIT. Solche Töne spielt das Tonsystem sofort ab,
+     * alle im selben Augenblick und alle sofort auf voller Lautstärke,
+     * weil auch ihre Anschwellkurve längst abgelaufen ist.
+     *
+     * Gemessen mit einer nachgebauten Uhr: nach 3 Sekunden Stockung 5
+     * Töne auf einmal, nach 10 Sekunden 14, nach 60 Sekunden 71 – und
+     * jeder Ton sind zwei Schwinger, dazu die Bässe. Rund hundertfünfzig
+     * Stimmen in derselben Hundertstelsekunde. Das hört sich nicht nach
+     * Musik an, sondern nach einem Rauschen, und es ist der lauteste
+     * Klang, den das Spiel erzeugen kann.
+     *
+     * Die Melodie läuft deshalb einfach dort weiter, wo die Uhr jetzt
+     * steht. Niemand vermisst Töne, die er ohnehin nicht gehört hätte.
+     */
+    if (this._nextNoteAt < ctx.currentTime) {
+      this._nextNoteAt = ctx.currentTime + 0.05;
+    }
 
     while (this._nextNoteAt < ctx.currentTime + lookahead) {
       const t = this._nextNoteAt;
