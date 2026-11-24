@@ -53,6 +53,12 @@ test('Die Insel hat wirklich mehrere Ebenen', () => {
     const land = zaehler[0] + zaehler[1] + zaehler[2];
     // Jede Stufe muss ein ORT sein, keine Handvoll Kacheln. Unter fünf
     // Prozent sieht man sie nicht und findet sie nie.
+    //
+    // Es ist jetzt EINE Stufe über der Grundebene statt zweier. Drei
+    // Ebenen ergaben zwei Sorten Grenze und damit rund 760
+    // Klippenkacheln je Insel – ein Geäder quer durch die Wiese statt
+    // weniger Hochflächen. Die Schleife bleibt, damit sie mitwächst,
+    // wenn je wieder eine Ebene dazukommt.
     for (let z = 1; z <= MAX_STUFE; z++) {
       assert.ok(zaehler[z] > land * 0.04,
         'Seed ' + seed + ': Stufe ' + z + ' hat nur ' + zaehler[z] + ' von ' + land + ' Kacheln');
@@ -61,6 +67,10 @@ test('Die Insel hat wirklich mehrere Ebenen', () => {
     // oben und das Besondere daran ist weg.
     assert.ok(zaehler[0] > land * 0.45,
       'Seed ' + seed + ': die Grundebene hat nur ' + zaehler[0] + ' von ' + land);
+    // Die Gegenprobe zur Verkleinerung: Die Hochfläche darf nicht so
+    // gross werden, dass die Grundebene zur Ausnahme wird.
+    assert.ok(zaehler[1] < land * 0.4,
+      'Seed ' + seed + ': die Hochfläche hat ' + zaehler[1] + ' von ' + land);
   }
 });
 

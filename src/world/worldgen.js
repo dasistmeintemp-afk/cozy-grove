@@ -260,7 +260,14 @@ export function generateTiles(seed) {
  * die Insel ein Labyrinth aus Umwegen, und Umwege sind das Gegenteil von
  * gemütlich. Das Vorbild kommt mit zwei aus.
  */
-export const MAX_STUFE = 2;
+/**
+ * Wie viele Höhenebenen es gibt – ohne die Grundebene gezählt.
+ *
+ * Von 2 auf 1. Drei Ebenen hiessen zwei Sorten Grenze, und die zweite
+ * lag mitten in der ersten Hochfläche: Im Bild liefen Klippen durch
+ * Gegenden, die eben aussehen sollten. Siehe `berechneHoehen`.
+ */
+export const MAX_STUFE = 1;
 
 /**
  * Die Höhen werden in `generateTiles` berechnet und hier gemerkt.
@@ -307,9 +314,23 @@ function berechneHoehen(seed, tiles) {
       const t = tiles[i];
       if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
       if (nahAmLager(tx, ty) || amUebergang(tx, ty)) continue;
-      const w = warp(n, tx * F(0.055), ty * F(0.055), 1.6);
+      /**
+       * Grobes Rauschen, nicht feines.
+       *
+       * Mit 0,055 und drei Oktaven entstanden viele kleine Flecken, und
+       * jeder Fleck bringt seinen eigenen Rand mit: gemessen rund 760
+       * Klippenkacheln je Insel, verteilt als Geäder quer durch die
+       * Wiese. Eine Landschaft hat ein paar große Hochflächen und nicht
+       * vierzig kleine.
+       *
+       * 0,028 bei zwei Oktaven macht Flecken von der doppelten
+       * Kantenlänge – also ungefähr halb so viel Rand bei gleicher
+       * Fläche. Die zweite Oktave bleibt, damit die Ränder nicht zu
+       * Kreisen werden.
+       */
+      const w = warp(n, tx * F(0.028), ty * F(0.028), 1.3);
       felder.push(i);
-      werte.push(fbm(n, w[0], w[1], 3, 2.0, 0.5));
+      werte.push(fbm(n, w[0], w[1], 2, 2.0, 0.45));
     }
   }
   if (!felder.length) return hoehen;
@@ -324,13 +345,27 @@ function berechneHoehen(seed, tiles) {
   //
   // Stattdessen werden alle Werte sortiert und bei ANTEILEN geschnitten.
   // Dann hat jede Insel dieselbe Mischung und trotzdem ihre eigene Form.
+  /**
+   * ZWEI Ebenen, nicht drei.
+   *
+   * Drei Ebenen heißt zwei Sorten Grenze – zwischen 0 und 1 und zwischen
+   * 1 und 2 –, und die zweite liegt mitten in der ersten Hochfläche. Im
+   * Bild liefen dadurch Klippen durch Gegenden, die eben aussehen
+   * sollten, und die Insel wirkte zerschnitten statt gestuft.
+   *
+   * Das Vorbild hat im Kern genau einen Absatz: unten der Strand, oben
+   * die Wiese. Terrassen gibt es, aber wenige und große.
+   *
+   * 28 Prozent Hochfläche: genug, dass es sie wirklich gibt, wenig
+   * genug, dass sie ein Ort bleibt und keine zweite Insel.
+   */
   const sortiert = werte.slice().sort(function (a, b) { return a - b; });
-  const s1 = sortiert[Math.floor(sortiert.length * 0.46)];
-  const s2 = sortiert[Math.floor(sortiert.length * 0.76)];
+  const s1 = sortiert[Math.floor(sortiert.length * 0.72)];
   for (let k = 0; k < felder.length; k++) {
-    const v = werte[k];
-    hoehen[felder[k]] = v > s2 ? 2 : v > s1 ? 1 : 0;
+    hoehen[felder[k]] = werte[k] > s1 ? 1 : 0;
   }
+  glaetteHoehen(hoehen, tiles);
+  entferneSplitter(hoehen, tiles);
   glaetteHoehen(hoehen, tiles);
   return hoehen;
 }
@@ -422,6 +457,63 @@ function glaetteHoehen(hoehen, tiles) {
 }
 
 /**
+ * Kleine Hochflächen und kleine Löcher wieder einebnen.
+ *
+ * Das Glätten über die Nachbarschaft nimmt einzelne Ausreißer weg, aber
+ * keine zusammenhängenden Flecken von zwanzig Kacheln – und genau die
+ * sind das Ärgernis: Eine Hochfläche, die kleiner ist als der
+ * Bildausschnitt, sieht nicht aus wie ein Plateau, sondern wie ein
+ * Hügelchen mit einer Mauer drumherum. Dasselbe gilt für ein Loch in
+ * einer Hochfläche.
+ *
+ * Gemessen wird deshalb die GRÖSSE jedes zusammenhängenden Flecks, und
+ * was zu klein ist, bekommt die Höhe seiner Umgebung. 90 Kacheln sind
+ * ungefähr ein halber Bildausschnitt – ab da ist es eine Gegend.
+ */
+function entferneSplitter(hoehen, tiles) {
+  const MINDEST = 90;
+  const begehbar = function (i) {
+    const t = tiles[i];
+    return t === T.GRASS || t === T.DIRT || t === T.ROCKFLOOR;
+  };
+  const gesehen = new Uint8Array(MAP_W * MAP_H);
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i0 = tileIndex(tx, ty);
+      if (gesehen[i0] || !begehbar(i0)) continue;
+      const stufe = hoehen[i0];
+      const fleck = [i0];
+      const stapel = [tx, ty];
+      gesehen[i0] = 1;
+      // Woran der Fleck grenzt – die häufigste Nachbarhöhe gewinnt.
+      const rand = [0, 0, 0];
+      while (stapel.length) {
+        const y = stapel.pop();
+        const x = stapel.pop();
+        const nb = [x + 1, y, x - 1, y, x, y + 1, x, y - 1];
+        for (let k = 0; k < 8; k += 2) {
+          const nx = nb[k];
+          const ny = nb[k + 1];
+          if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+          const i = tileIndex(nx, ny);
+          if (!begehbar(i)) continue;
+          if (hoehen[i] !== stufe) { rand[hoehen[i]]++; continue; }
+          if (gesehen[i]) continue;
+          gesehen[i] = 1;
+          fleck.push(i);
+          stapel.push(nx, ny);
+        }
+      }
+      if (fleck.length >= MINDEST) continue;
+      let ziel = 0;
+      for (let z = 1; z <= MAX_STUFE; z++) if (rand[z] > rand[ziel]) ziel = z;
+      if (ziel === stufe) continue;
+      for (let k = 0; k < fleck.length; k++) hoehen[fleck[k]] = ziel;
+    }
+  }
+}
+
+/**
  * Die Steilkanten setzen.
  *
  * Eine begehbare Kachel, neben der es HÖHER weitergeht, wird zur Wand.
@@ -441,7 +533,20 @@ function setzeSteilkanten(tiles, hoehen) {
       if (tx < MAP_W - 1 && hoehen[i + 1] > z && isWalkable(vorher[i + 1])) hoeher = true;
       if (ty > 0 && hoehen[i - MAP_W] > z && isWalkable(vorher[i - MAP_W])) hoeher = true;
       if (ty < MAP_H - 1 && hoehen[i + MAP_W] > z && isWalkable(vorher[i + MAP_W])) hoeher = true;
-      if (hoeher) tiles[i] = T.CLIFF;
+      /**
+       * An einem Übergang steht nie eine Wand.
+       *
+       * `berechneHoehen` lässt Furt, Brücke und Landengen schon aus –
+       * aber eine Kachel wird zur Wand, weil der NACHBAR höher ist, und
+       * der Nachbar liegt ausserhalb des Übergangs. Solange die
+       * Hochflächen klein und weit weg waren, traf das nie zu; mit
+       * wenigen grossen Flächen reicht eine davon jetzt bis an die Furt.
+       *
+       * Die Regel gehört hierher und nicht ins Höhenfeld: Hier entsteht
+       * die Wand, also wird hier entschieden, wo keine stehen darf. Ein
+       * Übergang, vor dem eine Wand steht, ist kein Übergang.
+       */
+      if (hoeher && !amUebergang(tx, ty)) tiles[i] = T.CLIFF;
     }
   }
   STEILKANTEN_VORHER.data = vorher;

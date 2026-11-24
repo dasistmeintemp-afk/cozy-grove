@@ -423,6 +423,28 @@ function biomLasur(g, world, tx0, ty0, ring) {
  * die Kachelgrenze hinaus, und dadurch verschmelzen benachbarte
  * Wandkacheln zu einer durchgehenden Wand statt zu einer Treppe.
  */
+/**
+ * Wie weit die Wand an dieser Stelle nach oben und unten reicht.
+ *
+ * Das ist der Unterschied zwischen einer Wand und einer Treppe. Vorher
+ * bekam JEDE Kachel ihren eigenen senkrechten Verlauf – hell, dunkel,
+ * mittel, hell –, und bei einer zwei Kacheln hohen Wand wiederholte sich
+ * das zweimal. Im Bild sah man dann keine Wand, sondern zwei Absätze
+ * übereinander, und genau diese waagerechte Streifung war der Grund,
+ * warum unsere Klippen wie ein Erdfleck aussahen und nicht wie ein
+ * Absturz.
+ *
+ * Jetzt zählt die Kachel zuerst ab, wie hoch die Wand an ihrer Stelle
+ * insgesamt ist, und der Verlauf wird über diese ganze Höhe gerechnet.
+ */
+function wandStrecke(world, tx, ty) {
+  let oben = ty;
+  while (world.tileAtTile(tx, oben - 1) === T.CLIFF) oben--;
+  let unten = ty;
+  while (world.tileAtTile(tx, unten + 1) === T.CLIFF) unten++;
+  return { oben: oben, unten: unten };
+}
+
 function steilkanten(g, world, tx0, ty0, ring) {
   const hoehe = world.hoeheAtTile
     ? function (tx, ty) { return world.hoeheAtTile(tx, ty); }
@@ -430,29 +452,62 @@ function steilkanten(g, world, tx0, ty0, ring) {
   for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
     for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
       if (world.tileAtTile(tx, ty) !== T.CLIFF) continue;
-      const y = ty * TILE_SIZE;
-      // Der Verlauf hat dieselbe Reihenfolge wie am Ufer: oben die
-      // frische Erde unter der Grasnarbe, dann der Absturz ins Dunkle,
-      // unten wieder aufgehellt. Erst der helle Saum lässt die Narbe
-      // überhängen.
-      const grad = g.createLinearGradient(0, y - 4, 0, y + TILE_SIZE + 6);
+      const w = wandStrecke(world, tx, ty);
+      const yOben = w.oben * TILE_SIZE;
+      const yUnten = (w.unten + 1) * TILE_SIZE;
+      /**
+       * Hell oben, dunkel am Fuß – und nicht umgekehrt.
+       *
+       * Hier stand es andersherum: direkt unter der Grasnarbe am
+       * dunkelsten, am Fuß wieder aufgehellt. Am Vorbild nachgemessen,
+       * senkrechter Schnitt durch eine Klippe, Helligkeiten von oben
+       * nach unten: erst die Graskante, dann eine fast schwarze Linie
+       * (5 bis 8), dann die Wand mit 217, 186, 180, 160, 147 – und am
+       * Fuß wieder fast schwarz. Die Wand wird also nach unten DUNKLER,
+       * wie jede Fläche, auf die das Licht von oben fällt.
+       */
+      const grad = g.createLinearGradient(0, yOben, 0, yUnten);
       grad.addColorStop(0, INK.uferLicht);
-      grad.addColorStop(0.22, INK.uferTief);
-      grad.addColorStop(0.72, INK.ufer);
-      grad.addColorStop(1, INK.uferLicht);
+      grad.addColorStop(0.45, INK.ufer);
+      grad.addColorStop(1, INK.uferTief);
       g.save();
+      /**
+       * Die Wand darf nicht in die Wiese ÜBER ihr hineinmalen.
+       *
+       * Der abgerundete Kachelfleck steht über seine Kachel hinaus –
+       * seitlich und unten ist das gewollt, denn davon lebt die weiche
+       * Form. Nach oben war es ein Fehler: Gemessen reichte die Wand
+       * rund dreissig Bildpunkte in die obere Wiese hinein und zog sie
+       * von Helligkeit 165 auf 134 herunter. Im Bild sah das aus, als
+       * frässe sich ein brauner Streifen in die Wiese – und genau
+       * dieses Fressen machte aus einer Kante ein breites Band.
+       *
+       * Im Vorbild ist es andersherum: Dort hängt die GRASNARBE über
+       * die Wand, nicht die Wand über das Gras.
+       *
+       * Beschnitten wird nur, wo oben wirklich die Oberkante liegt.
+       * Mitten in einer mehrere Kacheln hohen Wand soll der Fleck
+       * weiter in den Nachbarn überlaufen, sonst bekäme die Wand alle
+       * 64 Punkte eine Naht.
+       */
+      if (ty === w.oben) {
+        g.beginPath();
+        g.rect(tx * TILE_SIZE - 12, ty * TILE_SIZE, TILE_SIZE + 24, TILE_SIZE + 40);
+        g.clip();
+      }
       g.fillStyle = grad;
       pathFrom(g, tilePatch(tx, ty, 0.56), true);
       g.fill();
       // Liegt unter der Wand wieder Land, wirft sie ihren Schatten
       // darauf. Ohne den steht die Wand auf der Wiese wie aufgeklebt.
       if (isWalkable(world.tileAtTile(tx, ty + 1)) && hoehe(tx, ty + 1) <= hoehe(tx, ty)) {
-        g.globalAlpha = 0.3;
-        const sg = g.createLinearGradient(0, y + TILE_SIZE - 2, 0, y + TILE_SIZE + 22);
+        g.globalAlpha = 0.34;
+        const sg = g.createLinearGradient(0, ty * TILE_SIZE + TILE_SIZE - 2,
+          0, ty * TILE_SIZE + TILE_SIZE + 26);
         sg.addColorStop(0, INK.uferTief);
         sg.addColorStop(1, 'rgba(0,0,0,0)');
         g.fillStyle = sg;
-        g.fillRect(tx * TILE_SIZE - 4, y + TILE_SIZE - 2, TILE_SIZE + 8, 24);
+        g.fillRect(tx * TILE_SIZE - 4, ty * TILE_SIZE + TILE_SIZE - 2, TILE_SIZE + 8, 28);
       }
       g.restore();
     }
@@ -485,11 +540,31 @@ function steilkantenTinte(g, world, tx0, ty0, ring) {
         [1, 0, [x0 + TILE_SIZE, y0], [x0 + TILE_SIZE, y0 + TILE_SIZE]],
         [0, 1, [x0, y0 + TILE_SIZE], [x0 + TILE_SIZE, y0 + TILE_SIZE]],
       ];
+      /**
+       * Die Kanten der Wand – DECKEND, nicht halbdurchsichtig.
+       *
+       * Am Vorbild nachgemessen, senkrechter Schnitt durch eine Klippe:
+       * Dort, wo die Grasnarbe abbricht, fällt die Helligkeit auf 5 bis
+       * 8 – praktisch schwarz, über zwei bis vier Bildpunkte. Am Fuß
+       * dasselbe. Zwischen diesen beiden Linien liegt die Wandfläche mit
+       * 60 bis 200, und erst die beiden schwarzen Linien machen daraus
+       * einen Absturz.
+       *
+       * Unsere Kante kam an derselben Stelle auf 60 – ein weicher
+       * Pinselstrich bei 85 Prozent Deckung über braunem Grund. Das ist
+       * ein Schattenrand, keine Kante. Jetzt deckt sie ganz, und sie ist
+       * breiter.
+       */
       for (let k = 0; k < seiten.length; k++) {
         const sx = seiten[k][0];
         const sy = seiten[k][1];
-        if (hoehe(tx + sx, ty + sy) <= z) continue;
-        if (!isWalkable(world.tileAtTile(tx + sx, ty + sy))) continue;
+        const nachbarHoeher = hoehe(tx + sx, ty + sy) > z;
+        const nachbarLand = isWalkable(world.tileAtTile(tx + sx, ty + sy));
+        // Oben: die Linie, an der die obere Grasnarbe abbricht.
+        // Unten: die Linie, an der die Wand auf dem Boden aufsitzt.
+        const obenKante = nachbarHoeher && nachbarLand;
+        const fussKante = sy === 1 && nachbarLand && !nachbarHoeher;
+        if (!obenKante && !fussKante) continue;
         const a = seiten[k][2];
         const b = seiten[k][3];
         const ja = cornerJitter(Math.round(a[0] / 8), Math.round(a[1] / 8));
@@ -499,17 +574,37 @@ function steilkantenTinte(g, world, tx0, ty0, ring) {
           [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
           [b[0] + jb[0] * 0.4, b[1] + jb[1] * 0.4],
         ], {
-          closed: false, width: 3.0, vary: 0.4,
+          closed: false,
+          // Die Oberkante ist der wichtigste Strich der Wand und darf
+          // der dickste sein; der Fuß steht im eigenen Schatten und
+          // kommt mit weniger aus.
+          width: obenKante ? 4.4 : 3.2,
+          vary: 0.3,
           seed: hashString('sk' + tx + ':' + ty + ':' + k),
-          color: INK.line, alpha: 0.85,
+          color: INK.line, alpha: 1,
         });
       }
-      const rng = makeRng(hashString('skr' + tx + ':' + ty));
-      const n = 1 + Math.floor(rng() * 3);
-      for (let i = 0; i < n; i++) {
-        const x = x0 + (0.15 + rng() * 0.7) * TILE_SIZE;
-        const oy = y0 + 6 + rng() * 8;
-        risse.push([x, oy, x + (rng() - 0.5) * 6, oy + TILE_SIZE * (0.3 + rng() * 0.4)]);
+      /**
+       * Die Risse laufen über die GANZE Wand, nicht je Kachel.
+       *
+       * Vorher begann jeder Riss sechs Punkte unter der Kachelkante und
+       * war höchstens zwei Drittel einer Kachel lang. Bei einer zwei
+       * Kacheln hohen Wand ergab das zwei Reihen kurzer Striche
+       * übereinander – noch eine waagerechte Streifung in einer Fläche,
+       * die senkrecht gelesen werden soll.
+       */
+      const wand = wandStrecke(world, tx, ty);
+      if (ty === wand.oben) {
+        const rng = makeRng(hashString('skr' + tx + ':' + ty));
+        const yA = wand.oben * TILE_SIZE;
+        const hoch = (wand.unten - wand.oben + 1) * TILE_SIZE;
+        const n = 1 + Math.floor(rng() * 3);
+        for (let i = 0; i < n; i++) {
+          const x = x0 + (0.15 + rng() * 0.7) * TILE_SIZE;
+          const oy = yA + 8 + rng() * 10;
+          const laenge = hoch * (0.4 + rng() * 0.45);
+          risse.push([x, oy, x + (rng() - 0.5) * 8, oy + laenge]);
+        }
       }
     }
   }
@@ -517,8 +612,10 @@ function steilkantenTinte(g, world, tx0, ty0, ring) {
   g.save();
   g.lineCap = 'round';
   g.strokeStyle = INK.line;
-  g.globalAlpha = 0.3;
-  g.lineWidth = 1.9;
+  // Etwas kräftiger als zuvor (0,3): Auf der dunkleren Wand verschwanden
+  // die Risse sonst ganz, und ohne sie ist die Fläche eine Tapete.
+  g.globalAlpha = 0.38;
+  g.lineWidth = 2.1;
   g.beginPath();
   for (let i = 0; i < risse.length; i++) {
     const r = risse[i];

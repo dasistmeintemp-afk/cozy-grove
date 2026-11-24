@@ -10828,7 +10828,14 @@ function generateTiles(seed) {
  * die Insel ein Labyrinth aus Umwegen, und Umwege sind das Gegenteil von
  * gemütlich. Das Vorbild kommt mit zwei aus.
  */
-const MAX_STUFE = 2;
+/**
+ * Wie viele Höhenebenen es gibt – ohne die Grundebene gezählt.
+ *
+ * Von 2 auf 1. Drei Ebenen hiessen zwei Sorten Grenze, und die zweite
+ * lag mitten in der ersten Hochfläche: Im Bild liefen Klippen durch
+ * Gegenden, die eben aussehen sollten. Siehe `berechneHoehen`.
+ */
+const MAX_STUFE = 1;
 
 /**
  * Die Höhen werden in `generateTiles` berechnet und hier gemerkt.
@@ -10875,9 +10882,23 @@ function berechneHoehen(seed, tiles) {
       const t = tiles[i];
       if (t !== T.GRASS && t !== T.DIRT && t !== T.ROCKFLOOR) continue;
       if (nahAmLager(tx, ty) || amUebergang(tx, ty)) continue;
-      const w = warp(n, tx * F(0.055), ty * F(0.055), 1.6);
+      /**
+       * Grobes Rauschen, nicht feines.
+       *
+       * Mit 0,055 und drei Oktaven entstanden viele kleine Flecken, und
+       * jeder Fleck bringt seinen eigenen Rand mit: gemessen rund 760
+       * Klippenkacheln je Insel, verteilt als Geäder quer durch die
+       * Wiese. Eine Landschaft hat ein paar große Hochflächen und nicht
+       * vierzig kleine.
+       *
+       * 0,028 bei zwei Oktaven macht Flecken von der doppelten
+       * Kantenlänge – also ungefähr halb so viel Rand bei gleicher
+       * Fläche. Die zweite Oktave bleibt, damit die Ränder nicht zu
+       * Kreisen werden.
+       */
+      const w = warp(n, tx * F(0.028), ty * F(0.028), 1.3);
       felder.push(i);
-      werte.push(fbm(n, w[0], w[1], 3, 2.0, 0.5));
+      werte.push(fbm(n, w[0], w[1], 2, 2.0, 0.45));
     }
   }
   if (!felder.length) return hoehen;
@@ -10892,13 +10913,27 @@ function berechneHoehen(seed, tiles) {
   //
   // Stattdessen werden alle Werte sortiert und bei ANTEILEN geschnitten.
   // Dann hat jede Insel dieselbe Mischung und trotzdem ihre eigene Form.
+  /**
+   * ZWEI Ebenen, nicht drei.
+   *
+   * Drei Ebenen heißt zwei Sorten Grenze – zwischen 0 und 1 und zwischen
+   * 1 und 2 –, und die zweite liegt mitten in der ersten Hochfläche. Im
+   * Bild liefen dadurch Klippen durch Gegenden, die eben aussehen
+   * sollten, und die Insel wirkte zerschnitten statt gestuft.
+   *
+   * Das Vorbild hat im Kern genau einen Absatz: unten der Strand, oben
+   * die Wiese. Terrassen gibt es, aber wenige und große.
+   *
+   * 28 Prozent Hochfläche: genug, dass es sie wirklich gibt, wenig
+   * genug, dass sie ein Ort bleibt und keine zweite Insel.
+   */
   const sortiert = werte.slice().sort(function (a, b) { return a - b; });
-  const s1 = sortiert[Math.floor(sortiert.length * 0.46)];
-  const s2 = sortiert[Math.floor(sortiert.length * 0.76)];
+  const s1 = sortiert[Math.floor(sortiert.length * 0.72)];
   for (let k = 0; k < felder.length; k++) {
-    const v = werte[k];
-    hoehen[felder[k]] = v > s2 ? 2 : v > s1 ? 1 : 0;
+    hoehen[felder[k]] = werte[k] > s1 ? 1 : 0;
   }
+  glaetteHoehen(hoehen, tiles);
+  entferneSplitter(hoehen, tiles);
   glaetteHoehen(hoehen, tiles);
   return hoehen;
 }
@@ -10990,6 +11025,63 @@ function glaetteHoehen(hoehen, tiles) {
 }
 
 /**
+ * Kleine Hochflächen und kleine Löcher wieder einebnen.
+ *
+ * Das Glätten über die Nachbarschaft nimmt einzelne Ausreißer weg, aber
+ * keine zusammenhängenden Flecken von zwanzig Kacheln – und genau die
+ * sind das Ärgernis: Eine Hochfläche, die kleiner ist als der
+ * Bildausschnitt, sieht nicht aus wie ein Plateau, sondern wie ein
+ * Hügelchen mit einer Mauer drumherum. Dasselbe gilt für ein Loch in
+ * einer Hochfläche.
+ *
+ * Gemessen wird deshalb die GRÖSSE jedes zusammenhängenden Flecks, und
+ * was zu klein ist, bekommt die Höhe seiner Umgebung. 90 Kacheln sind
+ * ungefähr ein halber Bildausschnitt – ab da ist es eine Gegend.
+ */
+function entferneSplitter(hoehen, tiles) {
+  const MINDEST = 90;
+  const begehbar = function (i) {
+    const t = tiles[i];
+    return t === T.GRASS || t === T.DIRT || t === T.ROCKFLOOR;
+  };
+  const gesehen = new Uint8Array(MAP_W * MAP_H);
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i0 = tileIndex(tx, ty);
+      if (gesehen[i0] || !begehbar(i0)) continue;
+      const stufe = hoehen[i0];
+      const fleck = [i0];
+      const stapel = [tx, ty];
+      gesehen[i0] = 1;
+      // Woran der Fleck grenzt – die häufigste Nachbarhöhe gewinnt.
+      const rand = [0, 0, 0];
+      while (stapel.length) {
+        const y = stapel.pop();
+        const x = stapel.pop();
+        const nb = [x + 1, y, x - 1, y, x, y + 1, x, y - 1];
+        for (let k = 0; k < 8; k += 2) {
+          const nx = nb[k];
+          const ny = nb[k + 1];
+          if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+          const i = tileIndex(nx, ny);
+          if (!begehbar(i)) continue;
+          if (hoehen[i] !== stufe) { rand[hoehen[i]]++; continue; }
+          if (gesehen[i]) continue;
+          gesehen[i] = 1;
+          fleck.push(i);
+          stapel.push(nx, ny);
+        }
+      }
+      if (fleck.length >= MINDEST) continue;
+      let ziel = 0;
+      for (let z = 1; z <= MAX_STUFE; z++) if (rand[z] > rand[ziel]) ziel = z;
+      if (ziel === stufe) continue;
+      for (let k = 0; k < fleck.length; k++) hoehen[fleck[k]] = ziel;
+    }
+  }
+}
+
+/**
  * Die Steilkanten setzen.
  *
  * Eine begehbare Kachel, neben der es HÖHER weitergeht, wird zur Wand.
@@ -11009,7 +11101,20 @@ function setzeSteilkanten(tiles, hoehen) {
       if (tx < MAP_W - 1 && hoehen[i + 1] > z && isWalkable(vorher[i + 1])) hoeher = true;
       if (ty > 0 && hoehen[i - MAP_W] > z && isWalkable(vorher[i - MAP_W])) hoeher = true;
       if (ty < MAP_H - 1 && hoehen[i + MAP_W] > z && isWalkable(vorher[i + MAP_W])) hoeher = true;
-      if (hoeher) tiles[i] = T.CLIFF;
+      /**
+       * An einem Übergang steht nie eine Wand.
+       *
+       * `berechneHoehen` lässt Furt, Brücke und Landengen schon aus –
+       * aber eine Kachel wird zur Wand, weil der NACHBAR höher ist, und
+       * der Nachbar liegt ausserhalb des Übergangs. Solange die
+       * Hochflächen klein und weit weg waren, traf das nie zu; mit
+       * wenigen grossen Flächen reicht eine davon jetzt bis an die Furt.
+       *
+       * Die Regel gehört hierher und nicht ins Höhenfeld: Hier entsteht
+       * die Wand, also wird hier entschieden, wo keine stehen darf. Ein
+       * Übergang, vor dem eine Wand steht, ist kein Übergang.
+       */
+      if (hoeher && !amUebergang(tx, ty)) tiles[i] = T.CLIFF;
     }
   }
   STEILKANTEN_VORHER.data = vorher;
@@ -16271,6 +16376,28 @@ function biomLasur(g, world, tx0, ty0, ring) {
  * die Kachelgrenze hinaus, und dadurch verschmelzen benachbarte
  * Wandkacheln zu einer durchgehenden Wand statt zu einer Treppe.
  */
+/**
+ * Wie weit die Wand an dieser Stelle nach oben und unten reicht.
+ *
+ * Das ist der Unterschied zwischen einer Wand und einer Treppe. Vorher
+ * bekam JEDE Kachel ihren eigenen senkrechten Verlauf – hell, dunkel,
+ * mittel, hell –, und bei einer zwei Kacheln hohen Wand wiederholte sich
+ * das zweimal. Im Bild sah man dann keine Wand, sondern zwei Absätze
+ * übereinander, und genau diese waagerechte Streifung war der Grund,
+ * warum unsere Klippen wie ein Erdfleck aussahen und nicht wie ein
+ * Absturz.
+ *
+ * Jetzt zählt die Kachel zuerst ab, wie hoch die Wand an ihrer Stelle
+ * insgesamt ist, und der Verlauf wird über diese ganze Höhe gerechnet.
+ */
+function wandStrecke(world, tx, ty) {
+  let oben = ty;
+  while (world.tileAtTile(tx, oben - 1) === T.CLIFF) oben--;
+  let unten = ty;
+  while (world.tileAtTile(tx, unten + 1) === T.CLIFF) unten++;
+  return { oben: oben, unten: unten };
+}
+
 function steilkanten(g, world, tx0, ty0, ring) {
   const hoehe = world.hoeheAtTile
     ? function (tx, ty) { return world.hoeheAtTile(tx, ty); }
@@ -16278,29 +16405,62 @@ function steilkanten(g, world, tx0, ty0, ring) {
   for (let ty = ty0 - ring; ty < ty0 + CHUNK_TILES + ring; ty++) {
     for (let tx = tx0 - ring; tx < tx0 + CHUNK_TILES + ring; tx++) {
       if (world.tileAtTile(tx, ty) !== T.CLIFF) continue;
-      const y = ty * TILE_SIZE;
-      // Der Verlauf hat dieselbe Reihenfolge wie am Ufer: oben die
-      // frische Erde unter der Grasnarbe, dann der Absturz ins Dunkle,
-      // unten wieder aufgehellt. Erst der helle Saum lässt die Narbe
-      // überhängen.
-      const grad = g.createLinearGradient(0, y - 4, 0, y + TILE_SIZE + 6);
+      const w = wandStrecke(world, tx, ty);
+      const yOben = w.oben * TILE_SIZE;
+      const yUnten = (w.unten + 1) * TILE_SIZE;
+      /**
+       * Hell oben, dunkel am Fuß – und nicht umgekehrt.
+       *
+       * Hier stand es andersherum: direkt unter der Grasnarbe am
+       * dunkelsten, am Fuß wieder aufgehellt. Am Vorbild nachgemessen,
+       * senkrechter Schnitt durch eine Klippe, Helligkeiten von oben
+       * nach unten: erst die Graskante, dann eine fast schwarze Linie
+       * (5 bis 8), dann die Wand mit 217, 186, 180, 160, 147 – und am
+       * Fuß wieder fast schwarz. Die Wand wird also nach unten DUNKLER,
+       * wie jede Fläche, auf die das Licht von oben fällt.
+       */
+      const grad = g.createLinearGradient(0, yOben, 0, yUnten);
       grad.addColorStop(0, INK.uferLicht);
-      grad.addColorStop(0.22, INK.uferTief);
-      grad.addColorStop(0.72, INK.ufer);
-      grad.addColorStop(1, INK.uferLicht);
+      grad.addColorStop(0.45, INK.ufer);
+      grad.addColorStop(1, INK.uferTief);
       g.save();
+      /**
+       * Die Wand darf nicht in die Wiese ÜBER ihr hineinmalen.
+       *
+       * Der abgerundete Kachelfleck steht über seine Kachel hinaus –
+       * seitlich und unten ist das gewollt, denn davon lebt die weiche
+       * Form. Nach oben war es ein Fehler: Gemessen reichte die Wand
+       * rund dreissig Bildpunkte in die obere Wiese hinein und zog sie
+       * von Helligkeit 165 auf 134 herunter. Im Bild sah das aus, als
+       * frässe sich ein brauner Streifen in die Wiese – und genau
+       * dieses Fressen machte aus einer Kante ein breites Band.
+       *
+       * Im Vorbild ist es andersherum: Dort hängt die GRASNARBE über
+       * die Wand, nicht die Wand über das Gras.
+       *
+       * Beschnitten wird nur, wo oben wirklich die Oberkante liegt.
+       * Mitten in einer mehrere Kacheln hohen Wand soll der Fleck
+       * weiter in den Nachbarn überlaufen, sonst bekäme die Wand alle
+       * 64 Punkte eine Naht.
+       */
+      if (ty === w.oben) {
+        g.beginPath();
+        g.rect(tx * TILE_SIZE - 12, ty * TILE_SIZE, TILE_SIZE + 24, TILE_SIZE + 40);
+        g.clip();
+      }
       g.fillStyle = grad;
       pathFrom(g, tilePatch(tx, ty, 0.56), true);
       g.fill();
       // Liegt unter der Wand wieder Land, wirft sie ihren Schatten
       // darauf. Ohne den steht die Wand auf der Wiese wie aufgeklebt.
       if (isWalkable(world.tileAtTile(tx, ty + 1)) && hoehe(tx, ty + 1) <= hoehe(tx, ty)) {
-        g.globalAlpha = 0.3;
-        const sg = g.createLinearGradient(0, y + TILE_SIZE - 2, 0, y + TILE_SIZE + 22);
+        g.globalAlpha = 0.34;
+        const sg = g.createLinearGradient(0, ty * TILE_SIZE + TILE_SIZE - 2,
+          0, ty * TILE_SIZE + TILE_SIZE + 26);
         sg.addColorStop(0, INK.uferTief);
         sg.addColorStop(1, 'rgba(0,0,0,0)');
         g.fillStyle = sg;
-        g.fillRect(tx * TILE_SIZE - 4, y + TILE_SIZE - 2, TILE_SIZE + 8, 24);
+        g.fillRect(tx * TILE_SIZE - 4, ty * TILE_SIZE + TILE_SIZE - 2, TILE_SIZE + 8, 28);
       }
       g.restore();
     }
@@ -16333,11 +16493,31 @@ function steilkantenTinte(g, world, tx0, ty0, ring) {
         [1, 0, [x0 + TILE_SIZE, y0], [x0 + TILE_SIZE, y0 + TILE_SIZE]],
         [0, 1, [x0, y0 + TILE_SIZE], [x0 + TILE_SIZE, y0 + TILE_SIZE]],
       ];
+      /**
+       * Die Kanten der Wand – DECKEND, nicht halbdurchsichtig.
+       *
+       * Am Vorbild nachgemessen, senkrechter Schnitt durch eine Klippe:
+       * Dort, wo die Grasnarbe abbricht, fällt die Helligkeit auf 5 bis
+       * 8 – praktisch schwarz, über zwei bis vier Bildpunkte. Am Fuß
+       * dasselbe. Zwischen diesen beiden Linien liegt die Wandfläche mit
+       * 60 bis 200, und erst die beiden schwarzen Linien machen daraus
+       * einen Absturz.
+       *
+       * Unsere Kante kam an derselben Stelle auf 60 – ein weicher
+       * Pinselstrich bei 85 Prozent Deckung über braunem Grund. Das ist
+       * ein Schattenrand, keine Kante. Jetzt deckt sie ganz, und sie ist
+       * breiter.
+       */
       for (let k = 0; k < seiten.length; k++) {
         const sx = seiten[k][0];
         const sy = seiten[k][1];
-        if (hoehe(tx + sx, ty + sy) <= z) continue;
-        if (!isWalkable(world.tileAtTile(tx + sx, ty + sy))) continue;
+        const nachbarHoeher = hoehe(tx + sx, ty + sy) > z;
+        const nachbarLand = isWalkable(world.tileAtTile(tx + sx, ty + sy));
+        // Oben: die Linie, an der die obere Grasnarbe abbricht.
+        // Unten: die Linie, an der die Wand auf dem Boden aufsitzt.
+        const obenKante = nachbarHoeher && nachbarLand;
+        const fussKante = sy === 1 && nachbarLand && !nachbarHoeher;
+        if (!obenKante && !fussKante) continue;
         const a = seiten[k][2];
         const b = seiten[k][3];
         const ja = cornerJitter(Math.round(a[0] / 8), Math.round(a[1] / 8));
@@ -16347,17 +16527,37 @@ function steilkantenTinte(g, world, tx0, ty0, ring) {
           [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
           [b[0] + jb[0] * 0.4, b[1] + jb[1] * 0.4],
         ], {
-          closed: false, width: 3.0, vary: 0.4,
+          closed: false,
+          // Die Oberkante ist der wichtigste Strich der Wand und darf
+          // der dickste sein; der Fuß steht im eigenen Schatten und
+          // kommt mit weniger aus.
+          width: obenKante ? 4.4 : 3.2,
+          vary: 0.3,
           seed: hashString('sk' + tx + ':' + ty + ':' + k),
-          color: INK.line, alpha: 0.85,
+          color: INK.line, alpha: 1,
         });
       }
-      const rng = makeRng(hashString('skr' + tx + ':' + ty));
-      const n = 1 + Math.floor(rng() * 3);
-      for (let i = 0; i < n; i++) {
-        const x = x0 + (0.15 + rng() * 0.7) * TILE_SIZE;
-        const oy = y0 + 6 + rng() * 8;
-        risse.push([x, oy, x + (rng() - 0.5) * 6, oy + TILE_SIZE * (0.3 + rng() * 0.4)]);
+      /**
+       * Die Risse laufen über die GANZE Wand, nicht je Kachel.
+       *
+       * Vorher begann jeder Riss sechs Punkte unter der Kachelkante und
+       * war höchstens zwei Drittel einer Kachel lang. Bei einer zwei
+       * Kacheln hohen Wand ergab das zwei Reihen kurzer Striche
+       * übereinander – noch eine waagerechte Streifung in einer Fläche,
+       * die senkrecht gelesen werden soll.
+       */
+      const wand = wandStrecke(world, tx, ty);
+      if (ty === wand.oben) {
+        const rng = makeRng(hashString('skr' + tx + ':' + ty));
+        const yA = wand.oben * TILE_SIZE;
+        const hoch = (wand.unten - wand.oben + 1) * TILE_SIZE;
+        const n = 1 + Math.floor(rng() * 3);
+        for (let i = 0; i < n; i++) {
+          const x = x0 + (0.15 + rng() * 0.7) * TILE_SIZE;
+          const oy = yA + 8 + rng() * 10;
+          const laenge = hoch * (0.4 + rng() * 0.45);
+          risse.push([x, oy, x + (rng() - 0.5) * 8, oy + laenge]);
+        }
       }
     }
   }
@@ -16365,8 +16565,10 @@ function steilkantenTinte(g, world, tx0, ty0, ring) {
   g.save();
   g.lineCap = 'round';
   g.strokeStyle = INK.line;
-  g.globalAlpha = 0.3;
-  g.lineWidth = 1.9;
+  // Etwas kräftiger als zuvor (0,3): Auf der dunkleren Wand verschwanden
+  // die Risse sonst ganz, und ohne sie ist die Fläche eine Tapete.
+  g.globalAlpha = 0.38;
+  g.lineWidth = 2.1;
   g.beginPath();
   for (let i = 0; i < risse.length; i++) {
     const r = risse[i];

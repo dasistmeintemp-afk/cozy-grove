@@ -4760,28 +4760,58 @@ async function run() {
       x.drawImage(st.ink, 0, 0);
       const reihe = (y) => {
         const d = x.getImageData(0, y, st.size, 1).data;
-        let s = 0; let n = 0;
+        let s = 0; let n = 0; let min = 999;
         for (let i = 0; i < d.length; i += 4) {
           if (d[i + 3] < 120) continue;
-          s += d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
-          n++;
+          const h = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+          s += h; n++;
+          if (h < min) min = h;
         }
-        return n ? Math.round(s / n) : -1;
+        return n ? { mittel: Math.round(s / n), min: Math.round(min) } : { mittel: -1, min: -1 };
       };
       const yK = 26 * 64 - st.oy;
+      const tiefstes = (von, bis) => {
+        let m = 999;
+        for (let dy = von; dy <= bis; dy += 3) m = Math.min(m, reihe(yK + dy).min);
+        return m;
+      };
       return {
-        oben: reihe(yK - 26),
-        wand: reihe(yK + 30),
-        unten: reihe(yK + 96),
+        // Weit genug weg von der Kante: Die Flächenlage wird in halber
+        // Auflösung gemalt und weichgezeichnet, deshalb blutet die
+        // dunkle Wand rund eine halbe Kachel weit in die Wiese. Wer
+        // dichter misst, misst den Übergang und nicht die Wiese.
+        wieseOben: reihe(yK - 60).mittel,
+        wieseUnten: reihe(yK + 140).mittel,
+        kanteOben: tiefstes(-4, 4),
+        wandObenDrittel: reihe(yK + 20).mittel,
+        wandUntenDrittel: reihe(yK + 50).mittel,
+        kanteFuss: tiefstes(58, 80),
       };
     });
-    check('Zwischen zwei Ebenen steht eine dunkle Felswand',
-      stufen.oben - stufen.wand >= 45 && stufen.unten - stufen.wand >= 45,
-      JSON.stringify(stufen));
+    /**
+     * Was eine Klippe ausmacht – nachgemessen, nicht angenommen.
+     *
+     * Hier stand: „die Wand ist um 45 Stufen dunkler als beide Wiesen".
+     * Am Vorbild nachgemessen stimmt das nicht. Ein senkrechter Schnitt
+     * durch eine Klippe dort ergibt: Gras 143, dann eine fast schwarze
+     * Linie (5 bis 8), dann die WandFLÄCHE mit 217, 186, 180, 160 – also
+     * heller als das Gras darüber –, dann am Fuss wieder fast schwarz.
+     *
+     * Eine Klippe entsteht also nicht dadurch, dass die Fläche dunkel
+     * ist, sondern durch die beiden fast schwarzen KANTEN und dadurch,
+     * dass die Fläche dazwischen nach unten hin dunkler wird. Genau das
+     * wird jetzt geprüft.
+     */
+    check('Die Oberkante der Wand ist eine fast schwarze Linie',
+      stufen.kanteOben <= 45, JSON.stringify(stufen));
+    check('Und am Fuss steht noch eine',
+      stufen.kanteFuss <= 50, JSON.stringify(stufen));
+    check('Die Wandfläche wird nach unten dunkler',
+      stufen.wandObenDrittel - stufen.wandUntenDrittel >= 25, JSON.stringify(stufen));
     // Beide Wiesen müssen gleich hell bleiben: Die Höhe entsteht aus der
     // Wand dazwischen, nicht daraus, dass oben alles anders aussieht.
     check('Die Wiesen über und unter der Kante sehen gleich aus',
-      Math.abs(stufen.oben - stufen.unten) <= 14, JSON.stringify(stufen));
+      Math.abs(stufen.wieseOben - stufen.wieseUnten) <= 14, JSON.stringify(stufen));
 
     /* ---- Der Windbaum am Ufer ---- */
     // Zwei Dinge, und sie hängen nicht zusammen: dass die GRAFIK geneigt
