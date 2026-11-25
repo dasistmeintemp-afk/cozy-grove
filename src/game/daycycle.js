@@ -11,8 +11,32 @@ const KEYS = [
   { h: 8, color: '#ffd9a8', a: 0.10 },
   { h: 11, color: '#ffffff', a: 0.00 },
   { h: 16, color: '#ffffff', a: 0.00 },
-  { h: 18, color: '#f0a55c', a: 0.18 },
-  { h: 20, color: '#8a5f8c', a: 0.30 },
+  /**
+   * Die goldene Stunde – und warum sie DUNKLER sein muss, nicht nur
+   * oranger.
+   *
+   * Hier stand ein einziger Punkt: 18 Uhr, `#f0a55c`, Deckung 0,18.
+   * Gemessen am Bildschirm brachte das von mittags bis 18 Uhr eine
+   * Wärme (Rot minus Blau) von 31 auf 52 – und eine Helligkeit von 121
+   * auf 131. Der Abend wurde also HELLER als der Mittag. Das ist das
+   * Gegenteil von dem, was spätes Licht tut, und der Grund, warum man
+   * den Abend im Spiel nicht gesehen hat.
+   *
+   * Die Ursache ist Arithmetik, keine Geschmacksfrage. Eine Lasur
+   * rechnet `Ergebnis = Szene * (1-a) + Farbe * a`; sie kann nur dorthin
+   * ziehen, wo die Farbe steht. `#f0a55c` hat eine Helligkeit von 175,
+   * die Szene 121 – jede Deckung macht es heller, egal wie orange die
+   * Farbe ist. Eine Abendfarbe muss DUNKLER sein als die Szene und
+   * trotzdem mehr Rot als Blau haben.
+   *
+   * Drei Punkte statt einem, damit daraus ein Verlauf wird: erstes
+   * Warmwerden, der goldene Höhepunkt, und das Nachglühen, das schon
+   * ins Violette kippt, bevor die blaue Nacht übernimmt.
+   */
+  { h: 17.3, color: '#b0783e', a: 0.15 },
+  { h: 18.4, color: '#a86232', a: 0.31 },
+  { h: 19.3, color: '#7e4254', a: 0.46 },
+  { h: 20, color: '#63406e', a: 0.48 },
   /**
    * Die Nacht ist blau, nicht grau – und das ist eine Messung.
    *
@@ -72,6 +96,29 @@ export class DayCycle {
   /** Optisch dunkel: Laternen und Lagerfeuer leuchten (auch im Morgengrauen). */
   isDark() {
     return this.hour >= 19.5 || this.hour < 6.8;
+  }
+
+  /**
+   * Wie stark die goldene Stunde gerade ist – 0 bis 1.
+   *
+   * Die Tagesfärbung allein macht den Abend warm, aber nicht LEUCHTEND:
+   * Eine gleichmäßige Lasur zieht jeden Bildpunkt gleich weit zur
+   * Abendfarbe, und spätes Licht tut genau das nicht – es kommt flach
+   * von einer Seite. Daraus wird im Renderer ein warmer Schein, der von
+   * Westen her über die Szene läuft (siehe `_schraeglicht`).
+   *
+   * Die Kurve steigt ab 17 Uhr an, hat ihren Höhepunkt um 18:24 –
+   * dieselbe Stelle wie der wärmste Punkt der Tagesfärbung – und ist um
+   * 19:45 vorbei, bevor es wirklich dunkel wird. Dass sie VOR der
+   * Dunkelheit endet, ist kein Detail: Ein Schein, der in die Nacht
+   * hineinragt, sähe aus wie eine zweite Sonne.
+   */
+  goldeneStunde() {
+    const h = this.hour;
+    if (h <= 17 || h >= 19.75) return 0;
+    const t = h < 18.4 ? (h - 17) / 1.4 : 1 - (h - 18.4) / 1.35;
+    // Weich an beiden Enden, damit nichts einsetzt oder abreißt.
+    return Math.max(0, Math.min(1, t * t * (3 - 2 * t)));
   }
 
   /** Anteil 0..1 wie weit der Tag fortgeschritten ist. */

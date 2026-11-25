@@ -676,6 +676,52 @@ test('Tagesfärbung ist mittags neutral und nachts dunkel', () => {
   assert.ok(c.isDark());
 });
 
+test('Die goldene Stunde ist warm UND dunkler als die Szene', () => {
+  /**
+   * Beide Hälften sind nötig, und die zweite ist die, die gefehlt hat.
+   *
+   * Eine Lasur rechnet `Ergebnis = Szene * (1-a) + Farbe * a`; sie zieht
+   * das Bild dorthin, wo die Farbe steht. Die alte Abendfarbe `#f0a55c`
+   * hat eine Helligkeit von 175, die Szene misst 121 – jede Deckung
+   * machte den Abend also HELLER als den Mittag, egal wie orange die
+   * Farbe war. Gemessen auf dem Schirm: mittags 121, um 18 Uhr 131.
+   *
+   * Geprüft wird deshalb nicht „ist sie orange“, sondern beides: warm
+   * genug, um als Abendlicht zu gelten, und dunkel genug, um es nicht
+   * aufzuhellen. Die alte Farbe fällt an der zweiten Bedingung durch.
+   */
+  const c = new DayCycle(14);
+  c.hour = 18.4;
+  const gold = c.tint();
+  assert.ok(gold.r - gold.b > 80,
+    'zu kalt für Abendlicht: ' + JSON.stringify(gold));
+  const helligkeit = gold.r * 0.3 + gold.g * 0.59 + gold.b * 0.11;
+  assert.ok(helligkeit < 130,
+    'die Abendfarbe ist heller als die Szene (' + Math.round(helligkeit) + ')');
+  assert.ok(gold.a > 0.25, 'zu schwach, um etwas zu ändern');
+});
+
+test('Das Schräglicht kommt, geht – und ist vor der Nacht vorbei', () => {
+  // Ein Schein, der in die Dunkelheit hineinragt, sähe aus wie eine
+  // zweite Sonne. Er muss deshalb aufhören, bevor `isDark` greift.
+  const c = new DayCycle(14);
+  for (const h of [6, 13, 16.9, 21, 23]) {
+    c.hour = h;
+    assert.equal(c.goldeneStunde(), 0, h + ' Uhr: Schräglicht, wo keins hingehört');
+  }
+  c.hour = 18.4;
+  assert.ok(c.goldeneStunde() > 0.9, 'der Höhepunkt fehlt');
+  c.hour = 17.7;
+  const frueh = c.goldeneStunde();
+  assert.ok(frueh > 0.1 && frueh < 0.95, 'kein Anstieg, sondern ein Schalter');
+  // Und es endet, bevor es dunkel wird.
+  c.hour = 19.5;
+  assert.ok(c.isDark(), 'Prüfung hängt an der Dunkelheitsgrenze');
+  assert.ok(c.goldeneStunde() < 0.25, 'der Schein ragt in die Nacht');
+  c.hour = 19.8;
+  assert.equal(c.goldeneStunde(), 0);
+});
+
 test('Tageslauf lässt sich sichern', () => {
   const c = new DayCycle(9);
   c.day = 5;

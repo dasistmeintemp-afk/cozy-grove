@@ -1245,6 +1245,43 @@ export class Renderer {
   }
 
   /**
+   * Das Schräglicht der goldenen Stunde.
+   *
+   * **Was die Lasur nicht kann.** Die Tagesfärbung ist eine
+   * gleichmäßige Fläche: Sie zieht jeden Bildpunkt gleich weit zur
+   * Abendfarbe. Gemessen hat das gewirkt – Wärme (Rot minus Blau) von
+   * 31 mittags auf 72 um 18:24 –, und angesehen war es trotzdem kein
+   * Sonnenuntergang, sondern ein Bild mit einem Braunfilter. Es fehlte
+   * das, was spätes Licht ausmacht: Es kommt flach von EINER Seite.
+   *
+   * **Also ein Schein statt einer Lasur.** Ein waagerechter Verlauf,
+   * additiv gezeichnet (`lighter`) wie die Laternen nachts: Wo er liegt,
+   * wird es heller und wärmer, nicht brauner. Links stark, nach rechts
+   * auslaufend – die Sonne steht im Westen.
+   *
+   * **Kosten.** Eine Verlaufsfüllung auf der Lichtebene, und nur
+   * zwischen 17 und 19:45 Uhr. Die Ebene gibt es ohnehin; ein zweiter
+   * bildschirmgroßer Durchgang auf den SCHIRM wäre teuer gewesen, dieser
+   * hier kostet dasselbe wie der Dunstschleier daneben.
+   */
+  _schraeglicht(lc, game) {
+    const s = game.day.goldeneStunde ? game.day.goldeneStunde() : 0;
+    if (s <= 0.01) return;
+    const vor = lc.globalCompositeOperation;
+    lc.globalCompositeOperation = 'lighter';
+    const verlauf = lc.createLinearGradient(0, 0, this.w, this.h * 0.6);
+    // Drei Stützpunkte: Der Schein sitzt auf der Westseite und ist auf
+    // zwei Dritteln der Breite weg. Ein Verlauf über das ganze Bild
+    // hätte die Gegenseite mitgehoben und wäre wieder eine Lasur.
+    verlauf.addColorStop(0, 'rgba(255,186,96,' + (0.38 * s).toFixed(3) + ')');
+    verlauf.addColorStop(0.45, 'rgba(255,164,86,' + (0.15 * s).toFixed(3) + ')');
+    verlauf.addColorStop(1, 'rgba(255,150,80,0)');
+    lc.fillStyle = verlauf;
+    lc.fillRect(0, 0, this.w, this.h);
+    lc.globalCompositeOperation = vor;
+  }
+
+  /**
    * Tageszeit-Ton, Lichtkegel und Randabdunklung landen zusammen auf einer
    * Ebene. Ein einziger bildschirmgroßer Überzug statt zweier – auf schwachen
    * Geräten macht das den Unterschied.
@@ -1299,6 +1336,7 @@ export class Renderer {
       lc.fillRect(0, 0, this.w, this.h);
     }
     this._dunst(lc, { r: tr, g: tg, b: tb, a: ta });
+    this._schraeglicht(lc, game);
 
     if (game.day.isDark()) {
       this._world(lc, camX, camY);
