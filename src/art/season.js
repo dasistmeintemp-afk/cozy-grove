@@ -32,14 +32,14 @@ export const SEASON_PALETTE = {
     // Dieselbe Drehung wie im Sommer, nur vierzehn Grad: Der Frühling
     // darf heller und eine Spur gelber bleiben – junges Laub IST
     // gelblicher –, aber nicht mehr khakifarben.
-    grass: '#a9dd7a', grassLight: '#c7ec9f', grassDark: '#82bb59',
-    leaf: '#88d054', leafLight: '#b5e883', leafDark: '#5fa63c', leafDeep: '#3e7d29',
-    birchLeaf: '#abde6e', birchLight: '#cff09e', birchDark: '#81bb4f', birchDeep: '#5e9536',
+    grass: '#7fbe5e', grassLight: '#9bcb7e', grassDark: '#5ea144',
+    leaf: '#60b33e', leafLight: '#89c866', leafDark: '#3f8f2c', leafDeep: '#266c1d',
+    birchLeaf: '#80bf54', birchLight: '#a3ce7d', birchDark: '#5da13b', birchDeep: '#418027',
     // Der Ahorn treibt aus: junges Grün mit einem rötlichen Rand, wie die
     // Blüten echter Ahorne im März. Bliebe er herbstlich orange, stünden
     // mitten im Frühling zwei Dutzend Bäume herum, die tot aussehen.
     autumn: '#b7cf6a', autumnLight: '#d9e79a', autumnDark: '#8fae4a', autumnDeep: '#a06a4e',
-    moss: '#97c36d',
+    moss: '#72a855',
   },
   summer: {
     // Sattes, tiefes Grün – der Hochsommer soll nicht wie der Frühling
@@ -62,12 +62,38 @@ export const SEASON_PALETTE = {
      *
      * Jeder Ton wurde um sechzehn Grad gedreht und um sechs Punkte
      * gesättigt, die Helligkeit blieb unangetastet.
+     *
+     * **Nachtrag: die Helligkeit stimmte doch nicht.**
+     *
+     * Die erste Messung hatte den HSV-Wert verglichen – also nur den
+     * stärksten Kanal – und dort stand es 155 zu 156. Gemessen wurde
+     * danach die wahrgenommene Helligkeit derselben Grasflächen, und die
+     * stand 163 zu 135. Achtundzwanzig Punkte. Das ist der Unterschied
+     * zwischen einer Wiese und einer beleuchteten Wiese, und er erklärte
+     * auch den Tiefton: Bildpunkte unter Helligkeit 150 machten im
+     * Vorbild 56 Prozent aus, bei uns 29. Nicht weil dort mehr Tusche
+     * liegt, sondern weil hier alles zu hell war.
+     *
+     * Beide Fehler kommen aus derselben Quelle: HSV-Wert ist nicht
+     * Helligkeit. `#88cc60` und `#60cc88` haben denselben Wert und sehen
+     * verschieden hell aus, weil Grün dreimal so viel zur Helligkeit
+     * beiträgt wie Blau.
+     *
+     * Also ein zweites Mal gedreht und diesmal abgedunkelt: Wert mal
+     * 0,8, Ton acht Grad weiter, Sättigung fünfeinhalb Punkte höher.
+     * Danach Ton 94 gegen 97 Grad, Sättigung 48 gegen 49 Prozent,
+     * Helligkeit 133 gegen 135. Abdunkeln ALLEIN hatte es übrigens
+     * khakifarben gemacht – die Drehung und die Sättigung gehören dazu.
+     *
+     * Frühling und Herbst wurden mitgezogen (Wert mal 0,86 – beide
+     * dürfen heller bleiben als der Hochsommer), der Winter nicht: Er
+     * ist absichtlich hell und kühl.
      */
-    grass: '#88cc60', grassLight: '#aede85', grassDark: '#67a445',
-    leaf: '#65b83a', leafLight: '#95d467', leafDark: '#448c2b', leafDeep: '#2d6520',
-    birchLeaf: '#86c952', birchLight: '#b1e27e', birchDark: '#64a03c', birchDeep: '#467c29',
-    autumn: '#9dbb52', autumnLight: '#c3d883', autumnDark: '#77953a', autumnDeep: '#8a6a3c',
-    moss: '#7aac56',
+    grass: '#5ba344', grassLight: '#7bb260', grassDark: '#438330',
+    leaf: '#3d9326', leafLight: '#65a94a', leafDark: '#27701d', leafDeep: '#185115',
+    birchLeaf: '#58a139', birchLight: '#7cb45b', birchDark: '#408029', birchDeep: '#2b631c',
+    autumn: '#6e953a', autumnLight: '#8fad5e', autumnDark: '#527727', autumnDeep: '#6e5c2a',
+    moss: '#54893d',
   },
   autumn: {
     // Das Gras bleibt GRÜN, auch im Herbst.
@@ -84,12 +110,12 @@ export const SEASON_PALETTE = {
     // Im Herbst nur zehn Grad: Das Gras soll gelblicher bleiben als im
     // Sommer – sonst ist es kein Herbst –, aber auch hier war Khaki zu
     // viel des Guten.
-    grass: '#9bc15b', grassLight: '#bcd786', grassDark: '#7a9d44',
+    grass: '#75a645', grassLight: '#94b969', grassDark: '#5b8733',
     leaf: '#d8a94e', leafLight: '#eecb84', leafDark: '#b7822f', leafDeep: '#8d5a21',
     birchLeaf: '#e0c761', birchLight: '#f2e096', birchDark: '#b89b41', birchDeep: '#8e7530',
     // Im Herbst brennt der Ahorn – hier steht die Grundpalette, und genau
     // deshalb ist das die Jahreszeit, für die diese Insel gemalt wurde.
-    moss: '#a7b05c',
+    moss: '#849747',
   },
   winter: {
     // Kühl und hell, aber mit erkennbarem Grün: Bei #d3e0d4 lag die Sättigung

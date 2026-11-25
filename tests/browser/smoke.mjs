@@ -4731,8 +4731,16 @@ async function run() {
       };
       return { gras: profil(T.GRASS), sand: profil(T.SAND) };
     });
+    // Der Abstand zwischen oben und unten, nicht die Helligkeit oben.
+    //
+    // Hier stand `ueber >= 150`. Das hat die Prüfung an die HELLIGKEIT DER
+    // WIESE gebunden, obwohl sie von der Uferwand handelt – und als die
+    // Palette abgedunkelt wurde, fiel sie bei 141 um, ohne dass sich an
+    // der Wand irgendetwas geändert hätte. Eine Prüfung, die bei einer
+    // Farbänderung woanders umfällt, zeigt auf die falsche Stelle.
     check('Unter der Grasnarbe steht eine dunkle Wand im Wasser',
-      kante.gras.ueber >= 150 && kante.gras.dunkelste <= 100 && kante.gras.tiefe >= 25,
+      kante.gras.ueber - kante.gras.dunkelste >= 60
+      && kante.gras.dunkelste <= 100 && kante.gras.tiefe >= 25,
       JSON.stringify(kante.gras));
     // Und der Strand hat keine. Sand läuft flach ins Wasser – genau dieser
     // Unterschied macht aus „Insel mit Rand" eine Landschaft.

@@ -238,6 +238,23 @@ export function hasSprite(name) {
   return !!registry[name];
 }
 
+/**
+ * Die Zeichnung hinter einem Namen – mit derselben Rückfalllinie wie `spr`.
+ *
+ * Die Symbole im Beutel werden aus den Weltzeichnungen gebaut, und sie
+ * haben dafür lange direkt in die Ablage gegriffen. Das ging gut, bis die
+ * häufigen Dinge mehrere Fassungen bekamen: `flower_violet` heisst seitdem
+ * `flower_violet_0`, die Ablage kannte den blanken Namen nicht mehr, und
+ * weil die Schleife ihr Ergebnis nur bei Treffer verwendet, entstand
+ * stillschweigend KEIN Symbol. Im Spiel war das eine Aufgabe, die eine
+ * Blume verlangt und daneben ein Loch zeigt.
+ *
+ * `spr` konnte den Fall schon – nur hat niemand `spr` benutzt.
+ */
+function vorlage(name) {
+  return registry[name] || registry[name + '_0'] || null;
+}
+
 export function spriteNames() {
   return Object.keys(registry);
 }
@@ -736,7 +753,7 @@ function buildIcons() {
     ['hoehlenkristall', 'kristallader'],
   ];
   for (let i = 0; i < reuse.length; i++) {
-    const target = registry[reuse[i][1]];
+    const target = vorlage(reuse[i][1]);
     if (target) {
       addArt('icon_' + reuse[i][0], iconFromArt({
         color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
@@ -744,7 +761,7 @@ function buildIcons() {
     }
   }
   for (let i = 0; i < MEMORY_KINDS.length; i++) {
-    const target = registry['memory_' + MEMORY_KINDS[i]];
+    const target = vorlage('memory_' + MEMORY_KINDS[i]);
     const art = iconFromArt({
       color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
     });
@@ -755,7 +772,7 @@ function buildIcons() {
   // Saatbeutel: die Schnur trägt die Farbe der Pflanze
   for (let i = 0; i < CROP_IDS.length; i++) {
     const c = CROPS[CROP_IDS[i]];
-    const target = registry['seed_' + c.id];
+    const target = vorlage('seed_' + c.id);
     if (target) {
       addArt('icon_' + c.seed, iconFromArt({
         color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
@@ -764,14 +781,14 @@ function buildIcons() {
   }
   const tools = TOOL_ART;
   for (let i = 0; i < tools.length; i++) {
-    const target = registry['tool_' + tools[i]];
+    const target = vorlage('tool_' + tools[i]);
     addArt('icon_' + tools[i], iconFromArt({
       color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,
     }, { pad: 2 }), 1);
   }
   // Faltersymbole: die ausgebreitete Fassung, die liest sich klein am besten
   for (let i = 0; i < BUGS.length; i++) {
-    const target = registry[BUGS[i].id + '_0'];
+    const target = vorlage(BUGS[i].id);
     if (!target) continue;
     addArt('icon_' + BUGS[i].id, iconFromArt({
       color: target.c, line: target.g, w: target.w, h: target.h, ax: target.ax, ay: target.ay,

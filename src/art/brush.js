@@ -56,6 +56,30 @@ export const STRICH = 1.65;
  */
 export const SCHATTEN = 1.75;
 
+/**
+ * Wie kräftig Innenlinien auftragen – ein Faktor auf jede Deckkraft, die
+ * an `inkStroke` und `inkLine` übergeben wird.
+ *
+ * **Gemessen, nicht geschätzt.** Im Vergleichsbild (Lagerplatz, Hochsommer,
+ * Mittag) gegen die Vorlage war der Unterschied nicht die Zahl der Striche,
+ * sondern ihre Kraft. Anteil der Bildpunkte unter einer Helligkeit von …
+ *
+ *            40      60      80     100     120     150
+ *   Vorbild  4,6 %   9,0 %  16,1 %  22,2 %  28,9 %  55,6 %
+ *   vorher   0,2 %   2,0 %   5,6 %   8,4 %  13,3 %  29,1 %
+ *
+ * In unserem Bild war praktisch kein Schwarz. Die Striche lagen alle da –
+ * nur mit Deckkraft 0,3 bis 0,5 auf mittlerem Grün, und das ergibt eine
+ * Helligkeit um 110: sichtbar, wenn man danach sucht, aber eben keine
+ * Zeichnung. Eine Tuschezeichnung erkennt man am TIEFTON, nicht an der
+ * Strichzahl.
+ *
+ * Der Faktor sitzt an einer Stelle, weil 117 Maler sonst 117 Zahlen hätten
+ * und niemand sie gemeinsam verstellen könnte. Deckkraft 1 bleibt 1 – wer
+ * volle Tusche wollte, hatte sie schon.
+ */
+export const TINTE = 1.5;
+
 /* ------------------------------------------------------------------ Formen */
 
 /**
@@ -184,7 +208,7 @@ export function inkStroke(ctx, pts, opts) {
   if (n < 2) return;
 
   ctx.save();
-  ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
+  ctx.globalAlpha = o.alpha == null ? 1 : Math.min(1, o.alpha * TINTE);
   ctx.strokeStyle = o.color || TUSCHE;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';

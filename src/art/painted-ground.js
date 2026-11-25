@@ -205,8 +205,25 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
         }
         wctx.clip();
       }
-      wctx.globalAlpha = 0.2 + r() * 0.16;
-      wctx.fillStyle = ton < 0.4 ? INK.grassDark : ton < 0.75 ? INK.grassDry : INK.grassLight;
+      /**
+       * Die Felder müssen man SEHEN, sonst sind sie Rechenzeit.
+       *
+       * Vorher: Deckkraft 0,20 bis 0,36, und die drei Töne lagen alle
+       * dicht am Gras – grassDark ist gerade zwanzig Prozent dunkler.
+       * Übereinandergelegt und halbaufgelöst gebacken ergab das eine
+       * Wiese, die auf dem Bildschirm EIN Grünton war. Im Vorbild
+       * besteht der Boden sichtbar aus Zonen: hier ein ausgetrocknetes
+       * Stück, dort tiefer Schatten unter dem Laub.
+       *
+       * Also mehr Deckkraft und ein viertes, wirklich tiefes Grün. Der
+       * tiefe Ton bleibt der seltenste (ein Feld von fünf) und der
+       * blasseste in der Deckkraft – ein dunkler Fleck, den man als
+       * Fleck erkennt, wäre ein Loch in der Wiese.
+       */
+      const tief = ton < 0.2;
+      wctx.globalAlpha = tief ? 0.28 + r() * 0.12 : 0.38 + r() * 0.26;
+      wctx.fillStyle = tief ? INK.leafDeep
+        : ton < 0.48 ? INK.grassDark : ton < 0.78 ? INK.grassDry : INK.grassLight;
       pathFrom(wctx, smoothClosed(blob(mx, my, rx, ry,
         hashString('fb' + cx + ':' + cy), 0.2, 16), 6), true);
       wctx.fill();
@@ -236,7 +253,19 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
     // dreimal so viele Bäume geprüft wie nötig.
     const nah = world.queryNear(mx, my, CHUNK_PX * 0.5 + PAD + 150);
     wctx.save();
-    wctx.fillStyle = '#5d6b4e';
+    /**
+     * Der Kronenschatten musste mit der Wiese mitziehen.
+     *
+     * `#5d6b4e` hat Helligkeit 101. Solange das Gras bei 163 stand, war
+     * das ein Schatten; seit die Wiese auf 131 abgedunkelt ist, liegen
+     * nur noch dreissig Stufen dazwischen, und bei Deckkraft 0,15 blieb
+     * davon genau EINE Stufe Unterschied übrig. Eine Browserprüfung
+     * misst das und ist darüber gefallen – zu Recht: Ein Wald sah
+     * wieder aus wie Bäume auf einem Rasen.
+     *
+     * Die Farbe folgt also der Palette nach unten statt stehenzubleiben.
+     */
+    wctx.fillStyle = '#3a4a30';
     for (let i = 0; i < nah.length; i++) {
       const e = nah[i];
       if (e.gone || !e.kind) continue;
@@ -253,7 +282,7 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
       // stattdessen in den leicht verschiedenen Halbachsen.
       const hs = hashString('schatten' + Math.round(e.x) + ':' + Math.round(e.y));
       const r = 88 * (0.88 + ((hs >>> 7) & 255) / 255 * 0.26);
-      wctx.globalAlpha = 0.15;
+      wctx.globalAlpha = 0.2;
       wctx.beginPath();
       wctx.ellipse(e.x - LIGHT.x * 34, e.y - 22 - LIGHT.y * 12,
         r, r * (0.56 + ((hs >>> 17) & 255) / 255 * 0.14), 0, 0, 6.2832);
@@ -272,8 +301,8 @@ export function paintGroundChunk(world, ctx0, cty0, pfade) {
       if (!st) continue;
       const r = makeRng(hashString('tritt' + tx + ':' + ty));
       wctx.save();
-      wctx.globalAlpha = st === 2 ? 0.34 : 0.17;
-      wctx.fillStyle = INK.dirtDark;
+      wctx.globalAlpha = st === 2 ? 0.4 : 0.2;
+      wctx.fillStyle = INK.dirtPath;
       pathFrom(wctx, smoothClosed(blob(
         (tx + 0.5) * TILE_SIZE, (ty + 0.5) * TILE_SIZE,
         TILE_SIZE * (0.54 + r() * 0.18), TILE_SIZE * (0.5 + r() * 0.18),
@@ -1038,9 +1067,33 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
   g.lineJoin = 'round';
 
   if (grass.length) {
+    /**
+     * Zwei Durchgänge: erst ein dunkler Fuß, dann der helle Halm.
+     *
+     * Nebeneinander gelegt war das der auffälligste Unterschied am Boden.
+     * Im Vorbild ist jedes Büschel ein dunkler Fleck mit ein paar Spitzen
+     * darüber – man liest „Grasbüschel“ noch aus zehn Kacheln Entfernung.
+     * Bei uns lagen hellgraue Striche einzeln auf der Fläche; aus der
+     * Entfernung blieb davon ein Kratzer, kein Büschel.
+     *
+     * Der Fuß ist nur das untere Drittel jedes Halms, kräftig und breit.
+     * Dass er alle Halme eines Büschels an derselben Stelle überlagert,
+     * ist genau der Punkt: Aus drei Strichen wird ein Ding.
+     */
+    g.strokeStyle = INK.line;
+    g.globalAlpha = 0.17;
+    g.lineWidth = 2.6;
+    g.beginPath();
+    for (let i = 0; i < grass.length; i++) {
+      const b = grass[i];
+      g.moveTo(b[0], b[1]);
+      g.lineTo(b[0] + (b[2] - b[0]) * 0.34, b[1] + (b[3] - b[1]) * 0.34);
+    }
+    g.stroke();
+
     g.strokeStyle = INK.lineSoft;
-    g.globalAlpha = 0.42;
-    g.lineWidth = 1.7;
+    g.globalAlpha = 0.52;
+    g.lineWidth = 1.8;
     g.beginPath();
     for (let i = 0; i < grass.length; i++) {
       const b = grass[i];

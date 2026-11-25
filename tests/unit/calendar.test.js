@@ -214,6 +214,73 @@ test('Keine Jahreszeit ist grau', () => {
   applySeason('summer');
 });
 
+/**
+ * Wahrgenommene Helligkeit – NICHT der HSV-Wert.
+ *
+ * Genau diese Verwechslung hat die Palette eine Runde lang falsch
+ * stehen lassen: `#88cc60` und `#60cc88` haben denselben HSV-Wert und
+ * sehen verschieden hell aus, weil Grün rund sechsmal so viel zur
+ * Helligkeit beiträgt wie Blau. Gemessen wurde damals der Wert, und der
+ * stimmte – die Wiese war trotzdem achtundzwanzig Punkte zu hell.
+ */
+function helligkeit(r, g, b) {
+  return r * 0.3 + g * 0.59 + b * 0.11;
+}
+
+test('Die Wiese ist so hell wie eine Wiese, nicht wie eine Leuchtfläche', () => {
+  // Gemessen am Vorbild, auf dessen Grasflächen: Helligkeit 135. Unsere
+  // stand bei 163. Das war der grösste einzelne Unterschied zwischen den
+  // beiden Bildern – grösser als Strichzahl, Formen und Dichte zusammen,
+  // und er erklärte auch, warum uns der Tiefton fehlte: Wenn alles zu
+  // hell ist, liegt nichts im Dunkeln.
+  //
+  // Das Band ist weit genug für vier Jahreszeiten und eng genug, dass
+  // der alte Sommerwert (#88cc60, Helligkeit 172) durchfällt.
+  applySeason('summer');
+  const sommer = helligkeit.apply(null, rgb(INK.grass));
+  assert.ok(sommer > 118 && sommer < 148,
+    'Sommerwiese ' + INK.grass + ' hat Helligkeit ' + Math.round(sommer));
+
+  // Frühling und Herbst dürfen heller sein als der Hochsommer, aber sie
+  // gehören in dieselbe Familie – sonst springt das Bild beim Wechsel.
+  for (const id of ['spring', 'autumn']) {
+    applySeason(id);
+    const h = helligkeit.apply(null, rgb(INK.grass));
+    assert.ok(h > sommer && h < 165,
+      id + ': Wiese ' + INK.grass + ' hat Helligkeit ' + Math.round(h));
+  }
+
+  // Der Winter ist ausgenommen und zwar absichtlich: Er IST hell.
+  applySeason('winter');
+  assert.ok(helligkeit.apply(null, rgb(INK.grass)) > 180,
+    'der Winter soll hell bleiben');
+  applySeason('summer');
+});
+
+test('Das Grün liegt im Grün, nicht im Gelb', () => {
+  // Der Farbton des Vorbilds liegt bei 97 Grad, unserer bei 94. Bei 90
+  // Grad endet der Gelbsektor – ein Gras darunter liest sich als Senf,
+  // und weil es die halbe Bildfläche ausmacht, kippt das ganze Bild mit.
+  // Der Winter ist so entsättigt, dass sein Ton kaum bestimmt ist.
+  for (const id of ['spring', 'summer', 'autumn']) {
+    applySeason(id);
+    const [r, g, b] = rgb(INK.grass);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let ton = 0;
+    if (max !== min) {
+      if (max === r) ton = ((g - b) / (max - min)) % 6;
+      else if (max === g) ton = (b - r) / (max - min) + 2;
+      else ton = (r - g) / (max - min) + 4;
+      ton *= 60;
+      if (ton < 0) ton += 360;
+    }
+    assert.ok(ton > 90 && ton < 115,
+      id + ': Wiese ' + INK.grass + ' steht bei ' + Math.round(ton) + ' Grad');
+  }
+  applySeason('summer');
+});
+
 test('Auch der Farbschleier macht nichts grau', () => {
   // Über der Palette liegt seit den Jahreszeiten ein Farbton über dem ganzen
   // Bild. Er ist schwach, aber die Regel oben gilt für das, was man am Ende

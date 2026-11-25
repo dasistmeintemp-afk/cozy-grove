@@ -92,6 +92,17 @@ export const INK = {
   sandShade: '#ffe6ab',
   dirt: '#cdb185',
   dirtDark: '#9d8358',
+  /**
+   * Festgetretene Erde – dunkler als jede Wiese.
+   *
+   * `dirtDark` hat Helligkeit 134 und war als Trampelpfad gedacht. Das
+   * hat funktioniert, solange das Gras bei 163 lag; seit die Wiese auf
+   * 131 abgedunkelt ist, war der Weg exakt so hell wie das Gras daneben
+   * und damit unsichtbar. Ein eigener, tieferer Ton statt einer
+   * Zahlenschraube am Weg: `dirtDark` steht weiter für frisch
+   * umgegrabene Beete, wo genau diese Helligkeit richtig ist.
+   */
+  dirtPath: '#7a6240',
 
   water: '#42d2e0',
   waterLight: '#7cf2fa',
