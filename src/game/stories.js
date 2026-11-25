@@ -114,6 +114,18 @@ export const STORIES = {
     ],
     close: 'Jetzt kommt ja jemand. Das reicht mir.',
   },
+  silke: {
+    keepsake: 'keepsake_geode',
+    icons: ['icon_stone', 'icon_granite', 'icon_amber', 'icon_memory_geode'],
+    intro: 'Ich habe hier oben auf etwas gewartet. Frag nicht, worauf.',
+    lines: [
+      'Ich habe Steine aufgeschlagen, um zu sehen, was darin ist.',
+      'Die meisten sind innen wie außen. Das ist in Ordnung.',
+      'Einer war es nicht. Der hatte einen ganzen Himmel drin.',
+      'Die eine Hälfte habe ich behalten. Die andere habe ich verschenkt.',
+    ],
+    close: 'Jetzt ist jemand da, dem ich sie zeigen kann.',
+  },
 };
 
 /** Welche Weltgrafik ein Fundstück trägt. */
@@ -125,6 +137,7 @@ const PIECE_ART = {
   tobi: 'memory_music',
   nelly: 'memory_teacup',
   wanda: 'memory_shellchain',
+  silke: 'memory_geode',
 };
 
 /**

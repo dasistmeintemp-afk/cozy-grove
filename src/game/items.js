@@ -138,6 +138,7 @@ const LIST = [
   it('memory_ribbon', 'Haarband', CAT.MEMORY, 0, 0, { quest: true }),
   it('memory_teacup', 'Teetasse', CAT.MEMORY, 0, 0, { quest: true }),
   it('memory_shellchain', 'Muschelkette', CAT.MEMORY, 0, 0, { quest: true }),
+  it('memory_geode', 'Halbe Geode', CAT.MEMORY, 0, 0, { quest: true }),
 
   // Nur unter bestimmten Bedingungen zu finden – das ist der Grund, an einem
   // anderen Tag oder zu anderer Stunde wiederzukommen.
@@ -323,6 +324,8 @@ const LIST = [
     { prop: 'memory_teacup', charm: 10, keepsake: true }),
   it('keepsake_shellchain', 'Wandas Muschelkette', CAT.DECOR, 0, 0,
     { prop: 'memory_shellchain', charm: 10, keepsake: true }),
+  it('keepsake_geode', 'Silkes halbe Geode', CAT.DECOR, 0, 0,
+    { prop: 'memory_geode', charm: 10, keepsake: true }),
 ];
 
 const BY_ID = Object.create(null);

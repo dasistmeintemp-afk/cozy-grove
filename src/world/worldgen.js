@@ -74,14 +74,56 @@ export const REGION_NAMES = ['Lager & Strand', 'Wald', 'Klippen', 'Stille Insel'
 export const ALL_REGIONS = Object.keys(REGION).map(function (k) { return REGION[k]; });
 
 // Feste Bauwerke / Sperren
-export const RIVER_Y0 = M(37);
-export const RIVER_Y1 = M(41);
+/**
+ * Der Fluss zwischen Wald und Lager.
+ *
+ * Er war fünf Kacheln breit (plus Saum, also sieben Wasser) und lief
+ * über die GANZE Kartenbreite – quer durch das Meer und mitten durch
+ * die Inseln im Westen. Zusammen mit der Schlucht ergab das auf der
+ * Karte ein Kreuz, das die Welt in vier Viertel schnitt. Ein Fluss
+ * dieser Breite ist auch kein Fluss mehr, sondern eine Meerenge.
+ *
+ * Jetzt drei Kacheln, und nur dort, wo Land ist (siehe `carveRiver`).
+ */
+export const RIVER_Y0 = M(38);
+export const RIVER_Y1 = M(40);
 export const FORD_X0 = M(42);
 export const FORD_X1 = M(45);
-export const CHANNEL_X0 = M(59);
-export const CHANNEL_X1 = M(64);
-export const CHANNEL_Y0 = M(26);
-export const CHANNEL_Y1 = M(74);
+/**
+ * Die Schlucht zwischen Festland und Klippen – früher ein Meeresarm.
+ *
+ * Hier standen X0=59 und X1=64, also NEUN Kacheln Wasser quer durch das
+ * Land. Gemessen zerfiel die Welt damit in drei Massen: 60 Prozent
+ * Festland, 26 Prozent Klippen, 14 Prozent Stille Insel. Neun Kacheln
+ * offenes Wasser sind keine Schlucht, das ist eine Meerenge – und eine
+ * Meerenge macht aus einem Land zwei Inseln.
+ *
+ * Jetzt drei Kacheln. Das Tor bleibt: Ohne Brücke kommt man nicht
+ * hinüber, und das ist der Sinn der Sache. Aber man SIEHT die andere
+ * Seite, man erkennt sie als dasselbe Land, und der Bach unten in der
+ * Schlucht liest sich als Bach und nicht als See.
+ *
+ * Die Ufer werden Fels statt Sand (siehe `carveChannel`): Sand heißt
+ * Strand, und ein Strand heißt Meer. Fels heißt, dass hier etwas
+ * aufgerissen ist.
+ */
+export const CHANNEL_X0 = M(61);
+export const CHANNEL_X1 = M(63);
+/**
+ * Die Schlucht reicht über die volle Kartenhöhe – wie der Sund.
+ *
+ * Hier stand 26 bis 74, also ein Riss, der oben und unten im offenen
+ * Meer endete. Das war richtig, solange das Land dort nicht hinreichte.
+ * Mit den neuen, grösseren Kernen reicht es: Gemessen lag die ganze
+ * Welt plötzlich in EINER Masse mit 87 Prozent – man konnte unten um
+ * die Schlucht herumlaufen, und damit war die Brücke kein Tor mehr,
+ * sondern eine Abkürzung.
+ *
+ * Über die volle Höhe kostet nichts: Wo kein Land ist, ist ohnehin
+ * Wasser.
+ */
+export const CHANNEL_Y0 = 0;
+export const CHANNEL_Y1 = MAP_H - 1;
 export const BRIDGE_Y0 = M(49);
 export const BRIDGE_Y1 = M(51);
 
@@ -102,7 +144,12 @@ export const SOUND_X1 = M(21);
 /** Alles westlich davon gehört zur Stillen Insel. */
 export const ISLE_X1 = M(19);
 /** Wo das Boot anlegt – Festlandseite und Inselseite. */
-export const DOCK_TILE = { x: M(24), y: M(52) };
+/**
+ * Der Festlandanleger musste nach Osten: Mit den neuen Kernen liegt die
+ * Westküste weiter innen, und x = 24 war auf zwei von fünf Inselwürfen
+ * Wasser.
+ */
+export const DOCK_TILE = { x: M(27), y: M(52) };
 export const ISLE_DOCK_TILE = { x: M(14), y: M(52) };
 
 /**
@@ -120,12 +167,65 @@ export const ISLE_DOCK_TILE = { x: M(14), y: M(52) };
  * einem Ende zum anderen ist selbst schon etwas.
  */
 const LOBES = [
+  /**
+   * Das Festland – EIN Land, nicht eine Perlenkette.
+   *
+   * Hier standen drei Kerne: Lager, Wald, Klippen. Sie berührten sich
+   * kaum, und zwischen zwei Kernen entscheidet nur das Rauschen über
+   * Land oder Wasser – auf der Karte sah man drei Kreise an dünnen
+   * Hälsen. Gemessen zerfiel die Welt in drei Massen (60 / 26 / 14
+   * Prozent), und so sah sie auch aus: nach einem Archipel.
+   *
+   * Jetzt sieben Kerne, die sich ÜBERLAPPEN. Weil die Höhe das Maximum
+   * über alle Kerne ist, wird aus überlappenden Kreisen eine einzige
+   * Fläche mit unruhigem Rand – und aus sich berührenden Kreisen eine
+   * Kette. Der Unterschied ist genau der zwischen einem Land und
+   * mehreren Inseln.
+   *
+   * Die Schlucht schneidet den Osten davon ab (siehe `carveChannel`).
+   * Das ist Absicht und etwas anderes als vorher: Der Osten ist
+   * dieselbe Landmasse, nur mit einem Riss davor, den man ohne Brücke
+   * nicht überquert.
+   */
+  { x: M(40), y: M(22), r: M(20) },   // Wald – der Norden
+  { x: M(33), y: M(40), r: M(14) },   // Westflanke, schliesst die Lücke
+  { x: M(52), y: M(37), r: M(16) },   // Ostflanke des Nordens
   { x: M(44), y: M(60), r: M(21) },   // Lager / Strand
-  { x: M(40), y: M(20), r: M(17) },   // Wald
-  { x: M(79), y: M(50), r: M(14) },   // Klippen
-  { x: M(8), y: M(24), r: M(12) },    // Stille Insel – das Hochland im Norden
-  { x: M(8), y: M(46), r: M(10) },    // Stille Insel – die Mitte, wo Wanda steht
-  { x: M(9), y: M(67), r: M(11) },    // Stille Insel – der Süden
+  { x: M(62), y: M(65), r: M(17) },   // der Südosten, reicht bis an die Schlucht
+  /**
+   * Die Klippen – kleiner als beim ersten Entwurf.
+   *
+   * Mit r=15 und r=12 waren sie 2551 begehbare Kacheln, also fast so
+   * gross wie das Lager. Dort wohnt aber nur EIN Geist, und ein Farbkreis
+   * wächst in der Fläche: Um von Nelly aus die entfernteste Ecke zu
+   * erreichen, braucht er einen Radius von rund fünfzig Kacheln, und das
+   * meiste davon liegt im Meer. Gemessen verdoppelte das die Färbung der
+   * ganzen Insel von rund 330 auf 761 Aufträge.
+   *
+   * Ein Bereich darf nicht beliebig wachsen, solange sein Geist allein
+   * darin steht. Jetzt rund 1700 Kacheln – zwischen Wald (2576, zwei
+   * Geister) und den Inseln.
+   */
+  { x: M(79), y: M(50), r: M(10) },   // Klippen – jenseits der Schlucht
+  { x: M(75), y: M(68), r: M(7) },    // Klippen – der Südzipfel
+
+  /**
+   * Und die beiden Inseln im Westen.
+   *
+   * Vorher waren das drei Kerne in einer Reihe, die mit zwei
+   * aufgeschütteten Landengen zu einer langen Insel verbunden wurden –
+   * 1140 Kacheln, also ein zweites Festland mit eigenen Biomen und
+   * eigenem Grundstück. Auf der Karte las man trotzdem drei Inseln,
+   * weil die Landengen nur fünf Kacheln breit sind.
+   *
+   * Jetzt zwei getrennte Inseln ohne Landengen: Was ohnehin wie zwei
+   * Inseln aussah, IST jetzt zwei Inseln, und jede ist klein genug, um
+   * als Insel zu gelten. Die nördliche ist felsig (siehe `HIGHLAND_Y`)
+   * – dort steht der Granit, und das gibt ihr einen eigenen Grund,
+   * hinzufahren.
+   */
+  { x: M(9), y: M(48), r: M(11) },    // Wandas Insel
+  { x: M(9), y: M(17), r: M(9) },     // die Felseninsel im Norden
 ];
 
 /**
@@ -142,10 +242,7 @@ const LOBES = [
  * Landenge, über die man in fünf Schritten geht, ist ein Ort. Ein Kern, der
  * bis zum nächsten reicht, wäre nur eine große Scheibe.
  */
-const ISTHMUS = [
-  { x: M(8), y0: M(30), y1: M(42) },   // Hochland ↔ Mitte
-  { x: M(9), y0: M(51), y1: M(61) },   // Mitte ↔ Süden
-];
+const ISTHMUS = [];
 /** Halbe Breite einer Landenge: fünf Kacheln plus Saum. */
 const ISTHMUS_HALB = 2;
 
@@ -156,7 +253,21 @@ const ISTHMUS_HALB = 2;
  * nur mit der dritten Spitzhackenstufe kommt. Ein Bereich, der aussieht wie
  * jeder andere, ist kein neuer Bereich.
  */
-export const HIGHLAND_Y = M(36);
+/**
+ * Wo auf den Inseln der Fels anfaengt.
+ *
+ * Fruher lag die Grenze mitten in der einen langen Insel: Noerdlich davon
+ * Fels, suedlich Wiese. Jetzt sind es zwei Inseln, und die Grenze liegt
+ * im Wasser DAZWISCHEN – die noerdliche ist ganz aus Fels, die suedliche
+ * ganz aus Wiese.
+ *
+ * Das ist mehr als eine verschobene Zahl: Eine halb felsige Insel ist
+ * eine Insel mit einer Ecke; eine ganz felsige ist ein Ort. Gemessen lag
+ * der Felsanteil im alten Norden je nach Inselwurf zwischen 19 und 52
+ * Prozent – eine Pruefung hat die 19 gemeldet, weil der schmale Nordzipfel
+ * fast nur aus Strand bestand.
+ */
+export const HIGHLAND_Y = M(32);
 
 export function tileIndex(tx, ty) {
   return ty * MAP_W + tx;
@@ -535,7 +646,10 @@ const FLACHE_PLAETZE = [
   // Die Maße der Grundstücke wachsen NICHT mit (ein Garten ist ein
   // Garten), ihre Mittelpunkte schon.
   { x: CAMP_TILE.x, y: CAMP_TILE.y, hx: 17, hy: 12 },
-  { x: M(9), y: M(60), hx: 10, hy: 16 },
+  // Die Bucht ist mit der Insel nach Norden gewandert – siehe
+  // `ISLE_PLOT_TILE`. Blieb dieses Rechteck stehen, stand eine Felswand
+  // mitten im Inselgarten; eine Prüfung hat sie gefunden.
+  { x: M(10), y: M(54), hx: 10, hy: 16 },
 ];
 
 function nahAmLager(tx, ty) {
@@ -873,9 +987,28 @@ function billigsterDurchbruch(tiles, erreicht) {
   return weg;
 }
 
+/**
+ * Der Fluss – von der Westküste bis in die Schlucht.
+ *
+ * Drei Dinge waren falsch, und alle drei zusammen haben aus einem Land
+ * vier Viertel gemacht:
+ *
+ *   1. Er lief über die ganze Kartenbreite, also auch durch die Inseln
+ *      im Westen. Aus zwei Inseln wurden vier.
+ *   2. Er lief auch östlich der Schlucht weiter und hat damit die
+ *      Klippen noch einmal in zwei Hälften geschnitten.
+ *   3. Er mäanderte um ±3 Kacheln bei einer Breite von sieben – das
+ *      sieht man nicht, und was man nicht sieht, ist eine gerade Linie.
+ *      Zusammen mit der senkrechten Schlucht ergab das ein Kreuz.
+ *
+ * Jetzt: nur zwischen Sund und Schlucht, drei Kacheln breit, und mit
+ * einem Mäander von ±7 Kacheln auf einer längeren Welle. Die Mündung
+ * liegt im Westen, das obere Ende in der Schlucht – ein Fluss, der
+ * irgendwo anfängt und irgendwo hingeht, statt einer Trennlinie.
+ */
 function carveRiver(tiles, detail) {
-  for (let tx = 0; tx < MAP_W; tx++) {
-    const wobble = Math.round((fbm(detail, tx * F(0.12), 99, 3, 2, 0.5) - 0.5) * 3);
+  for (let tx = ISLE_X1 + 2; tx < CHANNEL_X0; tx++) {
+    const wobble = Math.round((fbm(detail, tx * F(0.055), 99, 2, 2, 0.5) - 0.5) * 14);
     const y0 = RIVER_Y0 + wobble;
     const y1 = RIVER_Y1 + wobble;
     for (let ty = y0 - 1; ty <= y1 + 1; ty++) {
@@ -900,7 +1033,9 @@ function carveChannel(tiles, detail) {
       const i = tileIndex(tx, ty);
       const edge = tx < CHANNEL_X0 + wobble || tx > CHANNEL_X1 + wobble;
       if (edge) {
-        if (tiles[i] === T.GRASS || tiles[i] === T.ROCKFLOOR || tiles[i] === T.DIRT) tiles[i] = T.SAND;
+        // Felsufer, kein Strand. Sand an einer Wasserkante liest sich als
+        // Meer; eine Schlucht hat Fels an den Seiten.
+        if (tiles[i] === T.GRASS || tiles[i] === T.DIRT) tiles[i] = T.ROCKFLOOR;
       } else {
         tiles[i] = T.WATER;
       }
@@ -908,8 +1043,8 @@ function carveChannel(tiles, detail) {
   }
   // Brücken-Anlandungen: links und rechts vom Kanal fester Boden
   for (let ty = BRIDGE_Y0; ty <= BRIDGE_Y1; ty++) {
-    for (let tx = CHANNEL_X0 - 3; tx < CHANNEL_X0; tx++) setLand(tiles, tx, ty, T.SAND);
-    for (let tx = CHANNEL_X1 + 1; tx <= CHANNEL_X1 + 3; tx++) setLand(tiles, tx, ty, T.SAND);
+    for (let tx = CHANNEL_X0 - 3; tx < CHANNEL_X0; tx++) setLand(tiles, tx, ty, T.ROCKFLOOR);
+    for (let tx = CHANNEL_X1 + 1; tx <= CHANNEL_X1 + 3; tx++) setLand(tiles, tx, ty, T.ROCKFLOOR);
   }
 }
 

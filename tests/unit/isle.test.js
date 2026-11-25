@@ -101,104 +101,125 @@ function erreichbarVon(tiles, sx, sy) {
   return gesehen;
 }
 
-test('Die Insel ist EINE Insel – vom Anleger kommt man überall hin', () => {
-  // Der teuerste Fehler dieses Spiels bisher, und er kam von der Vergrößerung
-  // selbst: Drei Kerne übereinander machen eine lange Insel, aber sie machen
-  // sie nicht zusammenhängend. Zwischen zwei Kernen entscheidet allein das
-  // Rauschen, und das ist ein Münzwurf je Kachel.
+/**
+ * Die Inseln im Westen – alle drei Prüfungen auf eine neue Form.
+ *
+ * Vorher war das EINE lange Insel aus drei Kernen, die mit zwei
+ * aufgeschütteten Landengen verbunden wurden. Die Prüfungen hier
+ * handelten entsprechend von Landengen, von der Länge der Insel und
+ * davon, dass man vom Anleger aus überall hinkommt.
+ *
+ * Jetzt sind es zwei getrennte Inseln ohne Landengen. Was dadurch
+ * wegfällt, ist die Frage, ob die Verbindung hält – es gibt keine
+ * mehr. Was bleibt, ist die Frage dahinter: Kommt man auf der Insel,
+ * auf der man landet, überall hin, und lohnt sich die Fahrt?
+ */
+function inselKacheln(tiles) {
+  let n = 0;
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      if (regionAt(tx, ty) === REGION.ISLE && isWalkable(tiles[tileIndex(tx, ty)])) n++;
+    }
+  }
+  return n;
+}
+
+test('Vom Anleger kommt man auf seiner Insel überall hin', () => {
+  // Der teuerste Fehler dieses Spiels bisher kam aus der alten Form:
+  // Zwischen zwei Kernen entschied allein das Rauschen über Land oder
+  // Wasser, und das Hochland war bei ALLEN geprüften Inselwürfen vom
+  // Anleger aus unerreichbar – Granit und Geoden lagen hinter Wasser,
+  // das kein Boot überquert.
   //
-  // Gemessen vor den Landengen: Das Hochland war bei ALLEN geprüften Seeds
-  // vom Anleger aus unerreichbar – Granit, Geoden und die vierte
-  // Spitzhackenstufe lagen hinter Wasser, das kein Boot überquert. Der Süden
-  // mit der Bucht war es bei zwei von acht: Wer sein Grundstück gekauft
-  // hatte, stand davor und kam nicht hin.
-  //
-  // Deshalb prüft dieser Test nicht die Form, sondern den Weg.
+  // Mit einem Kern je Insel kann das nicht mehr passieren. Geprüft wird
+  // es trotzdem, und zwar weiter über den WEG und nicht über die Form:
+  // Eine Prüfung, die nur bestätigt, was die Bauart ohnehin sicherstellt,
+  // kostet nichts – und sie fängt den Tag, an dem die Bauart sich ändert.
   for (const seed of SEEDS) {
     const welt = new World(seed).populate();
     const dock = welt.isleDock;
     assert.ok(dock, 'Seed ' + seed + ': kein Anleger auf der Insel');
-    const erreichbar = erreichbarVon(welt.tiles,
-      Math.floor(dock.x / TILE_SIZE), Math.floor(dock.y / TILE_SIZE));
+    const dtx = Math.floor(dock.x / TILE_SIZE);
+    const dty = Math.floor(dock.y / TILE_SIZE);
+    const erreichbar = erreichbarVon(welt.tiles, dtx, dty);
 
-    let land = 0;
-    let zuFuss = 0;
-    let hochland = 0;
-    let hochlandErreicht = 0;
-    let sueden = 0;
-    let suedenErreicht = 0;
+    // Die Insel, auf der der Anleger liegt: alles, was von dort aus
+    // zu Fuss zu erreichen ist.
+    let heimat = 0;
+    let fremd = 0;
     for (let ty = 0; ty < MAP_H; ty++) {
       for (let tx = 0; tx < MAP_W; tx++) {
         if (regionAt(tx, ty) !== REGION.ISLE) continue;
         if (!isWalkable(welt.tiles[tileIndex(tx, ty)])) continue;
-        land++;
-        const da = !!erreichbar[tileIndex(tx, ty)];
-        if (da) zuFuss++;
-        if (ty < HIGHLAND_Y) { hochland++; if (da) hochlandErreicht++; }
-        if (ty >= 53) { sueden++; if (da) suedenErreicht++; }
+        if (erreichbar[tileIndex(tx, ty)]) heimat++; else fremd++;
       }
     }
-    const anteil = zuFuss / land;
-    assert.ok(anteil > 0.95, 'Seed ' + seed + ': nur ' + Math.round(anteil * 100)
-      + ' % der Insel sind vom Anleger aus zu Fuß erreichbar');
-    // Die beiden Enden einzeln, denn sie tragen den Inhalt: im Norden das
-    // Hochland mit dem Granit, im Süden die Bucht mit dem Grundstück.
-    assert.ok(hochlandErreicht > hochland * 0.9, 'Seed ' + seed + ': das Hochland ist abgeschnitten ('
-      + hochlandErreicht + '/' + hochland + ')');
-    assert.ok(suedenErreicht > sueden * 0.9, 'Seed ' + seed + ': der Süden ist abgeschnitten ('
-      + suedenErreicht + '/' + sueden + ')');
+    assert.ok(heimat > 350, 'Seed ' + seed + ': vom Anleger aus nur ' + heimat
+      + ' Kacheln zu Fuss erreichbar');
+    // Und der Rest ist die ZWEITE Insel – nicht ein abgeschnittenes
+    // Stück der ersten. Beides unterscheidet sich hier nicht von selbst;
+    // die nächste Prüfung zählt deshalb die Massen.
+    assert.ok(fremd > 350, 'Seed ' + seed + ': die zweite Insel hat nur '
+      + fremd + ' Kacheln');
   }
 });
 
-test('Die Landengen sind Engen, keine zweite Insel', () => {
-  // Die Gegenprobe zur Verbindung: Würde man sie breit genug schütten, um
-  // sicher zu gehen, wären aus drei Kernen eine Scheibe geworden – und die
-  // Länge der Insel war der ganze Grund für die drei Kerne.
+test('Es sind zwei Inseln, nicht eine', () => {
+  /**
+   * Die Gegenprobe. Zwei Kerne, die nah genug beieinander liegen,
+   * wachsen über das Rauschen zusammen – und dann ist es wieder eine
+   * lange Insel, nur ohne Landengen.
+   *
+   * Gemessen: Auf allen geprüften Inselwürfen liegen zwischen den
+   * beiden Kernen mindestens vier Zeilen ohne eine einzige Landkachel
+   * im Westen.
+   */
   for (const seed of SEEDS) {
     const tiles = generateTiles(seed);
-    // Die Zeilen und die Grenze unten sind in Kacheln der alten
-    // 96er-Karte gedacht und werden mitskaliert: Die Geografie ist
-    // dieselbe, nur in einer größeren Einheit gemessen.
-    for (const ty of [M(36), M(56)]) {
-      let breite = 0;
-      for (let tx = 1; tx <= ISLE_X1; tx++) {
-        if (isWalkable(tiles[tileIndex(tx, ty)])) breite++;
-      }
-      assert.ok(breite >= 3, 'Seed ' + seed + ', Zeile ' + ty + ': nur ' + breite + ' Kacheln Land');
-      assert.ok(breite <= M(14), 'Seed ' + seed + ', Zeile ' + ty + ': ' + breite
-        + ' Kacheln breit – das ist keine Enge mehr');
-    }
-  }
-});
-
-test('Die Insel ist groß genug, dass sich die Fahrt lohnt', () => {
-  for (const seed of SEEDS) {
-    const tiles = generateTiles(seed);
-    let n = 0;
+    let leereZeilen = 0;
     for (let ty = 0; ty < MAP_H; ty++) {
-      for (let tx = 0; tx < MAP_W; tx++) {
-        if (regionAt(tx, ty) === REGION.ISLE && isWalkable(tiles[tileIndex(tx, ty)])) n++;
+      let land = 0;
+      for (let tx = 0; tx <= ISLE_X1; tx++) {
+        if (isWalkable(tiles[tileIndex(tx, ty)])) land++;
       }
+      // Nur die Zeilen ZWISCHEN den beiden Inseln zählen, nicht die
+      // leeren oben und unten.
+      if (land === 0 && ty > 30 && ty < 60) leereZeilen++;
     }
-    // Mit einem einzigen Kern hatte die Insel gemessen 182 bis 213 Kacheln –
-    // gegen 1227 im Lager und 526 auf den Klippen. Man stand nach zwei
-    // Minuten wieder am Boot. Mit drei Kernen sind es rund 900: mehr als die
-    // Klippen, weniger als das Lager. Die Untergrenze ist der eigentliche
-    // Punkt, die Obergrenze hält sie davon ab, die Karte zu schlucken.
-    // Die Zahlen sind FLÄCHEN und wachsen deshalb im Quadrat des
-    // Maßstabs, nicht linear. Bei 1,5 sind aus 600 bis 1200 Kacheln
-    // 1350 bis 2700 geworden; die Insel ist genauso groß wie vorher,
-    // gemessen am Rest der Karte.
-    const f = MASSSTAB * MASSSTAB;
-    assert.ok(n > 600 * f, 'Seed ' + seed + ': nur ' + n + ' Inselkacheln');
-    assert.ok(n < 1200 * f, 'Seed ' + seed + ': ' + n + ' Kacheln, das ist die halbe Karte');
+    assert.ok(leereZeilen >= 4, 'Seed ' + seed + ': nur ' + leereZeilen
+      + ' leere Zeilen zwischen den Inseln – sie wachsen zusammen');
   }
 });
 
-test('Die Insel ist lang, nicht rund', () => {
-  // Nach Osten kann sie nicht wachsen – dort liegt der Sund. Der Reiz ist
-  // die Strecke von Norden nach Süden; eine breitere Scheibe wäre nur mehr
-  // vom Gleichen an einer Stelle.
+test('Die Inseln sind gross genug, dass sich die Fahrt lohnt', () => {
+  for (const seed of SEEDS) {
+    const n = inselKacheln(generateTiles(seed));
+    /**
+     * Mit einem einzigen Kern hatte die alte Insel gemessen 182 bis 213
+     * Kacheln – man stand nach zwei Minuten wieder am Boot. Mit drei
+     * Kernen und Landengen waren es rund 1900 (bei Massstab 1,5), also
+     * ein zweites Festland.
+     *
+     * Jetzt zwei Inseln zu rund 700 und 500 Kacheln, zusammen gut 1200:
+     * jede für sich ein Ausflug, zusammen weniger als das Lager allein.
+     * Genau das war gewollt – Inseln, keine Kontinente.
+     */
+    assert.ok(n > 900, 'Seed ' + seed + ': nur ' + n + ' Inselkacheln zusammen');
+    assert.ok(n < 1800, 'Seed ' + seed + ': ' + n
+      + ' Kacheln – das sind wieder Festländer');
+  }
+});
+
+test('Die Inseln liegen weit auseinander, nicht übereinander', () => {
+  /**
+   * Früher hiess diese Prüfung „Die Insel ist lang, nicht rund" und
+   * verlangte über 50 Zeilen Höhe – der Reiz der alten Insel war die
+   * Strecke von Norden nach Süden.
+   *
+   * Zwei getrennte Inseln haben diesen Reiz anders: Es ist die Fahrt
+   * dazwischen. Geprüft wird deshalb, dass sie wirklich auseinander
+   * liegen und nicht als Doppelinsel direkt nebeneinander.
+   */
   for (const seed of SEEDS.slice(0, 8)) {
     const tiles = generateTiles(seed);
     let y0 = 1e9;
@@ -211,7 +232,8 @@ test('Die Insel ist lang, nicht rund', () => {
         if (ty > y1) y1 = ty;
       }
     }
-    assert.ok(y1 - y0 > 50, 'Seed ' + seed + ': nur ' + (y1 - y0 + 1) + ' Zeilen hoch');
+    assert.ok(y1 - y0 > 50, 'Seed ' + seed + ': beide Inseln zusammen nur '
+      + (y1 - y0 + 1) + ' Zeilen hoch');
   }
 });
 
@@ -398,11 +420,15 @@ test('Ein Meilenstein schließt die Insel auf', () => {
   assert.equal(alle.length, 1);
 });
 
-test('Wanda ist ein vollwertiger Geist, kein Anhängsel', () => {
+test('Die beiden Inselgeister sind vollwertig, keine Anhängsel', () => {
+  // Auf jeder der beiden Inseln wohnt genau eine – Wanda unten auf der
+  // grünen, Silke oben auf der felsigen. Dass es ZWEI sind, ist die
+  // Entscheidung hinter der neuen Weltform; dass jede alles hat, was ein
+  // Geist braucht, ist das, was diese Prüfung festhält.
+  assert.deepEqual(spiritsOfRegion(REGION.ISLE), ['wanda', 'silke']);
   const w = SPIRITS.wanda;
   assert.ok(w, 'Wanda gibt es');
   assert.equal(w.region, REGION.ISLE);
-  assert.deepEqual(spiritsOfRegion(REGION.ISLE), ['wanda']);
   assert.ok(w.questTypes.length >= 5, 'sie stellt eigene Bitten');
   assert.ok(w.likes.length > 0);
 

@@ -51,6 +51,10 @@ const THANKS = {
     'Das Wasser war still gestern. Ich habe dein Boot kommen hören.',
     'Angeschwemmt. Für dich aufgehoben.',
   ],
+  silke: [
+    'Ein Stück ist aus der Wand gefallen. Es war zu schön zum Liegenlassen.',
+    'Oben am Grat lag etwas. Jetzt liegt es bei dir.',
+  ],
 };
 
 /**

@@ -196,6 +196,8 @@ export const HINTS = {
   bambus: 'Aus den Bambushainen der feuchten Zone, mit der Axt.',
   knochen: 'Liegt in der Wüste. Einmal gefunden, bleibt er weg.',
   kaktusfeige: 'Von den Feigenkakteen der Wüste. Mit der Hand.',
+  memory_geode: 'Silke zeigt sie dir, wenn du sie gut genug kennst.',
+  keepsake_geode: 'Silkes Andenken, am Ende ihrer Geschichte.',
   amber: 'Aus Geoden im Hochland, ab Spitzhacke Stufe 4.',
   table: 'Aus dem Katalog – kommt am nächsten Morgen mit der Post.',
   chair: 'Aus dem Katalog.',

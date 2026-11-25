@@ -183,6 +183,20 @@ export const PLAUDEREI = {
     gemuetlich: ['Es ist fast ein Zuhause geworden.', 'Schön, was hier steht.'],
     kahl: ['Nur Sand und ich.', 'Hier war noch nie viel.'],
   },
+  silke: {
+    regen: ['Der Fels wird dunkel, wenn er nass ist.', 'Es tropft in die Spalten.'],
+    nebel: ['Jetzt ist die Insel nur noch Fels und Weiß.', 'Man hört sich selbst.'],
+    schnee: ['Er bleibt auf dem Grat liegen. Unten nicht.', 'Weiß auf Grau. Mir gefällt das.'],
+    spring: ['In den Ritzen wird es grün. Jedes Jahr wieder.', 'Sogar hier oben.'],
+    summer: ['Der Stein hält die Wärme bis in die Nacht.', 'Heute ist es fast gemütlich.'],
+    autumn: ['Der Wind nimmt wieder zu.', 'Es riecht nach Regen über dem Wasser.'],
+    winter: ['Alles hart. Auch ich.', 'Jetzt kommt lange niemand.'],
+    morgen: ['Die Sonne trifft zuerst meinen Grat.', 'Früh dran heute.'],
+    nacht: ['Die Sterne stehen hier näher.', 'Unten brennt euer Feuer. Hübsch.'],
+    freund: ['Du fährst den weiten Weg. Das rechne ich an.', 'Du kommst ja doch.'],
+    gemuetlich: ['Wer hätte gedacht, dass Fels gemütlich wird.', 'Es sieht bewohnt aus.'],
+    kahl: ['Stein, Stein, Stein.', 'Hier war noch nie etwas.'],
+  },
 };
 
 export const PLAUDER_IDS = Object.keys(PLAUDEREI);

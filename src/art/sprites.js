@@ -98,6 +98,7 @@ export const SPIRIT_LOOKS = {
   nelly: { fur: '#ded2e6', furShade: '#b9a9c6', accent: '#e8c34c', ears: 'long', hat: 'bow', blink: true },
   tobi: { fur: '#ecdcb8', furShade: '#c8b48c', accent: '#5b8c9a', ears: 'pointed', hat: 'glasses', blink: true },
   wanda: { fur: '#c6d9d6', furShade: '#9db8b4', accent: '#e2a24c', ears: 'long', hat: 'scarf', blink: true },
+  silke: { fur: '#bfbcc9', furShade: '#9a97a8', accent: '#7fb0c4', ears: 'pointed', hat: 'cap', blink: true },
 };
 
 /**

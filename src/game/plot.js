@@ -66,16 +66,38 @@ export const MAX_PLOT_STAGE = PLOT_STAGES.length;
  * das Rechteck um (9|60) zu rund drei Vierteln Land, und das ist der beste
  * Wert, den die schmale Insel hergibt.
  */
-export const ISLE_PLOT_TILE = { x: Math.round(9 * MASSSTAB), y: Math.round(60 * MASSSTAB) };
+/**
+ * Die Bucht lag im Südzipfel der alten, langen Insel – den gibt es
+ * nicht mehr. Seit die Insel ein einziger Kern ist, liegt y = 60 (also
+ * Kachel 90) auf allen geprüften Inselwürfen im Wasser: Eine Prüfung
+ * meldete „erste Stufe nur 94 Kacheln Land". Jetzt in der Südhälfte des
+ * Kerns, weit genug von Wanda entfernt, dass man sich nicht ins Gehege
+ * kommt.
+ */
+export const ISLE_PLOT_TILE = { x: Math.round(10 * MASSSTAB), y: Math.round(54 * MASSSTAB) };
 
 export const ISLE_PLOT_STAGES = [
   { id: 1, name: 'Die Bucht', halfW: 6, halfH: 7, coins: 1000,
     note: 'Ein Stück Ufer, das dir gehört.' },
   { id: 2, name: 'Der Hain', halfW: 7, halfH: 10, coins: 3000,
     note: 'Bis an die Kiefern heran.' },
-  { id: 3, name: 'Die Wiese', halfW: 8, halfH: 12, coins: 7500,
+  { id: 3, name: 'Die Wiese', halfW: 8, halfH: 11, coins: 7500,
     note: 'Genug für einen Garten, der etwas darstellt.' },
-  { id: 4, name: 'Die ganze Bucht', halfW: 9, halfH: 15, coins: 16000,
+  /**
+   * Die letzte Stufe: kleiner und teurer als vorher.
+   *
+   * KLEINER, weil die Insel geschrumpft ist. Mit halbH 15 reichte das
+   * Grundstück über die Südküste hinaus – gemessen waren je nach
+   * Inselwurf nur 66 bis 79 Prozent davon überhaupt Land. Wer das
+   * teuerste Stück des Spiels kauft, soll kein Wasser mitkaufen.
+   *
+   * TEURER, weil mit Silke Schiefer ein achter Geist dazugekommen ist.
+   * Ein Geist mehr heisst eine Bitte mehr am Tag, also mehr Einkommen;
+   * gemessen kostete das grösste Ziel damit nur noch 7,6 statt der
+   * geforderten acht vollen Tage. Eine Prüfung hält genau das fest,
+   * denn daran hängt das ganze späte Spiel.
+   */
+  { id: 4, name: 'Die ganze Bucht', halfW: 8, halfH: 13, coins: 18000,
     note: 'Von der Landzunge bis zum Wald.' },
 ];
 

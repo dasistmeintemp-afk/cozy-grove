@@ -141,7 +141,21 @@ export const SPIRITS = {
     region: 2,
     role: 'Klippen',
     colorStart: R(240),
-    colorArea: A(151000),
+    /**
+     * Mehr Fläche je Auftrag als alle anderen – sie ist allein.
+     *
+     * Hier stand 151000, dasselbe wie bei den meisten. Das stimmte,
+     * solange die Klippen der kleinste Bereich waren. Nach dem Umbau
+     * sind es rund 1700 Kacheln für EINEN Geist, während sich im Wald
+     * zwei 2576 teilen und im Lager drei 3216 – 1700 gegen 1288 gegen
+     * 1072 Kacheln je Geist.
+     *
+     * Dazu kommt die Form: Ihr Bereich ist lang und schmal und liegt am
+     * Meer. Ein Kreis, der die entfernteste Ecke erreichen soll, legt
+     * das meiste seiner Fläche auf Wasser. Gemessen stand die Insel bei
+     * Auftrag 300 überall auf 87 Prozent und auf den Klippen auf 67.
+     */
+    colorArea: A(240000),
     // 'cook': „Ich habe für alle gedeckt. Auch für die, die nicht kommen."
     questTypes: ['find', 'visit', 'decorate', 'craft', 'gather', 'cook', 'set', 'grow', 'deliver'],
     // Bernstein dazu: Sie wohnt oben am Stein, ihr Lieblingsstück ist der
@@ -179,6 +193,53 @@ export const SPIRITS = {
       greet: ['Wer rudert denn da?', 'Still hier, nicht?', 'Ich zähle Wellen.'],
       thanks: ['Oh, schön.', 'Das hebe ich auf.', 'Danke, wirklich.'],
       wait: ['Ich warte gern.', 'Noch nicht.'],
+      full: ['Genug für heute.'],
+    },
+  },
+  /**
+   * Silke Schiefer – die Geisterin der Felseninsel.
+   *
+   * Sie ist dazugekommen, als aus der einen langen Stillen Insel zwei
+   * kleine wurden. Das war kein Schmuck, sondern nötig: Eine Insel ohne
+   * Geist bekommt nie Farbe. Gemessen brauchte das Spiel mit der
+   * geistlosen Nordinsel 761 Aufträge bis zur vollen Färbung statt
+   * rund 330 – die letzten Prozente lagen dort drüben und warteten auf
+   * jemanden, der nie kam.
+   *
+   * Ihr Kreis beginnt gross wie Wandas und aus demselben Grund: Sie ist
+   * allein auf ihrer Insel, und ein winziger Farbfleck im Nichts sähe
+   * verloren aus. Ihre Insel ist die kleinste von allen, also deckt er
+   * sie fast ab – das ist richtig so, denn es gibt sonst niemanden.
+   *
+   * Was sie mag, kommt von ihrem Fels: Granit, Bernstein aus den Geoden,
+   * Ton aus den Spalten. Sie ist die einzige, der man Steine schenken
+   * kann, ohne dass es wie eine Verlegenheit wirkt.
+   */
+  silke: {
+    id: 'silke',
+    // Oktober. Jeder Geist hat seinen eigenen Monat – eine Prüfung
+    // verlangt das, damit nicht zwei Feste auf einmal kommen. Februar
+    // war schon vergeben.
+    geburtstag: { monat: 9, tag: 26 },
+    name: 'Silke Schiefer',
+    art: 'spirit_silke',
+    region: 3,
+    role: 'Felseninsel',    name: 'Silke Schiefer',
+    art: 'spirit_silke',
+    region: 3,
+    role: 'Felseninsel',
+    colorStart: R(340),
+    colorArea: A(152000),
+    // Kein 'gather_beach': Ihre Insel hat fast keinen Strand, und eine
+    // Bitte, für die man erst zurückfahren muss, ist eine Bitte wie
+    // jede andere – genau das soll sie nicht sein.
+    questTypes: ['mine', 'find', 'visit', 'craft', 'cook', 'set', 'deliver', 'fish'],
+    likes: ['stone', 'granite', 'amber', 'clay', 'hoehlenkristall'],
+    favourite: 'amber',
+    lines: {
+      greet: ['Der Fels hört zu.', 'Du schon wieder. Gut.', 'Hier oben ist Wind.'],
+      thanks: ['Das legt sich gut.', 'Schwer. Schön.', 'Danke.'],
+      wait: ['Stein hat Zeit.', 'Noch nicht.'],
       full: ['Genug für heute.'],
     },
   },

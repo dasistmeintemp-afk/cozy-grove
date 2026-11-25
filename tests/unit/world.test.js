@@ -65,16 +65,38 @@ test('Lager liegt auf begehbarem Boden', () => {
 
 test('Fluss trennt Lager und Wald, die Furt verbindet sie', () => {
   const tiles = generateTiles(SEED);
-  // Auf Höhe des Flusses ausserhalb der Furt ist Wasser
-  let waterOutsideFord = 0;
+  /**
+   * Geprüft wird die SPALTE, nicht eine Zeile.
+   *
+   * Hier stand: Auf der mittleren Flusszeile ist überall Wasser. Das
+   * stimmte, solange der Fluss schnurgerade lief. Seit er um ±7 Kacheln
+   * mäandert, liegt er an manchen Stellen gar nicht mehr auf dieser
+   * Zeile – die Prüfung meldete 29 von 40 und hatte recht: An elf
+   * Stellen war die mittlere Zeile Land. Nur eben nicht, weil der Fluss
+   * ein Loch hat, sondern weil er woanders fliesst.
+   *
+   * Die Frage ist nicht „liegt auf Zeile Y Wasser", sondern „kommt man
+   * in dieser Spalte durch". Also: In jeder Spalte ausserhalb der Furt
+   * muss irgendwo im Flussband etwas Unpassierbares liegen.
+   *
+   * Erst ab Spalte 32 – westlich davon liegen die beiden Inseln, und
+   * dort gibt es keinen Fluss.
+   */
+  const bandOben = RIVER_Y0 - 9;
+  const bandUnten = RIVER_Y1 + 9;
+  let dicht = 0;
   let checked = 0;
-  for (let tx = 20; tx < 60; tx++) {
+  for (let tx = 32; tx < 60; tx++) {
     if (tx >= FORD_X0 && tx <= FORD_X1) continue;
-    const mid = Math.floor((RIVER_Y0 + RIVER_Y1) / 2);
     checked++;
-    if (isWater(tiles[tileIndex(tx, mid)]) || !isWalkable(tiles[tileIndex(tx, mid)])) waterOutsideFord++;
+    let sperre = false;
+    for (let ty = bandOben; ty <= bandUnten; ty++) {
+      const t = tiles[tileIndex(tx, ty)];
+      if (isWater(t) || !isWalkable(t)) { sperre = true; break; }
+    }
+    if (sperre) dicht++;
   }
-  assert.equal(waterOutsideFord, checked, 'Flussband ist durchgehend unpassierbar');
+  assert.equal(dicht, checked, 'Flussband ist durchgehend unpassierbar');
 
   // Die Furt selbst ist Land
   for (let tx = FORD_X0; tx <= FORD_X1; tx++) {

@@ -141,6 +141,26 @@ test('Gerodet gibt das Grundstück wirklich Bauplatz her', () => {
       const ty = Math.floor(e.y / TILE_SIZE);
       if (tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H) belegt[tileIndex(tx, ty)] = 1;
     }
+    /**
+     * Der Vergleich gilt dem LAGER, nicht der ganzen Welt.
+     *
+     * Die Variable hiess schon immer `lager`, umfasste aber die komplette
+     * Karte. Das war unauffällig, solange die Welt überall gleich dicht
+     * bewachsen war. Mit Wüste und Steppe gibt es jetzt von Natur aus
+     * weite freie Flächen – auf einem Inselwurf fand die Prüfung dort ein
+     * freies Quadrat von neun Kacheln und meldete, das Roden lohne sich
+     * nicht.
+     *
+     * Sie hat damit Freiflächen verglichen, auf denen man gar nicht bauen
+     * darf. Gebaut wird auf dem Grundstück, und die Frage ist, ob das
+     * Roden dort mehr bringt als das, was einem zu Hause ohnehin frei
+     * zur Verfügung steht.
+     */
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
+        if (regionAt(tx, ty) !== REGION.CAMP) belegt[tileIndex(tx, ty)] = 1;
+      }
+    }
     const lager = { x0: 1, y0: 1, x1: MAP_W - 2, y1: MAP_H - 2 };
     const vorher = groesstesQuadrat(world, lager, belegt);
 
@@ -257,7 +277,12 @@ test('Die Bucht gibt wirklich Bauplatz her', () => {
     const b = islePlotBounds(MAX_ISLE_PLOT_STAGE);
     const flaeche = (b.x1 - b.x0 + 1) * (b.y1 - b.y0 + 1);
     assert.ok(klein > 100, 'Seed ' + seed + ': erste Stufe nur ' + klein + ' Kacheln Land');
-    assert.ok(gross > 380, 'Seed ' + seed + ': volle Bucht nur ' + gross + ' Kacheln Land');
+    // 380 war an das alte, grössere Rechteck gerechnet (19×31 Kacheln).
+    // Seit die Insel kleiner ist, ist auch das Grundstück kleiner – 17×27
+    // –, und der absolute Wert musste mit. Die Aussage, auf die es
+    // ankommt, steht in der nächsten Zeile und ist unverändert: Mehr als
+    // sechzig Prozent davon muss Land sein. Gemessen 69 bis 84 Prozent.
+    assert.ok(gross > 280, 'Seed ' + seed + ': volle Bucht nur ' + gross + ' Kacheln Land');
     assert.ok(gross / flaeche > 0.6,
       'Seed ' + seed + ': nur ' + Math.round(gross / flaeche * 100) + '% davon ist Land');
     assert.ok(gross > klein, 'Seed ' + seed + ': Ausbauen bringt nichts');

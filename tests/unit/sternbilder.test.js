@@ -95,10 +95,14 @@ test('höchstens eines je Nacht, und jedes nur einmal', function () {
   assert.equal(gefunden(stand, zweit.id), false);
 });
 
-test('alle sieben sind über sieben Nächte erreichbar – und dann ist Schluss', function () {
+test('alle sind über ebenso viele Nächte erreichbar – und dann ist Schluss', function () {
+  // Die Zahl kommt aus der Liste, nicht aus dem Namen der Prüfung: Mit
+  // Silke Schiefer kam ein achtes Sternbild dazu, und „sieben“ stand an
+  // drei Stellen hier drin.
+
   let stand = emptySternbilder();
   const gesehen = [];
-  for (let nacht = 1; nacht <= 12; nacht++) {
+  for (let nacht = 1; nacht <= STERNBILDER.length + 5; nacht++) {
     const sb = faelligesSternbild(stand, NACHT, nacht, ALLES);
     if (!sb) continue;
     gesehen.push(sb.id);
@@ -110,7 +114,8 @@ test('alle sieben sind über sieben Nächte erreichbar – und dann ist Schluss'
   // Danach kommt nichts mehr – und zwar `null` und nicht etwa wieder das
   // erste.
   assert.equal(faelligesSternbild(stand, NACHT, 99, ALLES), null);
-  assert.deepEqual(sternbilderStand(stand), { gefunden: 7, gesamt: 7 });
+  assert.deepEqual(sternbilderStand(stand),
+    { gefunden: STERNBILDER.length, gesamt: STERNBILDER.length });
 });
 
 test('ein Sternbild gibt nichts her', function () {

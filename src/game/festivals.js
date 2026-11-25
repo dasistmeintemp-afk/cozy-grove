@@ -166,6 +166,7 @@ export const FEST_SATZ = {
     tobi: 'Ich habe versucht, eine zu bauen. Ging nicht.',
     nelly: 'Ich habe mir welche ins Haar gesteckt. Sieht man es?',
     wanda: 'Sogar hier drüben treibt heute etwas an.',
+    silke: 'Der Fels ist heute warm. Das kommt selten vor.',
   },
   sonnwend: {
     flamey: 'Heute bin ich der Kleinste. Die Sonne ist größer.',
@@ -175,6 +176,7 @@ export const FEST_SATZ = {
     tobi: 'Vierzehn Stunden Licht. Vierzehn Stunden Werkstatt!',
     nelly: 'Von hier oben sieht man die Sonne kaum untergehen.',
     wanda: 'Das Wasser glüht bis spät. Bleib doch.',
+    silke: 'Von hier oben sieht man jedes Licht. Auch eures.',
   },
   ernte: {
     flamey: 'Alle bringen was. Ich halte das Feuer.',
@@ -184,6 +186,7 @@ export const FEST_SATZ = {
     tobi: 'Ich habe die Tische gebaut. Sie halten. Wahrscheinlich.',
     nelly: 'Ich habe für alle gedeckt. Auch für die, die nicht kommen.',
     wanda: 'Drüben ist Fest. Ich höre es bis hierher.',
+    silke: 'Ich feiere mit. Nur leiser.',
   },
   lichter: {
     flamey: 'Die längste Nacht! Da bin ich wichtig.',
@@ -193,6 +196,7 @@ export const FEST_SATZ = {
     tobi: 'Ich habe alle Lampen nachgesehen. Alle gehen.',
     nelly: 'Ich zähle heute die Lichter. Es sind mehr als letztes Jahr.',
     wanda: 'Ich sehe euer Feuer von hier aus. Das reicht mir heute.',
+    silke: 'Mein Fels glitzert heute. Das muss als Fest reichen.',
   },
   // Am Heiligabend stehen sie alle am selben Feuer – der einzige Abend im
   // Jahr, an dem das so ist. Die Sätze sind deshalb nicht an ihren Orten
@@ -205,6 +209,7 @@ export const FEST_SATZ = {
     tobi: 'Ich habe nichts gebaut heute. Fühlt sich komisch an. Gut komisch.',
     nelly: 'Ich habe für alle gedeckt. Heute kommen auch alle.',
     wanda: 'Ich bin den ganzen Weg herübergekommen. Sag nichts.',
+    silke: 'Ich bin von meinem Fels heruntergestiegen. Einmal im Jahr geht das.',
   },
 };
 

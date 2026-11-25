@@ -48,6 +48,17 @@ function landmassen(welt) {
   return massen;
 }
 
+/**
+ * Was gross genug ist, um zu tragen – dieselbe Grenze wie `festerBoden`.
+ *
+ * Hier stand vorher „die ersten DREI Massen sind Land, alles danach ist
+ * Fetzen". Die Drei war richtig, solange die Welt aus Festland, Klippen
+ * und Stiller Insel bestand; seit die Stille Insel in zwei kleine Inseln
+ * zerlegt ist, sind es vier – und die Prüfung hätte eine davon als
+ * Sandbank behandelt. Eine getippte Zahl ist eine Annahme über die
+ * Weltform; abgeleitet ist sie eine Aussage über die Regel.
+ */
+const MINDEST = 200;
 test('Sandbänke gelten nicht als fester Boden', () => {
   // Die eigentliche Prüfung: Jede Kachel jedes abgetrennten Fetzens
   // muss abgelehnt werden. Nicht „die meisten" – jede einzelne, denn
@@ -55,9 +66,8 @@ test('Sandbänke gelten nicht als fester Boden', () => {
   let geprueft = 0;
   for (const seed of SEEDS) {
     const welt = new World(seed).populate();
-    const massen = landmassen(welt);
-    // Die drei großen Landmassen sind das Festland, alles danach Fetzen.
-    for (let m = 3; m < massen.length; m++) {
+    const massen = landmassen(welt).filter(function (m) { return m.length < MINDEST; });
+    for (let m = 0; m < massen.length; m++) {
       for (const [tx, ty] of massen[m]) {
         geprueft++;
         assert.equal(welt.festerBoden((tx + 0.5) * TILE_SIZE, (ty + 0.5) * TILE_SIZE), false,
@@ -75,8 +85,8 @@ test('Das Festland gilt als fester Boden', () => {
   // vom Hochland oder von der Stillen Insel ans Lager zurück.
   for (const seed of SEEDS) {
     const welt = new World(seed).populate();
-    const massen = landmassen(welt);
-    for (let m = 0; m < 3; m++) {
+    const massen = landmassen(welt).filter(function (m) { return m.length >= MINDEST; });
+    for (let m = 0; m < massen.length; m++) {
       for (const [tx, ty] of massen[m]) {
         assert.equal(welt.festerBoden((tx + 0.5) * TILE_SIZE, (ty + 0.5) * TILE_SIZE), true,
           'Seed ' + seed + ': Landmasse ' + m + ' (' + massen[m].length
@@ -90,17 +100,56 @@ test('Das Festland gilt als fester Boden', () => {
 
 test('Zwischen Fetzen und Festland liegt eine Lücke', () => {
   // Warum 200 Kacheln als Grenze überhaupt zulässig sind: Weil es
-  // nichts in der Nähe dieser Zahl gibt. Der größte Fetzen hat 72
-  // Kacheln, die kleinste echte Landmasse 883. Verschiebt sich das
-  // einmal, ist die Grenze geraten statt gemessen – und diese Prüfung
-  // sagt es, bevor jemand wieder im Wasser steht.
+  // nichts in der Nähe dieser Zahl gibt. Verschiebt sich das einmal,
+  // ist die Grenze geraten statt gemessen – und diese Prüfung sagt es,
+  // bevor jemand wieder im Wasser steht.
+  //
+  // Gemessen über fünf Inselwürfe, alle Massen der Grösse nach:
+  //
+  //   5734 2309 720 494 | 99 4 1
+  //   5792 2551 677 531 |
+  //   5606 2405 697 519 | 105
+  //   5478 2562 694 568 |
+  //   5454 2454 742 555 | 83 1
+  //
+  // Vier echte Massen, dann nichts mehr bis 105. Die Grenze liegt mit
+  // Abstand nach beiden Seiten dazwischen.
   for (const seed of SEEDS) {
-    const massen = landmassen(new World(seed).populate()).map(function (m) { return m.length; });
-    assert.ok(massen[2] > 600, 'Seed ' + seed + ': die dritte Landmasse hat nur '
-      + massen[2] + ' Kacheln – zu nah an der Grenze von 200');
-    if (massen.length > 3) {
-      assert.ok(massen[3] < 120, 'Seed ' + seed + ': ein Fetzen hat ' + massen[3]
-        + ' Kacheln – zu nah an der Grenze von 200');
+    const alle = landmassen(new World(seed).populate()).map(function (m) { return m.length; });
+    const echt = alle.filter(function (n) { return n >= MINDEST; });
+    const fetzen = alle.filter(function (n) { return n < MINDEST; });
+    assert.ok(echt[echt.length - 1] > 350, 'Seed ' + seed
+      + ': die kleinste Landmasse hat nur ' + echt[echt.length - 1]
+      + ' Kacheln – zu nah an der Grenze von ' + MINDEST);
+    if (fetzen.length) {
+      assert.ok(fetzen[0] < 150, 'Seed ' + seed + ': ein Fetzen hat ' + fetzen[0]
+        + ' Kacheln – zu nah an der Grenze von ' + MINDEST);
     }
+  }
+});
+
+test('Die Welt ist ein grosses Land, die Klippen und zwei Inseln', () => {
+  /**
+   * Die Form der Welt, als Zahl.
+   *
+   * Sie ist eine Entscheidung und keine Folge: EIN grosses Land, dahinter
+   * die Klippen hinter der Schlucht, und zwei kleine Inseln. Vorher war
+   * es ein Archipel – drei Massen zu 60, 26 und 14 Prozent, und die
+   * dritte bestand selbst wieder aus drei Scheiben an zwei Landengen.
+   *
+   * Dass das Land GROSS ist, steht in der zweiten Zusicherung: Ohne sie
+   * wären auch vier gleich grosse Inseln „vier Massen".
+   */
+  for (const seed of SEEDS) {
+    const alle = landmassen(new World(seed).populate()).map(function (m) { return m.length; });
+    const echt = alle.filter(function (n) { return n >= MINDEST; });
+    assert.equal(echt.length, 4, 'Seed ' + seed + ': ' + echt.length
+      + ' Landmassen statt vier – ' + echt.join(', '));
+    const ges = echt.reduce(function (a, c) { return a + c; }, 0);
+    assert.ok(echt[0] / ges > 0.5, 'Seed ' + seed + ': die grösste Masse trägt nur '
+      + Math.round(echt[0] / ges * 100) + ' Prozent – das ist kein Land mit Inseln');
+    const inseln = echt[2] + echt[3];
+    assert.ok(inseln / ges < 0.2, 'Seed ' + seed + ': die beiden Inseln machen '
+      + Math.round(inseln / ges * 100) + ' Prozent aus – das sind Festländer');
   }
 });

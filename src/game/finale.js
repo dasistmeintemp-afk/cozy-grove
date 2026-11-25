@@ -31,6 +31,7 @@ export const FINALE_LINES = {
   tobi: 'Ich habe nachgemessen: Es fehlt nichts mehr. Zum ersten Mal.',
   nelly: 'Von oben sieht man alles auf einmal. Es ist schöner, als ich es in Erinnerung hatte.',
   wanda: 'Ich habe vom Wasser aus zugesehen, wie es zurückkam. Jeden Abend ein Stück mehr.',
+  silke: 'Stein vergisst nichts. Ich habe mitgezählt, wie viel wieder da ist.',
 };
 
 /** Das letzte Wort, wenn man bei allen war. */

@@ -543,10 +543,13 @@ export function biomeFuer(seed) {
        * also im Mittel elf Kacheln am Stück. Ein Biom, durch das man in
        * elf Schritten durch ist, ist kein Ort.
        *
-       * Der Maßstab geht deshalb mit der Zahl der Biome mit.
+       * Der Maßstab geht deshalb mit der Zahl der Biome mit – und ein
+       * zweites Mal, als die Landmassen umgeformt wurden: Auf dem neuen,
+       * großen Land lagen die Flecken wieder bei 10,5 Kacheln und damit
+       * knapp unter der Schwelle. 0,009 auf 0,0082.
        */
-      const a = fbm(n, tx * 0.009, ty * 0.009, 1, 2.0, 0.5);
-      const b = fbm(m, tx * 0.0101 + 60, ty * 0.0101 - 25, 1, 2.0, 0.5);
+      const a = fbm(n, tx * 0.0082, ty * 0.0082, 1, 2.0, 0.5);
+      const b = fbm(m, tx * 0.00923 + 60, ty * 0.00923 - 25, 1, 2.0, 0.5);
       const r = klima[i];
       if (!proBereich[r]) proBereich[r] = [];
       proBereich[r].push({ i: i, v: a * 0.6 + b * 0.4 });

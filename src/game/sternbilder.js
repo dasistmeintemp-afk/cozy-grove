@@ -96,6 +96,13 @@ export const STERNBILDER = [
       [0.62, 0.5, 3], [0.78, 0.42, 1], [0.7, 0.66, 1], [0.3, 0.45, 1]],
     linien: [[0, 1], [1, 2], [2, 4], [3, 4], [4, 5], [2, 6], [4, 6], [0, 7], [7, 3]],
   },
+  {
+    id: 'grat', geist: 'silke', name: 'Der Grat',
+    satz: 'Eine Kante, die nicht herunterfällt. Daran halte ich mich fest.',
+    sterne: [[0.16, 0.74, 1], [0.3, 0.56, 2], [0.42, 0.62, 1], [0.54, 0.38, 3],
+      [0.66, 0.46, 1], [0.8, 0.26, 2], [0.88, 0.4, 1]],
+    linien: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]],
+  },
 ];
 
 export const STERNBILD_IDS = STERNBILDER.map(function (s) { return s.id; });

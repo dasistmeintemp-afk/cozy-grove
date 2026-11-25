@@ -147,6 +147,12 @@ export const EIGEN = {
     schaukasten: 'Muscheln hinter Glas. Am Strand waren sie auch schön.',
     ferne: 'Alles kommt irgendwann an den Strand. Auch die.',
   },
+  silke: {
+    stillwasser: 'Wasser, das stillhält. Hier oben hält nur der Fels still.',
+    voegel: 'Bei mir nisten sie in den Spalten. Lauter als deine.',
+    schaukasten: 'Ordentlich aufgereiht. Ich lege meine einfach auf einen Stein.',
+    ferne: 'Von meiner Insel sieht man weiter. Aber das hier ist hübscher.',
+  },
 };
 
 /**

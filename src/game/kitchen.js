@@ -202,6 +202,7 @@ export const KOCH_DANK = {
   tobi: ['Selbst gemacht! Nach Rezept?', 'Das rieche ich bis in die Werkstatt.'],
   nelly: ['Jetzt sitze ich wenigstens nicht allein am Tisch.', 'Die Hälfte hebe ich auf. Für morgen.'],
   wanda: ['Das hast du den ganzen Weg herübergebracht.', 'Es ist noch warm. Wie machst du das?'],
+  silke: ['Warmes auf kaltem Stein. Das ist das Beste.', 'Sowas gibt es hier oben nie.'],
 };
 
 /** Die Sätze eines Geistes zu Gekochtem – oder leer. */

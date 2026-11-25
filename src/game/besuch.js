@@ -135,6 +135,11 @@ export const SAETZE = {
     stueck: '%s. Das hätte ich auch genommen.',
     voll: 'So viel auf einmal. Schön.',
   },
+  silke: {
+    kahl: 'Kahl. Kenne ich von zu Hause.',
+    stueck: '%s. Steht gut da.',
+    voll: 'Voll bis unters Dach. Bei mir passt nichts hin.',
+  },
 };
 
 /** Ab wie vielen Stücken ein Zimmer „voll" ist – und bis wann „kahl". */

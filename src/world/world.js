@@ -41,6 +41,9 @@ export const SPIRIT_HOMES = {
   tobi: { tx: M(44), ty: M(14), region: REGION.FOREST },
   nelly: { tx: M(78), ty: M(50), region: REGION.CLIFFS },
   wanda: { tx: M(8), ty: M(44), region: REGION.ISLE },
+  // Auf der Felseninsel im Norden. Sie ist die einzige Bewohnerin dort,
+  // und ohne sie bekäme die Insel nie Farbe.
+  silke: { tx: M(9), ty: M(18), region: REGION.ISLE },
 };
 
 export class World {

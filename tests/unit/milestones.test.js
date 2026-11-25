@@ -140,9 +140,19 @@ function auftraegeBis(ziel) {
   oeffnen(0, 1);
   if (f.coverage(world) >= ziel) return 0;
   for (let q = 1; q <= 2000; q++) {
-    // Der Wald öffnet nach etwa einem Tag, die Klippen nach dreien.
+    // Der Wald öffnet nach etwa einem Tag, die Klippen nach dreien,
+    // die Inseln mit dem Boot danach.
+    //
+    // Die letzte Zeile hat gefehlt, und das ist lange niemandem
+    // aufgefallen: Solange die Stille Insel nur eine grössere Fläche
+    // ohne eigenen Fortschritt war, fiel es nicht ins Gewicht, dass ihr
+    // Geist in dieser Rechnung nie dazukam. Seit es zwei Inseln mit zwei
+    // Geistern sind, fehlen damit zwei von acht Farbkreisen – gemessen
+    // 761 Aufträge bis zur vollen Färbung statt rund 330. Das Spiel war
+    // nicht zäher geworden, das Modell war unvollständig.
     if (q === 25) oeffnen(1, 3);
     if (q === 70) oeffnen(2, 4);
+    if (q === 110) oeffnen(3, 4);
     const s = geister[q % geister.length];
     s.r = radiusForArea(s.r, SPIRITS[s.key].colorArea);
     f._dirty = true;
@@ -166,16 +176,39 @@ test('Der Anfang bleibt trotzdem schnell', () => {
 });
 
 test('Die Meilensteine verteilen sich über den ganzen Weg', () => {
+  /**
+   * Gemessen wird der ANTEIL am ganzen Weg, nicht die Zahl der Aufträge.
+   *
+   * Hier standen achtzig Aufträge als feste Obergrenze. Das war eine
+   * Aussage über eine Welt bestimmter Grösse: Mit dem Umbau auf ein
+   * grosses Land und zwei Inseln dauert die volle Färbung 549 statt 360
+   * Aufträge, und jede Teilstrecke wächst mit. Die Prüfung hätte das als
+   * „Durststrecke" gemeldet, obwohl sich am Erleben nichts verändert hat
+   * – der Weg ist länger, die Zeichen stehen genauso dicht.
+   *
+   * Nachgerechnet, dieselben Meilensteine in beiden Welten:
+   *
+   *                 vorher          jetzt
+   *   ganz bei      360             549
+   *   grösste
+   *   Zwischenlücke  57  (15,8 %)    86  (15,7 %)
+   *   Schlussspurt   99  (27,5 %)   135  (24,6 %)
+   *
+   * Relativ ist die Verteilung also unverändert bis minimal besser. Die
+   * Grenzen stehen deshalb jetzt als Anteil, mit etwas Luft darauf.
+   */
+  const ganzBei = auftraegeBis(0.995);
+  assert.ok(ganzBei > 0 && ganzBei < Infinity, 'der Weg endet nie');
   let vorher = 0;
   for (const m of MILESTONES) {
     const n = auftraegeBis(m.at >= 1 ? 0.995 : m.at);
     assert.ok(n > vorher, m.id + ' liegt nicht hinter dem vorigen');
-    // Keine Durststrecke: zwischen zwei Meilensteinen liegen nie mehr als
-    // achtzig Aufträge, sonst passiert eine Woche lang nichts. Der letzte
-    // Schritt darf länger sein – die letzten Kacheln liegen hinter Felsen und
-    // in Ecken, das ist der Schlussspurt und als solcher gewollt.
-    const grenze = m.at >= 1 ? 130 : 80;
-    assert.ok(n - vorher <= grenze, m.id + ': ' + (n - vorher) + ' Aufträge Abstand');
+    // Der letzte Schritt darf länger sein – die letzten Kacheln liegen
+    // hinter Felsen und in Ecken, das ist der Schlussspurt und gewollt.
+    const grenze = m.at >= 1 ? 0.28 : 0.18;
+    const anteil = (n - vorher) / ganzBei;
+    assert.ok(anteil <= grenze, m.id + ': ' + (n - vorher) + ' Aufträge Abstand, '
+      + Math.round(anteil * 100) + ' Prozent des ganzen Weges');
     vorher = n;
   }
 });
@@ -217,6 +250,19 @@ test('Vor einem Beet gewinnt das Beet, nicht der Baum daneben', () => {
   p.dir = 'right';
   // Der Baum steht sogar NÄHER am Zielpunkt als das Beet – nur so entscheidet
   // wirklich, ob ein Beet als ansprechbar gilt, und nicht die Entfernung.
+  /**
+   * Erst die Stelle freiräumen.
+   *
+   * Der Prüfplatz liegt bei Weltpunkt 1000/1000, also auf Kachel 15/15.
+   * Das war lange leeres Meer; seit dem Umbau liegt dort die Felseninsel,
+   * und auf ihr stand ein Höhleneingang – der gewann die Zielauswahl, und
+   * die Prüfung meldete 'hoehle_eingang' statt 'crop'.
+   *
+   * Sie hatte recht, nur nicht über das, worum es ihr geht. Eine Prüfung
+   * über die Zielauswahl zwischen Beet und Baum darf nicht davon
+   * abhängen, was die Weltgenerierung zufällig daneben stellt.
+   */
+  for (const e of world.queryNear(1000, 1000, 400)) e.gone = true;
   const baum = makeEntity('tree_oak', 1044, 1000);
   const beet = makeEntity('crop', 1064, 1000, { cropId: 'berry', grown: 0 });
   world.add(beet);

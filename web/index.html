@@ -10794,14 +10794,56 @@ const REGION_NAMES = ['Lager & Strand', 'Wald', 'Klippen', 'Stille Insel'];
 const ALL_REGIONS = Object.keys(REGION).map(function (k) { return REGION[k]; });
 
 // Feste Bauwerke / Sperren
-const RIVER_Y0 = M(37);
-const RIVER_Y1 = M(41);
+/**
+ * Der Fluss zwischen Wald und Lager.
+ *
+ * Er war fünf Kacheln breit (plus Saum, also sieben Wasser) und lief
+ * über die GANZE Kartenbreite – quer durch das Meer und mitten durch
+ * die Inseln im Westen. Zusammen mit der Schlucht ergab das auf der
+ * Karte ein Kreuz, das die Welt in vier Viertel schnitt. Ein Fluss
+ * dieser Breite ist auch kein Fluss mehr, sondern eine Meerenge.
+ *
+ * Jetzt drei Kacheln, und nur dort, wo Land ist (siehe `carveRiver`).
+ */
+const RIVER_Y0 = M(38);
+const RIVER_Y1 = M(40);
 const FORD_X0 = M(42);
 const FORD_X1 = M(45);
-const CHANNEL_X0 = M(59);
-const CHANNEL_X1 = M(64);
-const CHANNEL_Y0 = M(26);
-const CHANNEL_Y1 = M(74);
+/**
+ * Die Schlucht zwischen Festland und Klippen – früher ein Meeresarm.
+ *
+ * Hier standen X0=59 und X1=64, also NEUN Kacheln Wasser quer durch das
+ * Land. Gemessen zerfiel die Welt damit in drei Massen: 60 Prozent
+ * Festland, 26 Prozent Klippen, 14 Prozent Stille Insel. Neun Kacheln
+ * offenes Wasser sind keine Schlucht, das ist eine Meerenge – und eine
+ * Meerenge macht aus einem Land zwei Inseln.
+ *
+ * Jetzt drei Kacheln. Das Tor bleibt: Ohne Brücke kommt man nicht
+ * hinüber, und das ist der Sinn der Sache. Aber man SIEHT die andere
+ * Seite, man erkennt sie als dasselbe Land, und der Bach unten in der
+ * Schlucht liest sich als Bach und nicht als See.
+ *
+ * Die Ufer werden Fels statt Sand (siehe `carveChannel`): Sand heißt
+ * Strand, und ein Strand heißt Meer. Fels heißt, dass hier etwas
+ * aufgerissen ist.
+ */
+const CHANNEL_X0 = M(61);
+const CHANNEL_X1 = M(63);
+/**
+ * Die Schlucht reicht über die volle Kartenhöhe – wie der Sund.
+ *
+ * Hier stand 26 bis 74, also ein Riss, der oben und unten im offenen
+ * Meer endete. Das war richtig, solange das Land dort nicht hinreichte.
+ * Mit den neuen, grösseren Kernen reicht es: Gemessen lag die ganze
+ * Welt plötzlich in EINER Masse mit 87 Prozent – man konnte unten um
+ * die Schlucht herumlaufen, und damit war die Brücke kein Tor mehr,
+ * sondern eine Abkürzung.
+ *
+ * Über die volle Höhe kostet nichts: Wo kein Land ist, ist ohnehin
+ * Wasser.
+ */
+const CHANNEL_Y0 = 0;
+const CHANNEL_Y1 = MAP_H - 1;
 const BRIDGE_Y0 = M(49);
 const BRIDGE_Y1 = M(51);
 
@@ -10822,7 +10864,12 @@ const SOUND_X1 = M(21);
 /** Alles westlich davon gehört zur Stillen Insel. */
 const ISLE_X1 = M(19);
 /** Wo das Boot anlegt – Festlandseite und Inselseite. */
-const DOCK_TILE = { x: M(24), y: M(52) };
+/**
+ * Der Festlandanleger musste nach Osten: Mit den neuen Kernen liegt die
+ * Westküste weiter innen, und x = 24 war auf zwei von fünf Inselwürfen
+ * Wasser.
+ */
+const DOCK_TILE = { x: M(27), y: M(52) };
 const ISLE_DOCK_TILE = { x: M(14), y: M(52) };
 
 /**
@@ -10840,12 +10887,65 @@ const ISLE_DOCK_TILE = { x: M(14), y: M(52) };
  * einem Ende zum anderen ist selbst schon etwas.
  */
 const LOBES = [
+  /**
+   * Das Festland – EIN Land, nicht eine Perlenkette.
+   *
+   * Hier standen drei Kerne: Lager, Wald, Klippen. Sie berührten sich
+   * kaum, und zwischen zwei Kernen entscheidet nur das Rauschen über
+   * Land oder Wasser – auf der Karte sah man drei Kreise an dünnen
+   * Hälsen. Gemessen zerfiel die Welt in drei Massen (60 / 26 / 14
+   * Prozent), und so sah sie auch aus: nach einem Archipel.
+   *
+   * Jetzt sieben Kerne, die sich ÜBERLAPPEN. Weil die Höhe das Maximum
+   * über alle Kerne ist, wird aus überlappenden Kreisen eine einzige
+   * Fläche mit unruhigem Rand – und aus sich berührenden Kreisen eine
+   * Kette. Der Unterschied ist genau der zwischen einem Land und
+   * mehreren Inseln.
+   *
+   * Die Schlucht schneidet den Osten davon ab (siehe `carveChannel`).
+   * Das ist Absicht und etwas anderes als vorher: Der Osten ist
+   * dieselbe Landmasse, nur mit einem Riss davor, den man ohne Brücke
+   * nicht überquert.
+   */
+  { x: M(40), y: M(22), r: M(20) },   // Wald – der Norden
+  { x: M(33), y: M(40), r: M(14) },   // Westflanke, schliesst die Lücke
+  { x: M(52), y: M(37), r: M(16) },   // Ostflanke des Nordens
   { x: M(44), y: M(60), r: M(21) },   // Lager / Strand
-  { x: M(40), y: M(20), r: M(17) },   // Wald
-  { x: M(79), y: M(50), r: M(14) },   // Klippen
-  { x: M(8), y: M(24), r: M(12) },    // Stille Insel – das Hochland im Norden
-  { x: M(8), y: M(46), r: M(10) },    // Stille Insel – die Mitte, wo Wanda steht
-  { x: M(9), y: M(67), r: M(11) },    // Stille Insel – der Süden
+  { x: M(62), y: M(65), r: M(17) },   // der Südosten, reicht bis an die Schlucht
+  /**
+   * Die Klippen – kleiner als beim ersten Entwurf.
+   *
+   * Mit r=15 und r=12 waren sie 2551 begehbare Kacheln, also fast so
+   * gross wie das Lager. Dort wohnt aber nur EIN Geist, und ein Farbkreis
+   * wächst in der Fläche: Um von Nelly aus die entfernteste Ecke zu
+   * erreichen, braucht er einen Radius von rund fünfzig Kacheln, und das
+   * meiste davon liegt im Meer. Gemessen verdoppelte das die Färbung der
+   * ganzen Insel von rund 330 auf 761 Aufträge.
+   *
+   * Ein Bereich darf nicht beliebig wachsen, solange sein Geist allein
+   * darin steht. Jetzt rund 1700 Kacheln – zwischen Wald (2576, zwei
+   * Geister) und den Inseln.
+   */
+  { x: M(79), y: M(50), r: M(10) },   // Klippen – jenseits der Schlucht
+  { x: M(75), y: M(68), r: M(7) },    // Klippen – der Südzipfel
+
+  /**
+   * Und die beiden Inseln im Westen.
+   *
+   * Vorher waren das drei Kerne in einer Reihe, die mit zwei
+   * aufgeschütteten Landengen zu einer langen Insel verbunden wurden –
+   * 1140 Kacheln, also ein zweites Festland mit eigenen Biomen und
+   * eigenem Grundstück. Auf der Karte las man trotzdem drei Inseln,
+   * weil die Landengen nur fünf Kacheln breit sind.
+   *
+   * Jetzt zwei getrennte Inseln ohne Landengen: Was ohnehin wie zwei
+   * Inseln aussah, IST jetzt zwei Inseln, und jede ist klein genug, um
+   * als Insel zu gelten. Die nördliche ist felsig (siehe `HIGHLAND_Y`)
+   * – dort steht der Granit, und das gibt ihr einen eigenen Grund,
+   * hinzufahren.
+   */
+  { x: M(9), y: M(48), r: M(11) },    // Wandas Insel
+  { x: M(9), y: M(17), r: M(9) },     // die Felseninsel im Norden
 ];
 
 /**
@@ -10862,10 +10962,7 @@ const LOBES = [
  * Landenge, über die man in fünf Schritten geht, ist ein Ort. Ein Kern, der
  * bis zum nächsten reicht, wäre nur eine große Scheibe.
  */
-const ISTHMUS = [
-  { x: M(8), y0: M(30), y1: M(42) },   // Hochland ↔ Mitte
-  { x: M(9), y0: M(51), y1: M(61) },   // Mitte ↔ Süden
-];
+const ISTHMUS = [];
 /** Halbe Breite einer Landenge: fünf Kacheln plus Saum. */
 const ISTHMUS_HALB = 2;
 
@@ -10876,7 +10973,21 @@ const ISTHMUS_HALB = 2;
  * nur mit der dritten Spitzhackenstufe kommt. Ein Bereich, der aussieht wie
  * jeder andere, ist kein neuer Bereich.
  */
-const HIGHLAND_Y = M(36);
+/**
+ * Wo auf den Inseln der Fels anfaengt.
+ *
+ * Fruher lag die Grenze mitten in der einen langen Insel: Noerdlich davon
+ * Fels, suedlich Wiese. Jetzt sind es zwei Inseln, und die Grenze liegt
+ * im Wasser DAZWISCHEN – die noerdliche ist ganz aus Fels, die suedliche
+ * ganz aus Wiese.
+ *
+ * Das ist mehr als eine verschobene Zahl: Eine halb felsige Insel ist
+ * eine Insel mit einer Ecke; eine ganz felsige ist ein Ort. Gemessen lag
+ * der Felsanteil im alten Norden je nach Inselwurf zwischen 19 und 52
+ * Prozent – eine Pruefung hat die 19 gemeldet, weil der schmale Nordzipfel
+ * fast nur aus Strand bestand.
+ */
+const HIGHLAND_Y = M(32);
 
 function tileIndex(tx, ty) {
   return ty * MAP_W + tx;
@@ -11255,7 +11366,10 @@ const FLACHE_PLAETZE = [
   // Die Maße der Grundstücke wachsen NICHT mit (ein Garten ist ein
   // Garten), ihre Mittelpunkte schon.
   { x: CAMP_TILE.x, y: CAMP_TILE.y, hx: 17, hy: 12 },
-  { x: M(9), y: M(60), hx: 10, hy: 16 },
+  // Die Bucht ist mit der Insel nach Norden gewandert – siehe
+  // `ISLE_PLOT_TILE`. Blieb dieses Rechteck stehen, stand eine Felswand
+  // mitten im Inselgarten; eine Prüfung hat sie gefunden.
+  { x: M(10), y: M(54), hx: 10, hy: 16 },
 ];
 
 function nahAmLager(tx, ty) {
@@ -11593,9 +11707,28 @@ function billigsterDurchbruch(tiles, erreicht) {
   return weg;
 }
 
+/**
+ * Der Fluss – von der Westküste bis in die Schlucht.
+ *
+ * Drei Dinge waren falsch, und alle drei zusammen haben aus einem Land
+ * vier Viertel gemacht:
+ *
+ *   1. Er lief über die ganze Kartenbreite, also auch durch die Inseln
+ *      im Westen. Aus zwei Inseln wurden vier.
+ *   2. Er lief auch östlich der Schlucht weiter und hat damit die
+ *      Klippen noch einmal in zwei Hälften geschnitten.
+ *   3. Er mäanderte um ±3 Kacheln bei einer Breite von sieben – das
+ *      sieht man nicht, und was man nicht sieht, ist eine gerade Linie.
+ *      Zusammen mit der senkrechten Schlucht ergab das ein Kreuz.
+ *
+ * Jetzt: nur zwischen Sund und Schlucht, drei Kacheln breit, und mit
+ * einem Mäander von ±7 Kacheln auf einer längeren Welle. Die Mündung
+ * liegt im Westen, das obere Ende in der Schlucht – ein Fluss, der
+ * irgendwo anfängt und irgendwo hingeht, statt einer Trennlinie.
+ */
 function carveRiver(tiles, detail) {
-  for (let tx = 0; tx < MAP_W; tx++) {
-    const wobble = Math.round((fbm(detail, tx * F(0.12), 99, 3, 2, 0.5) - 0.5) * 3);
+  for (let tx = ISLE_X1 + 2; tx < CHANNEL_X0; tx++) {
+    const wobble = Math.round((fbm(detail, tx * F(0.055), 99, 2, 2, 0.5) - 0.5) * 14);
     const y0 = RIVER_Y0 + wobble;
     const y1 = RIVER_Y1 + wobble;
     for (let ty = y0 - 1; ty <= y1 + 1; ty++) {
@@ -11620,7 +11753,9 @@ function carveChannel(tiles, detail) {
       const i = tileIndex(tx, ty);
       const edge = tx < CHANNEL_X0 + wobble || tx > CHANNEL_X1 + wobble;
       if (edge) {
-        if (tiles[i] === T.GRASS || tiles[i] === T.ROCKFLOOR || tiles[i] === T.DIRT) tiles[i] = T.SAND;
+        // Felsufer, kein Strand. Sand an einer Wasserkante liest sich als
+        // Meer; eine Schlucht hat Fels an den Seiten.
+        if (tiles[i] === T.GRASS || tiles[i] === T.DIRT) tiles[i] = T.ROCKFLOOR;
       } else {
         tiles[i] = T.WATER;
       }
@@ -11628,8 +11763,8 @@ function carveChannel(tiles, detail) {
   }
   // Brücken-Anlandungen: links und rechts vom Kanal fester Boden
   for (let ty = BRIDGE_Y0; ty <= BRIDGE_Y1; ty++) {
-    for (let tx = CHANNEL_X0 - 3; tx < CHANNEL_X0; tx++) setLand(tiles, tx, ty, T.SAND);
-    for (let tx = CHANNEL_X1 + 1; tx <= CHANNEL_X1 + 3; tx++) setLand(tiles, tx, ty, T.SAND);
+    for (let tx = CHANNEL_X0 - 3; tx < CHANNEL_X0; tx++) setLand(tiles, tx, ty, T.ROCKFLOOR);
+    for (let tx = CHANNEL_X1 + 1; tx <= CHANNEL_X1 + 3; tx++) setLand(tiles, tx, ty, T.ROCKFLOOR);
   }
 }
 
@@ -11967,7 +12102,21 @@ const SPIRITS = {
     region: 2,
     role: 'Klippen',
     colorStart: R(240),
-    colorArea: A(151000),
+    /**
+     * Mehr Fläche je Auftrag als alle anderen – sie ist allein.
+     *
+     * Hier stand 151000, dasselbe wie bei den meisten. Das stimmte,
+     * solange die Klippen der kleinste Bereich waren. Nach dem Umbau
+     * sind es rund 1700 Kacheln für EINEN Geist, während sich im Wald
+     * zwei 2576 teilen und im Lager drei 3216 – 1700 gegen 1288 gegen
+     * 1072 Kacheln je Geist.
+     *
+     * Dazu kommt die Form: Ihr Bereich ist lang und schmal und liegt am
+     * Meer. Ein Kreis, der die entfernteste Ecke erreichen soll, legt
+     * das meiste seiner Fläche auf Wasser. Gemessen stand die Insel bei
+     * Auftrag 300 überall auf 87 Prozent und auf den Klippen auf 67.
+     */
+    colorArea: A(240000),
     // 'cook': „Ich habe für alle gedeckt. Auch für die, die nicht kommen."
     questTypes: ['find', 'visit', 'decorate', 'craft', 'gather', 'cook', 'set', 'grow', 'deliver'],
     // Bernstein dazu: Sie wohnt oben am Stein, ihr Lieblingsstück ist der
@@ -12005,6 +12154,53 @@ const SPIRITS = {
       greet: ['Wer rudert denn da?', 'Still hier, nicht?', 'Ich zähle Wellen.'],
       thanks: ['Oh, schön.', 'Das hebe ich auf.', 'Danke, wirklich.'],
       wait: ['Ich warte gern.', 'Noch nicht.'],
+      full: ['Genug für heute.'],
+    },
+  },
+  /**
+   * Silke Schiefer – die Geisterin der Felseninsel.
+   *
+   * Sie ist dazugekommen, als aus der einen langen Stillen Insel zwei
+   * kleine wurden. Das war kein Schmuck, sondern nötig: Eine Insel ohne
+   * Geist bekommt nie Farbe. Gemessen brauchte das Spiel mit der
+   * geistlosen Nordinsel 761 Aufträge bis zur vollen Färbung statt
+   * rund 330 – die letzten Prozente lagen dort drüben und warteten auf
+   * jemanden, der nie kam.
+   *
+   * Ihr Kreis beginnt gross wie Wandas und aus demselben Grund: Sie ist
+   * allein auf ihrer Insel, und ein winziger Farbfleck im Nichts sähe
+   * verloren aus. Ihre Insel ist die kleinste von allen, also deckt er
+   * sie fast ab – das ist richtig so, denn es gibt sonst niemanden.
+   *
+   * Was sie mag, kommt von ihrem Fels: Granit, Bernstein aus den Geoden,
+   * Ton aus den Spalten. Sie ist die einzige, der man Steine schenken
+   * kann, ohne dass es wie eine Verlegenheit wirkt.
+   */
+  silke: {
+    id: 'silke',
+    // Oktober. Jeder Geist hat seinen eigenen Monat – eine Prüfung
+    // verlangt das, damit nicht zwei Feste auf einmal kommen. Februar
+    // war schon vergeben.
+    geburtstag: { monat: 9, tag: 26 },
+    name: 'Silke Schiefer',
+    art: 'spirit_silke',
+    region: 3,
+    role: 'Felseninsel',    name: 'Silke Schiefer',
+    art: 'spirit_silke',
+    region: 3,
+    role: 'Felseninsel',
+    colorStart: R(340),
+    colorArea: A(152000),
+    // Kein 'gather_beach': Ihre Insel hat fast keinen Strand, und eine
+    // Bitte, für die man erst zurückfahren muss, ist eine Bitte wie
+    // jede andere – genau das soll sie nicht sein.
+    questTypes: ['mine', 'find', 'visit', 'craft', 'cook', 'set', 'deliver', 'fish'],
+    likes: ['stone', 'granite', 'amber', 'clay', 'hoehlenkristall'],
+    favourite: 'amber',
+    lines: {
+      greet: ['Der Fels hört zu.', 'Du schon wieder. Gut.', 'Hier oben ist Wind.'],
+      thanks: ['Das legt sich gut.', 'Schwer. Schön.', 'Danke.'],
+      wait: ['Stein hat Zeit.', 'Noch nicht.'],
       full: ['Genug für heute.'],
     },
   },
@@ -12216,6 +12412,13 @@ const STERNBILDER = [
     sterne: [[0.2, 0.6, 1], [0.35, 0.68, 2], [0.5, 0.6, 1], [0.44, 0.44, 2],
       [0.62, 0.5, 3], [0.78, 0.42, 1], [0.7, 0.66, 1], [0.3, 0.45, 1]],
     linien: [[0, 1], [1, 2], [2, 4], [3, 4], [4, 5], [2, 6], [4, 6], [0, 7], [7, 3]],
+  },
+  {
+    id: 'grat', geist: 'silke', name: 'Der Grat',
+    satz: 'Eine Kante, die nicht herunterfällt. Daran halte ich mich fest.',
+    sterne: [[0.16, 0.74, 1], [0.3, 0.56, 2], [0.42, 0.62, 1], [0.54, 0.38, 3],
+      [0.66, 0.46, 1], [0.8, 0.26, 2], [0.88, 0.4, 1]],
+    linien: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]],
   },
 ];
 
@@ -20860,6 +21063,7 @@ const LIST = [
   it('memory_ribbon', 'Haarband', CAT.MEMORY, 0, 0, { quest: true }),
   it('memory_teacup', 'Teetasse', CAT.MEMORY, 0, 0, { quest: true }),
   it('memory_shellchain', 'Muschelkette', CAT.MEMORY, 0, 0, { quest: true }),
+  it('memory_geode', 'Halbe Geode', CAT.MEMORY, 0, 0, { quest: true }),
 
   // Nur unter bestimmten Bedingungen zu finden – das ist der Grund, an einem
   // anderen Tag oder zu anderer Stunde wiederzukommen.
@@ -21045,6 +21249,8 @@ const LIST = [
     { prop: 'memory_teacup', charm: 10, keepsake: true }),
   it('keepsake_shellchain', 'Wandas Muschelkette', CAT.DECOR, 0, 0,
     { prop: 'memory_shellchain', charm: 10, keepsake: true }),
+  it('keepsake_geode', 'Silkes halbe Geode', CAT.DECOR, 0, 0,
+    { prop: 'memory_geode', charm: 10, keepsake: true }),
 ];
 
 const BY_ID = Object.create(null);
@@ -22453,6 +22659,7 @@ const SPIRIT_LOOKS = {
   nelly: { fur: '#ded2e6', furShade: '#b9a9c6', accent: '#e8c34c', ears: 'long', hat: 'bow', blink: true },
   tobi: { fur: '#ecdcb8', furShade: '#c8b48c', accent: '#5b8c9a', ears: 'pointed', hat: 'glasses', blink: true },
   wanda: { fur: '#c6d9d6', furShade: '#9db8b4', accent: '#e2a24c', ears: 'long', hat: 'scarf', blink: true },
+  silke: { fur: '#bfbcc9', furShade: '#9a97a8', accent: '#7fb0c4', ears: 'pointed', hat: 'cap', blink: true },
 };
 
 /**
@@ -24271,16 +24478,38 @@ const MAX_PLOT_STAGE = PLOT_STAGES.length;
  * das Rechteck um (9|60) zu rund drei Vierteln Land, und das ist der beste
  * Wert, den die schmale Insel hergibt.
  */
-const ISLE_PLOT_TILE = { x: Math.round(9 * MASSSTAB), y: Math.round(60 * MASSSTAB) };
+/**
+ * Die Bucht lag im Südzipfel der alten, langen Insel – den gibt es
+ * nicht mehr. Seit die Insel ein einziger Kern ist, liegt y = 60 (also
+ * Kachel 90) auf allen geprüften Inselwürfen im Wasser: Eine Prüfung
+ * meldete „erste Stufe nur 94 Kacheln Land". Jetzt in der Südhälfte des
+ * Kerns, weit genug von Wanda entfernt, dass man sich nicht ins Gehege
+ * kommt.
+ */
+const ISLE_PLOT_TILE = { x: Math.round(10 * MASSSTAB), y: Math.round(54 * MASSSTAB) };
 
 const ISLE_PLOT_STAGES = [
   { id: 1, name: 'Die Bucht', halfW: 6, halfH: 7, coins: 1000,
     note: 'Ein Stück Ufer, das dir gehört.' },
   { id: 2, name: 'Der Hain', halfW: 7, halfH: 10, coins: 3000,
     note: 'Bis an die Kiefern heran.' },
-  { id: 3, name: 'Die Wiese', halfW: 8, halfH: 12, coins: 7500,
+  { id: 3, name: 'Die Wiese', halfW: 8, halfH: 11, coins: 7500,
     note: 'Genug für einen Garten, der etwas darstellt.' },
-  { id: 4, name: 'Die ganze Bucht', halfW: 9, halfH: 15, coins: 16000,
+  /**
+   * Die letzte Stufe: kleiner und teurer als vorher.
+   *
+   * KLEINER, weil die Insel geschrumpft ist. Mit halbH 15 reichte das
+   * Grundstück über die Südküste hinaus – gemessen waren je nach
+   * Inselwurf nur 66 bis 79 Prozent davon überhaupt Land. Wer das
+   * teuerste Stück des Spiels kauft, soll kein Wasser mitkaufen.
+   *
+   * TEURER, weil mit Silke Schiefer ein achter Geist dazugekommen ist.
+   * Ein Geist mehr heisst eine Bitte mehr am Tag, also mehr Einkommen;
+   * gemessen kostete das grösste Ziel damit nur noch 7,6 statt der
+   * geforderten acht vollen Tage. Eine Prüfung hält genau das fest,
+   * denn daran hängt das ganze späte Spiel.
+   */
+  { id: 4, name: 'Die ganze Bucht', halfW: 8, halfH: 13, coins: 18000,
     note: 'Von der Landzunge bis zum Wald.' },
 ];
 
@@ -25069,10 +25298,13 @@ function biomeFuer(seed) {
        * also im Mittel elf Kacheln am Stück. Ein Biom, durch das man in
        * elf Schritten durch ist, ist kein Ort.
        *
-       * Der Maßstab geht deshalb mit der Zahl der Biome mit.
+       * Der Maßstab geht deshalb mit der Zahl der Biome mit – und ein
+       * zweites Mal, als die Landmassen umgeformt wurden: Auf dem neuen,
+       * großen Land lagen die Flecken wieder bei 10,5 Kacheln und damit
+       * knapp unter der Schwelle. 0,009 auf 0,0082.
        */
-      const a = fbm(n, tx * 0.009, ty * 0.009, 1, 2.0, 0.5);
-      const b = fbm(m, tx * 0.0101 + 60, ty * 0.0101 - 25, 1, 2.0, 0.5);
+      const a = fbm(n, tx * 0.0082, ty * 0.0082, 1, 2.0, 0.5);
+      const b = fbm(m, tx * 0.00923 + 60, ty * 0.00923 - 25, 1, 2.0, 0.5);
       const r = klima[i];
       if (!proBereich[r]) proBereich[r] = [];
       proBereich[r].push({ i: i, v: a * 0.6 + b * 0.4 });
@@ -25521,6 +25753,9 @@ const SPIRIT_HOMES = {
   tobi: { tx: M(44), ty: M(14), region: REGION.FOREST },
   nelly: { tx: M(78), ty: M(50), region: REGION.CLIFFS },
   wanda: { tx: M(8), ty: M(44), region: REGION.ISLE },
+  // Auf der Felseninsel im Norden. Sie ist die einzige Bewohnerin dort,
+  // und ohne sie bekäme die Insel nie Farbe.
+  silke: { tx: M(9), ty: M(18), region: REGION.ISLE },
 };
 
 class World {
@@ -32005,6 +32240,7 @@ const KOCH_DANK = {
   tobi: ['Selbst gemacht! Nach Rezept?', 'Das rieche ich bis in die Werkstatt.'],
   nelly: ['Jetzt sitze ich wenigstens nicht allein am Tisch.', 'Die Hälfte hebe ich auf. Für morgen.'],
   wanda: ['Das hast du den ganzen Weg herübergebracht.', 'Es ist noch warm. Wie machst du das?'],
+  silke: ['Warmes auf kaltem Stein. Das ist das Beste.', 'Sowas gibt es hier oben nie.'],
 };
 
 /** Die Sätze eines Geistes zu Gekochtem – oder leer. */
@@ -33518,6 +33754,7 @@ const FEST_SATZ = {
     tobi: 'Ich habe versucht, eine zu bauen. Ging nicht.',
     nelly: 'Ich habe mir welche ins Haar gesteckt. Sieht man es?',
     wanda: 'Sogar hier drüben treibt heute etwas an.',
+    silke: 'Der Fels ist heute warm. Das kommt selten vor.',
   },
   sonnwend: {
     flamey: 'Heute bin ich der Kleinste. Die Sonne ist größer.',
@@ -33527,6 +33764,7 @@ const FEST_SATZ = {
     tobi: 'Vierzehn Stunden Licht. Vierzehn Stunden Werkstatt!',
     nelly: 'Von hier oben sieht man die Sonne kaum untergehen.',
     wanda: 'Das Wasser glüht bis spät. Bleib doch.',
+    silke: 'Von hier oben sieht man jedes Licht. Auch eures.',
   },
   ernte: {
     flamey: 'Alle bringen was. Ich halte das Feuer.',
@@ -33536,6 +33774,7 @@ const FEST_SATZ = {
     tobi: 'Ich habe die Tische gebaut. Sie halten. Wahrscheinlich.',
     nelly: 'Ich habe für alle gedeckt. Auch für die, die nicht kommen.',
     wanda: 'Drüben ist Fest. Ich höre es bis hierher.',
+    silke: 'Ich feiere mit. Nur leiser.',
   },
   lichter: {
     flamey: 'Die längste Nacht! Da bin ich wichtig.',
@@ -33545,6 +33784,7 @@ const FEST_SATZ = {
     tobi: 'Ich habe alle Lampen nachgesehen. Alle gehen.',
     nelly: 'Ich zähle heute die Lichter. Es sind mehr als letztes Jahr.',
     wanda: 'Ich sehe euer Feuer von hier aus. Das reicht mir heute.',
+    silke: 'Mein Fels glitzert heute. Das muss als Fest reichen.',
   },
   // Am Heiligabend stehen sie alle am selben Feuer – der einzige Abend im
   // Jahr, an dem das so ist. Die Sätze sind deshalb nicht an ihren Orten
@@ -33557,6 +33797,7 @@ const FEST_SATZ = {
     tobi: 'Ich habe nichts gebaut heute. Fühlt sich komisch an. Gut komisch.',
     nelly: 'Ich habe für alle gedeckt. Heute kommen auch alle.',
     wanda: 'Ich bin den ganzen Weg herübergekommen. Sag nichts.',
+    silke: 'Ich bin von meinem Fels heruntergestiegen. Einmal im Jahr geht das.',
   },
 };
 
@@ -35142,6 +35383,12 @@ const EIGEN = {
     schaukasten: 'Muscheln hinter Glas. Am Strand waren sie auch schön.',
     ferne: 'Alles kommt irgendwann an den Strand. Auch die.',
   },
+  silke: {
+    stillwasser: 'Wasser, das stillhält. Hier oben hält nur der Fels still.',
+    voegel: 'Bei mir nisten sie in den Spalten. Lauter als deine.',
+    schaukasten: 'Ordentlich aufgereiht. Ich lege meine einfach auf einen Stein.',
+    ferne: 'Von meiner Insel sieht man weiter. Aber das hier ist hübscher.',
+  },
 };
 
 /**
@@ -36622,6 +36869,11 @@ const SAETZE = {
     stueck: '%s. Das hätte ich auch genommen.',
     voll: 'So viel auf einmal. Schön.',
   },
+  silke: {
+    kahl: 'Kahl. Kenne ich von zu Hause.',
+    stueck: '%s. Steht gut da.',
+    voll: 'Voll bis unters Dach. Bei mir passt nichts hin.',
+  },
 };
 
 /** Ab wie vielen Stücken ein Zimmer „voll" ist – und bis wann „kahl". */
@@ -37315,6 +37567,18 @@ const STORIES = {
     ],
     close: 'Jetzt kommt ja jemand. Das reicht mir.',
   },
+  silke: {
+    keepsake: 'keepsake_geode',
+    icons: ['icon_stone', 'icon_granite', 'icon_amber', 'icon_memory_geode'],
+    intro: 'Ich habe hier oben auf etwas gewartet. Frag nicht, worauf.',
+    lines: [
+      'Ich habe Steine aufgeschlagen, um zu sehen, was darin ist.',
+      'Die meisten sind innen wie außen. Das ist in Ordnung.',
+      'Einer war es nicht. Der hatte einen ganzen Himmel drin.',
+      'Die eine Hälfte habe ich behalten. Die andere habe ich verschenkt.',
+    ],
+    close: 'Jetzt ist jemand da, dem ich sie zeigen kann.',
+  },
 };
 
 /** Welche Weltgrafik ein Fundstück trägt. */
@@ -37326,6 +37590,7 @@ const PIECE_ART = {
   tobi: 'memory_music',
   nelly: 'memory_teacup',
   wanda: 'memory_shellchain',
+  silke: 'memory_geode',
 };
 
 /**
@@ -37861,6 +38126,8 @@ const HINTS = {
   bambus: 'Aus den Bambushainen der feuchten Zone, mit der Axt.',
   knochen: 'Liegt in der Wüste. Einmal gefunden, bleibt er weg.',
   kaktusfeige: 'Von den Feigenkakteen der Wüste. Mit der Hand.',
+  memory_geode: 'Silke zeigt sie dir, wenn du sie gut genug kennst.',
+  keepsake_geode: 'Silkes Andenken, am Ende ihrer Geschichte.',
   amber: 'Aus Geoden im Hochland, ab Spitzhacke Stufe 4.',
   table: 'Aus dem Katalog – kommt am nächsten Morgen mit der Post.',
   chair: 'Aus dem Katalog.',
@@ -38049,6 +38316,10 @@ const THANKS = {
   wanda: [
     'Das Wasser war still gestern. Ich habe dein Boot kommen hören.',
     'Angeschwemmt. Für dich aufgehoben.',
+  ],
+  silke: [
+    'Ein Stück ist aus der Wand gefallen. Es war zu schön zum Liegenlassen.',
+    'Oben am Grat lag etwas. Jetzt liegt es bei dir.',
   ],
 };
 
@@ -38375,6 +38646,7 @@ const FINALE_LINES = {
   tobi: 'Ich habe nachgemessen: Es fehlt nichts mehr. Zum ersten Mal.',
   nelly: 'Von oben sieht man alles auf einmal. Es ist schöner, als ich es in Erinnerung hatte.',
   wanda: 'Ich habe vom Wasser aus zugesehen, wie es zurückkam. Jeden Abend ein Stück mehr.',
+  silke: 'Stein vergisst nichts. Ich habe mitgezählt, wie viel wieder da ist.',
 };
 
 /** Das letzte Wort, wenn man bei allen war. */
@@ -39690,6 +39962,20 @@ const PLAUDEREI = {
     freund: ['Du kommst wirklich immer wieder.', 'Zu zweit zählt es sich besser.'],
     gemuetlich: ['Es ist fast ein Zuhause geworden.', 'Schön, was hier steht.'],
     kahl: ['Nur Sand und ich.', 'Hier war noch nie viel.'],
+  },
+  silke: {
+    regen: ['Der Fels wird dunkel, wenn er nass ist.', 'Es tropft in die Spalten.'],
+    nebel: ['Jetzt ist die Insel nur noch Fels und Weiß.', 'Man hört sich selbst.'],
+    schnee: ['Er bleibt auf dem Grat liegen. Unten nicht.', 'Weiß auf Grau. Mir gefällt das.'],
+    spring: ['In den Ritzen wird es grün. Jedes Jahr wieder.', 'Sogar hier oben.'],
+    summer: ['Der Stein hält die Wärme bis in die Nacht.', 'Heute ist es fast gemütlich.'],
+    autumn: ['Der Wind nimmt wieder zu.', 'Es riecht nach Regen über dem Wasser.'],
+    winter: ['Alles hart. Auch ich.', 'Jetzt kommt lange niemand.'],
+    morgen: ['Die Sonne trifft zuerst meinen Grat.', 'Früh dran heute.'],
+    nacht: ['Die Sterne stehen hier näher.', 'Unten brennt euer Feuer. Hübsch.'],
+    freund: ['Du fährst den weiten Weg. Das rechne ich an.', 'Du kommst ja doch.'],
+    gemuetlich: ['Wer hätte gedacht, dass Fels gemütlich wird.', 'Es sieht bewohnt aus.'],
+    kahl: ['Stein, Stein, Stein.', 'Hier war noch nie etwas.'],
   },
 };
 
