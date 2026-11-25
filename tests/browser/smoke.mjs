@@ -152,6 +152,50 @@ async function run() {
     });
     check('Alle Weltobjekte haben eine Grafik', artMissing.length === 0, artMissing.join(', '));
 
+    /**
+     * Die Tusche ist wirklich tief – gemessen an der fertigen Zeichnung.
+     *
+     * Gegen das Vorbild gehalten lag unser dunkelster Bildpunkt auf dem
+     * ganzen Bildschirm bei Helligkeit 30, weil die Tusche selbst bei 32
+     * lag; im Vorbild liegt der Kern der Striche bei 10/10/2, und 2,8
+     * Prozent der Wiesenfläche liegen unter Helligkeit 20. Eine
+     * Zeichnung braucht etwas, wogegen das Helle hell ist.
+     *
+     * Geprüft wird nicht die Konstante, sondern was hinten herauskommt:
+     * Eine Konstante lässt sich ändern, ohne dass ein einziger Strich
+     * dunkler wird – wenn unterwegs etwas aufhellt, zum Beispiel ein
+     * Weichzeichner oder eine Deckkraft, merkt man es nur am Bild.
+     */
+    const tiefe = await page.evaluate(() => {
+      const spr = window.CozyGrove.art.of;
+      const raus = [];
+      for (const n of ['tree_oak_0', 'bush_berry_0', 'mushroom_0']) {
+        const s = spr(n);
+        if (!s) { raus.push({ n: n, fehlt: true }); continue; }
+        const c = document.createElement('canvas');
+        c.width = s.w; c.height = s.h;
+        const x = c.getContext('2d');
+        x.drawImage(s.c, 0, 0);
+        const d = x.getImageData(0, 0, s.w, s.h).data;
+        let deck = 0; let tief = 0; let min = 999;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 200) continue;
+          deck++;
+          const l = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+          if (l < min) min = l;
+          if (l < 25) tief++;
+        }
+        raus.push({ n: n, dunkelster: Math.round(min),
+          unter25: Math.round(tief / deck * 1000) / 10 });
+      }
+      return raus;
+    });
+    // Mit der alten Tusche (#241e1a, Helligkeit 32) war der dunkelste
+    // Punkt jeder Zeichnung 29 und der Anteil unter 25 damit null.
+    check('Jede Zeichnung hat echte Tiefe',
+      tiefe.every((t) => !t.fehlt && t.dunkelster <= 24 && t.unter25 >= 1),
+      JSON.stringify(tiefe));
+
     await page.screenshot({ path: join(SHOT_DIR, '02-spielstart.png') });
 
     // Laufen

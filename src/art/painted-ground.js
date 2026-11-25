@@ -947,18 +947,59 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
         // Auf einem Trampelpfad wächst weniger. Das ist der eigentliche
         // Effekt – die erdige Lasur allein verschwindet unter dem
         // Papierschleier, die FEHLENDEN Halme sieht man sofort.
-        const halme = tritt === 2 ? 0 : tritt === 1 ? 2 : 4;
+        /**
+         * Nicht überall gleich viel – sonst ist es ein Muster.
+         *
+         * Vier Büschel auf JEDER Kachel ergaben eine Wiese, die über den
+         * ganzen Bildschirm gleichmässig betupft war. Das liest sich als
+         * Stempel, nicht als Bewuchs, und zwar umso deutlicher, je besser
+         * die einzelne Marke ist. Im Vorbild stehen die Grasmarken in
+         * Nestern: hier ein dichter Fleck, daneben blanke Wiese.
+         *
+         * Die Dichte hängt deshalb an einem Wurf je Zweierblock, nicht
+         * je Kachel – ein Nest ist vier Kacheln gross – und ist nach
+         * unten gebogen, damit leere Stellen häufiger sind als volle.
+         *
+         * Die Biegung ist n hoch 2,5, der Faktor 13 – zusammen wieder
+         * rund 3,7 Büschel je Kachel im Mittel, also etwa so viele wie
+         * die gleichmässigen 4 vorher. Das ist kein Zufall: Beim ersten
+         * Versuch lag der Mittelwert bei 2,7, und eine Browserprüfung
+         * hat gemeldet, dass die Wiese damit unter ihre Mindest-
+         * zeichnung fällt. Zu Recht – ungleich verteilt heisst nicht
+         * weniger.
+         */
+        // Direkt aus dem Hash, ohne eigenen Zufallsgeber: `makeRng` legt
+        // eine Funktion an, und das hier läuft für JEDE Graskachel jedes
+        // Stücks. Gemessen am Lagerfeuer kostete die bequeme Fassung
+        // rund ein Bild je Sekunde.
+        const hn = hashString('gn' + (tx >> 1) + ':' + (ty >> 1));
+        const nest = ((hn >>> 9) & 2047) / 2047;
+        const dichte = nest * nest * Math.sqrt(nest);
+        const halme = tritt === 2 ? 0
+          : tritt === 1 ? Math.round(dichte * 6)
+            : Math.round(dichte * 13);
         for (let k = 0; k < halme; k++) {
           if (rng() > 0.82) continue;
           const gx = (tx + rng()) * TILE_SIZE;
           const gy = (ty + rng()) * TILE_SIZE;
-          const blades = 2 + ((rng() * 3) | 0);
-          // Kurze und lange Büschel gemischt: gleich hohe Halme überall
-          // ergeben einen Kamm, keinen Rasen.
-          const hoch = 0.55 + rng() * 0.85;
+          /**
+           * Kleiner und enger als vorher – ein Büschel, kein Schilf.
+           *
+           * Die Halme standen bei 15 bis 26 Punkten mal einem Faktor bis
+           * 1,4, also bis zu 36 Punkten auf einer Kachel von 64. Das ist
+           * mehr als halbe Kachelhöhe; im Bild las sich das als Stoppeln,
+           * die einzeln über die Wiese verstreut stehen. Im Vorbild sind
+           * die Grasmarken rund ein Siebtel einer Kachel hoch und stehen
+           * dicht beieinander, sodass drei Striche EIN Ding ergeben.
+           *
+           * Mehr Halme, kürzer, enger: dieselbe Zahl Büschel, aber jedes
+           * davon erkennbar als Büschel.
+           */
+          const blades = 3 + ((rng() * 3) | 0);
+          const hoch = 0.6 + rng() * 0.6;
           for (let i = 0; i < blades; i++) {
-            const x = gx + (i - (blades - 1) / 2) * 6;
-            grass.push([x, gy + 7, x + (rng() - 0.5) * 11, gy + 7 - (15 + rng() * 11) * hoch]);
+            const x = gx + (i - (blades - 1) / 2) * 4.4;
+            grass.push([x, gy + 5, x + (rng() - 0.5) * 8, gy + 5 - (9 + rng() * 7) * hoch]);
           }
         }
         // Farnwedel: ein Bogen mit Fiedern, gibt der Wiese Struktur
@@ -1081,8 +1122,8 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
      * ist genau der Punkt: Aus drei Strichen wird ein Ding.
      */
     g.strokeStyle = INK.line;
-    g.globalAlpha = 0.17;
-    g.lineWidth = 2.6;
+    g.globalAlpha = 0.2;
+    g.lineWidth = 2.3;
     g.beginPath();
     for (let i = 0; i < grass.length; i++) {
       const b = grass[i];
@@ -1091,14 +1132,19 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
     }
     g.stroke();
 
-    g.strokeStyle = INK.lineSoft;
-    g.globalAlpha = 0.52;
-    g.lineWidth = 1.8;
+    // Echte Tusche statt des weichen Graus: Mit `lineSoft` (Helligkeit
+    // 112) bei Deckkraft 0,52 landete ein Halm auf der Wiese bei rund
+    // 120 – sichtbar, wenn man hinsieht, aber für die Zeichnung zählte
+    // er nicht. Gemessen an Strichen je 1000 Bildpunkten trugen die
+    // zahlreichsten Marken des ganzen Bildes exakt nichts bei.
+    g.strokeStyle = INK.line;
+    g.globalAlpha = 0.4;
+    g.lineWidth = 1.7;
     g.beginPath();
     for (let i = 0; i < grass.length; i++) {
       const b = grass[i];
       g.moveTo(b[0], b[1]);
-      g.quadraticCurveTo((b[0] + b[2]) / 2 - 3, (b[1] + b[3]) / 2, b[2], b[3]);
+      g.quadraticCurveTo((b[0] + b[2]) / 2 - 2, (b[1] + b[3]) / 2, b[2], b[3]);
     }
     g.stroke();
   }

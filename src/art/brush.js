@@ -26,8 +26,25 @@ import { makeCanvas, ctx2d } from '../core/util.js';
  * Warm bleibt sie trotzdem: Reines Schwarz macht aus Aquarell einen
  * Comic. 36/30/26 ist Sepia, nur endlich dunkel genug, um als Strich zu
  * gelten.
+ *
+ * **Zweiter Durchgang: 36/30/26 war immer noch nicht dunkel genug.**
+ *
+ * Gemessen wurde diesmal die Tusche des Vorbilds selbst – nur im
+ * Wiesenbereich, damit die Felskante nicht mitzählt. Der Kern der
+ * Striche liegt bei 10/10/2, also praktisch Schwarz mit einem Hauch
+ * Oliv; 2,8 Prozent der Fläche liegen unter Helligkeit 20. Bei uns war
+ * der dunkelste Punkt des ganzen Bildschirms 30, denn dunkler als die
+ * Tusche selbst (Helligkeit 32) kann nichts werden.
+ *
+ * Das ist der Grund, warum unter Helligkeit 40 bei uns 0,1 Prozent
+ * lagen und im Vorbild 4,8: nicht Mangel an Strichen, sondern eine
+ * Tusche, die exakt auf der Schwelle sitzt. Oberhalb davon, wo die
+ * Schwelle nicht mehr beisst, steht es 3,9 zu 8,3 (unter 60) und 8,8 zu
+ * 17 (unter 80) – ein Faktor zwei, kein Faktor fünfzig.
+ *
+ * Also: auf Helligkeit 18 heruntergezogen, der warme Olivstich bleibt.
  */
-export const TUSCHE = '#241e1a';
+export const TUSCHE = '#14130c';
 
 /**
  * Wie breit die Umrisse insgesamt sind – ein Faktor auf alle Angaben.
