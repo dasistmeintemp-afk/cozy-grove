@@ -974,7 +974,11 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
         // rund ein Bild je Sekunde.
         const hn = hashString('gn' + (tx >> 1) + ':' + (ty >> 1));
         const nest = ((hn >>> 9) & 2047) / 2047;
-        const dichte = nest * nest * Math.sqrt(nest);
+        // Wie viel hier überhaupt wächst, sagt die Welt – der Maler
+        // fragt nach einer Zahl und nicht nach dem Biom. Auf Sand ist
+        // sie null, unter dem Kronendach ein Drittel.
+        const bewuchs = world.bewuchsAtTile ? world.bewuchsAtTile(tx, ty) : 1;
+        const dichte = nest * nest * Math.sqrt(nest) * bewuchs;
         const halme = tritt === 2 ? 0
           : tritt === 1 ? Math.round(dichte * 6)
             : Math.round(dichte * 13);
@@ -1003,7 +1007,7 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
           }
         }
         // Farnwedel: ein Bogen mit Fiedern, gibt der Wiese Struktur
-        if (!tritt && rng() < 0.2) fronds.push([bx, by, rng() < 0.5 ? -1 : 1]);
+        if (!tritt && rng() < 0.2 * bewuchs) fronds.push([bx, by, rng() < 0.5 ? -1 : 1]);
         // Auf dem Trampelpfad stattdessen Trittspuren. Ohne sie wäre eine
         // deutlich ausgetretene Kachel vollkommen leer – gemessen null
         // Prozent Tinte –, und auf der unkolorierten Insel sähe man vom

@@ -13,14 +13,30 @@ import assert from 'node:assert/strict';
 import { World } from '../../src/world/world.js';
 import { MAP_W, MAP_H, tileIndex } from '../../src/world/worldgen.js';
 import { TILE_SIZE, isWalkable } from '../../src/art/tiles.js';
+import { ENTITY_DEFS } from '../../src/world/entities.js';
 
 const SEEDS = [11, 4711, 555, 20250907];
 
 /** Für jede begehbare Kachel: Bäume je 100 Kacheln im Umkreis von fünf. */
 function umgebungsdichte(welt) {
+  /**
+   * Was als Baum zählt, steht in der Objekttabelle – nicht im Namen.
+   *
+   * Hier stand `e.kind.indexOf('tree_') !== 0`. Das war richtig, solange
+   * jede Baumart `tree_` hiess. Mit den Klimazonen kamen Dschungelbaum,
+   * Palme, Mangrove, Bambus und Säulenkaktus dazu, und keiner davon
+   * fängt so an: Die DICHTESTEN Wälder des Spiels waren für diese
+   * Prüfung unsichtbar. Sie hat daraufhin gemeldet, es gebe kein
+   * Dickicht mehr – und das Dickicht stand direkt daneben.
+   *
+   * Ein Name ist kein Merkmal. `category: 'tree'` ist eins, und es ist
+   * dasselbe, an dem auch die Setzlingsprüfung eine Baumart erkennt.
+   */
   const baum = new Uint8Array(MAP_W * MAP_H);
   for (const e of welt.entities) {
-    if (e.gone || e.kind.indexOf('tree_') !== 0) continue;
+    if (e.gone || !e.kind) continue;
+    const def = ENTITY_DEFS[e.kind];
+    if (!def || def.category !== 'tree') continue;
     baum[tileIndex(Math.floor(e.x / TILE_SIZE), Math.floor(e.y / TILE_SIZE))]++;
   }
   const werte = [];

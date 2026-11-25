@@ -64,6 +64,16 @@ const LIST = [
   // kein Falter, kein Werkstoff. Mehl aus der Mühle steht damit neben
   // Beeren und Kraut, und das ist genau die Reihe, in die es gehört.
   it('mehl', 'Mehl', CAT.FORAGE, 14, 1),
+  /**
+   * Was es nur in den neuen Klimazonen gibt.
+   *
+   * Dieselbe Regel wie bei Höhle und Mühle: Eine Gegend, in der dieselben
+   * Dinge liegen wie zu Hause, ist eine größere Fläche und kein Ort. Wer
+   * durch die Wüste läuft, muss etwas mitbringen können, das es in der
+   * Wüste gibt – sonst war der Weg eine Strafe.
+   */
+  it('bambus', 'Bambusrohr', CAT.MATERIAL, 8, 2),
+  it('knochen', 'Bleichknochen', CAT.MATERIAL, 13, 2),
   it('fiber', 'Pflanzenfaser', CAT.MATERIAL, 2, 1),
   it('resin', 'Harz', CAT.MATERIAL, 7, 2),
   it('clay', 'Ton', CAT.MATERIAL, 4, 0),
@@ -76,6 +86,8 @@ const LIST = [
 
   // Sammelgut
   it('berry', 'Waldbeeren', CAT.FORAGE, 6, 2),
+  // Die Frucht des Feigenkaktus. Sammelgut, nicht Material: Man isst sie.
+  it('kaktusfeige', 'Kaktusfeige', CAT.FORAGE, 10, 2),
   it('mushroom', 'Pilz', CAT.FORAGE, 7, 2),
   it('herb', 'Kraut', CAT.FORAGE, 5, 2),
   it('flower_pink', 'Rosenblume', CAT.FORAGE, 7, 2),
@@ -288,6 +300,11 @@ const LIST = [
   it('sapling_maple', 'Ahornsetzling', CAT.SEED, 16, 0, { pflanzt: 'sapling_maple', prop: 'sapling_maple_1' }),
   it('sapling_pine', 'Kiefernsetzling', CAT.SEED, 18, 0, { pflanzt: 'sapling_pine', prop: 'sapling_pine_1' }),
   it('sapling_wind', 'Windbaumsetzling', CAT.SEED, 18, 0, { pflanzt: 'sapling_wind', prop: 'sapling_wind_1' }),
+  it('sapling_dschungel', 'Dschungelsetzling', CAT.SEED, 22, 0, { pflanzt: 'sapling_dschungel', prop: 'sapling_dschungel_1' }),
+  it('sapling_palme', 'Palmensetzling', CAT.SEED, 19, 0, { pflanzt: 'sapling_palme', prop: 'sapling_palme_1' }),
+  it('sapling_mangrove', 'Mangrovensetzling', CAT.SEED, 20, 0, { pflanzt: 'sapling_mangrove', prop: 'sapling_mangrove_1' }),
+  it('sapling_kaktus', 'Kaktussetzling', CAT.SEED, 17, 0, { pflanzt: 'sapling_kaktus', prop: 'sapling_kaktus_1' }),
+  it('sapling_bambus', 'Bambussetzling', CAT.SEED, 15, 0, { pflanzt: 'sapling_bambus', prop: 'sapling_bambus_1' }),
 
   // Andenken – das Geschenk am Ende einer Erinnerungskette. Nicht käuflich,
   // nicht herstellbar, nicht verbrennbar: der einzige Weg dahin ist die

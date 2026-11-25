@@ -2580,6 +2580,47 @@ const INK = {
   moss: '#87b963',
   copper: '#e08a4a',
 
+  /**
+   * Die Farben der neuen Klimazonen.
+   *
+   * Sie stehen hier und nicht bei den Jahreszeiten, weil eine Wüste im
+   * Herbst keine andere Wüste ist. Was sich mit dem Jahr ändert, ist das
+   * Laub; Kaktusfleisch, Dünensand und Mangrovenschlick ändern sich nicht.
+   *
+   * Alle Helligkeiten liegen im selben Band wie die neue Wiese (um 130),
+   * damit die Zonen nebeneinander nicht springen – die Wüste ist heller,
+   * der Dschungel dunkler, aber keine der beiden fällt aus dem Bild.
+   */
+  // Wüste: Kaktusfleisch ist blaugrün, nicht grasgrün – daran erkennt man
+  // eine Trockenpflanze, bevor man ihre Form gesehen hat.
+  kaktus: '#5f8f63',
+  kaktusLicht: '#86b183',
+  kaktusDunkel: '#3f6a4a',
+  duene: '#e8c98b',
+  dueneSchatten: '#cda868',
+  duerr: '#b0905c',
+  duerrDunkel: '#8a6c40',
+  knochen: '#efe6d2',
+
+  // Steppe: ausgedörrtes Gras, das trotzdem Gras bleibt. Khaki wäre der
+  // bequeme Griff und derselbe Fehler, der beim Herbstgras schon einmal
+  // gemacht wurde – ohne Grünanteil liest sich alles als Dunst.
+  steppe: '#a8a052',
+  steppeLicht: '#c2bd79',
+  steppeDunkel: '#7d7838',
+  distel: '#9a8fbe',
+
+  // Dschungel: das tiefste Grün des Spiels, und ein zweites, das deutlich
+  // gelber ist. Ein Regenwald ist nicht EIN Grün, sondern viele
+  // übereinander – das ist der ganze Unterschied zum Nadelwald.
+  dschungel: '#2f7a33',
+  dschungelLicht: '#5fa348',
+  dschungelDunkel: '#1d5125',
+  dschungelTief: '#123a1b',
+  bambus: '#9bb84a',
+  bluete: '#e8705f',
+  schlick: '#6b5a42',
+
   warm: '#eaa74e',
   ember: '#f0913f',
   emberLight: '#f9d081',
@@ -10153,6 +10194,27 @@ const SETZLINGE = {
   // Der Windbaum wächst am langsamsten. Wer eine Uferreihe will, soll
   // dafür warten – an der Küste steht ohnehin das, was Ausdauer hat.
   sapling_wind: { id: 'sapling_wind', name: 'Windbaumsetzling', wird: 'tree_wind', tage: 9, laub: '#9ab477' },
+  /**
+   * Die Setzlinge der neuen Zonen.
+   *
+   * Dass es sie überhaupt gibt, erzwingt eine Prüfung: Jede Art mit
+   * `category: 'tree'` braucht einen, sonst wäre eine Sorte die, die man
+   * abholzt und nie ersetzt – und niemand wüsste, warum ausgerechnet die.
+   *
+   * Der Dschungelbaum braucht am längsten, der Bambus am kürzesten. Das
+   * ist keine Stimmung, sondern dieselbe Regel wie beim Windbaum: Was im
+   * Spiel groß und wertvoll ist, lässt auf sich warten.
+   */
+  sapling_dschungel: { id: 'sapling_dschungel', name: 'Dschungelsetzling', wird: 'dschungelbaum', tage: 9, laub: '#3d8a35' },
+  sapling_palme: { id: 'sapling_palme', name: 'Palmensetzling', wird: 'palme', tage: 7, laub: '#4f9a3c' },
+  sapling_mangrove: { id: 'sapling_mangrove', name: 'Mangrovensetzling', wird: 'mangrove', tage: 8, laub: '#35803a' },
+  // Kaktus und Bambus sind keine Bäume im botanischen Sinn und verhalten
+  // sich im Spiel trotzdem wie welche: Axt, mehrere Schläge, Stumpf. Sie
+  // bekommen deshalb auch Setzlinge – eine Ausnahme von der Regel wäre
+  // teurer als die zwei Zeilen hier, denn dann müsste jede Baumregel
+  // wissen, dass es zwei Arten gibt, für die sie nicht gilt.
+  sapling_kaktus: { id: 'sapling_kaktus', name: 'Kaktussetzling', wird: 'kaktus', tage: 7, laub: '#5f8f63' },
+  sapling_bambus: { id: 'sapling_bambus', name: 'Bambussetzling', wird: 'bambus', tage: 6, laub: '#9bb84a' },
 };
 
 const SETZLING_IDS = Object.keys(SETZLINGE);
@@ -14656,6 +14718,1589 @@ __e.paintBowl = paintBowl;
 
 };
 
+__defs["src/art/painted-wueste.js"] = function (__e) {
+/**
+ * Die Flora der trockenen Zonen – Wüste und Steppe.
+ *
+ * **Warum eine eigene Datei.** `painted.js` ist die gemäßigte Zone: Eiche,
+ * Birke, Farn, Pilz. Die Trockenpflanzen teilen mit ihnen die Werkzeuge
+ * (Klecks, Lasur, Tuschestrich) und sonst nichts – keine Farbe, keine
+ * Silhouette, keine Jahreszeit. Sie hier zu versammeln hält beide Dateien
+ * lesbar und macht sichtbar, dass eine Zone eine Liste von Pflanzen IST.
+ *
+ * **Was eine Trockenpflanze ausmacht, und zwar zeichnerisch.** Drei Dinge,
+ * und alle drei stecken in jedem Maler hier drin:
+ *
+ *   1. **Blaugrün statt Grasgrün.** Wachsschichten und Behaarung, die vor
+ *      Verdunstung schützen, streuen blaues Licht. Man erkennt eine
+ *      Trockenpflanze daran, bevor man ihre Form gesehen hat.
+ *   2. **Wenig Blattfläche, viel Kante.** Ein Blatt ist eine Verdunstungs-
+ *      fläche; wo Wasser knapp ist, wird daraus eine Rippe, ein Dorn oder
+ *      ein Stiel. Also schmale Silhouetten und harte Ecken statt der
+ *      runden Lappen, aus denen die Laubbäume bestehen.
+ *   3. **Harter Schatten.** Keine Wolke dämpft ihn. Die Bodenschatten sind
+ *      hier kürzer und kräftiger als in der gemäßigten Zone.
+ */
+const { blob, smoothClosed, offsetShape, pathFrom, inkStroke, inkLine, wash, paintObject, groundShadow, LIGHT } = __req("src/art/brush.js");
+const { INK: ink, fill, made, slab, dot } = __req("src/art/painted.js");
+const { makeRng } = __req("src/core/rng.js");
+
+/**
+ * Säulenkaktus – das Wahrzeichen der Wüste.
+ *
+ * Er ist bewusst der größte Gegenstand der Zone und steht dort an der
+ * Stelle, an der im Wald ein Baum steht: Wer ihn sieht, weiß ohne Karte,
+ * wo er ist.
+ *
+ * **Die Rippen sind nicht Schmuck, sie sind die Form.** Ein Kaktus ohne
+ * senkrechte Rippen ist ein grüner Pfosten. Sie laufen über die ganze
+ * Höhe, biegen sich mit dem Körper und enden oben in der Rundung – und
+ * weil sie die einzige Innenzeichnung sind, tragen sie die ganze
+ * Plastizität.
+ */
+function paintKaktus(opts) {
+  const o = opts || {};
+  const seed = o.seed || 3101;
+  const rng = makeRng(seed >>> 0);
+  const w = 112;
+  const h = 196;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  // Der Stamm: unten breiter als oben, mit leicht ungleichen Seiten.
+  const stammB = 19 + rng() * 4;
+  const stamm = smoothClosed([
+    [cx - stammB, baseY], [cx - stammB - 1, baseY - 60],
+    [cx - stammB + 2, baseY - 120], [cx - stammB + 5, baseY - 150],
+    [cx, baseY - 162],
+    [cx + stammB - 4, baseY - 150], [cx + stammB - 2, baseY - 118],
+    [cx + stammB + 1, baseY - 58], [cx + stammB, baseY],
+  ], 5);
+
+  /**
+   * Die Arme. Zwei Stück, auf verschiedener Höhe und verschieden lang.
+   *
+   * Beim ersten Entwurf saßen sie gegenüber auf gleicher Höhe, und das
+   * Ergebnis war ein Kandelaber – symmetrisch, und damit gebaut statt
+   * gewachsen. Ein echter Saguaro treibt seine Arme Jahrzehnte
+   * auseinander.
+   */
+  const arme = [];
+  const seiten = rng() < 0.5 ? [-1, 1] : [1, -1];
+  for (let i = 0; i < 2; i++) {
+    const s = seiten[i];
+    const ansatz = baseY - (58 + i * 38 + rng() * 16);
+    const laenge = 34 + rng() * 20;
+    const hoch = 40 + rng() * 26;
+    const d = 11 + rng() * 3;
+    // Der Arm geht erst waagerecht heraus und knickt dann nach oben –
+    // ein Bogen, kein Winkel, sonst sieht er angeklebt aus.
+    arme.push(smoothClosed([
+      [cx + s * (stammB - 4), ansatz + d],
+      [cx + s * (stammB + laenge * 0.6), ansatz + d + 4],
+      [cx + s * (stammB + laenge), ansatz + d - 6],
+      [cx + s * (stammB + laenge), ansatz - hoch],
+      [cx + s * (stammB + laenge - d * 2), ansatz - hoch - 2],
+      [cx + s * (stammB + laenge - d * 2), ansatz - 8],
+      [cx + s * (stammB - 4), ansatz - d],
+    ], 5));
+  }
+
+  const teile = [stamm].concat(arme);
+
+  /** Wo die Rippen laufen: x-Anteile über die Stammbreite. */
+  const rippen = [-0.62, -0.26, 0.1, 0.46, 0.78];
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.3,
+    outline: 1.9,
+    shadow: function (g) {
+      // Kurz und kräftig: In der Wüste steht die Sonne hoch und es gibt
+      // nichts, was den Schatten weich macht.
+      groundShadow(g, cx + 5, baseY - 2, 30, 9, seed + 1, 0.24);
+    },
+    wash: function (g) {
+      for (let i = 0; i < teile.length; i++) {
+        wash(g, teile[i], o.fleisch || ink.kaktus, { seed: seed + 10 + i, scale: 1.04 });
+        wash(g, offsetShape(teile[i], -LIGHT.x * 11, -LIGHT.y * 9, 0.72),
+          ink.kaktusDunkel, { seed: seed + 20 + i, alpha: 0.6 });
+        wash(g, offsetShape(teile[i], LIGHT.x * 12, LIGHT.y * 8, 0.42),
+          ink.kaktusLicht, { seed: seed + 30 + i, alpha: 0.7 });
+      }
+      // Blüten auf der Krone – nur manchmal, und dann leuchtend.
+      if (o.bluete) {
+        for (let i = 0; i < 3; i++) {
+          dot(g, null, cx - 14 + i * 14, baseY - 160 + (i === 1 ? -5 : 2),
+            6.5, ink.bluete, seed + 60 + i);
+        }
+      }
+    },
+    shape: function (g) { for (let i = 0; i < teile.length; i++) fill(g, teile[i]); },
+    ink: function (g) {
+      // Die Rippen des Stamms. Sie enden oben vor der Rundung, sonst
+      // laufen sie über die Kuppe hinaus und der Kaktus wird ein Rohr.
+      for (let i = 0; i < rippen.length; i++) {
+        const x = cx + rippen[i] * stammB;
+        // Zum Rand hin blasser: In der Mitte wölbt sich der Körper zum
+        // Betrachter, dort sieht man die Rippe am deutlichsten.
+        const mitte = 1 - Math.abs(rippen[i]);
+        inkLine(g, x, baseY - 6, x + rippen[i] * 3, baseY - 142, {
+          width: 1.5 + mitte * 0.7, bend: 0.012 * rippen[i],
+          seed: seed + 70 + i, alpha: 0.3 + mitte * 0.3,
+        });
+      }
+      // Je eine Rippe auf jedem Arm, dem Bogen folgend.
+      for (let i = 0; i < arme.length; i++) {
+        inkStroke(g, offsetShape(arme[i], 0, 0, 0.55), {
+          closed: true, width: 1.4, vary: 0.3,
+          seed: seed + 80 + i, alpha: 0.26, color: ink.line,
+        });
+      }
+      // Dornenbüschel auf den Rippen: drei kurze Striche sternförmig.
+      const r2 = makeRng(seed + 500);
+      for (let k = 0; k < 16; k++) {
+        const x = cx + rippen[(r2() * rippen.length) | 0] * stammB;
+        const y = baseY - 14 - r2() * 130;
+        for (let s = 0; s < 3; s++) {
+          const a = -0.7 + s * 0.7 + (r2() - 0.5) * 0.3;
+          inkLine(g, x, y, x + Math.cos(a) * 5, y + Math.sin(a) * 5,
+            { width: 1.1, bend: 0, seed: seed + 600 + k * 3 + s, alpha: 0.5 });
+        }
+      }
+      if (o.bluete) {
+        for (let i = 0; i < 3; i++) {
+          dot(null, g, cx - 14 + i * 14, baseY - 160 + (i === 1 ? -5 : 2),
+            6.5, ink.bluete, seed + 60 + i);
+        }
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Feigenkaktus – flache Scheiben, die aufeinander sitzen.
+ *
+ * Der Gegenentwurf zum Säulenkaktus: breit statt hoch, und damit das
+ * Ding, das zwischen den Säulen den Boden füllt. Beide zusammen ergeben
+ * eine Wüste; einer allein ergibt eine Wiederholung.
+ */
+function paintFeigenkaktus(opts) {
+  const o = opts || {};
+  const seed = o.seed || 3201;
+  const rng = makeRng(seed >>> 0);
+  const w = 118;
+  const h = 104;
+  const cx = w / 2;
+  const baseY = h - 8;
+
+  /**
+   * Die Scheiben wachsen auseinander hervor, jede aus dem Rand der
+   * vorigen. Deshalb werden sie nacheinander gesetzt und merken sich
+   * ihren Ansatzpunkt – gestreut platziert sähen sie aus wie ein Haufen
+   * Teller.
+   */
+  const scheiben = [];
+  function setze(x, y, rx, ry, k) {
+    scheiben.push({
+      pts: smoothClosed(blob(x, y, rx, ry, seed + k * 7, 0.11, 16), 5),
+      x: x, y: y, rx: rx, ry: ry,
+    });
+  }
+  /**
+   * Eine große Grundscheibe, darauf ein Fächer.
+   *
+   * Beim ersten Entwurf wanderte jede Scheibe vom oberen Rand der
+   * vorigen weiter nach links oder rechts. Über vier Scheiben ergab das
+   * eine Treppe quer durchs Bild – gezeichnet sah es aus wie eine Raupe,
+   * die den Hang hochkriecht. Ein Feigenkaktus wächst aber nicht in eine
+   * Richtung davon: Er sitzt auf einem Fuß, und die oberen Scheiben
+   * fächern nach BEIDEN Seiten auf.
+   */
+  const grundRx = 21 + rng() * 4;
+  const grundRy = 24 + rng() * 5;
+  setze(cx, baseY - grundRy - 4, grundRx, grundRy, 0);
+  const n = 2 + ((rng() * 2) | 0);
+  const seiten = [-1, 1, -0.35];
+  for (let i = 0; i < n; i++) {
+    const s = seiten[i];
+    const rx = 14 + rng() * 5;
+    const ry = 17 + rng() * 6;
+    setze(cx + s * (grundRx * 0.72 + rx * 0.2),
+      baseY - grundRy * 1.5 - ry * 0.7 - rng() * 8, rx, ry, i + 1);
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.7,
+    shadow: function (g) { groundShadow(g, cx + 4, baseY - 2, 28, 8, seed + 1, 0.22); },
+    wash: function (g) {
+      for (let i = 0; i < scheiben.length; i++) {
+        const s = scheiben[i];
+        wash(g, s.pts, o.fleisch || ink.kaktus, { seed: seed + 10 + i, scale: 1.05 });
+        wash(g, offsetShape(s.pts, -LIGHT.x * 9, -LIGHT.y * 8, 0.66),
+          ink.kaktusDunkel, { seed: seed + 20 + i, alpha: 0.55 });
+        wash(g, offsetShape(s.pts, LIGHT.x * 8, LIGHT.y * 7, 0.4),
+          ink.kaktusLicht, { seed: seed + 30 + i, alpha: 0.6 });
+      }
+      if (o.frucht) {
+        for (let i = 0; i < scheiben.length; i++) {
+          if (i % 2) continue;
+          const s = scheiben[i];
+          dot(g, null, s.x + s.rx * 0.3, s.y - s.ry * 0.8, 5, ink.bluete, seed + 70 + i);
+        }
+      }
+    },
+    shape: function (g) { for (let i = 0; i < scheiben.length; i++) fill(g, scheiben[i].pts); },
+    ink: function (g) {
+      // Die Scheibengrenzen nachziehen: Ohne sie verschmilzt der Stapel
+      // zu einer einzigen Wolke, und genau die Teilung IST der Feigenkaktus.
+      for (let i = 1; i < scheiben.length; i++) {
+        inkStroke(g, offsetShape(scheiben[i].pts, 0, 0, 0.92), {
+          closed: true, width: 1.6, vary: 0.35,
+          seed: seed + 40 + i, alpha: 0.4, color: ink.line,
+        });
+      }
+      // Die Areolen – die Punkte, aus denen die Dornen kommen. Beim
+      // Feigenkaktus sind sie das auffälligere Zeichen als die Dornen
+      // selbst: lauter kleine Tupfen in schrägen Reihen.
+      const r2 = makeRng(seed + 900);
+      for (let i = 0; i < scheiben.length; i++) {
+        const s = scheiben[i];
+        for (let k = 0; k < 7; k++) {
+          const a = r2() * Math.PI * 2;
+          const rr = Math.sqrt(r2()) * 0.72;
+          const px = s.x + Math.cos(a) * s.rx * rr;
+          const py = s.y + Math.sin(a) * s.ry * rr;
+          inkLine(g, px - 2, py, px + 2, py,
+            { width: 1.6, bend: 0, seed: seed + 950 + i * 7 + k, alpha: 0.45 });
+        }
+      }
+      if (o.frucht) {
+        for (let i = 0; i < scheiben.length; i++) {
+          if (i % 2) continue;
+          const s = scheiben[i];
+          dot(null, g, s.x + s.rx * 0.3, s.y - s.ry * 0.8, 5, ink.bluete, seed + 70 + i);
+        }
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Agave – eine Rosette steifer Blätter, jedes mit einer Spitze.
+ *
+ * Die dritte Silhouette der Wüste: nicht senkrecht (Säule), nicht rund
+ * (Feige), sondern sternförmig. Drei Grundformen reichen, damit eine
+ * Gegend nicht aus einer Pflanze besteht.
+ */
+function paintAgave(opts) {
+  const o = opts || {};
+  const seed = o.seed || 3301;
+  const rng = makeRng(seed >>> 0);
+  const w = 118;
+  const h = 96;
+  const cx = w / 2;
+  const baseY = h - 8;
+  const mitteY = baseY - 10;
+
+  const blaetter = [];
+  const n = 8 + ((rng() * 3) | 0);
+  for (let i = 0; i < n; i++) {
+    // Gleichmäßig im Halbkreis, mit Spiel: eine Rosette ist regelmäßig,
+    // aber nicht gezirkelt.
+    const a = -Math.PI * 0.96 + (i / (n - 1)) * Math.PI * 0.92 + (rng() - 0.5) * 0.14;
+    const laenge = 34 + rng() * 20;
+    const breite = 7 + rng() * 3;
+    const sx = Math.cos(a);
+    const sy = Math.sin(a) * 0.72;
+    const tipX = cx + sx * laenge;
+    const tipY = mitteY + sy * laenge;
+    // Ein Blatt ist ein Dreieck mit gebogenen Flanken – keine Keule.
+    blaetter.push({
+      pts: smoothClosed([
+        [cx - sy * breite, mitteY + sx * breite * 0.5],
+        [cx + sx * laenge * 0.5 - sy * breite, mitteY + sy * laenge * 0.5 + sx * breite],
+        [tipX, tipY],
+        [cx + sx * laenge * 0.5 + sy * breite, mitteY + sy * laenge * 0.5 - sx * breite],
+        [cx + sy * breite, mitteY - sx * breite * 0.5],
+      ], 4),
+      tipX: tipX, tipY: tipY, a: a,
+    });
+  }
+  // Von hinten nach vorne: die nach unten zeigenden Blätter zuletzt.
+  blaetter.sort(function (p, q) { return p.tipY - q.tipY; });
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.1,
+    outline: 1.5,
+    shadow: function (g) { groundShadow(g, cx + 4, baseY - 4, 30, 8, seed + 1, 0.2); },
+    wash: function (g) {
+      for (let i = 0; i < blaetter.length; i++) {
+        const b = blaetter[i];
+        wash(g, b.pts, o.fleisch || ink.kaktus, { seed: seed + 10 + i, scale: 1.03 });
+        wash(g, offsetShape(b.pts, -LIGHT.x * 6, -LIGHT.y * 5, 0.6),
+          ink.kaktusDunkel, { seed: seed + 30 + i, alpha: 0.45 });
+      }
+    },
+    shape: function (g) { for (let i = 0; i < blaetter.length; i++) fill(g, blaetter[i].pts); },
+    ink: function (g) {
+      for (let i = 0; i < blaetter.length; i++) {
+        const b = blaetter[i];
+        // Die Mittelrippe – das, was ein Agavenblatt steif aussehen lässt.
+        inkLine(g, cx, mitteY, b.tipX, b.tipY,
+          { width: 1.4, bend: 0.03, seed: seed + 50 + i, alpha: 0.42 });
+        // Und die dunkle Spitze. Bei echten Agaven ist sie fast schwarz,
+        // und sie ist das Zeichen, an dem man die Pflanze erkennt.
+        inkLine(g, b.tipX - Math.cos(b.a) * 6, b.tipY - Math.sin(b.a) * 0.72 * 6,
+          b.tipX, b.tipY, { width: 2.4, bend: 0, seed: seed + 70 + i, alpha: 0.85 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Dürrbusch – ein Gestrüpp aus Zweigen, fast ohne Blatt.
+ *
+ * Das Füllmaterial der Trockenzonen, und das einzige Ding hier, das
+ * überhaupt keine Fläche hat: Es besteht nur aus Tusche. Deshalb steht es
+ * auch in der Steppe, wo es die Lücken zwischen den Grasbüscheln füllt.
+ */
+function paintDuerrbusch(opts) {
+  const o = opts || {};
+  const seed = o.seed || 3401;
+  const rng = makeRng(seed >>> 0);
+  const w = 96;
+  const h = 84;
+  const cx = w / 2;
+  const baseY = h - 8;
+
+  /**
+   * Die Zweige wachsen aus einem gemeinsamen Fuß nach oben auseinander
+   * und verzweigen sich einmal. Gestreute Einzelstriche ergäben Stroh;
+   * was einen Busch ausmacht, ist, dass alles von EINER Stelle kommt.
+   */
+  const striche = [];
+  const n = 7 + ((rng() * 4) | 0);
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI * 0.82 + (i / (n - 1)) * Math.PI * 0.64 + (rng() - 0.5) * 0.3;
+    const len = 30 + rng() * 26;
+    const x1 = cx + Math.cos(a) * len;
+    const y1 = baseY + Math.sin(a) * len;
+    striche.push([cx + (rng() - 0.5) * 6, baseY, x1, y1, 1.9]);
+    // Eine Gabel auf halber Höhe
+    const mx = cx + Math.cos(a) * len * 0.55;
+    const my = baseY + Math.sin(a) * len * 0.55;
+    const a2 = a + (rng() < 0.5 ? -1 : 1) * (0.4 + rng() * 0.3);
+    striche.push([mx, my, mx + Math.cos(a2) * len * 0.42,
+      my + Math.sin(a2) * len * 0.42, 1.3]);
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.0,
+    shadow: function (g) { groundShadow(g, cx + 3, baseY - 2, 22, 6, seed + 1, 0.16); },
+    wash: function (g) {
+      // Nur ein Hauch erdige Farbe am Fuß – damit er koloriert nicht als
+      // reine Strichzeichnung in einer gemalten Welt steht.
+      wash(g, smoothClosed(blob(cx, baseY - 18, 26, 18, seed + 2, 0.24, 14), 5),
+        o.holz || ink.duerr, { seed: seed + 3, alpha: 0.3 });
+    },
+    ink: function (g) {
+      for (let i = 0; i < striche.length; i++) {
+        const s = striche[i];
+        inkLine(g, s[0], s[1], s[2], s[3], {
+          width: s[4], bend: (makeRng(seed + 300 + i)() - 0.5) * 0.22,
+          seed: seed + 400 + i, alpha: 0.68,
+        });
+      }
+      // Ein paar vertrocknete Blattreste, sonst ist es ein Reisigbündel.
+      if (o.blattreste !== false) {
+        const r2 = makeRng(seed + 700);
+        for (let k = 0; k < 5; k++) {
+          const s = striche[(r2() * striche.length) | 0];
+          const t = 0.4 + r2() * 0.5;
+          const px = s[0] + (s[2] - s[0]) * t;
+          const py = s[1] + (s[3] - s[1]) * t;
+          inkStroke(g, smoothClosed(blob(px, py, 4.5, 3, seed + 800 + k, 0.2, 8), 4), {
+            closed: true, width: 1.2, vary: 0.3,
+            seed: seed + 850 + k, alpha: 0.5, color: ink.line,
+          });
+        }
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Dünengras – harte Büschel, die im Sand stehen.
+ *
+ * Anders als das Wiesengras am Boden ist das hier ein Gegenstand: höher,
+ * steifer, in getrennten Horsten. Es ist das, was eine Düne von einer
+ * leeren Sandfläche unterscheidet.
+ */
+function paintDuenengras(opts) {
+  const o = opts || {};
+  const seed = o.seed || 3501;
+  const rng = makeRng(seed >>> 0);
+  const w = 88;
+  const h = 96;
+  const cx = w / 2;
+  const baseY = h - 8;
+
+  const halme = [];
+  const n = 9 + ((rng() * 5) | 0);
+  for (let i = 0; i < n; i++) {
+    const fuss = cx + (rng() - 0.5) * 20;
+    const hoehe = 34 + rng() * 38;
+    const neigung = (rng() - 0.5) * 34;
+    halme.push([fuss, baseY, fuss + neigung, baseY - hoehe, neigung]);
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.0,
+    shadow: function (g) { groundShadow(g, cx + 2, baseY - 2, 18, 5, seed + 1, 0.15); },
+    wash: function (g) {
+      wash(g, smoothClosed(blob(cx, baseY - 6, 22, 7, seed + 2, 0.22, 12), 4),
+        o.farbe || ink.steppeDunkel, { seed: seed + 3, alpha: 0.5 });
+    },
+    ink: function (g) {
+      for (let i = 0; i < halme.length; i++) {
+        const b = halme[i];
+        // Die Biegung folgt der Neigung: Ein Halm, der nach rechts steht,
+        // ist auch nach rechts gebogen. Umgekehrt sieht er geknickt aus.
+        inkLine(g, b[0], b[1], b[2], b[3], {
+          width: 1.7, bend: b[4] > 0 ? 0.16 : -0.16,
+          seed: seed + 100 + i, alpha: 0.6, color: ink.line,
+        });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Steppengras – das Gegenstück zum Dünengras, aber in Ähren.
+ *
+ * Die Steppe ist nicht Wüste: Hier wächst etwas, es ist nur trocken. Der
+ * Unterschied im Bild sind die Ähren – schwere Köpfe, die sich neigen,
+ * statt steifer Spitzen, die stehen.
+ */
+function paintSteppengras(opts) {
+  const o = opts || {};
+  const seed = o.seed || 3601;
+  const rng = makeRng(seed >>> 0);
+  const w = 100;
+  const h = 118;
+  const cx = w / 2;
+  const baseY = h - 8;
+
+  const halme = [];
+  const n = 7 + ((rng() * 4) | 0);
+  for (let i = 0; i < n; i++) {
+    const fuss = cx + (rng() - 0.5) * 24;
+    const hoehe = 48 + rng() * 44;
+    const neigung = (rng() - 0.5) * 40;
+    halme.push({
+      x0: fuss, x1: fuss + neigung, y1: baseY - hoehe,
+      ahre: rng() < 0.75, s: neigung > 0 ? 1 : -1,
+    });
+  }
+
+  function ahrenform(hm) {
+    return smoothClosed(blob(hm.x1 + hm.s * 3, hm.y1 + 7, 4.5, 11,
+      seed + 200 + hm.y1, 0.14, 12), 4);
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.1,
+    outline: 1.2,
+    shadow: function (g) { groundShadow(g, cx + 3, baseY - 2, 22, 6, seed + 1, 0.15); },
+    wash: function (g) {
+      wash(g, smoothClosed(blob(cx, baseY - 8, 26, 9, seed + 2, 0.22, 12), 4),
+        ink.steppeDunkel, { seed: seed + 3, alpha: 0.45 });
+      for (let i = 0; i < halme.length; i++) {
+        if (!halme[i].ahre) continue;
+        wash(g, ahrenform(halme[i]), o.farbe || ink.steppe,
+          { seed: seed + 20 + i, scale: 1.06 });
+      }
+    },
+    shape: function (g) {
+      for (let i = 0; i < halme.length; i++) {
+        if (halme[i].ahre) fill(g, ahrenform(halme[i]));
+      }
+    },
+    ink: function (g) {
+      for (let i = 0; i < halme.length; i++) {
+        const hm = halme[i];
+        inkLine(g, hm.x0, baseY, hm.x1, hm.y1, {
+          width: 1.6, bend: hm.s * 0.18, seed: seed + 100 + i, alpha: 0.55,
+        });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Distel – der Farbtupfer der Steppe.
+ *
+ * Eine Zone, in der alles gelbbraun ist, liest sich als Dunst. Die Distel
+ * ist das Violett dagegen, und weil sie stachelig ist, passt sie zur
+ * Zone, statt wie eine vergessene Gartenblume auszusehen.
+ */
+function paintDistel(opts) {
+  const o = opts || {};
+  const seed = o.seed || 3701;
+  const rng = makeRng(seed >>> 0);
+  const w = 72;
+  const h = 108;
+  const cx = w / 2;
+  const baseY = h - 8;
+  const kopfY = 28 + rng() * 8;
+
+  /**
+   * Ein Stiel, kein Stamm.
+   *
+   * Zuerst stand hier eine halbe Breite von 3,5 Punkten auf 70 Punkten
+   * Höhe – im Bild ein Baumstumpf mit einer Blüte obendrauf. Eine Distel
+   * ist dünn und hoch; dass sie trotzdem steht, ist ja gerade ihr
+   * Kunststück. Jetzt 1,8 Punkte, und unten minimal breiter als oben.
+   */
+  const stiel = smoothClosed([
+    [cx - 2.2, baseY], [cx - 2, baseY - 34], [cx - 1.6, kopfY + 14],
+    [cx + 1.6, kopfY + 14], [cx + 2, baseY - 34], [cx + 2.2, baseY],
+  ], 4);
+  // Der Kelch unter dem Kopf: stachelig, und deshalb keine runde Form,
+  // sondern ein Klecks mit hoher Unruhe.
+  const kelch = smoothClosed(blob(cx, kopfY + 9, 11, 9, seed + 1, 0.3, 14), 4);
+  const kopf = smoothClosed(blob(cx, kopfY, 12, 11, seed + 2, 0.18, 14), 5);
+  // Distelblätter sind fiedrig eingeschnitten, nicht oval. Die hohe
+  // Unruhe im Klecks macht genau das, und zwar billiger als eine
+  // gezackte Form von Hand.
+  const blatt1 = smoothClosed(blob(cx - 13, baseY - 40, 13, 4, seed + 3, 0.46, 14), 3);
+  const blatt2 = smoothClosed(blob(cx + 12, baseY - 58, 11, 3.5, seed + 4, 0.46, 14), 3);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.0,
+    outline: 1.3,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 14, 5, seed + 5, 0.13); },
+    wash: function (g) {
+      wash(g, stiel, ink.steppeDunkel, { seed: seed + 6, dx: 0, dy: 0 });
+      wash(g, blatt1, ink.steppe, { seed: seed + 7 });
+      wash(g, blatt2, ink.steppe, { seed: seed + 8 });
+      wash(g, kelch, ink.steppeDunkel, { seed: seed + 9, scale: 1.05 });
+      wash(g, kopf, o.farbe || ink.distel, { seed: seed + 10, scale: 1.08 });
+    },
+    shape: function (g) {
+      fill(g, stiel); fill(g, blatt1); fill(g, blatt2);
+      fill(g, kelch); fill(g, kopf);
+    },
+    ink: function (g) {
+      // Die Fäden des Blütenkopfs – nach oben auseinanderlaufend.
+      for (let i = 0; i < 9; i++) {
+        const a = -Math.PI * 0.86 + (i / 8) * Math.PI * 0.72;
+        inkLine(g, cx + Math.cos(a) * 4, kopfY + Math.sin(a) * 3,
+          cx + Math.cos(a) * 14, kopfY + Math.sin(a) * 13,
+          { width: 1.2, bend: 0, seed: seed + 40 + i, alpha: 0.5 });
+      }
+      // Die Stacheln am Kelch
+      for (let i = 0; i < 6; i++) {
+        const a = -0.3 + i * 0.5;
+        inkLine(g, cx + Math.cos(a) * 9, kopfY + 9 + Math.sin(a) * 7,
+          cx + Math.cos(a) * 15, kopfY + 9 + Math.sin(a) * 11,
+          { width: 1.1, bend: 0, seed: seed + 60 + i, alpha: 0.55 });
+      }
+      inkLine(g, cx, baseY - 6, cx, kopfY + 18,
+        { width: 1.3, bend: 0.02, seed: seed + 80, alpha: 0.35 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Tierschädel – das eine Ding in der Wüste, das nicht wächst.
+ *
+ * Eine Landschaft braucht neben Pflanzen etwas, das erzählt. Der Schädel
+ * sagt in einem Bild, dass es hier kein Wasser gibt, und er ist das
+ * Fundstück, wegen dem man in die Wüste läuft.
+ */
+function paintSchaedel(opts) {
+  const o = opts || {};
+  const seed = o.seed || 3801;
+  const w = 104;
+  const h = 72;
+  const cx = w / 2;
+  const baseY = h - 8;
+
+  /**
+   * Oben breit, unten schmal – und die Hörner müssen weit ausholen.
+   *
+   * Der erste Entwurf war fast quadratisch, mit zwei kurzen Stummeln
+   * oben: Gezeichnet las sich das als Hundekopf mit Ohren, nicht als
+   * Schädel. Zwei Dinge machen den Unterschied, und beide sind Form,
+   * nicht Detail. Erstens die Schnauze: Ein Rinderschädel ist oben an
+   * den Augenhöhlen am breitesten und läuft nach unten schmal zu.
+   * Zweitens die Hörner: Sie sind zusammen BREITER als der Kopf hoch
+   * ist, gehen fast waagerecht heraus und biegen erst am Ende nach oben.
+   */
+  const kopf = smoothClosed([
+    [cx - 7, baseY], [cx - 9, baseY - 9],
+    [cx - 12, baseY - 20], [cx - 17, baseY - 30],
+    [cx - 15, baseY - 40], [cx - 7, baseY - 44],
+    [cx + 7, baseY - 44], [cx + 15, baseY - 40],
+    [cx + 17, baseY - 30], [cx + 12, baseY - 20],
+    [cx + 9, baseY - 9], [cx + 7, baseY],
+  ], 5);
+  const horn = function (s) {
+    return smoothClosed([
+      [cx + s * 13, baseY - 40],
+      [cx + s * 28, baseY - 44], [cx + s * 41, baseY - 42],
+      [cx + s * 48, baseY - 34], [cx + s * 49, baseY - 24],
+      [cx + s * 44, baseY - 25], [cx + s * 43, baseY - 33],
+      [cx + s * 36, baseY - 37], [cx + s * 26, baseY - 38],
+      [cx + s * 14, baseY - 34],
+    ], 5);
+  };
+  const teile = [kopf, horn(-1), horn(1)];
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.1,
+    outline: 1.5,
+    shadow: function (g) { groundShadow(g, cx + 4, baseY - 2, 30, 7, seed + 1, 0.2); },
+    wash: function (g) {
+      for (let i = 0; i < teile.length; i++) {
+        wash(g, teile[i], ink.knochen, { seed: seed + 10 + i, scale: 1.04 });
+        wash(g, offsetShape(teile[i], -LIGHT.x * 7, -LIGHT.y * 6, 0.68),
+          ink.rockShade, { seed: seed + 20 + i, alpha: 0.42 });
+      }
+    },
+    shape: function (g) { for (let i = 0; i < teile.length; i++) fill(g, teile[i]); },
+    ink: function (g) {
+      // Augenhöhlen und Nasenloch – als gefüllte Tusche, nicht als Umriss:
+      // Eine Höhle ist ein Loch, und ein Loch ist dunkel.
+      g.save();
+      g.fillStyle = ink.line;
+      g.globalAlpha = 0.8;
+      pathFrom(g, smoothClosed(blob(cx - 8, baseY - 33, 5, 4.5, seed + 30, 0.18, 10), 4), true);
+      g.fill();
+      pathFrom(g, smoothClosed(blob(cx + 8, baseY - 33, 5, 4.5, seed + 31, 0.18, 10), 4), true);
+      g.fill();
+      g.globalAlpha = 0.6;
+      pathFrom(g, smoothClosed(blob(cx, baseY - 19, 3, 5, seed + 32, 0.2, 10), 4), true);
+      g.fill();
+      g.restore();
+      // Die Naht über der Stirn
+      inkLine(g, cx, baseY - 43, cx, baseY - 37,
+        { width: 1.3, bend: 0, seed: seed + 40, alpha: 0.45 });
+      // Die Zahnreihe unten – das zweite Zeichen nach den Hörnern.
+      for (let k = 0; k < 4; k++) {
+        const x = cx - 4.5 + k * 3;
+        inkLine(g, x, baseY - 7, x, baseY - 1,
+          { width: 1.1, bend: 0, seed: seed + 60 + k, alpha: 0.4 });
+      }
+      // Die Rillen der Hörner, dem Bogen folgend
+      for (let s = -1; s <= 1; s += 2) {
+        for (let k = 0; k < 4; k++) {
+          const t = 0.25 + k * 0.2;
+          inkLine(g, cx + s * (14 + t * 32), baseY - 40 - t * 2,
+            cx + s * (14 + t * 32), baseY - 35 + t * 2,
+            { width: 1.1, bend: 0, seed: seed + 70 + k + (s > 0 ? 9 : 0), alpha: 0.38 });
+        }
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Wüstenfels – flach geschichtet, vom Wind abgeschliffen.
+ *
+ * Der Stein der gemäßigten Zone (`paintRock`) ist ein rundlicher Findling
+ * aus dem Eis. In der Wüste schichtet der Wind waagerecht ab, und genau
+ * diese Schichtung ist das Zeichen, an dem man die Zone erkennt – es
+ * lohnt sich deshalb, einen eigenen Stein zu haben statt denselben
+ * umzufärben.
+ */
+function paintWuestenfels(opts) {
+  const o = opts || {};
+  const seed = o.seed || 3901;
+  const rng = makeRng(seed >>> 0);
+  const skala = o.scale == null ? 1 : o.scale;
+  const w = Math.round(126 * skala);
+  const h = Math.round(92 * skala);
+  const cx = w / 2;
+  const baseY = h - 8;
+
+  const bloecke = [];
+  let by = baseY;
+  const n = 3 + ((rng() * 2) | 0);
+  for (let i = 0; i < n; i++) {
+    const rx = (34 - i * 6 + rng() * 6) * skala;
+    const ry = (10 + rng() * 5) * skala;
+    const vx = (rng() - 0.5) * 10 * skala;
+    bloecke.push(smoothClosed(blob(cx + vx, by - ry, rx, ry, seed + i * 11, 0.13, 16), 5));
+    by -= ry * 1.75;
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.7,
+    shadow: function (g) { groundShadow(g, cx + 5, baseY - 2, 34 * skala, 9 * skala, seed + 1, 0.22); },
+    wash: function (g) {
+      for (let i = 0; i < bloecke.length; i++) {
+        wash(g, bloecke[i], o.stein || ink.duerr, { seed: seed + 10 + i, scale: 1.04 });
+        wash(g, offsetShape(bloecke[i], -LIGHT.x * 9, -LIGHT.y * 7, 0.7),
+          ink.duerrDunkel, { seed: seed + 20 + i, alpha: 0.55 });
+        wash(g, offsetShape(bloecke[i], LIGHT.x * 9, LIGHT.y * 6, 0.42),
+          ink.duene, { seed: seed + 30 + i, alpha: 0.6 });
+      }
+    },
+    shape: function (g) { for (let i = 0; i < bloecke.length; i++) fill(g, bloecke[i]); },
+    ink: function (g) {
+      // Die Schichtfugen: waagerecht, über die ganze Breite, leicht wellig.
+      for (let i = 0; i < bloecke.length; i++) {
+        inkStroke(g, offsetShape(bloecke[i], 0, 0, 0.94), {
+          closed: true, width: 1.5, vary: 0.4,
+          seed: seed + 40 + i, alpha: 0.34, color: ink.line,
+        });
+      }
+      const r2 = makeRng(seed + 600);
+      for (let k = 0; k < 5; k++) {
+        const y = baseY - 8 * skala - r2() * (baseY - 24 * skala);
+        const x0 = cx - (18 + r2() * 14) * skala;
+        inkLine(g, x0, y, x0 + (20 + r2() * 20) * skala, y + (r2() - 0.5) * 4,
+          { width: 1.2, bend: 0.04, seed: seed + 650 + k, alpha: 0.3 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+
+
+__e.paintKaktus = paintKaktus;
+__e.paintFeigenkaktus = paintFeigenkaktus;
+__e.paintAgave = paintAgave;
+__e.paintDuerrbusch = paintDuerrbusch;
+__e.paintDuenengras = paintDuenengras;
+__e.paintSteppengras = paintSteppengras;
+__e.paintDistel = paintDistel;
+__e.paintSchaedel = paintSchaedel;
+__e.paintWuestenfels = paintWuestenfels;
+__e.slab = slab;
+
+};
+
+__defs["src/art/painted-dschungel.js"] = function (__e) {
+/**
+ * Die Flora der feuchten Zonen – Dschungel und Mangrove.
+ *
+ * Das Gegenstück zu `painted-wueste.js`, und zwar in jeder Hinsicht: Dort
+ * ist Wasser knapp und die Pflanzen sparen Fläche, hier ist Wasser im
+ * Überfluss und es wird um LICHT gekämpft. Daraus folgt zeichnerisch:
+ *
+ *   1. **Große Blätter.** Wo Wasser kein Problem ist, lohnt sich jede
+ *      Fläche, die Licht abfängt. Statt vieler kleiner Lappen (Eiche) gibt
+ *      es hier wenige, große, einzeln erkennbare Blätter.
+ *   2. **Schichten.** Ein Regenwald ist nicht eine Krone, sondern vier
+ *      übereinander. Deshalb trägt fast jeder Maler hier mehrere Grüns
+ *      gleichzeitig – ein tiefes im Schatten, ein helles obenauf.
+ *   3. **Senkrechte.** Lianen, Bambus, Stelzwurzeln: Im Dschungel hängt
+ *      und steht etwas zwischen Boden und Krone, und genau das fehlt
+ *      einem Wald aus lauter freistehenden Bäumen.
+ *
+ * Das Grün ist das tiefste im Spiel (`dschungel`, Helligkeit 88). Das ist
+ * Absicht und gemessen: Die Zonen sollen sich in der Helligkeit
+ * unterscheiden, nicht nur im Ton – Wüste hell, gemäßigt mittel,
+ * Dschungel dunkel.
+ */
+const { blob, teardrop, smoothClosed, offsetShape, pathFrom, inkStroke, inkLine, wash, washGroup, paintObject, groundShadow, LIGHT } = __req("src/art/brush.js");
+const { INK: ink, fill, made, dot, leafClumps } = __req("src/art/painted.js");
+const { makeRng } = __req("src/core/rng.js");
+
+/**
+ * Dschungelbaum – breiter als hoch, mit Schirmkrone.
+ *
+ * Der Unterschied zur Eiche ist nicht die Farbe, sondern die Silhouette.
+ * Ein Waldbaum in unseren Breiten ist etwa so breit wie hoch; ein Baum
+ * im Kronendach wächst, bis er Licht hat, und breitet sich dann flach
+ * aus. Deshalb ein kahler Stamm über zwei Dritteln der Höhe und erst
+ * oben eine flache, weite Krone.
+ */
+function paintDschungelbaum(opts) {
+  const o = opts || {};
+  const seed = o.seed || 4101;
+  const rng = makeRng(seed >>> 0);
+  const w = 232;
+  const h = 236;
+  const cx = w / 2;
+  const baseY = h - 12;
+  const kroneY = baseY - 164;
+
+  /**
+   * Brettwurzeln – die Stützen am Fuß tropischer Riesen.
+   *
+   * Sie sind das zweite Erkennungszeichen nach der Schirmkrone, und sie
+   * kosten fast nichts: drei Dreiecke am Stammfuß. Ohne sie steht der
+   * Baum auf einem Stock, und bei dieser Kronenbreite sieht das falsch
+   * aus – das Auge erwartet, dass so viel Last abgestützt wird.
+   */
+  // Schmaler und dunkler als die Eiche.
+  //
+  // Zuerst stand hier 16 Punkte halbe Breite und `ink.bark` – gerendert
+  // war das ein lachsfarbener Pfeiler, breiter als die Brettwurzeln
+  // hoch sind, und die Wurzeln lasen sich als Rock darunter. Ein
+  // Tropenriese ist im Verhältnis zur Krone DÜNN; das ist ja der Grund,
+  // warum er Brettwurzeln überhaupt braucht.
+  const stammB = 11;
+  const wurzeln = [];
+  for (let i = -1; i <= 1; i++) {
+    if (i === 0) continue;
+    wurzeln.push(smoothClosed([
+      [cx + i * (stammB - 1), baseY - 58],
+      [cx + i * (stammB + 10), baseY - 30],
+      [cx + i * (stammB + 21), baseY - 2],
+      [cx + i * (stammB + 23), baseY],
+      [cx + i * (stammB - 3), baseY],
+    ], 4));
+  }
+  wurzeln.push(smoothClosed([
+    [cx - 6, baseY - 52], [cx - 11, baseY], [cx + 11, baseY], [cx + 6, baseY - 52],
+  ], 4));
+
+  const stamm = smoothClosed([
+    [cx - stammB, baseY], [cx - stammB + 1, baseY - 70],
+    [cx - 9, kroneY + 40], [cx + 9, kroneY + 38],
+    [cx + stammB - 1, baseY - 72], [cx + stammB, baseY],
+  ], 5);
+
+  /**
+   * Die Krone: flache, weit ausladende Lappen in einer Reihe statt eines
+   * Balls. Zwei Ebenen – eine hintere, dunklere und eine vordere – damit
+   * man sieht, dass da Laub ÜBEREINANDER liegt.
+   */
+  const hinten = [];
+  const vorne = [];
+  for (let i = 0; i < 5; i++) {
+    const t = (i / 4 - 0.5) * 2;
+    hinten.push(smoothClosed(blob(cx + t * 86, kroneY + 4 + Math.abs(t) * 20,
+      40 + rng() * 10, 24 + rng() * 7, seed + 10 + i, 0.2), 7));
+  }
+  for (let i = 0; i < 4; i++) {
+    const t = (i / 3 - 0.5) * 2;
+    vorne.push(smoothClosed(blob(cx + t * 64, kroneY + 26 + Math.abs(t) * 12,
+      36 + rng() * 9, 21 + rng() * 6, seed + 30 + i, 0.2), 7));
+  }
+  const lappen = hinten.concat(vorne);
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.7,
+    outline: 2.0,
+    shadow: function (g) { groundShadow(g, cx + 5, baseY - 3, 62, 16, seed + 1, 0.2); },
+    wash: function (g) {
+      for (let i = 0; i < wurzeln.length; i++) {
+        wash(g, wurzeln[i], ink.barkDark, { seed: seed + 50 + i, scale: 1.03 });
+      }
+      wash(g, stamm, ink.barkDark, { seed: seed + 60, dx: -2, dy: 2, scale: 1.04 });
+      wash(g, offsetShape(stamm, 7, 4, 0.6), ink.schlick, { seed: seed + 61, alpha: 0.8 });
+
+      for (let i = 0; i < hinten.length; i++) {
+        wash(g, hinten[i], ink.dschungelDunkel, { seed: seed + 70 + i, scale: 1.05 });
+      }
+      for (let i = 0; i < vorne.length; i++) {
+        wash(g, vorne[i], o.laub || ink.dschungel, { seed: seed + 80 + i, scale: 1.05 });
+      }
+      // Die Schattenseite als Gruppe, damit sich die Überlappungen nicht
+      // zu einem Verlauf addieren (dieselbe Regel wie bei der Eiche).
+      const schatten = [];
+      for (let i = 0; i < lappen.length; i++) {
+        schatten.push(offsetShape(lappen[i], -LIGHT.x * 16, -LIGHT.y * 14, 0.8));
+      }
+      washGroup(g, schatten, ink.dschungelTief, { alpha: 0.5 });
+      washGroup(g, [
+        offsetShape(vorne[1], LIGHT.x * 18, LIGHT.y * 15, 0.6),
+        offsetShape(hinten[2], LIGHT.x * 20, LIGHT.y * 16, 0.55),
+      ], ink.dschungelLicht, { alpha: 0.75 });
+    },
+    shape: function (g) {
+      for (let i = 0; i < wurzeln.length; i++) fill(g, wurzeln[i]);
+      fill(g, stamm);
+      for (let i = 0; i < lappen.length; i++) fill(g, lappen[i]);
+    },
+    detail: function (g) {
+      leafClumps(g, cx, kroneY + 16, 92, 34, seed + 500, ink.dschungelTief);
+    },
+    ink: function (g) {
+      // Die Kanten der vorderen Lappen – dort, wo sie vor den hinteren
+      // liegen. Das ist die Linie, die aus zwei Flächen eine Schichtung
+      // macht.
+      for (let i = 0; i < vorne.length; i++) {
+        inkStroke(g, offsetShape(vorne[i], 0, 0, 0.97), {
+          closed: true, width: 1.7, vary: 0.4,
+          seed: seed + 200 + i, alpha: 0.3, color: ink.line,
+        });
+      }
+      // Die Fugen zwischen den Brettwurzeln
+      for (let i = 0; i < wurzeln.length; i++) {
+        inkStroke(g, wurzeln[i], {
+          closed: true, width: 1.6, vary: 0.35,
+          seed: seed + 220 + i, alpha: 0.38, color: ink.line,
+        });
+      }
+      // Rinde: lange senkrechte Striche, weil ein Tropenstamm glatt und
+      // hoch ist – keine rissige Eichenborke.
+      for (let i = 0; i < 3; i++) {
+        const x = cx - 5 + i * 5;
+        inkLine(g, x, baseY - 56, x + 2, kroneY + 46,
+          { width: 1.3, bend: 0.015, seed: seed + 240 + i, alpha: 0.32 });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Palme – ein Bogen mit Wedeln obendrauf.
+ *
+ * Sie steht am Übergang zwischen Strand und Dschungel und ist damit die
+ * Pflanze, die zwei Zonen verbindet. Was eine Palme ausmacht, ist der
+ * GEBOGENE Stamm: Eine senkrechte Palme sieht aus wie ein Besen.
+ */
+function paintPalme(opts) {
+  const o = opts || {};
+  const seed = o.seed || 4201;
+  const rng = makeRng(seed >>> 0);
+  const neigung = (o.neigung == null ? (rng() - 0.5) * 2 : o.neigung);
+  const hoehe = 186 + rng() * 34;
+  const versatz = neigung * 46;
+  const w = Math.round(212 + Math.abs(versatz));
+  const h = Math.round(hoehe + 36);
+  const cx = w / 2 - versatz / 2;
+  const baseY = h - 12;
+  const kronX = cx + versatz;
+  const kronY = baseY - hoehe;
+
+  // Der Stamm als Band: unten breit, oben schmal, in einem Bogen.
+  const stammPkt = [];
+  const rueck = [];
+  for (let i = 0; i <= 6; i++) {
+    const t = i / 6;
+    const b = 13 - t * 6;
+    // Der Bogen: quadratisch, damit die Neigung unten null ist und oben
+    // am stärksten. Ein Baum steht senkrecht aus dem Boden.
+    const x = cx + versatz * t * t;
+    const y = baseY - hoehe * t;
+    stammPkt.push([x - b, y]);
+    rueck.unshift([x + b, y]);
+  }
+  const stamm = smoothClosed(stammPkt.concat(rueck), 4);
+
+  /** Die Wedel: je ein Bogen nach außen, hängend. */
+  const wedel = [];
+  const nW = 6 + ((rng() * 3) | 0);
+  for (let i = 0; i < nW; i++) {
+    const a = -Math.PI * 0.95 + (i / (nW - 1)) * Math.PI * 0.9 + (rng() - 0.5) * 0.18;
+    const len = 62 + rng() * 30;
+    const sx = Math.cos(a);
+    const sy = Math.sin(a) * 0.68;
+    const tipX = kronX + sx * len;
+    // Die Spitze hängt: Ein Palmwedel ist zu lang, um sich selbst zu
+    // tragen, und genau dieses Durchhängen liest man als „Palme".
+    const tipY = kronY + sy * len + Math.abs(sx) * len * 0.42;
+    const mx = kronX + sx * len * 0.55;
+    const my = kronY + sy * len * 0.6;
+    wedel.push({
+      pts: smoothClosed([
+        [kronX, kronY + 4],
+        [mx - sy * 9, my + sx * 9],
+        [tipX, tipY],
+        [mx + sy * 9, my - sx * 9],
+      ], 4),
+      tipX: tipX, tipY: tipY, mx: mx, my: my, sx: sx,
+    });
+  }
+  wedel.sort(function (p, q) { return p.tipY - q.tipY; });
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx + 5, baseY - 3, 34, 10, seed + 1, 0.2); },
+    wash: function (g) {
+      wash(g, stamm, ink.bark, { seed: seed + 10, scale: 1.04 });
+      wash(g, offsetShape(stamm, 7, 3, 0.62), ink.barkDark, { seed: seed + 11, alpha: 0.75 });
+      for (let i = 0; i < wedel.length; i++) {
+        wash(g, wedel[i].pts, o.laub || ink.dschungel, { seed: seed + 20 + i, scale: 1.04 });
+        wash(g, offsetShape(wedel[i].pts, -LIGHT.x * 9, -LIGHT.y * 8, 0.62),
+          ink.dschungelDunkel, { seed: seed + 40 + i, alpha: 0.5 });
+      }
+      if (o.kokos) {
+        for (let i = 0; i < 3; i++) {
+          dot(g, null, kronX - 10 + i * 10, kronY + 14 + (i === 1 ? 4 : 0),
+            7, ink.barkDark, seed + 70 + i);
+        }
+      }
+    },
+    shape: function (g) {
+      fill(g, stamm);
+      for (let i = 0; i < wedel.length; i++) fill(g, wedel[i].pts);
+    },
+    ink: function (g) {
+      // Die Mittelrippe jedes Wedels, und die Fiedern daran. Ohne die
+      // Fiedern ist ein Wedel ein grünes Blatt, kein Palmwedel.
+      for (let i = 0; i < wedel.length; i++) {
+        const v = wedel[i];
+        inkLine(g, kronX, kronY + 4, v.tipX, v.tipY,
+          { width: 1.6, bend: 0.06 * (v.sx > 0 ? 1 : -1), seed: seed + 100 + i, alpha: 0.45 });
+        for (let k = 1; k <= 4; k++) {
+          const t = k / 5;
+          const px = kronX + (v.tipX - kronX) * t;
+          const py = kronY + 4 + (v.tipY - kronY - 4) * t;
+          const dx = (v.tipX - kronX) / 90;
+          const dy = (v.tipY - kronY) / 90;
+          inkLine(g, px, py, px - dy * 11, py + dx * 11,
+            { width: 1.1, bend: 0, seed: seed + 130 + i * 4 + k, alpha: 0.32 });
+          inkLine(g, px, py, px + dy * 11, py - dx * 11,
+            { width: 1.1, bend: 0, seed: seed + 170 + i * 4 + k, alpha: 0.32 });
+        }
+      }
+      // Die Blattnarben am Stamm – die Ringe, die abgefallene Wedel
+      // hinterlassen. Das ist das Zeichen, an dem man einen Palmstamm
+      // von jedem anderen unterscheidet.
+      for (let k = 0; k < 9; k++) {
+        const t = 0.06 + k * 0.1;
+        const x = cx + versatz * t * t;
+        const y = baseY - hoehe * t;
+        const b = 13 - t * 6;
+        inkLine(g, x - b + 1, y, x + b - 1, y - 2,
+          { width: 1.3, bend: 0.1, seed: seed + 220 + k, alpha: 0.4 });
+      }
+      if (o.kokos) {
+        for (let i = 0; i < 3; i++) {
+          dot(null, g, kronX - 10 + i * 10, kronY + 14 + (i === 1 ? 4 : 0),
+            7, ink.barkDark, seed + 70 + i);
+        }
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Riesenblatt – ein einzelnes, großes, eingeschnittenes Blatt.
+ *
+ * Das ist die Pflanze, die den Dschungelboden ausmacht, und sie ist
+ * billiger als jeder Baum: EIN Blatt, groß genug, dass man es als Blatt
+ * erkennt. Im Unterholz stehen zwanzig davon, und der Boden ist voll.
+ */
+function paintRiesenblatt(opts) {
+  const o = opts || {};
+  const seed = o.seed || 4301;
+  const rng = makeRng(seed >>> 0);
+  const w = 128;
+  const h = 132;
+  const cx = w / 2;
+  const baseY = h - 8;
+
+  /**
+   * Jedes Blatt sitzt auf einem eigenen Stiel.
+   *
+   * Zuerst gingen alle Blätter direkt vom selben Punkt am Boden aus und
+   * waren kurz und breit. Übereinandergelegt ergab das einen grünen
+   * Klecks mit Kerben – man sah keine Blätter, sondern eine Fläche. Was
+   * fehlt, ist die LÜCKE: Ein Riesenblatt sitzt am Ende eines langen,
+   * nackten Stiels, und erst dadurch stehen die Blätter einzeln.
+   */
+  const blaetter = [];
+  const stiele = [];
+  const n = 3;
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI * 0.78 + (i / (n - 1)) * Math.PI * 0.56 + (rng() - 0.5) * 0.14;
+    const stiel = 26 + rng() * 16;
+    const len = 44 + rng() * 18;
+    const br = 15 + rng() * 5;
+    const sx = Math.cos(a);
+    const sy = Math.sin(a);
+    // Der Blattansatz liegt am Ende des Stiels, nicht am Boden.
+    const ax = cx + sx * stiel * 0.5;
+    const ay = baseY - 10 + sy * stiel;
+    stiele.push([cx, baseY - 6, ax, ay]);
+    const tipX = ax + sx * len;
+    const tipY = ay + sy * len;
+    /**
+     * Die Einschnitte sind die halbe Miete.
+     *
+     * Ein glattes Oval liest sich als Löffel. Die Fiederung – links und
+     * rechts tief eingeschnitten – ist das, woran man ein Tropenblatt
+     * erkennt, und sie entsteht hier aus Stützpunkten, die abwechselnd
+     * nah und fern von der Mittelrippe liegen.
+     */
+    const pts = [[ax, ay]];
+    for (let k = 1; k <= 4; k++) {
+      const t = k / 5;
+      const tief = k % 2 ? 1 : 0.42;
+      pts.push([ax + sx * len * t - sy * br * tief, ay + sy * len * t + sx * br * tief]);
+    }
+    pts.push([tipX, tipY]);
+    for (let k = 4; k >= 1; k--) {
+      const t = k / 5;
+      const tief = k % 2 ? 1 : 0.42;
+      pts.push([ax + sx * len * t + sy * br * tief, ay + sy * len * t - sx * br * tief]);
+    }
+    blaetter.push({ pts: smoothClosed(pts, 3), ax: ax, ay: ay, tipX: tipX, tipY: tipY });
+  }
+  blaetter.sort(function (p, q) { return p.tipY - q.tipY; });
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.2,
+    outline: 1.6,
+    shadow: function (g) { groundShadow(g, cx + 3, baseY - 2, 26, 8, seed + 1, 0.18); },
+    wash: function (g) {
+      for (let i = 0; i < blaetter.length; i++) {
+        wash(g, blaetter[i].pts, o.laub || ink.dschungel, { seed: seed + 10 + i, scale: 1.04 });
+        wash(g, offsetShape(blaetter[i].pts, -LIGHT.x * 10, -LIGHT.y * 9, 0.6),
+          ink.dschungelDunkel, { seed: seed + 20 + i, alpha: 0.5 });
+        wash(g, offsetShape(blaetter[i].pts, LIGHT.x * 9, LIGHT.y * 8, 0.38),
+          ink.dschungelLicht, { seed: seed + 30 + i, alpha: 0.55 });
+      }
+    },
+    shape: function (g) { for (let i = 0; i < blaetter.length; i++) fill(g, blaetter[i].pts); },
+    ink: function (g) {
+      for (let i = 0; i < stiele.length; i++) {
+        const st = stiele[i];
+        inkLine(g, st[0], st[1], st[2], st[3],
+          { width: 2.2, bend: 0.1, seed: seed + 40 + i, alpha: 0.6 });
+      }
+      for (let i = 0; i < blaetter.length; i++) {
+        const b = blaetter[i];
+        inkLine(g, b.ax, b.ay, b.tipX, b.tipY,
+          { width: 1.8, bend: 0.03, seed: seed + 50 + i, alpha: 0.5 });
+        // Seitenadern, paarweise schräg nach außen
+        for (let k = 1; k <= 4; k++) {
+          const t = k / 5;
+          const px = b.ax + (b.tipX - b.ax) * t;
+          const py = b.ay + (b.tipY - b.ay) * t;
+          const dx = (b.tipX - b.ax) / 70;
+          const dy = (b.tipY - b.ay) / 70;
+          inkLine(g, px, py, px - dy * 15 + dx * 5, py + dx * 15 + dy * 5,
+            { width: 1.1, bend: 0.05, seed: seed + 60 + i * 4 + k, alpha: 0.33 });
+          inkLine(g, px, py, px + dy * 15 + dx * 5, py - dx * 15 + dy * 5,
+            { width: 1.1, bend: -0.05, seed: seed + 90 + i * 4 + k, alpha: 0.33 });
+        }
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Bambus – ein Bündel gegliederter Halme.
+ *
+ * Die einzige senkrechte Linie im Dschungel und damit der Gegensatz zu
+ * allem anderen hier (Schirm, Bogen, Fächer). Die Knoten sind das
+ * Zeichen: ein glatter grüner Stab ist ein Stab.
+ */
+function paintBambus(opts) {
+  const o = opts || {};
+  const seed = o.seed || 4401;
+  const rng = makeRng(seed >>> 0);
+  const w = 124;
+  const h = 214;
+  const cx = w / 2;
+  const baseY = h - 10;
+
+  const halme = [];
+  const n = 4 + ((rng() * 3) | 0);
+  for (let i = 0; i < n; i++) {
+    const x = cx - 32 + (i / Math.max(1, n - 1)) * 64 + (rng() - 0.5) * 8;
+    const hoehe = 112 + rng() * 78;
+    const b = 5 + rng() * 2.5;
+    const lean = (rng() - 0.5) * 14;
+    halme.push({
+      pts: smoothClosed([
+        [x - b, baseY], [x - b + lean * 0.5, baseY - hoehe * 0.5],
+        [x - b + lean, baseY - hoehe], [x + b + lean, baseY - hoehe],
+        [x + b + lean * 0.5, baseY - hoehe * 0.5], [x + b, baseY],
+      ], 3),
+      x: x, b: b, hoehe: hoehe, lean: lean,
+    });
+  }
+  halme.sort(function (p, q) { return p.hoehe - q.hoehe; });
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.1,
+    outline: 1.4,
+    shadow: function (g) { groundShadow(g, cx + 4, baseY - 2, 30, 8, seed + 1, 0.18); },
+    wash: function (g) {
+      for (let i = 0; i < halme.length; i++) {
+        wash(g, halme[i].pts, o.halm || ink.bambus, { seed: seed + 10 + i, scale: 1.03 });
+        wash(g, offsetShape(halme[i].pts, -LIGHT.x * 5, 0, 0.55),
+          ink.dschungelDunkel, { seed: seed + 20 + i, alpha: 0.4 });
+      }
+      // Ein paar schmale Blätter oben, sonst sind es Stäbe im Boden.
+      for (let i = 0; i < halme.length; i++) {
+        const hm = halme[i];
+        for (let k = 0; k < 2; k++) {
+          const s = k ? 1 : -1;
+          wash(g, smoothClosed([
+            [hm.x + hm.lean, baseY - hm.hoehe + 6],
+            [hm.x + hm.lean + s * 16, baseY - hm.hoehe - 6],
+            [hm.x + hm.lean + s * 30, baseY - hm.hoehe - 2],
+            [hm.x + hm.lean + s * 14, baseY - hm.hoehe + 10],
+          ], 3), o.laub || ink.dschungel, { seed: seed + 60 + i * 2 + k, scale: 1.03 });
+        }
+      }
+    },
+    shape: function (g) {
+      for (let i = 0; i < halme.length; i++) {
+        const hm = halme[i];
+        fill(g, hm.pts);
+        for (let k = 0; k < 2; k++) {
+          const s = k ? 1 : -1;
+          fill(g, smoothClosed([
+            [hm.x + hm.lean, baseY - hm.hoehe + 6],
+            [hm.x + hm.lean + s * 16, baseY - hm.hoehe - 6],
+            [hm.x + hm.lean + s * 30, baseY - hm.hoehe - 2],
+            [hm.x + hm.lean + s * 14, baseY - hm.hoehe + 10],
+          ], 3));
+        }
+      }
+    },
+    ink: function (g) {
+      for (let i = 0; i < halme.length; i++) {
+        const hm = halme[i];
+        const knoten = Math.max(2, Math.round(hm.hoehe / 32));
+        for (let k = 1; k <= knoten; k++) {
+          const t = k / (knoten + 1);
+          const y = baseY - hm.hoehe * t;
+          const x = hm.x + hm.lean * t;
+          inkLine(g, x - hm.b, y, x + hm.b, y - 1,
+            { width: 1.8, bend: 0, seed: seed + 100 + i * 9 + k, alpha: 0.6 });
+        }
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Liane – hängt von oben ins Bild.
+ *
+ * Der einzige Gegenstand im Spiel, dessen Ankerpunkt OBEN liegt: Er
+ * hängt von einem Ast herab, den man nicht sieht. Genau das macht aus
+ * einem Wald einen Dschungel – etwas kommt von über einem herunter.
+ */
+function paintLiane(opts) {
+  const o = opts || {};
+  const seed = o.seed || 4501;
+  const rng = makeRng(seed >>> 0);
+  const w = 96;
+  const h = 164;
+  const cx = w / 2;
+  // Der Fußpunkt ist OBEN: Die Liane hängt, sie steht nicht. Damit sie
+  // beim Sortieren nach y nicht vor dem halben Wald liegt, wird sie an
+  // ihrem oberen Ende verankert.
+  const ankerY = 14;
+
+  const straenge = [];
+  const n = 2 + ((rng() * 2) | 0);
+  for (let i = 0; i < n; i++) {
+    const x0 = cx - 24 + i * 22 + rng() * 10;
+    const laenge = 94 + rng() * 54;
+    const schwung = (rng() - 0.5) * 36;
+    straenge.push({ x0: x0, x1: x0 + schwung, y1: ankerY + laenge, s: schwung });
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.1,
+    outline: 1.3,
+    wash: function (g) {
+      // Die Blätter an den Strängen – kleine Ovale, abwechselnd links
+      // und rechts.
+      for (let i = 0; i < straenge.length; i++) {
+        const st = straenge[i];
+        for (let k = 1; k <= 5; k++) {
+          const t = k / 6;
+          const px = st.x0 + (st.x1 - st.x0) * t;
+          const py = ankerY + (st.y1 - ankerY) * t;
+          const s = k % 2 ? -1 : 1;
+          wash(g, smoothClosed(blob(px + s * 9, py, 9, 5, seed + 20 + i * 5 + k, 0.2, 12), 4),
+            o.laub || ink.dschungel, { seed: seed + 50 + i * 5 + k, scale: 1.05 });
+        }
+      }
+    },
+    shape: function (g) {
+      for (let i = 0; i < straenge.length; i++) {
+        const st = straenge[i];
+        for (let k = 1; k <= 5; k++) {
+          const t = k / 6;
+          const px = st.x0 + (st.x1 - st.x0) * t;
+          const py = ankerY + (st.y1 - ankerY) * t;
+          const s = k % 2 ? -1 : 1;
+          fill(g, smoothClosed(blob(px + s * 9, py, 9, 5, seed + 20 + i * 5 + k, 0.2, 12), 4));
+        }
+      }
+    },
+    ink: function (g) {
+      for (let i = 0; i < straenge.length; i++) {
+        const st = straenge[i];
+        inkLine(g, st.x0, ankerY, st.x1, st.y1, {
+          width: 2.2, bend: st.s > 0 ? 0.1 : -0.1,
+          seed: seed + 100 + i, alpha: 0.62,
+        });
+      }
+    },
+  });
+  return made(res, w, h, cx, ankerY);
+}
+
+/**
+ * Orchidee – der Farbtupfer des Unterholzes.
+ *
+ * Im Dschungel ist alles grün und dunkel; ohne einen hellen Punkt liest
+ * sich die Zone als Masse. Die Orchidee ist dieser Punkt, und sie ist
+ * selten – ein Ausrufezeichen, das überall steht, ist ein Punkt.
+ */
+function paintOrchidee(opts) {
+  const o = opts || {};
+  const seed = o.seed || 4601;
+  const rng = makeRng(seed >>> 0);
+  const w = 76;
+  const h = 108;
+  const cx = w / 2;
+  const baseY = h - 8;
+
+  const bogenX = cx + (rng() - 0.5) * 16;
+  const bogenY = 26 + rng() * 8;
+  /**
+   * Zwei große Blüten, nicht drei kleine.
+   *
+   * Drei Blüten mit je fünf Blättern von sechs Punkten Radius ergaben
+   * auf 76 Punkten Breite einen violetten Klumpen – fünfzehn Formen,
+   * die sich gegenseitig verdecken. Eine Orchideenblüte IST groß; wenn
+   * nur zwei ins Bild passen, dann sind es zwei.
+   */
+  const blueten = [];
+  for (let i = 0; i < 2; i++) {
+    const t = i;
+    blueten.push([
+      cx + (bogenX - cx) * (0.45 + t * 0.55),
+      bogenY + (1 - t) * 26,
+    ]);
+  }
+  // Zwei breite, flache Blätter am Fuß – Orchideenblätter sind ledrig
+  // und liegen fast waagerecht.
+  const blatt1 = smoothClosed(blob(cx - 14, baseY - 10, 16, 6, seed + 1, 0.2, 14), 4);
+  const blatt2 = smoothClosed(blob(cx + 13, baseY - 16, 14, 5.5, seed + 2, 0.2, 14), 4);
+
+  function blueteForm(p, k) {
+    const teile = [];
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.4;
+      // Die Blätter zeigen nach außen und sind länger als breit – sonst
+      // ist es eine Margerite. Ausrichtung über die eigene Richtung.
+      const dx = Math.cos(a);
+      const dy = Math.sin(a);
+      teile.push(smoothClosed([
+        [p[0] + dy * 3.4, p[1] - dx * 3.4],
+        [p[0] + dx * 7 + dy * 4.6, p[1] + dy * 7 - dx * 4.6],
+        [p[0] + dx * 13, p[1] + dy * 13],
+        [p[0] + dx * 7 - dy * 4.6, p[1] + dy * 7 + dx * 4.6],
+        [p[0] - dy * 3.4, p[1] + dx * 3.4],
+      ], 4));
+    }
+    return teile;
+  }
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.0,
+    outline: 1.3,
+    shadow: function (g) { groundShadow(g, cx, baseY - 2, 18, 6, seed + 3, 0.13); },
+    wash: function (g) {
+      wash(g, blatt1, ink.dschungelDunkel, { seed: seed + 4 });
+      wash(g, blatt2, ink.dschungelDunkel, { seed: seed + 5 });
+      for (let k = 0; k < blueten.length; k++) {
+        const teile = blueteForm(blueten[k], k);
+        for (let i = 0; i < teile.length; i++) {
+          wash(g, teile[i], o.farbe || ink.petalViolet, { seed: seed + 400 + k * 7 + i, scale: 1.06 });
+        }
+        // Die Lippe in der Mitte – bei Orchideen anders gefärbt als die
+        // Blätter drumherum, und das ist ihr Erkennungszeichen.
+        wash(g, smoothClosed(blob(blueten[k][0], blueten[k][1], 5.5, 5, seed + 500 + k, 0.14, 10), 4),
+          ink.petalYellow, { seed: seed + 520 + k });
+      }
+    },
+    shape: function (g) {
+      fill(g, blatt1); fill(g, blatt2);
+      for (let k = 0; k < blueten.length; k++) {
+        const teile = blueteForm(blueten[k], k);
+        for (let i = 0; i < teile.length; i++) fill(g, teile[i]);
+      }
+    },
+    ink: function (g) {
+      // Der Blütenstängel: ein Bogen vom Fuß nach oben, an dem die
+      // Blüten hängen.
+      inkLine(g, cx, baseY - 10, bogenX, bogenY,
+        { width: 1.8, bend: 0.2, seed: seed + 600, alpha: 0.55 });
+      for (let k = 0; k < blueten.length; k++) {
+        const teile = blueteForm(blueten[k], k);
+        for (let i = 0; i < teile.length; i++) {
+          inkStroke(g, teile[i], {
+            closed: true, width: 1.2, vary: 0.3,
+            seed: seed + 700 + k * 7 + i, alpha: 0.45, color: ink.line,
+          });
+        }
+      }
+      inkLine(g, cx - 26, baseY - 10, cx - 2, baseY - 11,
+        { width: 1.2, bend: 0.06, seed: seed + 800, alpha: 0.35 });
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+/**
+ * Mangrove – ein Baum, der auf Stelzen im Wasser steht.
+ *
+ * Das Bindeglied zwischen Dschungel und Küste, und die einzige Pflanze
+ * im Spiel, deren Wurzeln man SIEHT. Der Wurzelkorb ist hier das ganze
+ * Motiv; die Krone ist absichtlich klein, damit er nicht verdeckt wird.
+ */
+function paintMangrove(opts) {
+  const o = opts || {};
+  const seed = o.seed || 4701;
+  const rng = makeRng(seed >>> 0);
+  const w = 178;
+  const h = 188;
+  const cx = w / 2;
+  const baseY = h - 10;
+  const stammFuss = baseY - 64;
+  const kroneY = stammFuss - 54;
+
+  /**
+   * Der Wurzelkorb – und er muss sich WÖLBEN.
+   *
+   * Der erste Entwurf setzte den Mittelpunkt jeder Wurzel einfach auf
+   * die halbe Strecke zwischen Ansatz und Fuß. Damit ist eine Wurzel
+   * eine Gerade, und sechs Geraden, die sich oben treffen, sind ein
+   * Tipi – genau so sah es aus. Eine Stelzwurzel geht dagegen zuerst
+   * fast waagerecht vom Stamm weg und biegt dann nach unten ab; der
+   * Bogen ist das ganze Motiv, denn nur durch ihn sieht man hindurch.
+   *
+   * Der Mittelpunkt liegt deshalb bei 85 Prozent der Weite, aber erst
+   * bei 45 Prozent der Höhe. Das ist die Wölbung.
+   */
+  const wurzeln = [];
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1) - 0.5;
+    if (Math.abs(t) < 0.08) continue;
+    const s = t < 0 ? -1 : 1;
+    const weite = (22 + Math.abs(t) * 66) * s;
+    const b = 4 + rng() * 1.8;
+    const hoehe = baseY - stammFuss;
+    wurzeln.push(smoothClosed([
+      [cx + t * 12 - b, stammFuss - 6],
+      [cx + weite * 0.85 - b * 1.4, stammFuss + hoehe * 0.45],
+      [cx + weite - b, baseY],
+      [cx + weite + b, baseY],
+      [cx + weite * 0.85 + b * 0.6, stammFuss + hoehe * 0.52],
+      [cx + t * 12 + b, stammFuss - 2],
+    ], 5));
+  }
+
+  const stamm = smoothClosed([
+    [cx - 13, stammFuss + 6], [cx - 10, stammFuss - 26],
+    [cx - 8, kroneY + 12], [cx + 8, kroneY + 12],
+    [cx + 10, stammFuss - 26], [cx + 13, stammFuss + 6],
+  ], 5);
+
+  // Breiter als der Wurzelkorb. Eine Mangrove, deren Krone schmaler ist
+  // als ihre Wurzeln, liest sich als Gestell mit Hut.
+  const krone = [
+    smoothClosed(teardrop(cx, kroneY - 8, 52, 34, seed + 1, 0.18), 7),
+    smoothClosed(blob(cx - 44, kroneY + 16, 34, 23, seed + 2, 0.2), 7),
+    smoothClosed(blob(cx + 46, kroneY + 12, 32, 22, seed + 3, 0.2), 7),
+  ];
+
+  const res = paintObject(w, h, {
+    seed: seed,
+    blur: 1.5,
+    outline: 1.8,
+    shadow: function (g) { groundShadow(g, cx + 4, baseY - 2, 58, 12, seed + 4, 0.18); },
+    wash: function (g) {
+      for (let i = 0; i < wurzeln.length; i++) {
+        wash(g, wurzeln[i], ink.schlick, { seed: seed + 10 + i, scale: 1.03 });
+      }
+      wash(g, stamm, ink.barkDark, { seed: seed + 30, scale: 1.04 });
+      for (let i = 0; i < krone.length; i++) {
+        wash(g, krone[i], o.laub || ink.dschungel, { seed: seed + 40 + i, scale: 1.05 });
+      }
+      const sch = [];
+      for (let i = 0; i < krone.length; i++) {
+        sch.push(offsetShape(krone[i], -LIGHT.x * 13, -LIGHT.y * 12, 0.78));
+      }
+      washGroup(g, sch, ink.dschungelTief, { alpha: 0.48 });
+      washGroup(g, [offsetShape(krone[0], LIGHT.x * 16, LIGHT.y * 13, 0.6)],
+        ink.dschungelLicht, { alpha: 0.7 });
+    },
+    shape: function (g) {
+      for (let i = 0; i < wurzeln.length; i++) fill(g, wurzeln[i]);
+      fill(g, stamm);
+      for (let i = 0; i < krone.length; i++) fill(g, krone[i]);
+    },
+    detail: function (g) {
+      leafClumps(g, cx, kroneY + 2, 48, 28, seed + 900, ink.dschungelTief);
+    },
+    ink: function (g) {
+      // Jede Wurzel einzeln umreißen: Der Korb lebt davon, dass man
+      // durch ihn hindurchsieht, und das sieht man nur an den Kanten.
+      for (let i = 0; i < wurzeln.length; i++) {
+        inkStroke(g, wurzeln[i], {
+          closed: true, width: 1.5, vary: 0.35,
+          seed: seed + 100 + i, alpha: 0.42, color: ink.line,
+        });
+      }
+      inkLine(g, cx - 4, stammFuss, cx - 2, kroneY + 16,
+        { width: 1.4, bend: 0.03, seed: seed + 200, alpha: 0.35 });
+      // Die Wasserlinie: ein waagerechter Strich über den Wurzelfüßen.
+      // Ohne ihn steht die Mangrove auf dem Trockenen, und dann ist sie
+      // nur ein Baum mit seltsamen Beinen.
+      if (o.wasserlinie !== false) {
+        inkLine(g, cx - 74, baseY - 12, cx + 74, baseY - 13,
+          { width: 1.6, bend: 0.03, seed: seed + 300, alpha: 0.3, color: ink.lineSoft });
+      }
+    },
+  });
+  return made(res, w, h, cx, baseY);
+}
+
+__e.paintDschungelbaum = paintDschungelbaum;
+__e.paintPalme = paintPalme;
+__e.paintRiesenblatt = paintRiesenblatt;
+__e.paintBambus = paintBambus;
+__e.paintLiane = paintLiane;
+__e.paintOrchidee = paintOrchidee;
+__e.paintMangrove = paintMangrove;
+
+};
+
 __defs["src/art/painted-advent.js"] = function (__e) {
 /**
  * Die Tanne am Lager.
@@ -17173,7 +18818,11 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
         // rund ein Bild je Sekunde.
         const hn = hashString('gn' + (tx >> 1) + ':' + (ty >> 1));
         const nest = ((hn >>> 9) & 2047) / 2047;
-        const dichte = nest * nest * Math.sqrt(nest);
+        // Wie viel hier überhaupt wächst, sagt die Welt – der Maler
+        // fragt nach einer Zahl und nicht nach dem Biom. Auf Sand ist
+        // sie null, unter dem Kronendach ein Drittel.
+        const bewuchs = world.bewuchsAtTile ? world.bewuchsAtTile(tx, ty) : 1;
+        const dichte = nest * nest * Math.sqrt(nest) * bewuchs;
         const halme = tritt === 2 ? 0
           : tritt === 1 ? Math.round(dichte * 6)
             : Math.round(dichte * 13);
@@ -17202,7 +18851,7 @@ function paintGroundInk(g, world, tx0, ty0, ring, abnutzung, waende) {
           }
         }
         // Farnwedel: ein Bogen mit Fiedern, gibt der Wiese Struktur
-        if (!tritt && rng() < 0.2) fronds.push([bx, by, rng() < 0.5 ? -1 : 1]);
+        if (!tritt && rng() < 0.2 * bewuchs) fronds.push([bx, by, rng() < 0.5 ? -1 : 1]);
         // Auf dem Trampelpfad stattdessen Trittspuren. Ohne sie wäre eine
         // deutlich ausgetretene Kachel vollkommen leer – gemessen null
         // Prozent Tinte –, und auf der unkolorierten Insel sähe man vom
@@ -19117,6 +20766,16 @@ const LIST = [
   // kein Falter, kein Werkstoff. Mehl aus der Mühle steht damit neben
   // Beeren und Kraut, und das ist genau die Reihe, in die es gehört.
   it('mehl', 'Mehl', CAT.FORAGE, 14, 1),
+  /**
+   * Was es nur in den neuen Klimazonen gibt.
+   *
+   * Dieselbe Regel wie bei Höhle und Mühle: Eine Gegend, in der dieselben
+   * Dinge liegen wie zu Hause, ist eine größere Fläche und kein Ort. Wer
+   * durch die Wüste läuft, muss etwas mitbringen können, das es in der
+   * Wüste gibt – sonst war der Weg eine Strafe.
+   */
+  it('bambus', 'Bambusrohr', CAT.MATERIAL, 8, 2),
+  it('knochen', 'Bleichknochen', CAT.MATERIAL, 13, 2),
   it('fiber', 'Pflanzenfaser', CAT.MATERIAL, 2, 1),
   it('resin', 'Harz', CAT.MATERIAL, 7, 2),
   it('clay', 'Ton', CAT.MATERIAL, 4, 0),
@@ -19129,6 +20788,8 @@ const LIST = [
 
   // Sammelgut
   it('berry', 'Waldbeeren', CAT.FORAGE, 6, 2),
+  // Die Frucht des Feigenkaktus. Sammelgut, nicht Material: Man isst sie.
+  it('kaktusfeige', 'Kaktusfeige', CAT.FORAGE, 10, 2),
   it('mushroom', 'Pilz', CAT.FORAGE, 7, 2),
   it('herb', 'Kraut', CAT.FORAGE, 5, 2),
   it('flower_pink', 'Rosenblume', CAT.FORAGE, 7, 2),
@@ -19341,6 +21002,11 @@ const LIST = [
   it('sapling_maple', 'Ahornsetzling', CAT.SEED, 16, 0, { pflanzt: 'sapling_maple', prop: 'sapling_maple_1' }),
   it('sapling_pine', 'Kiefernsetzling', CAT.SEED, 18, 0, { pflanzt: 'sapling_pine', prop: 'sapling_pine_1' }),
   it('sapling_wind', 'Windbaumsetzling', CAT.SEED, 18, 0, { pflanzt: 'sapling_wind', prop: 'sapling_wind_1' }),
+  it('sapling_dschungel', 'Dschungelsetzling', CAT.SEED, 22, 0, { pflanzt: 'sapling_dschungel', prop: 'sapling_dschungel_1' }),
+  it('sapling_palme', 'Palmensetzling', CAT.SEED, 19, 0, { pflanzt: 'sapling_palme', prop: 'sapling_palme_1' }),
+  it('sapling_mangrove', 'Mangrovensetzling', CAT.SEED, 20, 0, { pflanzt: 'sapling_mangrove', prop: 'sapling_mangrove_1' }),
+  it('sapling_kaktus', 'Kaktussetzling', CAT.SEED, 17, 0, { pflanzt: 'sapling_kaktus', prop: 'sapling_kaktus_1' }),
+  it('sapling_bambus', 'Bambussetzling', CAT.SEED, 15, 0, { pflanzt: 'sapling_bambus', prop: 'sapling_bambus_1' }),
 
   // Andenken – das Geschenk am Ende einer Erinnerungskette. Nicht käuflich,
   // nicht herstellbar, nicht verbrennbar: der einzige Weg dahin ist die
@@ -19968,6 +21634,127 @@ const ENTITY_DEFS = {
     sprite: 'driftwood', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
     yield: drop('driftwood', 1, 1), respawn: 1, category: 'forage',
   },
+  /* ------------------------------------------------- Die trockenen Zonen */
+  /**
+   * Was in Wüste und Steppe steht.
+   *
+   * Die Werte folgen denselben Regeln wie überall: Was im Weg steht, ist
+   * `solid` und braucht Werkzeug; was man überläuft, gibt beim Vorbeigehen
+   * etwas her. Neu ist nur, WAS es hergibt – eine Zone ohne eigenen Ertrag
+   * ist eine Tapete.
+   *
+   * Der Säulenkaktus ist bewusst der Baum der Wüste: dieselbe Rolle,
+   * dieselbe Axt, dieselbe Zahl Schläge. Holz gibt er trotzdem keins,
+   * denn er hat keins – dafür reichlich Faser, und das macht die Wüste
+   * zur Gegend, in die man für Seil und Stoff läuft.
+   */
+  kaktus: {
+    sprite: 'kaktus', variants: 3, solid: true, blockR: 22, reachR: 84,
+    tool: TOOL.AXE, hits: 3,
+    yield: function (level, rng) {
+      const out = [{ id: 'fiber', n: randInt(rng, 3, 5) + level }];
+      if (rng() < 0.3) out.push({ id: 'resin', n: 1 });
+      return out;
+    },
+    becomes: 'tree_stump', respawn: 4, category: 'tree',
+  },
+  feigenkaktus: {
+    sprite: 'feigenkaktus', variants: 3, solid: true, blockR: 22, reachR: 72,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('kaktusfeige', 1, 2), respawn: 2, category: 'forage',
+  },
+  agave: {
+    sprite: 'agave', variants: 3, solid: true, blockR: 22, reachR: 72,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 2, 3), respawn: 2, category: 'forage',
+  },
+  duerrbusch: {
+    sprite: 'duerrbusch', variants: 3, solid: false, reachR: 64,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('wood', 1, 1), respawn: 2, sway: true, category: 'forage',
+  },
+  duenengras: {
+    sprite: 'duenengras', variants: 3, solid: false, reachR: 58,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
+  },
+  steppengras: {
+    sprite: 'steppengras', variants: 3, solid: false, reachR: 58,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
+  },
+  distel: {
+    sprite: 'distel', variants: 3, solid: false, reachR: 56,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('herb', 1, 2), respawn: 1, sway: true, category: 'forage',
+  },
+  // Der Schädel wächst nicht nach. Ein Fundstück, das jeden Tag wieder
+  // da liegt, ist eine Ernte; eins, das weg bleibt, ist ein Fund.
+  schaedel: {
+    sprite: 'schaedel', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
+    yield: drop('knochen', 1, 1), category: 'forage',
+  },
+  wuestenfels: {
+    sprite: 'wuestenfels', variants: 3, solid: true, blockR: 26, reachR: 76,
+    tool: TOOL.PICK, hits: 2,
+    yield: drop('stone', 2, 3), respawn: 2, category: 'rock',
+  },
+
+  /* ------------------------------------------------- Die feuchten Zonen */
+  dschungelbaum: {
+    sprite: 'dschungelbaum', variants: 3, solid: true, blockR: 26, reachR: 92,
+    tool: TOOL.AXE, hits: 4,
+    yield: function (level, rng) {
+      const out = [{ id: 'wood', n: randInt(rng, 3, 4) + level }];
+      if (level >= 2 && rng() < 0.45) out.push({ id: 'hardwood', n: 1 });
+      return out;
+    },
+    becomes: 'tree_stump', respawn: 4, sway: true, category: 'tree',
+  },
+  palme: {
+    sprite: 'palme', variants: 3, solid: true, blockR: 20, reachR: 88,
+    tool: TOOL.AXE, hits: 3,
+    yield: function (level, rng) {
+      const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
+      if (rng() < 0.4) out.push({ id: 'fiber', n: 2 });
+      return out;
+    },
+    becomes: 'tree_stump', respawn: 4, sway: true, category: 'tree',
+  },
+  mangrove: {
+    sprite: 'mangrove', variants: 3, solid: true, blockR: 28, reachR: 90,
+    tool: TOOL.AXE, hits: 4,
+    yield: function (level, rng) {
+      const out = [{ id: 'wood', n: randInt(rng, 2, 4) + level }];
+      if (rng() < 0.35) out.push({ id: 'clay', n: 1 });
+      return out;
+    },
+    becomes: 'tree_stump', respawn: 5, sway: true, category: 'tree',
+  },
+  bambus: {
+    sprite: 'bambus', variants: 3, solid: true, blockR: 20, reachR: 76,
+    tool: TOOL.AXE, hits: 2,
+    yield: drop('bambus', 2, 3), becomes: 'tree_stump', respawn: 2, sway: true, category: 'tree',
+  },
+  riesenblatt: {
+    sprite: 'riesenblatt', variants: 3, solid: false, reachR: 62,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
+  },
+  // Die Liane hängt von oben herein und steht nicht auf dem Boden. Sie
+  // ist deshalb das einzige Gewächs ohne Bodenschatten, und sie darf
+  // niemandem im Weg sein – man läuft unter ihr durch.
+  liane: {
+    sprite: 'liane', variants: 3, solid: false, reachR: 62,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 1, 2), respawn: 2, sway: true, category: 'forage',
+  },
+  orchidee: {
+    sprite: 'orchidee', variants: 3, solid: false, reachR: 56,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('flower_violet', 1, 1), respawn: 2, sway: true, category: 'forage',
+  },
+
   flower_pink: { sprite: 'flower_pink', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_pink', 1, 1), respawn: 1, sway: true, category: 'forage' },
   flower_yellow: { sprite: 'flower_yellow', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_yellow', 1, 1), respawn: 1, sway: true, category: 'forage' },
   flower_violet: { sprite: 'flower_violet', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_violet', 1, 1), respawn: 1, sway: true, category: 'forage' },
@@ -20615,6 +22402,8 @@ const { STERNBILDER } = __req("src/game/sternbilder.js");
 const { kennung: bildKennung } = __req("src/game/bild.js");
 const { paintTable, paintChair, paintHammock, paintSwing, paintFirebowl, paintStringlights, paintPaperlamp, paintPlanter, paintTrellis, paintBirdbath, paintBeehive, paintScarecrow, paintWeathervane, paintMat, paintPond, paintStumpStool, paintStonebench, paintStonelamp, paintTorch, paintFlowerbox, paintBonsai, paintHedgehogbox, paintFeeder, paintSteppingstones, paintArch, paintClothesline, paintBookstack, paintAquarium, paintButtercase } = __req("src/art/painted-decor.js");
 const { paintPet, paintBowl, PET_KINDS } = __req("src/art/painted-pet.js");
+const { paintKaktus, paintFeigenkaktus, paintAgave, paintDuerrbusch, paintDuenengras, paintSteppengras, paintDistel, paintSchaedel, paintWuestenfels } = __req("src/art/painted-wueste.js");
+const { paintDschungelbaum, paintPalme, paintRiesenblatt, paintBambus, paintLiane, paintOrchidee, paintMangrove } = __req("src/art/painted-dschungel.js");
 const { paintTanne, STUFEN_LICHTER } = __req("src/art/painted-advent.js");
 const { BEWOHNER } = __req("src/game/bewohner.js");
 const { ICON_PAINTERS, paintFishIcon, iconFromArt } = __req("src/art/painted-icons.js");
@@ -21082,6 +22871,39 @@ function initArt() {
         paintSapling(st, { laub: sl.laub, seed: 2701 + i * 37 + st * 11 }));
     }
   }
+  /**
+   * Die Pflanzen der neuen Klimazonen.
+   *
+   * Drei Fassungen von allem, aus demselben Grund wie bei Busch und
+   * Grasbüschel: Davon stehen viele nebeneinander im Bild, und gestempelte
+   * Wiederholung sieht man sofort. Die Samen liegen weit auseinander,
+   * damit zwei Fassungen derselben Pflanze nicht zufällig gleich
+   * ausfallen.
+   */
+  for (let v = 0; v < 3; v++) {
+    addArt('kaktus_' + v, paintKaktus({ seed: 3101 + v * 29, bluete: v === 1 }));
+    addArt('feigenkaktus_' + v, paintFeigenkaktus({ seed: 3201 + v * 29, frucht: true }));
+    addArt('agave_' + v, paintAgave({ seed: 3301 + v * 29 }));
+    addArt('duerrbusch_' + v, paintDuerrbusch({ seed: 3401 + v * 29 }));
+    addArt('duenengras_' + v, paintDuenengras({ seed: 3501 + v * 29 }));
+    addArt('steppengras_' + v, paintSteppengras({ seed: 3601 + v * 29 }));
+    addArt('distel_' + v, paintDistel({ seed: 3701 + v * 29 }));
+    addArt('wuestenfels_' + v, paintWuestenfels({ seed: 3901 + v * 29, scale: 0.8 + v * 0.18 }));
+    addArt('dschungelbaum_' + v, paintDschungelbaum({ seed: 4101 + v * 29 }));
+    // Die Palme neigt sich zu wechselnden Seiten – eine Reihe gleich
+    // geneigter Palmen sieht aus wie eine Tapete.
+    addArt('palme_' + v, paintPalme({ seed: 4201 + v * 29, neigung: [-0.7, 0.35, 0.9][v], kokos: v !== 1 }));
+    addArt('riesenblatt_' + v, paintRiesenblatt({ seed: 4301 + v * 29 }));
+    addArt('bambus_' + v, paintBambus({ seed: 4401 + v * 29 }));
+    addArt('liane_' + v, paintLiane({ seed: 4501 + v * 29 }));
+    addArt('orchidee_' + v, paintOrchidee({ seed: 4601 + v * 29,
+      farbe: [INK.petalViolet, INK.petalPink, INK.petalWhite][v] }));
+    addArt('mangrove_' + v, paintMangrove({ seed: 4701 + v * 29 }));
+  }
+  // Der Schädel liegt da, wo er liegt – er wächst nicht nach und braucht
+  // deshalb auch keine Fassungen für die Menge.
+  addArt('schaedel', paintSchaedel({ seed: 3801 }));
+
   for (let v = 0; v < 3; v++) {
     addArt('flower_pink_' + v, paintFlower({ seed: 131 + v * 7, petal: INK.petalPink }));
     addArt('flower_yellow_' + v, paintFlower({ seed: 137 + v * 7, petal: INK.petalYellow }));
@@ -21306,6 +23128,11 @@ function buildIcons() {
     // einzelnes Kristall wäre dasselbe Bild in kleiner.
     ['leuchtmoos', 'leuchtmoos'], ['mehl', 'mehlsack'],
     ['hoehlenkristall', 'kristallader'],
+    // Die Funde der neuen Zonen. Die Kaktusfeige borgt sich das Bild des
+    // Feigenkaktus, aus dem sie stammt – dieselbe Begründung wie beim
+    // Höhlenkristall.
+    ['bambus', 'bambus'], ['knochen', 'schaedel'],
+    ['kaktusfeige', 'feigenkaktus'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = vorlage(reuse[i][1]);
@@ -22697,7 +24524,7 @@ __defs["src/world/biome.js"] = function (__e) {
  */
 const { makeNoise2D, fbm } = __req("src/core/rng.js");
 const { T, isWalkable } = __req("src/art/tiles.js");
-const { MAP_W, MAP_H, REGION, tileIndex, regionAt, generateTiles } = __req("src/world/worldgen.js");
+const { MAP_W, MAP_H, tileIndex, generateTiles, CAMP_TILE } = __req("src/world/worldgen.js");
 
 const BIOM = {
   WIESE: 0,
@@ -22709,11 +24536,17 @@ const BIOM = {
   SUMPF: 6,
   OBSTWIESE: 7,
   TOTHOLZ: 8,
+  WUESTE: 9,
+  STEPPE: 10,
+  DSCHUNGEL: 11,
+  MANGROVE: 12,
+  BAMBUSHAIN: 13,
 };
 
 const BIOM_NAMEN = [
   'Wiese', 'Birkenhain', 'Nadelwald', 'Heide', 'Blumenwiese', 'Geröll',
   'Sumpf', 'Obstwiese', 'Totholz',
+  'Wüste', 'Steppe', 'Dschungel', 'Mangrovenwald', 'Bambushain',
 ];
 
 /**
@@ -22827,6 +24660,129 @@ const BIOME = {
     busch: 1,
     boden: [['rock_small', 16], ['rock_big', 6], ['grass_tuft', 7], ['herb', 2]],
     ton: ['rockShade', 0.2],
+    bewuchs: 0.35,
+  },
+
+  /* --------------------------------------------------- Die neuen Zonen */
+  /**
+   * Die Wüste.
+   *
+   * Sie ist die leerste Gegend des Spiels, und das ist keine Sparsamkeit,
+   * sondern ihr Inhalt: Weite entsteht dadurch, dass NICHTS im Weg steht.
+   * Eine dicht bepflanzte Wüste wäre ein Garten mit Kakteen.
+   *
+   * Die Dichte am Boden ist trotzdem hoch – aber alles davon ist flach
+   * (Dünengras, Dürrbusch). Man sieht über die ganze Gegend hinweg und
+   * läuft gleichzeitig nicht über blanken Sand. Genau das ist der
+   * Unterschied zwischen Weite und Leere.
+   */
+  [BIOM.WUESTE]: {
+    name: 'Wüste',
+    baeume: [['kaktus', 5], ['duerrbusch', 2]],
+    dichteBaum: 2.5,
+    busch: 2,
+    boden: [['duenengras', 18], ['feigenkaktus', 5], ['agave', 4],
+      ['wuestenfels', 4], ['schaedel', 0.6]],
+    ton: ['duene', 0.62],
+    // Auf Sand wächst kein Rasen. Der Bodenmaler zeichnet sonst auf
+    // jede Graskachel seine Grasbüschel, und in der Wüste sah man den
+    // Sandton mit einer Wiese darauf.
+    bewuchs: 0,
+  },
+  /**
+   * Die Steppe – der Übergang, nicht der Gegensatz.
+   *
+   * Zwischen Wiese und Wüste darf keine Kante liegen. Die Steppe hat
+   * deshalb von beiden etwas: Gras wie die Wiese, aber hüfthoch und
+   * ausgedörrt, und einzelne Trockenpflanzen wie die Wüste. Ohne sie
+   * stößt grüne Wiese an gelben Sand, und das liest sich als Fehler.
+   */
+  [BIOM.STEPPE]: {
+    name: 'Steppe',
+    baeume: [['tree_wind', 3], ['kaktus', 1]],
+    dichteBaum: 2,
+    busch: 4,
+    boden: [['steppengras', 24], ['distel', 8], ['duerrbusch', 6],
+      ['herb', 4], ['rock_small', 3]],
+    ton: ['steppe', 0.4],
+    // Ein Drittel: In der Steppe wächst Gras, nur licht und in Büscheln
+    // – das Steppengras macht die Arbeit, der Boden hält sich zurück.
+    bewuchs: 0.3,
+  },
+  /**
+   * Der Dschungel – die dichteste Gegend des Spiels.
+   *
+   * Hier gilt das Gegenteil der Wüste: Dichte IST der Inhalt. Mit 22
+   * Bäumen je 100 Kacheln steht er noch über dem Nadelwald (17), und
+   * dazu kommt ein voller Boden aus Riesenblättern. Dass man nicht weit
+   * sieht, ist der Punkt.
+   *
+   * Die Lianen zählen zum Boden, obwohl sie von oben hängen: Sie sind
+   * nicht `solid`, man läuft unter ihnen durch, und sie verhalten sich
+   * damit wie Streugut und nicht wie ein Baum.
+   */
+  [BIOM.DSCHUNGEL]: {
+    name: 'Dschungel',
+    baeume: [['dschungelbaum', 7], ['palme', 3], ['bambus', 2]],
+    /**
+     * Sechsundzwanzig je 100 Kacheln – die höchste Dichte des Spiels,
+     * über dem Nadelwald (17) und dem Bambushain (22).
+     *
+     * Die Zahl ist gemessen, und zwar zweimal. Beim ersten Mal falsch:
+     * Eine Prüfung meldete, die dichtesten Stellen der Insel seien kein
+     * Dickicht mehr, und die naheliegende Antwort war, die Dichte
+     * hochzudrehen. Sie hat nichts geholfen – weil die Prüfung Bäume
+     * an ihrem NAMEN erkannte (`tree_`) und damit ausgerechnet die
+     * Bäume der neuen Zonen nicht mitzählte. Der dichteste Wald des
+     * Spiels war für sie unsichtbar.
+     *
+     * Nach der Korrektur stand die Messung bei knapp 8 je 100 Kacheln
+     * für die dichtesten zehn Prozent, also haarscharf an der Schwelle.
+     * Erst DANN war die Erhöhung begründet: Ein Drittel der Insel ist
+     * jetzt trockene Zone und fast baumfrei, und das zieht die ganze
+     * Verteilung nach unten. Wenn es Weite geben soll, muss es auch
+     * Dickicht geben.
+     */
+    dichteBaum: 26,
+    busch: 8,
+    boden: [['riesenblatt', 24], ['liane', 12], ['farn', 10],
+      ['mushroom', 6], ['orchidee', 3]],
+    ton: ['dschungelTief', 0.3],
+    // Unter geschlossenem Kronendach kommt kein Gras durch – derselbe
+    // Grund wie im Nadelwald, nur stärker.
+    bewuchs: 0.3,
+  },
+  /**
+   * Der Mangrovenwald – nasse Füße am Rand des Dschungels.
+   *
+   * Er liegt zwischen Wasser und Dschungel und ist damit das, was der
+   * Sumpf für den gemäßigten Teil ist. Beide teilen sich Schilf und
+   * Farn; der Unterschied sind die Stelzwurzeln, und die sieht man.
+   */
+  [BIOM.MANGROVE]: {
+    name: 'Mangrovenwald',
+    baeume: [['mangrove', 9], ['palme', 2]],
+    dichteBaum: 11,
+    busch: 2,
+    boden: [['reeds', 20], ['farn', 12], ['riesenblatt', 8], ['mushroom', 5]],
+    ton: ['schlick', 0.34],
+    // Schlick, kein Rasen.
+    bewuchs: 0.15,
+  },
+  /**
+   * Der Bambushain – lauter Senkrechte.
+   *
+   * Dieselbe Rolle wie der Birkenhain im gemäßigten Teil: fast nur eine
+   * Art, und dicht. Das ist die auffälligste Gruppe, die es gibt, und sie
+   * kostet keine neue Grafik.
+   */
+  [BIOM.BAMBUSHAIN]: {
+    name: 'Bambushain',
+    baeume: [['bambus', 13], ['dschungelbaum', 1]],
+    dichteBaum: 22,
+    busch: 1,
+    boden: [['riesenblatt', 14], ['farn', 10], ['orchidee', 4], ['grass_tuft', 8]],
+    ton: ['bambus', 0.18],
   },
 };
 
@@ -22838,15 +24794,168 @@ const BIOME = {
  * hinten – beide sind Ausrufezeichen, und ein Ausrufezeichen, das ein
  * Drittel der Insel bedeckt, ist ein Punkt.
  */
-const BIOME_JE_BEREICH = {
-  [REGION.CAMP]: [BIOM.WIESE, BIOM.OBSTWIESE, BIOM.BIRKENHAIN, BIOM.BLUMENWIESE],
-  [REGION.FOREST]: [BIOM.NADELWALD, BIOM.BIRKENHAIN, BIOM.SUMPF, BIOM.TOTHOLZ,
-    BIOM.WIESE],
-  [REGION.CLIFFS]: [BIOM.NADELWALD, BIOM.HEIDE, BIOM.GEROELL, BIOM.TOTHOLZ,
-    BIOM.WIESE],
-  [REGION.ISLE]: [BIOM.HEIDE, BIOM.SUMPF, BIOM.NADELWALD, BIOM.GEROELL,
-    BIOM.BIRKENHAIN],
+/* ------------------------------------------------------------- Klimazonen */
+
+const KLIMA = { FEUCHT: 0, GEMAESSIGT: 1, TROCKEN: 2 };
+const KLIMA_NAMEN = ['Feuchte Zone', 'Gemäßigte Zone', 'Trockene Zone'];
+
+/**
+ * Was in welcher Klimazone wächst.
+ *
+ * **Warum Klimazonen die Bereiche ablösen.** Vorher hing das Biom am
+ * BEREICH – Lager, Wald, Klippen, Stille Insel –, und jeder Bereich hatte
+ * seine eigene Liste. Das hat funktioniert, solange alle vier Listen aus
+ * derselben gemäßigten Familie kamen: Ein Birkenhain neben einem
+ * Nadelwald ist egal, wo die Grenze liegt.
+ *
+ * Mit Wüste und Dschungel geht das nicht mehr. Die Bereichsgrenzen sind
+ * Linien, die der Flusslauf und der Sund gezogen haben – sie sind da, wo
+ * sie sind, und eine Wüste, die an einer Flussbiegung endet, ist keine
+ * Wüste, sondern ein Beet. Klima dagegen hat einen GRUND, sich zu ändern:
+ * Es wird nach einer Seite hin trockener. Deswegen laufen die Zonen quer
+ * über die Karte und nicht an den Bereichen entlang.
+ *
+ * **Die Reihenfolge ist eine Reihe, kein Ring.** Feucht grenzt an
+ * gemäßigt, gemäßigt an trocken – und feucht grenzt NIE an trocken. Ein
+ * Dschungel neben einer Düne liest sich als Fehler, egal wie schön beide
+ * einzeln sind. Dass die gemäßigte Zone dazwischenliegt, ist deshalb
+ * nicht nur Heimat, sondern auch Puffer.
+ *
+ * Innerhalb einer Zone gilt weiter dieselbe Regel wie vorher: Das erste
+ * Biom ist der Grundton, das letzte das Ausrufezeichen.
+ */
+const BIOME_JE_KLIMA = {
+  [KLIMA.FEUCHT]: [BIOM.DSCHUNGEL, BIOM.BAMBUSHAIN, BIOM.MANGROVE,
+    BIOM.SUMPF, BIOM.TOTHOLZ],
+  [KLIMA.GEMAESSIGT]: [BIOM.WIESE, BIOM.NADELWALD, BIOM.BIRKENHAIN,
+    BIOM.OBSTWIESE, BIOM.BLUMENWIESE],
+  [KLIMA.TROCKEN]: [BIOM.STEPPE, BIOM.WUESTE, BIOM.HEIDE, BIOM.GEROELL,
+    BIOM.TOTHOLZ],
 };
+
+/**
+ * Wie weit eine Kachel auf der Trockenachse liegt – vor dem Zuschnitt.
+ *
+ * Die Achse läuft von Südwesten (feucht) nach Nordosten (trocken).
+ *
+ * Welche Richtung, ist gemessen und nicht gewählt: Das Lager steht fest
+ * bei Kachel 66/93, die Küstenlinie wird gewürfelt, und je nach Achse
+ * liegt das Lager an ganz verschiedenen Stellen der Reihe. Über fünf
+ * Inselwürfe gemessen lag sein Rang auf der Nord-Süd-Achse bei 76 bis
+ * 81 Prozent, auf der West-Ost-Achse bei 58 bis 69, und auf dieser hier
+ * bei 34 bis 43. Je weiter außen das Lager liegt, desto mehr muss das
+ * Fenster der gemäßigten Zone hinausragen – bei der ersten Fassung
+ * (Nordwest nach Südost, Lagerrang 74 Prozent) blieben für die trockene
+ * Zone drei Prozent des Landes übrig, und nach dem Glätten NULL. Die
+ * Wüste war gebaut und kam auf keiner Insel vor.
+ *
+ * Was nicht beliebig ist, ist dass es eine GERADE Achse gibt und nicht
+ * ein Rauschfeld. Mit Rauschen
+ * allein lägen Wüstenflecken im Dschungel, und die Welt wäre wieder ein
+ * Flickenteppich – nur mit größeren Flicken.
+ *
+ * Das Rauschen kommt trotzdem dazu, sonst wären die Zonengrenzen
+ * schnurgerade Diagonalen. Sein Anteil ist mit 0,22 bewusst klein: Es
+ * soll die Grenze ausbeulen, nicht verwürfeln.
+ */
+function klimaRoh(tx, ty, n) {
+  const gerade = (tx + (MAP_H - ty)) / (MAP_W + MAP_H);
+  const welle = fbm(n, tx * 0.009 + 11, ty * 0.009 - 7, 2, 2.0, 0.5);
+  return gerade * 0.78 + welle * 0.22;
+}
+
+/**
+ * Wie viel Land jede der beiden äußeren Zonen bekommt.
+ *
+ * Zusammen sechzig Prozent; die restlichen vierzig bleiben gemäßigt, und
+ * das Lager liegt darin. Das ist kein Kompromiss,
+ * sondern der Spielort: Beete, Geister, Wege und das halbe Inventar
+ * hängen daran, und eine Insel, auf der man zwei Drittel der Zeit durch
+ * Sand läuft, ist ein anderes Spiel.
+ */
+const AUSSEN_ANTEIL = 0.3;
+
+/**
+ * Die Klimazone jeder Kachel – ums Lager herum verankert.
+ *
+ * **Warum verankert und nicht fest geschnitten.** Die naheliegende
+ * Lösung wäre, die Achse bei einem Drittel und zwei Dritteln zu
+ * schneiden. Dann hängt es aber am Inselwurf, in welcher Zone das Lager
+ * landet – und bei einer Insel, deren Land zufällig im Südosten liegt,
+ * wäre das Lager eine Wüstenstation. Das ist kein seltener Fall: Die
+ * Küstenlinie wird gewürfelt, die Lagerkachel steht fest.
+ *
+ * Also andersherum: Das Lager IST die gemäßigte Mitte. Alle Landkacheln
+ * werden nach ihrem Achsenwert sortiert, der Rang des Lagers gesucht, und
+ * von dort aus ein Viertel des Landes in jede Richtung als gemäßigt
+ * genommen. Was darüber liegt, wird trocken, was darunter liegt, feucht.
+ *
+ * Liegt das Lager nah am Rand der Achse, schrumpft eine der beiden
+ * äußeren Zonen von selbst – und das ist richtig so: Lieber eine kleine
+ * Wüste als ein Lager darin.
+ */
+function klimaKarte(seed) {
+  const s = seed >>> 0;
+  if (KLIMA_CACHE.seed === s && KLIMA_CACHE.data) return KLIMA_CACHE.data;
+  const tiles = generateTiles(s);
+  const n = makeNoise2D(s ^ 0x3c6ef35f);
+  const karte = new Uint8Array(MAP_W * MAP_H);
+  karte.fill(KLIMA.GEMAESSIGT);
+
+  const felder = [];
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i = tileIndex(tx, ty);
+      if (!isWalkable(tiles[i]) && tiles[i] !== T.CLIFF) continue;
+      felder.push({ i: i, v: klimaRoh(tx, ty, n) });
+    }
+  }
+  if (!felder.length) {
+    KLIMA_CACHE.seed = s;
+    KLIMA_CACHE.data = karte;
+    return karte;
+  }
+  felder.sort(function (a, b) { return a.v - b.v; });
+
+  const lagerWert = klimaRoh(CAMP_TILE.x, CAMP_TILE.y, n);
+  let lagerRang = 0;
+  while (lagerRang < felder.length && felder[lagerRang].v < lagerWert) lagerRang++;
+
+  /**
+   * Das Fenster muss drei Bedingungen gleichzeitig erfüllen, und die
+   * Reihenfolge, in der sie durchgesetzt werden, ist die Rangfolge:
+   *
+   *   1. Das Lager liegt darin (sonst steht man in der Wüste).
+   *   2. Beiden äußeren Zonen bleibt ein Mindestanteil (sonst ist eine
+   *      davon gebaut und kommt nie vor – genau das ist passiert).
+   *   3. Es ist so breit wie gewünscht.
+   *
+   * Die dritte gibt nach, wenn sie mit den ersten beiden kollidiert:
+   * Lieber eine schmalere Heimat als keine Wüste.
+   *
+   * Gelöst wird das, indem BEIDE äußeren Zonen gleich groß werden und
+   * gemeinsam schrumpfen, sobald das Lager nah an einem Ende liegt. Der
+   * erste Versuch gab jeder Zone nur eine Untergrenze und ließ sie
+   * sonst wachsen; weil das Lager auf dieser Achse bei 34 bis 43 Prozent
+   * liegt, wurde die trockene Seite damit regelmäßig doppelt so groß
+   * wie die feuchte. Auf Inselwurf 11 blieben für den Dschungel sechs
+   * Prozent übrig, und eine Prüfung meldete, dass die dichtesten
+   * Stellen der Insel kein Dickicht mehr sind – der dichteste Wald des
+   * Spiels war zu klein geworden, um in der Statistik vorzukommen.
+   */
+  const aussen = Math.min(lagerRang, felder.length - lagerRang,
+    Math.round(felder.length * AUSSEN_ANTEIL));
+  const von = aussen;
+  const bis = felder.length - aussen;
+  for (let k = 0; k < von; k++) karte[felder[k].i] = KLIMA.FEUCHT;
+  for (let k = bis; k < felder.length; k++) karte[felder[k].i] = KLIMA.TROCKEN;
+
+  KLIMA_CACHE.seed = s;
+  KLIMA_CACHE.data = karte;
+  return karte;
+}
+
+const KLIMA_CACHE = { seed: -1, data: null };
 
 const CACHE = { seed: -1, data: null };
 
@@ -22863,6 +24972,7 @@ function biomeFuer(seed) {
   const s = seed >>> 0;
   if (CACHE.seed === s && CACHE.data) return CACHE.data;
   const tiles = generateTiles(s);
+  const klima = klimaKarte(s);
   const n = makeNoise2D(s ^ 0x6b43a9f1);
   const m = makeNoise2D(s ^ 0x1f83d9ab);
   const karte = new Uint8Array(MAP_W * MAP_H);
@@ -22904,15 +25014,27 @@ function biomeFuer(seed) {
       // einem glatten Feld ist jede Höhenschicht zusammenhängend.
       // 0,013 ergibt Flecken von rund fünfzig Kacheln – eine Gegend, durch
       // die man eine Weile läuft.
-      const a = fbm(n, tx * 0.013, ty * 0.013, 1, 2.0, 0.5);
-      const b = fbm(m, tx * 0.0146 + 60, ty * 0.0146 - 25, 1, 2.0, 0.5);
-      const r = regionAt(tx, ty);
+      /**
+       * Größere Flecken, seit es mehr Biome gibt.
+       *
+       * Hier stand 0,013, und das war richtig, solange sich neun Biome
+       * das Land teilten. Mit vierzehn fällt auf jedes weniger Fläche,
+       * und bei gleichem Rauschmaßstab werden die Flecken entsprechend
+       * kleiner: Eine Prüfung maß 8,7 Prozent Biomwechsel je Schritt,
+       * also im Mittel elf Kacheln am Stück. Ein Biom, durch das man in
+       * elf Schritten durch ist, ist kein Ort.
+       *
+       * Der Maßstab geht deshalb mit der Zahl der Biome mit.
+       */
+      const a = fbm(n, tx * 0.009, ty * 0.009, 1, 2.0, 0.5);
+      const b = fbm(m, tx * 0.0101 + 60, ty * 0.0101 - 25, 1, 2.0, 0.5);
+      const r = klima[i];
       if (!proBereich[r]) proBereich[r] = [];
       proBereich[r].push({ i: i, v: a * 0.6 + b * 0.4 });
     }
   }
   for (const r in proBereich) {
-    const liste = BIOME_JE_BEREICH[r] || BIOME_JE_BEREICH[REGION.CAMP];
+    const liste = BIOME_JE_KLIMA[r] || BIOME_JE_KLIMA[KLIMA.GEMAESSIGT];
     const felder = proBereich[r];
     felder.sort(function (x, y) { return x.v - y.v; });
     let summe = 0;
@@ -22990,7 +25112,10 @@ function biomStand(karte, tiles) {
 __e.BIOM = BIOM;
 __e.BIOM_NAMEN = BIOM_NAMEN;
 __e.BIOME = BIOME;
-__e.BIOME_JE_BEREICH = BIOME_JE_BEREICH;
+__e.KLIMA = KLIMA;
+__e.KLIMA_NAMEN = KLIMA_NAMEN;
+__e.BIOME_JE_KLIMA = BIOME_JE_KLIMA;
+__e.klimaKarte = klimaKarte;
 __e.biomeFuer = biomeFuer;
 __e.biomStand = biomStand;
 
@@ -23414,6 +25539,23 @@ class World {
   biomTonAtTile(tx, ty) {
     const def = BIOME[this.biomAtTile(tx, ty)];
     return def && def.ton ? def.ton : null;
+  }
+
+  /**
+   * Wie viel Gras hier wächst – als Faktor auf die gezeichneten Büschel.
+   *
+   * Der Bodenmaler zeichnet auf jede Graskachel kleine Grasbüschel. Das
+   * war richtig, solange jede Graskachel eine Wiese war. In der Wüste
+   * sah es falsch aus: Der Sandton lag korrekt über dem Boden, und
+   * darauf standen trotzdem die Tusche-Büschel einer Wiese.
+   *
+   * Der Maler erfährt deshalb nicht, welches Biom hier liegt, sondern
+   * nur WIE VIEL hier wächst – dieselbe Trennung wie beim Bodenton. Er
+   * braucht eine Zahl, keine Landeskunde.
+   */
+  bewuchsAtTile(tx, ty) {
+    const def = BIOME[this.biomAtTile(tx, ty)];
+    return def && def.bewuchs != null ? def.bewuchs : 1;
   }
 
   tileAt(px, py) {
@@ -35415,6 +37557,11 @@ const HINTS = {
   sapling_maple: 'Fällt manchmal ab, wenn du einen Ahorn fällst.',
   sapling_pine: 'Fällt manchmal ab, wenn du eine Kiefer fällst.',
   sapling_wind: 'Fällt manchmal ab, wenn du einen Windbaum am Ufer fällst.',
+  sapling_dschungel: 'Fällt manchmal ab, wenn du einen Dschungelbaum fällst.',
+  sapling_palme: 'Fällt manchmal ab, wenn du eine Palme fällst.',
+  sapling_mangrove: 'Fällt manchmal ab, wenn du eine Mangrove schlägst.',
+  sapling_kaktus: 'Fällt manchmal ab, wenn du einen Säulenkaktus fällst.',
+  sapling_bambus: 'Fällt manchmal ab, wenn du Bambus schlägst.',
   petal: 'Im Frühling am Boden, überall wo etwas wächst.',
   sunstone: 'Im Sommer am Boden, überall wo etwas wächst.',
   mapleleaf: 'Im Herbst am Boden, überall wo etwas wächst.',
@@ -35436,6 +37583,9 @@ const HINTS = {
   leuchtmoos: 'Wächst nur in den Höhlen. Mit der Hand.',
   hoehlenkristall: 'Aus den Kristalladern in den Höhlen.',
   mehl: 'In der alten Mühle, aus den Säcken am Mahlstein.',
+  bambus: 'Aus den Bambushainen der feuchten Zone, mit der Axt.',
+  knochen: 'Liegt in der Wüste. Einmal gefunden, bleibt er weg.',
+  kaktusfeige: 'Von den Feigenkakteen der Wüste. Mit der Hand.',
   amber: 'Aus Geoden im Hochland, ab Spitzhacke Stufe 4.',
   table: 'Aus dem Katalog – kommt am nächsten Morgen mit der Post.',
   chair: 'Aus dem Katalog.',

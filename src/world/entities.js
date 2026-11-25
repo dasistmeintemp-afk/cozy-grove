@@ -255,6 +255,127 @@ export const ENTITY_DEFS = {
     sprite: 'driftwood', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
     yield: drop('driftwood', 1, 1), respawn: 1, category: 'forage',
   },
+  /* ------------------------------------------------- Die trockenen Zonen */
+  /**
+   * Was in Wüste und Steppe steht.
+   *
+   * Die Werte folgen denselben Regeln wie überall: Was im Weg steht, ist
+   * `solid` und braucht Werkzeug; was man überläuft, gibt beim Vorbeigehen
+   * etwas her. Neu ist nur, WAS es hergibt – eine Zone ohne eigenen Ertrag
+   * ist eine Tapete.
+   *
+   * Der Säulenkaktus ist bewusst der Baum der Wüste: dieselbe Rolle,
+   * dieselbe Axt, dieselbe Zahl Schläge. Holz gibt er trotzdem keins,
+   * denn er hat keins – dafür reichlich Faser, und das macht die Wüste
+   * zur Gegend, in die man für Seil und Stoff läuft.
+   */
+  kaktus: {
+    sprite: 'kaktus', variants: 3, solid: true, blockR: 22, reachR: 84,
+    tool: TOOL.AXE, hits: 3,
+    yield: function (level, rng) {
+      const out = [{ id: 'fiber', n: randInt(rng, 3, 5) + level }];
+      if (rng() < 0.3) out.push({ id: 'resin', n: 1 });
+      return out;
+    },
+    becomes: 'tree_stump', respawn: 4, category: 'tree',
+  },
+  feigenkaktus: {
+    sprite: 'feigenkaktus', variants: 3, solid: true, blockR: 22, reachR: 72,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('kaktusfeige', 1, 2), respawn: 2, category: 'forage',
+  },
+  agave: {
+    sprite: 'agave', variants: 3, solid: true, blockR: 22, reachR: 72,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 2, 3), respawn: 2, category: 'forage',
+  },
+  duerrbusch: {
+    sprite: 'duerrbusch', variants: 3, solid: false, reachR: 64,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('wood', 1, 1), respawn: 2, sway: true, category: 'forage',
+  },
+  duenengras: {
+    sprite: 'duenengras', variants: 3, solid: false, reachR: 58,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
+  },
+  steppengras: {
+    sprite: 'steppengras', variants: 3, solid: false, reachR: 58,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
+  },
+  distel: {
+    sprite: 'distel', variants: 3, solid: false, reachR: 56,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('herb', 1, 2), respawn: 1, sway: true, category: 'forage',
+  },
+  // Der Schädel wächst nicht nach. Ein Fundstück, das jeden Tag wieder
+  // da liegt, ist eine Ernte; eins, das weg bleibt, ist ein Fund.
+  schaedel: {
+    sprite: 'schaedel', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
+    yield: drop('knochen', 1, 1), category: 'forage',
+  },
+  wuestenfels: {
+    sprite: 'wuestenfels', variants: 3, solid: true, blockR: 26, reachR: 76,
+    tool: TOOL.PICK, hits: 2,
+    yield: drop('stone', 2, 3), respawn: 2, category: 'rock',
+  },
+
+  /* ------------------------------------------------- Die feuchten Zonen */
+  dschungelbaum: {
+    sprite: 'dschungelbaum', variants: 3, solid: true, blockR: 26, reachR: 92,
+    tool: TOOL.AXE, hits: 4,
+    yield: function (level, rng) {
+      const out = [{ id: 'wood', n: randInt(rng, 3, 4) + level }];
+      if (level >= 2 && rng() < 0.45) out.push({ id: 'hardwood', n: 1 });
+      return out;
+    },
+    becomes: 'tree_stump', respawn: 4, sway: true, category: 'tree',
+  },
+  palme: {
+    sprite: 'palme', variants: 3, solid: true, blockR: 20, reachR: 88,
+    tool: TOOL.AXE, hits: 3,
+    yield: function (level, rng) {
+      const out = [{ id: 'wood', n: randInt(rng, 2, 3) + level }];
+      if (rng() < 0.4) out.push({ id: 'fiber', n: 2 });
+      return out;
+    },
+    becomes: 'tree_stump', respawn: 4, sway: true, category: 'tree',
+  },
+  mangrove: {
+    sprite: 'mangrove', variants: 3, solid: true, blockR: 28, reachR: 90,
+    tool: TOOL.AXE, hits: 4,
+    yield: function (level, rng) {
+      const out = [{ id: 'wood', n: randInt(rng, 2, 4) + level }];
+      if (rng() < 0.35) out.push({ id: 'clay', n: 1 });
+      return out;
+    },
+    becomes: 'tree_stump', respawn: 5, sway: true, category: 'tree',
+  },
+  bambus: {
+    sprite: 'bambus', variants: 3, solid: true, blockR: 20, reachR: 76,
+    tool: TOOL.AXE, hits: 2,
+    yield: drop('bambus', 2, 3), becomes: 'tree_stump', respawn: 2, sway: true, category: 'tree',
+  },
+  riesenblatt: {
+    sprite: 'riesenblatt', variants: 3, solid: false, reachR: 62,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
+  },
+  // Die Liane hängt von oben herein und steht nicht auf dem Boden. Sie
+  // ist deshalb das einzige Gewächs ohne Bodenschatten, und sie darf
+  // niemandem im Weg sein – man läuft unter ihr durch.
+  liane: {
+    sprite: 'liane', variants: 3, solid: false, reachR: 62,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('fiber', 1, 2), respawn: 2, sway: true, category: 'forage',
+  },
+  orchidee: {
+    sprite: 'orchidee', variants: 3, solid: false, reachR: 56,
+    tool: TOOL.HAND, hits: 1,
+    yield: drop('flower_violet', 1, 1), respawn: 2, sway: true, category: 'forage',
+  },
+
   flower_pink: { sprite: 'flower_pink', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_pink', 1, 1), respawn: 1, sway: true, category: 'forage' },
   flower_yellow: { sprite: 'flower_yellow', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_yellow', 1, 1), respawn: 1, sway: true, category: 'forage' },
   flower_violet: { sprite: 'flower_violet', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_violet', 1, 1), respawn: 1, sway: true, category: 'forage' },

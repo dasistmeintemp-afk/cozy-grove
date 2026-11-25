@@ -106,6 +106,23 @@ export class World {
     return def && def.ton ? def.ton : null;
   }
 
+  /**
+   * Wie viel Gras hier wächst – als Faktor auf die gezeichneten Büschel.
+   *
+   * Der Bodenmaler zeichnet auf jede Graskachel kleine Grasbüschel. Das
+   * war richtig, solange jede Graskachel eine Wiese war. In der Wüste
+   * sah es falsch aus: Der Sandton lag korrekt über dem Boden, und
+   * darauf standen trotzdem die Tusche-Büschel einer Wiese.
+   *
+   * Der Maler erfährt deshalb nicht, welches Biom hier liegt, sondern
+   * nur WIE VIEL hier wächst – dieselbe Trennung wie beim Bodenton. Er
+   * braucht eine Zahl, keine Landeskunde.
+   */
+  bewuchsAtTile(tx, ty) {
+    const def = BIOME[this.biomAtTile(tx, ty)];
+    return def && def.bewuchs != null ? def.bewuchs : 1;
+  }
+
   tileAt(px, py) {
     return this.tileAtTile(Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE));
   }

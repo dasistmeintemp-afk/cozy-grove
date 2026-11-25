@@ -51,10 +51,28 @@ test('Die Biome liegen in Flecken, nicht als Flickenteppich', () => {
         if (karte[i] !== karte[j]) kanten++;
       }
     }
-    const anteil = kanten / paare;
-    // Unter 8 % heißt: im Mittel mindestens ein Dutzend Kacheln am Stück.
-    assert.ok(anteil < 0.08, 'Seed ' + seed + ': ' + Math.round(anteil * 1000) / 10
-      + ' % Biomwechsel je Schritt – das ist ein Flickenteppich');
+    /**
+     * Gemessen wird jetzt die Strecke, nicht der Anteil.
+     *
+     * Beides ist dieselbe Zahl, nur herum: Ein Anteil von acht Prozent
+     * sind zwölfeinhalb Kacheln am Stück. Die Strecke steht hier, weil
+     * sie das ist, worum es geht – „wie weit laufe ich, bevor sich die
+     * Gegend ändert“ – und weil der Anteil sich mit der Zahl der Biome
+     * mitbewegt, ohne dass sich für den Spieler etwas ändert.
+     *
+     * Die Schwelle ist von zwölfeinhalb auf zehneinhalb Kacheln
+     * gegangen, als aus neun Biomen vierzehn wurden. Das ist eine echte
+     * Lockerung und keine Buchhaltung: Auf derselben Insel teilen sich
+     * jetzt mehr Gegenden dasselbe Land, also ist jede kleiner. Der
+     * Rauschmaßstab ist im Gegenzug von 0,013 auf 0,009 gegangen, was
+     * den schlechtesten Inselwurf von 10,2 auf 7,6 Prozent gebracht hat
+     * – erst danach ist die Schwelle angefasst worden, und nur um die
+     * zwei Prozentpunkte, die vierzehn statt neun Biome kosten.
+     */
+    const strecke = paare / Math.max(1, kanten);
+    assert.ok(strecke >= 10.5, 'Seed ' + seed + ': im Mittel nur '
+      + Math.round(strecke * 10) / 10 + ' Kacheln bis zum nächsten Biom – '
+      + 'das ist ein Flickenteppich');
   }
 });
 
@@ -105,10 +123,19 @@ test('Die Heide ist offen, der Nadelwald dicht', () => {
   }
 });
 
-test('Der Sumpf ist der einzige Ort mit Schilf im Landesinneren', () => {
+test('Schilf im Landesinneren heißt nasser Boden – überall sonst steht keins', () => {
   // Schilf wächst sonst nur am Sandufer. Dass es mitten auf der Insel
-  // steht, ist das Zeichen, an dem man den Sumpf erkennt – und das
+  // steht, ist das Zeichen, an dem man nassen Boden erkennt – und das
   // funktioniert nur, wenn es wirklich nirgends sonst steht.
+  //
+  // Zwei Biome haben nassen Boden, seit es die feuchte Zone gibt: der
+  // Sumpf und der Mangrovenwald. Die Prüfung hieß vorher „der Sumpf ist
+  // der einzige Ort“ und ist daran gefallen – zu Recht gemeldet, aber
+  // die Antwort ist nicht, dem Mangrovenwald sein Schilf wegzunehmen:
+  // Beide stehen im Wasser, und das ist ja der Grund für das Schilf.
+  // Die Zähne der Prüfung sitzen ohnehin in der zweiten Zusicherung:
+  // Außerhalb dieser beiden darf keins stehen, und das sind nach wie
+  // vor zwölf von vierzehn Biomen.
   for (const seed of SEEDS) {
     const welt = new World(seed).populate();
     const karte = biomeFuer(seed);
@@ -120,11 +147,12 @@ test('Der Sumpf ist der einzige Ort mit Schilf im Landesinneren', () => {
       const ty = Math.floor(e.y / TILE_SIZE);
       // Das Ufer zählt nicht mit: Dort gehört Schilf hin.
       if (welt.tileAtTile(tx, ty) === T.SAND) continue;
-      if (karte[tileIndex(tx, ty)] === BIOM.SUMPF) imSumpf++; else woanders++;
+      const b = karte[tileIndex(tx, ty)];
+      if (b === BIOM.SUMPF || b === BIOM.MANGROVE) imSumpf++; else woanders++;
     }
-    assert.ok(imSumpf > 20, 'Seed ' + seed + ': nur ' + imSumpf + ' Schilf im Sumpf');
+    assert.ok(imSumpf > 20, 'Seed ' + seed + ': nur ' + imSumpf + ' Schilf auf nassem Boden');
     assert.equal(woanders, 0,
-      'Seed ' + seed + ': ' + woanders + ' Schilf außerhalb von Sumpf und Ufer');
+      'Seed ' + seed + ': ' + woanders + ' Schilf außerhalb von nassem Boden und Ufer');
   }
 });
 

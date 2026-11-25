@@ -55,6 +55,15 @@ import {
   paintAquarium, paintButtercase,
 } from './painted-decor.js';
 import { paintPet, paintBowl, PET_KINDS } from './painted-pet.js';
+import {
+  paintKaktus, paintFeigenkaktus, paintAgave, paintDuerrbusch,
+  paintDuenengras, paintSteppengras, paintDistel, paintSchaedel,
+  paintWuestenfels,
+} from './painted-wueste.js';
+import {
+  paintDschungelbaum, paintPalme, paintRiesenblatt, paintBambus,
+  paintLiane, paintOrchidee, paintMangrove,
+} from './painted-dschungel.js';
 import { paintTanne, STUFEN_LICHTER } from './painted-advent.js';
 import { BEWOHNER } from '../game/bewohner.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
@@ -527,6 +536,39 @@ export function initArt() {
         paintSapling(st, { laub: sl.laub, seed: 2701 + i * 37 + st * 11 }));
     }
   }
+  /**
+   * Die Pflanzen der neuen Klimazonen.
+   *
+   * Drei Fassungen von allem, aus demselben Grund wie bei Busch und
+   * Grasbüschel: Davon stehen viele nebeneinander im Bild, und gestempelte
+   * Wiederholung sieht man sofort. Die Samen liegen weit auseinander,
+   * damit zwei Fassungen derselben Pflanze nicht zufällig gleich
+   * ausfallen.
+   */
+  for (let v = 0; v < 3; v++) {
+    addArt('kaktus_' + v, paintKaktus({ seed: 3101 + v * 29, bluete: v === 1 }));
+    addArt('feigenkaktus_' + v, paintFeigenkaktus({ seed: 3201 + v * 29, frucht: true }));
+    addArt('agave_' + v, paintAgave({ seed: 3301 + v * 29 }));
+    addArt('duerrbusch_' + v, paintDuerrbusch({ seed: 3401 + v * 29 }));
+    addArt('duenengras_' + v, paintDuenengras({ seed: 3501 + v * 29 }));
+    addArt('steppengras_' + v, paintSteppengras({ seed: 3601 + v * 29 }));
+    addArt('distel_' + v, paintDistel({ seed: 3701 + v * 29 }));
+    addArt('wuestenfels_' + v, paintWuestenfels({ seed: 3901 + v * 29, scale: 0.8 + v * 0.18 }));
+    addArt('dschungelbaum_' + v, paintDschungelbaum({ seed: 4101 + v * 29 }));
+    // Die Palme neigt sich zu wechselnden Seiten – eine Reihe gleich
+    // geneigter Palmen sieht aus wie eine Tapete.
+    addArt('palme_' + v, paintPalme({ seed: 4201 + v * 29, neigung: [-0.7, 0.35, 0.9][v], kokos: v !== 1 }));
+    addArt('riesenblatt_' + v, paintRiesenblatt({ seed: 4301 + v * 29 }));
+    addArt('bambus_' + v, paintBambus({ seed: 4401 + v * 29 }));
+    addArt('liane_' + v, paintLiane({ seed: 4501 + v * 29 }));
+    addArt('orchidee_' + v, paintOrchidee({ seed: 4601 + v * 29,
+      farbe: [INK.petalViolet, INK.petalPink, INK.petalWhite][v] }));
+    addArt('mangrove_' + v, paintMangrove({ seed: 4701 + v * 29 }));
+  }
+  // Der Schädel liegt da, wo er liegt – er wächst nicht nach und braucht
+  // deshalb auch keine Fassungen für die Menge.
+  addArt('schaedel', paintSchaedel({ seed: 3801 }));
+
   for (let v = 0; v < 3; v++) {
     addArt('flower_pink_' + v, paintFlower({ seed: 131 + v * 7, petal: INK.petalPink }));
     addArt('flower_yellow_' + v, paintFlower({ seed: 137 + v * 7, petal: INK.petalYellow }));
@@ -751,6 +793,11 @@ function buildIcons() {
     // einzelnes Kristall wäre dasselbe Bild in kleiner.
     ['leuchtmoos', 'leuchtmoos'], ['mehl', 'mehlsack'],
     ['hoehlenkristall', 'kristallader'],
+    // Die Funde der neuen Zonen. Die Kaktusfeige borgt sich das Bild des
+    // Feigenkaktus, aus dem sie stammt – dieselbe Begründung wie beim
+    // Höhlenkristall.
+    ['bambus', 'bambus'], ['knochen', 'schaedel'],
+    ['kaktusfeige', 'feigenkaktus'],
   ];
   for (let i = 0; i < reuse.length; i++) {
     const target = vorlage(reuse[i][1]);

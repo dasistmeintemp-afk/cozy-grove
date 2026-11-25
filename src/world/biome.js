@@ -28,7 +28,7 @@
 import { makeNoise2D, fbm } from '../core/rng.js';
 import { T, isWalkable } from '../art/tiles.js';
 import {
-  MAP_W, MAP_H, REGION, tileIndex, regionAt, generateTiles,
+  MAP_W, MAP_H, tileIndex, generateTiles, CAMP_TILE,
 } from './worldgen.js';
 
 export const BIOM = {
@@ -41,11 +41,17 @@ export const BIOM = {
   SUMPF: 6,
   OBSTWIESE: 7,
   TOTHOLZ: 8,
+  WUESTE: 9,
+  STEPPE: 10,
+  DSCHUNGEL: 11,
+  MANGROVE: 12,
+  BAMBUSHAIN: 13,
 };
 
 export const BIOM_NAMEN = [
   'Wiese', 'Birkenhain', 'Nadelwald', 'Heide', 'Blumenwiese', 'Geröll',
   'Sumpf', 'Obstwiese', 'Totholz',
+  'Wüste', 'Steppe', 'Dschungel', 'Mangrovenwald', 'Bambushain',
 ];
 
 /**
@@ -159,6 +165,129 @@ export const BIOME = {
     busch: 1,
     boden: [['rock_small', 16], ['rock_big', 6], ['grass_tuft', 7], ['herb', 2]],
     ton: ['rockShade', 0.2],
+    bewuchs: 0.35,
+  },
+
+  /* --------------------------------------------------- Die neuen Zonen */
+  /**
+   * Die Wüste.
+   *
+   * Sie ist die leerste Gegend des Spiels, und das ist keine Sparsamkeit,
+   * sondern ihr Inhalt: Weite entsteht dadurch, dass NICHTS im Weg steht.
+   * Eine dicht bepflanzte Wüste wäre ein Garten mit Kakteen.
+   *
+   * Die Dichte am Boden ist trotzdem hoch – aber alles davon ist flach
+   * (Dünengras, Dürrbusch). Man sieht über die ganze Gegend hinweg und
+   * läuft gleichzeitig nicht über blanken Sand. Genau das ist der
+   * Unterschied zwischen Weite und Leere.
+   */
+  [BIOM.WUESTE]: {
+    name: 'Wüste',
+    baeume: [['kaktus', 5], ['duerrbusch', 2]],
+    dichteBaum: 2.5,
+    busch: 2,
+    boden: [['duenengras', 18], ['feigenkaktus', 5], ['agave', 4],
+      ['wuestenfels', 4], ['schaedel', 0.6]],
+    ton: ['duene', 0.62],
+    // Auf Sand wächst kein Rasen. Der Bodenmaler zeichnet sonst auf
+    // jede Graskachel seine Grasbüschel, und in der Wüste sah man den
+    // Sandton mit einer Wiese darauf.
+    bewuchs: 0,
+  },
+  /**
+   * Die Steppe – der Übergang, nicht der Gegensatz.
+   *
+   * Zwischen Wiese und Wüste darf keine Kante liegen. Die Steppe hat
+   * deshalb von beiden etwas: Gras wie die Wiese, aber hüfthoch und
+   * ausgedörrt, und einzelne Trockenpflanzen wie die Wüste. Ohne sie
+   * stößt grüne Wiese an gelben Sand, und das liest sich als Fehler.
+   */
+  [BIOM.STEPPE]: {
+    name: 'Steppe',
+    baeume: [['tree_wind', 3], ['kaktus', 1]],
+    dichteBaum: 2,
+    busch: 4,
+    boden: [['steppengras', 24], ['distel', 8], ['duerrbusch', 6],
+      ['herb', 4], ['rock_small', 3]],
+    ton: ['steppe', 0.4],
+    // Ein Drittel: In der Steppe wächst Gras, nur licht und in Büscheln
+    // – das Steppengras macht die Arbeit, der Boden hält sich zurück.
+    bewuchs: 0.3,
+  },
+  /**
+   * Der Dschungel – die dichteste Gegend des Spiels.
+   *
+   * Hier gilt das Gegenteil der Wüste: Dichte IST der Inhalt. Mit 22
+   * Bäumen je 100 Kacheln steht er noch über dem Nadelwald (17), und
+   * dazu kommt ein voller Boden aus Riesenblättern. Dass man nicht weit
+   * sieht, ist der Punkt.
+   *
+   * Die Lianen zählen zum Boden, obwohl sie von oben hängen: Sie sind
+   * nicht `solid`, man läuft unter ihnen durch, und sie verhalten sich
+   * damit wie Streugut und nicht wie ein Baum.
+   */
+  [BIOM.DSCHUNGEL]: {
+    name: 'Dschungel',
+    baeume: [['dschungelbaum', 7], ['palme', 3], ['bambus', 2]],
+    /**
+     * Sechsundzwanzig je 100 Kacheln – die höchste Dichte des Spiels,
+     * über dem Nadelwald (17) und dem Bambushain (22).
+     *
+     * Die Zahl ist gemessen, und zwar zweimal. Beim ersten Mal falsch:
+     * Eine Prüfung meldete, die dichtesten Stellen der Insel seien kein
+     * Dickicht mehr, und die naheliegende Antwort war, die Dichte
+     * hochzudrehen. Sie hat nichts geholfen – weil die Prüfung Bäume
+     * an ihrem NAMEN erkannte (`tree_`) und damit ausgerechnet die
+     * Bäume der neuen Zonen nicht mitzählte. Der dichteste Wald des
+     * Spiels war für sie unsichtbar.
+     *
+     * Nach der Korrektur stand die Messung bei knapp 8 je 100 Kacheln
+     * für die dichtesten zehn Prozent, also haarscharf an der Schwelle.
+     * Erst DANN war die Erhöhung begründet: Ein Drittel der Insel ist
+     * jetzt trockene Zone und fast baumfrei, und das zieht die ganze
+     * Verteilung nach unten. Wenn es Weite geben soll, muss es auch
+     * Dickicht geben.
+     */
+    dichteBaum: 26,
+    busch: 8,
+    boden: [['riesenblatt', 24], ['liane', 12], ['farn', 10],
+      ['mushroom', 6], ['orchidee', 3]],
+    ton: ['dschungelTief', 0.3],
+    // Unter geschlossenem Kronendach kommt kein Gras durch – derselbe
+    // Grund wie im Nadelwald, nur stärker.
+    bewuchs: 0.3,
+  },
+  /**
+   * Der Mangrovenwald – nasse Füße am Rand des Dschungels.
+   *
+   * Er liegt zwischen Wasser und Dschungel und ist damit das, was der
+   * Sumpf für den gemäßigten Teil ist. Beide teilen sich Schilf und
+   * Farn; der Unterschied sind die Stelzwurzeln, und die sieht man.
+   */
+  [BIOM.MANGROVE]: {
+    name: 'Mangrovenwald',
+    baeume: [['mangrove', 9], ['palme', 2]],
+    dichteBaum: 11,
+    busch: 2,
+    boden: [['reeds', 20], ['farn', 12], ['riesenblatt', 8], ['mushroom', 5]],
+    ton: ['schlick', 0.34],
+    // Schlick, kein Rasen.
+    bewuchs: 0.15,
+  },
+  /**
+   * Der Bambushain – lauter Senkrechte.
+   *
+   * Dieselbe Rolle wie der Birkenhain im gemäßigten Teil: fast nur eine
+   * Art, und dicht. Das ist die auffälligste Gruppe, die es gibt, und sie
+   * kostet keine neue Grafik.
+   */
+  [BIOM.BAMBUSHAIN]: {
+    name: 'Bambushain',
+    baeume: [['bambus', 13], ['dschungelbaum', 1]],
+    dichteBaum: 22,
+    busch: 1,
+    boden: [['riesenblatt', 14], ['farn', 10], ['orchidee', 4], ['grass_tuft', 8]],
+    ton: ['bambus', 0.18],
   },
 };
 
@@ -170,15 +299,168 @@ export const BIOME = {
  * hinten – beide sind Ausrufezeichen, und ein Ausrufezeichen, das ein
  * Drittel der Insel bedeckt, ist ein Punkt.
  */
-export const BIOME_JE_BEREICH = {
-  [REGION.CAMP]: [BIOM.WIESE, BIOM.OBSTWIESE, BIOM.BIRKENHAIN, BIOM.BLUMENWIESE],
-  [REGION.FOREST]: [BIOM.NADELWALD, BIOM.BIRKENHAIN, BIOM.SUMPF, BIOM.TOTHOLZ,
-    BIOM.WIESE],
-  [REGION.CLIFFS]: [BIOM.NADELWALD, BIOM.HEIDE, BIOM.GEROELL, BIOM.TOTHOLZ,
-    BIOM.WIESE],
-  [REGION.ISLE]: [BIOM.HEIDE, BIOM.SUMPF, BIOM.NADELWALD, BIOM.GEROELL,
-    BIOM.BIRKENHAIN],
+/* ------------------------------------------------------------- Klimazonen */
+
+export const KLIMA = { FEUCHT: 0, GEMAESSIGT: 1, TROCKEN: 2 };
+export const KLIMA_NAMEN = ['Feuchte Zone', 'Gemäßigte Zone', 'Trockene Zone'];
+
+/**
+ * Was in welcher Klimazone wächst.
+ *
+ * **Warum Klimazonen die Bereiche ablösen.** Vorher hing das Biom am
+ * BEREICH – Lager, Wald, Klippen, Stille Insel –, und jeder Bereich hatte
+ * seine eigene Liste. Das hat funktioniert, solange alle vier Listen aus
+ * derselben gemäßigten Familie kamen: Ein Birkenhain neben einem
+ * Nadelwald ist egal, wo die Grenze liegt.
+ *
+ * Mit Wüste und Dschungel geht das nicht mehr. Die Bereichsgrenzen sind
+ * Linien, die der Flusslauf und der Sund gezogen haben – sie sind da, wo
+ * sie sind, und eine Wüste, die an einer Flussbiegung endet, ist keine
+ * Wüste, sondern ein Beet. Klima dagegen hat einen GRUND, sich zu ändern:
+ * Es wird nach einer Seite hin trockener. Deswegen laufen die Zonen quer
+ * über die Karte und nicht an den Bereichen entlang.
+ *
+ * **Die Reihenfolge ist eine Reihe, kein Ring.** Feucht grenzt an
+ * gemäßigt, gemäßigt an trocken – und feucht grenzt NIE an trocken. Ein
+ * Dschungel neben einer Düne liest sich als Fehler, egal wie schön beide
+ * einzeln sind. Dass die gemäßigte Zone dazwischenliegt, ist deshalb
+ * nicht nur Heimat, sondern auch Puffer.
+ *
+ * Innerhalb einer Zone gilt weiter dieselbe Regel wie vorher: Das erste
+ * Biom ist der Grundton, das letzte das Ausrufezeichen.
+ */
+export const BIOME_JE_KLIMA = {
+  [KLIMA.FEUCHT]: [BIOM.DSCHUNGEL, BIOM.BAMBUSHAIN, BIOM.MANGROVE,
+    BIOM.SUMPF, BIOM.TOTHOLZ],
+  [KLIMA.GEMAESSIGT]: [BIOM.WIESE, BIOM.NADELWALD, BIOM.BIRKENHAIN,
+    BIOM.OBSTWIESE, BIOM.BLUMENWIESE],
+  [KLIMA.TROCKEN]: [BIOM.STEPPE, BIOM.WUESTE, BIOM.HEIDE, BIOM.GEROELL,
+    BIOM.TOTHOLZ],
 };
+
+/**
+ * Wie weit eine Kachel auf der Trockenachse liegt – vor dem Zuschnitt.
+ *
+ * Die Achse läuft von Südwesten (feucht) nach Nordosten (trocken).
+ *
+ * Welche Richtung, ist gemessen und nicht gewählt: Das Lager steht fest
+ * bei Kachel 66/93, die Küstenlinie wird gewürfelt, und je nach Achse
+ * liegt das Lager an ganz verschiedenen Stellen der Reihe. Über fünf
+ * Inselwürfe gemessen lag sein Rang auf der Nord-Süd-Achse bei 76 bis
+ * 81 Prozent, auf der West-Ost-Achse bei 58 bis 69, und auf dieser hier
+ * bei 34 bis 43. Je weiter außen das Lager liegt, desto mehr muss das
+ * Fenster der gemäßigten Zone hinausragen – bei der ersten Fassung
+ * (Nordwest nach Südost, Lagerrang 74 Prozent) blieben für die trockene
+ * Zone drei Prozent des Landes übrig, und nach dem Glätten NULL. Die
+ * Wüste war gebaut und kam auf keiner Insel vor.
+ *
+ * Was nicht beliebig ist, ist dass es eine GERADE Achse gibt und nicht
+ * ein Rauschfeld. Mit Rauschen
+ * allein lägen Wüstenflecken im Dschungel, und die Welt wäre wieder ein
+ * Flickenteppich – nur mit größeren Flicken.
+ *
+ * Das Rauschen kommt trotzdem dazu, sonst wären die Zonengrenzen
+ * schnurgerade Diagonalen. Sein Anteil ist mit 0,22 bewusst klein: Es
+ * soll die Grenze ausbeulen, nicht verwürfeln.
+ */
+function klimaRoh(tx, ty, n) {
+  const gerade = (tx + (MAP_H - ty)) / (MAP_W + MAP_H);
+  const welle = fbm(n, tx * 0.009 + 11, ty * 0.009 - 7, 2, 2.0, 0.5);
+  return gerade * 0.78 + welle * 0.22;
+}
+
+/**
+ * Wie viel Land jede der beiden äußeren Zonen bekommt.
+ *
+ * Zusammen sechzig Prozent; die restlichen vierzig bleiben gemäßigt, und
+ * das Lager liegt darin. Das ist kein Kompromiss,
+ * sondern der Spielort: Beete, Geister, Wege und das halbe Inventar
+ * hängen daran, und eine Insel, auf der man zwei Drittel der Zeit durch
+ * Sand läuft, ist ein anderes Spiel.
+ */
+const AUSSEN_ANTEIL = 0.3;
+
+/**
+ * Die Klimazone jeder Kachel – ums Lager herum verankert.
+ *
+ * **Warum verankert und nicht fest geschnitten.** Die naheliegende
+ * Lösung wäre, die Achse bei einem Drittel und zwei Dritteln zu
+ * schneiden. Dann hängt es aber am Inselwurf, in welcher Zone das Lager
+ * landet – und bei einer Insel, deren Land zufällig im Südosten liegt,
+ * wäre das Lager eine Wüstenstation. Das ist kein seltener Fall: Die
+ * Küstenlinie wird gewürfelt, die Lagerkachel steht fest.
+ *
+ * Also andersherum: Das Lager IST die gemäßigte Mitte. Alle Landkacheln
+ * werden nach ihrem Achsenwert sortiert, der Rang des Lagers gesucht, und
+ * von dort aus ein Viertel des Landes in jede Richtung als gemäßigt
+ * genommen. Was darüber liegt, wird trocken, was darunter liegt, feucht.
+ *
+ * Liegt das Lager nah am Rand der Achse, schrumpft eine der beiden
+ * äußeren Zonen von selbst – und das ist richtig so: Lieber eine kleine
+ * Wüste als ein Lager darin.
+ */
+export function klimaKarte(seed) {
+  const s = seed >>> 0;
+  if (KLIMA_CACHE.seed === s && KLIMA_CACHE.data) return KLIMA_CACHE.data;
+  const tiles = generateTiles(s);
+  const n = makeNoise2D(s ^ 0x3c6ef35f);
+  const karte = new Uint8Array(MAP_W * MAP_H);
+  karte.fill(KLIMA.GEMAESSIGT);
+
+  const felder = [];
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const i = tileIndex(tx, ty);
+      if (!isWalkable(tiles[i]) && tiles[i] !== T.CLIFF) continue;
+      felder.push({ i: i, v: klimaRoh(tx, ty, n) });
+    }
+  }
+  if (!felder.length) {
+    KLIMA_CACHE.seed = s;
+    KLIMA_CACHE.data = karte;
+    return karte;
+  }
+  felder.sort(function (a, b) { return a.v - b.v; });
+
+  const lagerWert = klimaRoh(CAMP_TILE.x, CAMP_TILE.y, n);
+  let lagerRang = 0;
+  while (lagerRang < felder.length && felder[lagerRang].v < lagerWert) lagerRang++;
+
+  /**
+   * Das Fenster muss drei Bedingungen gleichzeitig erfüllen, und die
+   * Reihenfolge, in der sie durchgesetzt werden, ist die Rangfolge:
+   *
+   *   1. Das Lager liegt darin (sonst steht man in der Wüste).
+   *   2. Beiden äußeren Zonen bleibt ein Mindestanteil (sonst ist eine
+   *      davon gebaut und kommt nie vor – genau das ist passiert).
+   *   3. Es ist so breit wie gewünscht.
+   *
+   * Die dritte gibt nach, wenn sie mit den ersten beiden kollidiert:
+   * Lieber eine schmalere Heimat als keine Wüste.
+   *
+   * Gelöst wird das, indem BEIDE äußeren Zonen gleich groß werden und
+   * gemeinsam schrumpfen, sobald das Lager nah an einem Ende liegt. Der
+   * erste Versuch gab jeder Zone nur eine Untergrenze und ließ sie
+   * sonst wachsen; weil das Lager auf dieser Achse bei 34 bis 43 Prozent
+   * liegt, wurde die trockene Seite damit regelmäßig doppelt so groß
+   * wie die feuchte. Auf Inselwurf 11 blieben für den Dschungel sechs
+   * Prozent übrig, und eine Prüfung meldete, dass die dichtesten
+   * Stellen der Insel kein Dickicht mehr sind – der dichteste Wald des
+   * Spiels war zu klein geworden, um in der Statistik vorzukommen.
+   */
+  const aussen = Math.min(lagerRang, felder.length - lagerRang,
+    Math.round(felder.length * AUSSEN_ANTEIL));
+  const von = aussen;
+  const bis = felder.length - aussen;
+  for (let k = 0; k < von; k++) karte[felder[k].i] = KLIMA.FEUCHT;
+  for (let k = bis; k < felder.length; k++) karte[felder[k].i] = KLIMA.TROCKEN;
+
+  KLIMA_CACHE.seed = s;
+  KLIMA_CACHE.data = karte;
+  return karte;
+}
+
+const KLIMA_CACHE = { seed: -1, data: null };
 
 const CACHE = { seed: -1, data: null };
 
@@ -195,6 +477,7 @@ export function biomeFuer(seed) {
   const s = seed >>> 0;
   if (CACHE.seed === s && CACHE.data) return CACHE.data;
   const tiles = generateTiles(s);
+  const klima = klimaKarte(s);
   const n = makeNoise2D(s ^ 0x6b43a9f1);
   const m = makeNoise2D(s ^ 0x1f83d9ab);
   const karte = new Uint8Array(MAP_W * MAP_H);
@@ -236,15 +519,27 @@ export function biomeFuer(seed) {
       // einem glatten Feld ist jede Höhenschicht zusammenhängend.
       // 0,013 ergibt Flecken von rund fünfzig Kacheln – eine Gegend, durch
       // die man eine Weile läuft.
-      const a = fbm(n, tx * 0.013, ty * 0.013, 1, 2.0, 0.5);
-      const b = fbm(m, tx * 0.0146 + 60, ty * 0.0146 - 25, 1, 2.0, 0.5);
-      const r = regionAt(tx, ty);
+      /**
+       * Größere Flecken, seit es mehr Biome gibt.
+       *
+       * Hier stand 0,013, und das war richtig, solange sich neun Biome
+       * das Land teilten. Mit vierzehn fällt auf jedes weniger Fläche,
+       * und bei gleichem Rauschmaßstab werden die Flecken entsprechend
+       * kleiner: Eine Prüfung maß 8,7 Prozent Biomwechsel je Schritt,
+       * also im Mittel elf Kacheln am Stück. Ein Biom, durch das man in
+       * elf Schritten durch ist, ist kein Ort.
+       *
+       * Der Maßstab geht deshalb mit der Zahl der Biome mit.
+       */
+      const a = fbm(n, tx * 0.009, ty * 0.009, 1, 2.0, 0.5);
+      const b = fbm(m, tx * 0.0101 + 60, ty * 0.0101 - 25, 1, 2.0, 0.5);
+      const r = klima[i];
       if (!proBereich[r]) proBereich[r] = [];
       proBereich[r].push({ i: i, v: a * 0.6 + b * 0.4 });
     }
   }
   for (const r in proBereich) {
-    const liste = BIOME_JE_BEREICH[r] || BIOME_JE_BEREICH[REGION.CAMP];
+    const liste = BIOME_JE_KLIMA[r] || BIOME_JE_KLIMA[KLIMA.GEMAESSIGT];
     const felder = proBereich[r];
     felder.sort(function (x, y) { return x.v - y.v; });
     let summe = 0;

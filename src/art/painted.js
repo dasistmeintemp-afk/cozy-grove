@@ -122,6 +122,47 @@ export const INK = {
   moss: '#87b963',
   copper: '#e08a4a',
 
+  /**
+   * Die Farben der neuen Klimazonen.
+   *
+   * Sie stehen hier und nicht bei den Jahreszeiten, weil eine Wüste im
+   * Herbst keine andere Wüste ist. Was sich mit dem Jahr ändert, ist das
+   * Laub; Kaktusfleisch, Dünensand und Mangrovenschlick ändern sich nicht.
+   *
+   * Alle Helligkeiten liegen im selben Band wie die neue Wiese (um 130),
+   * damit die Zonen nebeneinander nicht springen – die Wüste ist heller,
+   * der Dschungel dunkler, aber keine der beiden fällt aus dem Bild.
+   */
+  // Wüste: Kaktusfleisch ist blaugrün, nicht grasgrün – daran erkennt man
+  // eine Trockenpflanze, bevor man ihre Form gesehen hat.
+  kaktus: '#5f8f63',
+  kaktusLicht: '#86b183',
+  kaktusDunkel: '#3f6a4a',
+  duene: '#e8c98b',
+  dueneSchatten: '#cda868',
+  duerr: '#b0905c',
+  duerrDunkel: '#8a6c40',
+  knochen: '#efe6d2',
+
+  // Steppe: ausgedörrtes Gras, das trotzdem Gras bleibt. Khaki wäre der
+  // bequeme Griff und derselbe Fehler, der beim Herbstgras schon einmal
+  // gemacht wurde – ohne Grünanteil liest sich alles als Dunst.
+  steppe: '#a8a052',
+  steppeLicht: '#c2bd79',
+  steppeDunkel: '#7d7838',
+  distel: '#9a8fbe',
+
+  // Dschungel: das tiefste Grün des Spiels, und ein zweites, das deutlich
+  // gelber ist. Ein Regenwald ist nicht EIN Grün, sondern viele
+  // übereinander – das ist der ganze Unterschied zum Nadelwald.
+  dschungel: '#2f7a33',
+  dschungelLicht: '#5fa348',
+  dschungelDunkel: '#1d5125',
+  dschungelTief: '#123a1b',
+  bambus: '#9bb84a',
+  bluete: '#e8705f',
+  schlick: '#6b5a42',
+
   warm: '#eaa74e',
   ember: '#f0913f',
   emberLight: '#f9d081',

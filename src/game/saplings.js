@@ -46,6 +46,27 @@ export const SETZLINGE = {
   // Der Windbaum wächst am langsamsten. Wer eine Uferreihe will, soll
   // dafür warten – an der Küste steht ohnehin das, was Ausdauer hat.
   sapling_wind: { id: 'sapling_wind', name: 'Windbaumsetzling', wird: 'tree_wind', tage: 9, laub: '#9ab477' },
+  /**
+   * Die Setzlinge der neuen Zonen.
+   *
+   * Dass es sie überhaupt gibt, erzwingt eine Prüfung: Jede Art mit
+   * `category: 'tree'` braucht einen, sonst wäre eine Sorte die, die man
+   * abholzt und nie ersetzt – und niemand wüsste, warum ausgerechnet die.
+   *
+   * Der Dschungelbaum braucht am längsten, der Bambus am kürzesten. Das
+   * ist keine Stimmung, sondern dieselbe Regel wie beim Windbaum: Was im
+   * Spiel groß und wertvoll ist, lässt auf sich warten.
+   */
+  sapling_dschungel: { id: 'sapling_dschungel', name: 'Dschungelsetzling', wird: 'dschungelbaum', tage: 9, laub: '#3d8a35' },
+  sapling_palme: { id: 'sapling_palme', name: 'Palmensetzling', wird: 'palme', tage: 7, laub: '#4f9a3c' },
+  sapling_mangrove: { id: 'sapling_mangrove', name: 'Mangrovensetzling', wird: 'mangrove', tage: 8, laub: '#35803a' },
+  // Kaktus und Bambus sind keine Bäume im botanischen Sinn und verhalten
+  // sich im Spiel trotzdem wie welche: Axt, mehrere Schläge, Stumpf. Sie
+  // bekommen deshalb auch Setzlinge – eine Ausnahme von der Regel wäre
+  // teurer als die zwei Zeilen hier, denn dann müsste jede Baumregel
+  // wissen, dass es zwei Arten gibt, für die sie nicht gilt.
+  sapling_kaktus: { id: 'sapling_kaktus', name: 'Kaktussetzling', wird: 'kaktus', tage: 7, laub: '#5f8f63' },
+  sapling_bambus: { id: 'sapling_bambus', name: 'Bambussetzling', wird: 'bambus', tage: 6, laub: '#9bb84a' },
 };
 
 export const SETZLING_IDS = Object.keys(SETZLINGE);

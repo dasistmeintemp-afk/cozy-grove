@@ -72,6 +72,18 @@ const SPRITE_NAMES = (function () {
   // Der Farn steht in drei Fassungen wie alles, wovon viele nebeneinander
   // stehen – die Objektdefinition nennt nur den Rumpf.
   for (let v = 0; v < 3; v++) names.push('farn_' + v);
+  // Die Pflanzen der trockenen und der feuchten Zone. Ebenfalls von Hand:
+  // Dieselbe Begründung wie bei den Bäumen – eine Liste, die sich aus den
+  // geprüften Daten ableitet, besteht immer.
+  const zonen = ['kaktus', 'feigenkaktus', 'agave', 'duerrbusch', 'duenengras',
+    'steppengras', 'distel', 'wuestenfels',
+    'dschungelbaum', 'palme', 'riesenblatt', 'bambus', 'liane', 'orchidee',
+    'mangrove'];
+  for (let i = 0; i < zonen.length; i++) {
+    for (let v = 0; v < 3; v++) names.push(zonen[i] + '_' + v);
+  }
+  // Der Schädel wächst nicht nach und steht deshalb nur einmal da.
+  names.push('schaedel');
   for (let f = 0; f < 4; f++) names.push('flame_' + f);
   for (let i = 0; i < MEMORY_KINDS.length; i++) {
     names.push('memory_' + MEMORY_KINDS[i]);
