@@ -55,7 +55,7 @@ export const TILE_DEF = {
   // Dunkler und kühler als Sand: nasser Grund, der eben noch unter Wasser
   // lag. Zwischen `sand` (#f7edd4) und `water` (#63c8c9) gemischt, mit
   // einem Stich ins Graue – reiner Mischwert sah aus wie blasser Türkis.
-  8: { name: 'tideflat', base: '#cbbf9e', layer: 2, walk: true },
+  8: { name: 'tideflat', base: '#e1cf9d', layer: 2, walk: true },
   5: { name: 'path', base: '#dccaa6', layer: 5, walk: true },
   6: { name: 'bridge', base: INK.wood, layer: 6, walk: true },
   // Die Steilkante liegt auf der Ebene des Felsbodens: Sie gehört zum

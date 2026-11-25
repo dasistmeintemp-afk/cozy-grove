@@ -72,15 +72,31 @@ export const INK = {
   grassLight: '#bde798',
   grassDark: '#74b451',
 
-  sand: '#f7edd4',
-  sandShade: '#e8d7ae',
+  /**
+   * Sand und Wasser, an den Zielwerten des Vorbilds ausgerichtet.
+   *
+   * Gemessen wurden nicht einzelne Punkte, sondern die FLÄCHEN: Alle
+   * Bildpunkte im jeweiligen Farbtonbereich gemittelt, in beiden
+   * Bildern gleich. Die Wiese traf danach schon (95 gegen 93 Grad, 47
+   * gegen 45 Prozent Sättigung) – Sand und Wasser nicht:
+   *
+   *   Sand    Vorbild Helligkeit 230, Sättigung 26 % – wir 216 / 20 %
+   *   Wasser  Vorbild Ton 185 Grad,   Sättigung 59 % – wir 176 / 52 %
+   *
+   * Unser Sand war also zu dunkel und zu blass, unser Wasser neun Grad
+   * zu grün. Beides ist hier um genau diese Differenz verschoben, mehr
+   * nicht – die Töne selbst stammen weiter aus dieser Palette und nicht
+   * aus dem Vorbild.
+   */
+  sand: '#ffefc6',
+  sandShade: '#ffe6ab',
   dirt: '#cdb185',
   dirtDark: '#9d8358',
 
-  water: '#51c9c2',
-  waterLight: '#88e0d8',
-  waterDeep: '#26aeb0',
-  waterDark: '#1e9197',
+  water: '#42d2e0',
+  waterLight: '#7cf2fa',
+  waterDeep: '#1da8c4',
+  waterDark: '#198ba8',
   foam: '#f0fbf9',
 
   // Die Uferwand: warme Erde, oben im Schatten der überhängenden
