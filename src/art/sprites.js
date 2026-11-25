@@ -426,7 +426,24 @@ export function initArt() {
 
   /* --- Steine --- */
   addArt('rock_big', paintRock({ seed: 77 }));
-  addArt('rock_small', paintRock({ seed: 83, scale: 0.66, moss: false }));
+  /**
+   * Mehrere Fassungen für alles, wovon viele im Bild stehen.
+   *
+   * Bäume hatten drei Fassungen, ALLES ANDERE genau eine: Jeder Busch,
+   * jeder Pilz, jeder Stein, jedes Grasbüschel auf der Insel war
+   * dieselbe Zeichnung, nur verschoben. Auf einem Bildschirm stehen
+   * davon Dutzende nebeneinander, und gestempelte Wiederholung sieht
+   * man sofort – man kann sie nicht benennen, aber das Bild wirkt
+   * billig.
+   *
+   * Die Maler würfeln ihre Formen aus dem Startwert, also kostet eine
+   * weitere Fassung nichts als eine Zeile und etwas Speicher. Die Zahl
+   * richtet sich danach, wie oft etwas vorkommt: Grasbüschel vier,
+   * Büsche und Pilze drei.
+   */
+  addArt('rock_small_0', paintRock({ seed: 83, scale: 0.66, moss: false }));
+  addArt('rock_small_1', paintRock({ seed: 84, scale: 0.58, moss: false }));
+  addArt('rock_small_2', paintRock({ seed: 85, scale: 0.74, moss: false }));
   addArt('rock_ore', paintRock({ seed: 88, ore: true }));
   // Hochland: kälterer Stein, helle Adern – und die Geode violett, damit man
   // sie im Geröll von weitem auseinanderhält.
@@ -441,13 +458,18 @@ export function initArt() {
   addArt('rockslide', paintRockslide({ seed: 181 }));
 
   /* --- Kleinpflanzen --- */
-  addArt('bush_berry', paintBush({ seed: 91, berries: true }));
-  addArt('bush_plain', paintBush({ seed: 96 }));
-  addArt('grass_tuft', paintGrassTuft({ seed: 171 }));
-  addArt('reeds', paintReeds({ seed: 191 }));
-  addArt('mushroom', paintMushroom({ seed: 221 }));
-  addArt('herb', paintHerb({ seed: 241 }));
-  addArt('shell', paintShell({ seed: 261 }));
+  for (let v = 0; v < 3; v++) {
+    addArt('bush_berry_' + v, paintBush({ seed: 91 + v * 13, berries: true }));
+    addArt('bush_plain_' + v, paintBush({ seed: 96 + v * 13 }));
+    addArt('mushroom_' + v, paintMushroom({ seed: 221 + v * 11 }));
+    addArt('herb_' + v, paintHerb({ seed: 241 + v * 11 }));
+    addArt('shell_' + v, paintShell({ seed: 261 + v * 11 }));
+    addArt('reeds_' + v, paintReeds({ seed: 191 + v * 11 }));
+  }
+  // Grasbüschel sind das häufigste Ding überhaupt – vier Fassungen.
+  for (let v = 0; v < 4; v++) {
+    addArt('grass_tuft_' + v, paintGrassTuft({ seed: 171 + v * 9 }));
+  }
   addArt('driftwood', paintDriftwood({ seed: 281 }));
   addArt('stardust', paintStardust({ seed: 293 }));
   addArt('digspot', paintDigspot({ seed: 301 }));
@@ -488,10 +510,12 @@ export function initArt() {
         paintSapling(st, { laub: sl.laub, seed: 2701 + i * 37 + st * 11 }));
     }
   }
-  addArt('flower_pink', paintFlower({ seed: 131, petal: INK.petalPink }));
-  addArt('flower_yellow', paintFlower({ seed: 137, petal: INK.petalYellow }));
-  addArt('flower_violet', paintFlower({ seed: 141, petal: INK.petalViolet }));
-  addArt('flower_white', paintFlower({ seed: 147, petal: INK.petalWhite }));
+  for (let v = 0; v < 3; v++) {
+    addArt('flower_pink_' + v, paintFlower({ seed: 131 + v * 7, petal: INK.petalPink }));
+    addArt('flower_yellow_' + v, paintFlower({ seed: 137 + v * 7, petal: INK.petalYellow }));
+    addArt('flower_violet_' + v, paintFlower({ seed: 141 + v * 7, petal: INK.petalViolet }));
+    addArt('flower_white_' + v, paintFlower({ seed: 147 + v * 7, petal: INK.petalWhite }));
+  }
   addArt('flower_dusk', paintFlower({ seed: 153, petal: INK.petalDusk }));
   // Der Farn – die Pflanze des Sumpfes, in drei Fassungen wie alles,
   // wovon viele nebeneinander stehen.

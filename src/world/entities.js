@@ -112,7 +112,7 @@ export const ENTITY_DEFS = {
     respawn: 2, category: 'rock',
   },
   rock_small: {
-    sprite: 'rock_small', solid: true, blockR: 20, reachR: 72, tool: TOOL.PICK, hits: 1,
+    sprite: 'rock_small', variants: 3, solid: true, blockR: 20, reachR: 72, tool: TOOL.PICK, hits: 1,
     yield: drop('stone', 1, 2), respawn: 1, category: 'rock',
   },
   /**
@@ -200,17 +200,17 @@ export const ENTITY_DEFS = {
     sprite: 'pet_cat_0', solid: false, reachR: 96, category: 'pet', priority: 30,
   },
   bush_berry: {
-    sprite: 'bush_berry', solid: true, blockR: 24, reachR: 72, tool: TOOL.HAND, hits: 1,
+    sprite: 'bush_berry', variants: 3, solid: true, blockR: 24, reachR: 72, tool: TOOL.HAND, hits: 1,
     yield: drop('berry', 1, 2), becomes: 'bush_plain', respawn: 1, sway: true, category: 'forage',
   },
-  bush_plain: { sprite: 'bush_plain', solid: true, blockR: 24, reachR: 64, tool: null, sway: true, category: 'bush' },
+  bush_plain: { sprite: 'bush_plain', variants: 3, solid: true, blockR: 24, reachR: 64, tool: null, sway: true, category: 'bush' },
 
   reeds: {
-    sprite: 'reeds', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
+    sprite: 'reeds', variants: 3, solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
     yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
   },
   grass_tuft: {
-    sprite: 'grass_tuft', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
+    sprite: 'grass_tuft', variants: 4, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('fiber', 1, 1), respawn: 1, sway: true, category: 'forage',
   },
   /**
@@ -227,15 +227,15 @@ export const ENTITY_DEFS = {
     yield: drop('fiber', 1, 2), respawn: 1, sway: true, category: 'forage',
   },
   mushroom: {
-    sprite: 'mushroom', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
+    sprite: 'mushroom', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('mushroom', 1, 1), respawn: 1, category: 'forage',
   },
   herb: {
-    sprite: 'herb', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
+    sprite: 'herb', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('herb', 1, 1), respawn: 1, sway: true, category: 'forage',
   },
   shell: {
-    sprite: 'shell', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
+    sprite: 'shell', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1,
     yield: drop('shell', 1, 1), respawn: 1, category: 'forage',
   },
   /**
@@ -255,10 +255,10 @@ export const ENTITY_DEFS = {
     sprite: 'driftwood', solid: false, reachR: 64, tool: TOOL.HAND, hits: 1,
     yield: drop('driftwood', 1, 1), respawn: 1, category: 'forage',
   },
-  flower_pink: { sprite: 'flower_pink', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_pink', 1, 1), respawn: 1, sway: true, category: 'forage' },
-  flower_yellow: { sprite: 'flower_yellow', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_yellow', 1, 1), respawn: 1, sway: true, category: 'forage' },
-  flower_violet: { sprite: 'flower_violet', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_violet', 1, 1), respawn: 1, sway: true, category: 'forage' },
-  flower_white: { sprite: 'flower_white', solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_white', 1, 1), respawn: 1, sway: true, category: 'forage' },
+  flower_pink: { sprite: 'flower_pink', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_pink', 1, 1), respawn: 1, sway: true, category: 'forage' },
+  flower_yellow: { sprite: 'flower_yellow', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_yellow', 1, 1), respawn: 1, sway: true, category: 'forage' },
+  flower_violet: { sprite: 'flower_violet', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_violet', 1, 1), respawn: 1, sway: true, category: 'forage' },
+  flower_white: { sprite: 'flower_white', variants: 3, solid: false, reachR: 56, tool: TOOL.HAND, hits: 1, yield: drop('flower_white', 1, 1), respawn: 1, sway: true, category: 'forage' },
 
   // Wetter- und Nachtvorkommen. Sie werden jeden Tag neu gesetzt und
   // verschwinden wieder, sobald die Bedingung nicht mehr gilt.
