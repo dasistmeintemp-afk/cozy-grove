@@ -12,7 +12,7 @@
  * der Transformation.
  */
 import { makeCanvas, ctx2d, clamp } from '../core/util.js';
-import { drawSprite, spr, ensureBild } from '../art/sprites.js';
+import { drawSprite, spr, hasSprite, ensureBild } from '../art/sprites.js';
 import { defOf, spriteFor } from '../world/entities.js';
 import { getItem } from '../game/items.js';
 import { campfireLevelFor } from '../game/recipes.js';
@@ -883,6 +883,7 @@ export class Renderer {
     for (let i = 0; i < list.length; i++) {
       if (list[i].flat) this._drawEntity(ctx, game, list[i], time);
     }
+    const playerX = game.player.x;
     const playerY = game.player.y;
     let playerDrawn = false;
     for (let i = 0; i < list.length; i++) {
@@ -892,9 +893,84 @@ export class Renderer {
         this._drawPlayer(ctx, game, time);
         playerDrawn = true;
       }
-      this._drawEntity(ctx, game, e, time);
+      // Alles, was NACH Seli gezeichnet wird, liegt vor ihr. Was sie
+      // dabei verdeckt, wird durchsichtig - siehe `_verdeckung`.
+      const deckung = playerDrawn ? this._verdeckung(e, playerX, playerY) : 1;
+      if (deckung >= 1) {
+        this._drawEntity(ctx, game, e, time);
+      } else {
+        ctx.save();
+        ctx.globalAlpha = deckung;
+        this._drawEntity(ctx, game, e, time);
+        ctx.restore();
+      }
     }
     if (!playerDrawn) this._drawPlayer(ctx, game, time);
+  }
+
+  /**
+   * Wie deckend ein Objekt gezeichnet wird, das vor Seli steht.
+   *
+   * **Warum es das braucht.** Im Dschungel stehen 8 Baeume je 100
+   * Kacheln, und ihre Kronen sind zweieinhalb Kacheln breit. Wer
+   * hineinlaeuft, sieht sich selbst nicht mehr - und ein Spiel, in dem
+   * man die Figur sucht, ist kaputt, egal wie schoen der Wald ist. Das
+   * Problem gab es vorher auch schon (Nadelwald, dichtes Lager), nur
+   * nicht so oft, dass es aufgefallen waere.
+   *
+   * **Die Pruefung laeuft ueber die echte Bildflaeche, nicht ueber den
+   * Abstand.** Ein Abstandskreis um Seli waere billiger und falsch: Ein
+   * Grasbueschel direkt vor ihren Fuessen verdeckt nichts und wuerde
+   * trotzdem blass, ein Baum, dessen Fuss drei Kacheln weiter unten
+   * steht, verdeckt ihren Kopf und bliebe deckend. Was zaehlt, ist, ob
+   * sich die Bilder ueberschneiden.
+   *
+   * **Nicht ganz durchsichtig, sondern halb.** Ein Loch im Wald sieht
+   * schlimmer aus als ein verdeckter Kopf. Bei 0,4 sieht man Seli
+   * deutlich und den Baum immer noch als Baum.
+   *
+   * **Und weich, nicht schlagartig.** Beim Herumlaufen springt sonst
+   * bei jedem Schritt ein Baum an und aus. Ueber die letzten 30
+   * Bildpunkte der Ueberschneidung wird ueberblendet.
+   */
+  _verdeckung(e, px, py) {
+    // Grob aussortieren, bevor irgendetwas nachgeschlagen wird: Das hier
+    // laeuft fuer jedes sichtbare Objekt in jedem Bild.
+    const dx = e.x - px;
+    if (dx > 170 || dx < -170) return 1;
+    const dy = e.y - py;
+    if (dy > 330 || dy < 0) return 1;
+    /**
+     * Der Name kommt vom Objekt, nicht aus der Tabelle.
+     *
+     * `spriteFor` liefert null für alles, dessen Bild nicht in der
+     * Objekttabelle steht – Geister, Fuchs, Haustier, Landmarken, der
+     * Wanderer –, und `spr(null)` schreibt eine Warnung in die Konsole.
+     * Eine Browserprüfung hat das sofort gemeldet. Sie tragen ihr Bild
+     * aber selbst in `e.sprite`, und das ist ohnehin die richtige
+     * Quelle: Es ist genau das, was gleich gezeichnet wird.
+     */
+    const name = e.sprite || spriteFor(e.kind, e.x, e.y);
+    if (!name || !hasSprite(name)) return 1;
+    const s = spr(name);
+    if (!s) return 1;
+    // Seli: ein Kasten um ihren Koerper. Die Fuesse sind ausgenommen -
+    // was nur vor ihren Schuhen liegt, verdeckt sie nicht wirklich, und
+    // der Boden vor ihr soll bewachsen bleiben.
+    const sx0 = px - 20;
+    const sx1 = px + 20;
+    const sy0 = py - 72;
+    const sy1 = py - 14;
+    const ox0 = e.x - s.ax;
+    const oy0 = e.y - s.ay;
+    const ueber = Math.min(sx1, ox0 + s.w) - Math.max(sx0, ox0);
+    const hoch = Math.min(sy1, oy0 + s.h) - Math.max(sy0, oy0);
+    if (ueber <= 0 || hoch <= 0) return 1;
+    // Die kleinere der beiden Ueberschneidungen entscheidet: Ein Objekt,
+    // das nur mit einem Zipfel hereinragt, bleibt deckend.
+    const tiefe = Math.min(ueber, hoch);
+    if (tiefe >= 30) return 0.4;
+    return 1 - (tiefe / 30) * 0.6;
   }
 
   /**

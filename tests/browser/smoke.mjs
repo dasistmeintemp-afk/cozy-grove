@@ -5447,6 +5447,99 @@ async function run() {
       wiese.tinte >= 8 && wiese.zonen >= 4.9 && wiese.bloecke >= 50,
       JSON.stringify(wiese));
 
+    /* ---- Seli bleibt im dichtesten Dickicht zu sehen ---- */
+    /**
+     * Ein Spiel, in dem man die eigene Figur suchen muss, ist kaputt,
+     * egal wie schön der Wald ist.
+     *
+     * Gemessen wird an der dichtesten Stelle des Dschungels – also im
+     * schlimmsten Fall, den die Insel hergibt, nicht an einer bequemen.
+     * Seli wird zweimal gezeichnet, einmal mit allen anderen Objekten
+     * und einmal ohne, und ihre Bildpunkte werden in drei Gruppen
+     * sortiert: unverändert, getönt (etwas Durchsichtiges liegt davor,
+     * man sieht sie trotzdem) und wirklich verdeckt.
+     *
+     * Die mittlere Gruppe ist der Grund, warum nicht einfach
+     * „unverändert“ gezählt wird: Bei Deckkraft 0,4 ist jeder Punkt
+     * verändert, und trotzdem erkennt man sie deutlich. Eine Prüfung auf
+     * „unverändert“ würde die Lösung bestrafen, die das Problem behebt.
+     *
+     * An dieser Stelle stehen 55 Objekte im Umkreis von 200 Punkten –
+     * das Dichteste, was die Insel hergibt.
+     *
+     *   ohne Durchsicht   21,0 unverändert / 48,7 getönt / 30,3 verdeckt
+     *   mit Durchsicht    46,7 unverändert / 44,4 getönt /  8,9 verdeckt
+     *
+     * Die Schwelle liegt bei 20 und damit zwischen beidem: Sie fällt,
+     * sobald die Durchsicht ausgebaut wird (gegengeprüft), und hält
+     * gleichzeitig Luft nach oben, falls der Dschungel einmal dichter
+     * wird.
+     */
+    const imDickicht = await page.evaluate(async () => {
+      const g = window.CozyGrove.game;
+      const bm = await import('/src/world/biome.js');
+      const wg = await import('/src/world/worldgen.js');
+      const karte = bm.biomeFuer(g.world.seed);
+      let best = null;
+      let bn = -1;
+      for (let ty = 8; ty < wg.MAP_H - 8; ty++) {
+        for (let tx = 8; tx < wg.MAP_W - 8; tx++) {
+          if (karte[wg.tileIndex(tx, ty)] !== bm.BIOM.DSCHUNGEL) continue;
+          let c = 0;
+          const nah = g.world.queryNear((tx + 0.5) * 64, (ty + 0.5) * 64, 200);
+          for (let k = 0; k < nah.length; k++) if (!nah[k].gone && nah[k].kind) c++;
+          if (c > bn) { bn = c; best = [tx, ty]; }
+        }
+      }
+      if (!best) return null;
+      const altX = g.player.x;
+      const altY = g.player.y;
+      g.player.x = (best[0] + 0.5) * 64;
+      g.player.y = (best[1] + 0.5) * 64;
+      g.player.prevX = g.player.x;
+      g.player.prevY = g.player.y;
+      g.camera.snapTo(g.player.x, g.player.y);
+      const R = g.renderer;
+      R.draw(g, 1);
+      const sx = Math.round((g.player.x - g.camera.x) * R.zoom);
+      const sy = Math.round((g.player.y - g.camera.y) * R.zoom);
+      const w = Math.max(8, Math.round(46 * R.zoom));
+      const h = Math.max(8, Math.round(76 * R.zoom));
+      const lese = () => R.ctx.getImageData(sx - w / 2, sy - h, w, h).data;
+      const mit = lese().slice();
+      const weggeblendet = [];
+      for (const e of g.world.entities) {
+        if (!e.gone) { e.gone = true; weggeblendet.push(e); }
+      }
+      R.draw(g, 1);
+      const ohne = lese().slice();
+      for (let k = 0; k < weggeblendet.length; k++) weggeblendet[k].gone = false;
+      g.player.x = altX;
+      g.player.y = altY;
+      g.player.prevX = altX;
+      g.player.prevY = altY;
+      g.camera.snapTo(altX, altY);
+      R.draw(g, 1);
+      let gleich = 0;
+      let getoent = 0;
+      let fort = 0;
+      let alle = 0;
+      for (let i = 0; i < ohne.length; i += 4) {
+        alle++;
+        const d = Math.abs(mit[i] - ohne[i]) + Math.abs(mit[i + 1] - ohne[i + 1])
+          + Math.abs(mit[i + 2] - ohne[i + 2]);
+        if (d < 40) gleich++; else if (d < 150) getoent++; else fort++;
+      }
+      return {
+        objekte: bn,
+        unveraendert: Math.round(gleich / alle * 1000) / 10,
+        getoent: Math.round(getoent / alle * 1000) / 10,
+        verdeckt: Math.round(fort / alle * 1000) / 10,
+      };
+    });
+    check('Seli bleibt auch im dichtesten Dickicht zu sehen',
+      !!imDickicht && imDickicht.verdeckt <= 20, JSON.stringify(imDickicht));
+
     /* ---- Die Haustiere haben eine Pupille ---- */
     // Gefunden beim Durchsehen aller Grafiken in der Vergrößerung: Auge und
     // Nase wurden mit `dot(null, g, …)` gezeichnet – das malt NUR die Kontur,

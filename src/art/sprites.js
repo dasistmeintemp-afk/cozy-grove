@@ -285,7 +285,18 @@ export function drawSprite(ctx, name, x, y, line, opts) {
     return;
   }
   ctx.save();
-  if (o.alpha != null) ctx.globalAlpha = o.alpha;
+  /**
+   * Deckkraft MULTIPLIZIEREN, nicht setzen.
+   *
+   * Vorher ueberschrieb `o.alpha` die Deckkraft, die der Aufrufer schon
+   * eingestellt hatte. Solange nur einzelne Bilder eine eigene Deckkraft
+   * verlangten, fiel das nicht auf; seit der Renderer ganze Objekte
+   * durchsichtig macht, die vor Seli stehen, schon: Ein Geist mit
+   * eigener Deckkraft 0,96 blieb mitten in der Durchsicht undurchsichtig.
+   * Wer 0,96 verlangt, meint "etwas durchsichtiger als das, was gerade
+   * gilt" - nicht "ab jetzt gilt 0,96".
+   */
+  if (o.alpha != null) ctx.globalAlpha *= o.alpha;
   if (o.flip || o.scale || o.rotate) {
     /**
      * Spiegeln UND Skalieren – und zwar um den Ankerpunkt.
