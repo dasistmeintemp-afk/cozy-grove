@@ -248,10 +248,24 @@ export const BIOME = {
      * Verteilung nach unten. Wenn es Weite geben soll, muss es auch
      * Dickicht geben.
      */
-    dichteBaum: 26,
-    busch: 8,
-    boden: [['riesenblatt', 24], ['liane', 12], ['farn', 10],
-      ['mushroom', 6], ['orchidee', 3]],
+    dichteBaum: 20,
+    /**
+     * Gekürzt von 55 auf 33 je 100 Kacheln – gemessen, nicht gefühlt.
+     *
+     * Der erste Dschungel hatte 55 Dinge am Boden, 26 Bäume und 8
+     * Büsche. Gemessen am Abstand zum nächsten Tuschestrich lagen 3,3
+     * Prozent der Fläche weiter als zwanzig Bildpunkte von jedem Strich
+     * entfernt; im Vorbild sind es 12,2 Prozent, auf unserem Lagerplatz
+     * 14. Der Dschungel war also VIERMAL dichter als alles, was es sonst
+     * zu sehen gibt – und dichter heisst ab einem gewissen Punkt nicht
+     * mehr üppig, sondern unlesbar: Seli verschwand darin.
+     *
+     * Er soll der dichteste Ort des Spiels bleiben, aber einer, in dem
+     * man sich noch sieht.
+     */
+    boden: [['riesenblatt', 14], ['liane', 7], ['farn', 7],
+      ['mushroom', 4], ['orchidee', 2]],
+    busch: 5,
     ton: ['dschungelTief', 0.3],
     // Unter geschlossenem Kronendach kommt kein Gras durch – derselbe
     // Grund wie im Nadelwald, nur stärker.
@@ -284,9 +298,9 @@ export const BIOME = {
   [BIOM.BAMBUSHAIN]: {
     name: 'Bambushain',
     baeume: [['bambus', 13], ['dschungelbaum', 1]],
-    dichteBaum: 22,
+    dichteBaum: 18,
     busch: 1,
-    boden: [['riesenblatt', 14], ['farn', 10], ['orchidee', 4], ['grass_tuft', 8]],
+    boden: [['riesenblatt', 9], ['farn', 7], ['orchidee', 3], ['grass_tuft', 6]],
     ton: ['bambus', 0.18],
   },
 };

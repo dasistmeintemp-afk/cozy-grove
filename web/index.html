@@ -15543,11 +15543,31 @@ function paintDschungelbaum(opts) {
   const o = opts || {};
   const seed = o.seed || 4101;
   const rng = makeRng(seed >>> 0);
-  const w = 232;
-  const h = 236;
+  /**
+   * Schmal und hoch, nicht breit und flach.
+   *
+   * Der erste Entwurf hatte eine Schirmkrone von 232 Punkten Breite –
+   * 3,6 Kacheln, also gut 10 Kacheln Kronenfläche. Bei der Dichte des
+   * Dschungels (8,4 Bäume je 100 Kacheln) decken die Kronen ALLEIN 86
+   * Prozent des Bodens ab. Nachgerechnet neben Eiche (26 Prozent) und
+   * Kiefer (46) war sofort klar, warum vorher nichts geholfen hat: Ich
+   * hatte die Zahl der Pflanzen am Boden fast halbiert, und das Bild
+   * blieb zu, weil darunter gar kein Boden mehr zu sehen war.
+   *
+   * Die Schirmkrone ist die Form eines FREI stehenden Tropenbaums. Im
+   * geschlossenen Bestand wachsen sie schmal nach oben – sie kämpfen um
+   * Licht, nicht um Platz –, und zwischen den Kronen bleiben Lücken.
+   * Die richtige Form ist hier also auch die botanisch richtige, und das
+   * ist meistens ein gutes Zeichen.
+   *
+   * Jetzt 178 Punkte: 2,8 Kacheln, gut 6 Kacheln Fläche, rund die
+   * Hälfte der alten Deckung. Dafür 16 Punkte höher.
+   */
+  const w = 178;
+  const h = 252;
   const cx = w / 2;
   const baseY = h - 12;
-  const kroneY = baseY - 164;
+  const kroneY = baseY - 182;
 
   /**
    * Brettwurzeln – die Stützen am Fuß tropischer Riesen.
@@ -15593,15 +15613,15 @@ function paintDschungelbaum(opts) {
    */
   const hinten = [];
   const vorne = [];
-  for (let i = 0; i < 5; i++) {
-    const t = (i / 4 - 0.5) * 2;
-    hinten.push(smoothClosed(blob(cx + t * 86, kroneY + 4 + Math.abs(t) * 20,
-      40 + rng() * 10, 24 + rng() * 7, seed + 10 + i, 0.2), 7));
-  }
   for (let i = 0; i < 4; i++) {
     const t = (i / 3 - 0.5) * 2;
-    vorne.push(smoothClosed(blob(cx + t * 64, kroneY + 26 + Math.abs(t) * 12,
-      36 + rng() * 9, 21 + rng() * 6, seed + 30 + i, 0.2), 7));
+    hinten.push(smoothClosed(blob(cx + t * 52, kroneY + 4 + Math.abs(t) * 16,
+      31 + rng() * 8, 23 + rng() * 7, seed + 10 + i, 0.2), 7));
+  }
+  for (let i = 0; i < 3; i++) {
+    const t = (i / 2 - 0.5) * 2;
+    vorne.push(smoothClosed(blob(cx + t * 38, kroneY + 26 + Math.abs(t) * 10,
+      29 + rng() * 7, 20 + rng() * 6, seed + 30 + i, 0.2), 7));
   }
   const lappen = hinten.concat(vorne);
 
@@ -15609,7 +15629,7 @@ function paintDschungelbaum(opts) {
     seed: seed,
     blur: 1.7,
     outline: 2.0,
-    shadow: function (g) { groundShadow(g, cx + 5, baseY - 3, 62, 16, seed + 1, 0.2); },
+    shadow: function (g) { groundShadow(g, cx + 5, baseY - 3, 46, 13, seed + 1, 0.2); },
     wash: function (g) {
       for (let i = 0; i < wurzeln.length; i++) {
         wash(g, wurzeln[i], ink.barkDark, { seed: seed + 50 + i, scale: 1.03 });
@@ -15632,7 +15652,7 @@ function paintDschungelbaum(opts) {
       washGroup(g, schatten, ink.dschungelTief, { alpha: 0.5 });
       washGroup(g, [
         offsetShape(vorne[1], LIGHT.x * 18, LIGHT.y * 15, 0.6),
-        offsetShape(hinten[2], LIGHT.x * 20, LIGHT.y * 16, 0.55),
+        offsetShape(hinten[1], LIGHT.x * 20, LIGHT.y * 16, 0.55),
       ], ink.dschungelLicht, { alpha: 0.75 });
     },
     shape: function (g) {
@@ -15641,7 +15661,7 @@ function paintDschungelbaum(opts) {
       for (let i = 0; i < lappen.length; i++) fill(g, lappen[i]);
     },
     detail: function (g) {
-      leafClumps(g, cx, kroneY + 16, 92, 34, seed + 500, ink.dschungelTief);
+      leafClumps(g, cx, kroneY + 16, 62, 32, seed + 500, ink.dschungelTief);
     },
     ink: function (g) {
       // Die Kanten der vorderen Lappen – dort, wo sie vor den hinteren
@@ -24743,10 +24763,24 @@ const BIOME = {
      * Verteilung nach unten. Wenn es Weite geben soll, muss es auch
      * Dickicht geben.
      */
-    dichteBaum: 26,
-    busch: 8,
-    boden: [['riesenblatt', 24], ['liane', 12], ['farn', 10],
-      ['mushroom', 6], ['orchidee', 3]],
+    dichteBaum: 20,
+    /**
+     * Gekürzt von 55 auf 33 je 100 Kacheln – gemessen, nicht gefühlt.
+     *
+     * Der erste Dschungel hatte 55 Dinge am Boden, 26 Bäume und 8
+     * Büsche. Gemessen am Abstand zum nächsten Tuschestrich lagen 3,3
+     * Prozent der Fläche weiter als zwanzig Bildpunkte von jedem Strich
+     * entfernt; im Vorbild sind es 12,2 Prozent, auf unserem Lagerplatz
+     * 14. Der Dschungel war also VIERMAL dichter als alles, was es sonst
+     * zu sehen gibt – und dichter heisst ab einem gewissen Punkt nicht
+     * mehr üppig, sondern unlesbar: Seli verschwand darin.
+     *
+     * Er soll der dichteste Ort des Spiels bleiben, aber einer, in dem
+     * man sich noch sieht.
+     */
+    boden: [['riesenblatt', 14], ['liane', 7], ['farn', 7],
+      ['mushroom', 4], ['orchidee', 2]],
+    busch: 5,
     ton: ['dschungelTief', 0.3],
     // Unter geschlossenem Kronendach kommt kein Gras durch – derselbe
     // Grund wie im Nadelwald, nur stärker.
@@ -24779,9 +24813,9 @@ const BIOME = {
   [BIOM.BAMBUSHAIN]: {
     name: 'Bambushain',
     baeume: [['bambus', 13], ['dschungelbaum', 1]],
-    dichteBaum: 22,
+    dichteBaum: 18,
     busch: 1,
-    boden: [['riesenblatt', 14], ['farn', 10], ['orchidee', 4], ['grass_tuft', 8]],
+    boden: [['riesenblatt', 9], ['farn', 7], ['orchidee', 3], ['grass_tuft', 6]],
     ton: ['bambus', 0.18],
   },
 };
@@ -25970,9 +26004,32 @@ class World {
      * gesetzt, weil scatter weitersucht, bis die Zahl erreicht ist.
      * Dieselbe Menge Wald, aber in Gruppen statt im Raster.
      *
-     * Nur Bäume und Büsche folgen dem Feld. Gras, Blumen und Steine
-     * dürfen auch auf der Lichtung liegen – eine Wiese ohne Grasbüschel
-     * wäre ein Rasen, keine Lichtung.
+     * **Nachtrag: Das Kleinzeug muss doch mitziehen – nur schwächer.**
+     *
+     * Hier stand: Nur Bäume und Büsche folgen dem Feld, Gras, Blumen und
+     * Steine dürfen auch auf der Lichtung liegen, denn eine Wiese ohne
+     * Grasbüschel wäre ein Rasen. Der erste Teil des Satzes war der
+     * Fehler, der zweite stimmt.
+     *
+     * Gemessen wurde, wie weit ein Bildpunkt vom nächsten Tuschestrich
+     * entfernt ist – also wie groß die freien Flächen wirklich sind:
+     *
+     *                      Median   größte Lücke   Fläche >20 px frei
+     *   Vorbild              4 px       233 px          12,2 %
+     *   unser Lagerplatz     6 px        61 px          14,0 %
+     *   unser Dschungel      0 px        91 px           3,3 %
+     *
+     * Im DURCHSCHNITT ist unser Lagerplatz genauso voll wie das Vorbild.
+     * Der Unterschied steht in der mittleren Spalte: Dort gibt es eine
+     * Stelle, an der auf 233 Bildpunkten nichts ist, bei uns auf 61.
+     * Das Vorbild ist nicht leerer, es ist UNGLEICH voll – es hat Flächen,
+     * auf denen das Auge ausruht, und genau die fehlten, weil auf jeder
+     * Lichtung noch Gras, Blumen und Steine lagen.
+     *
+     * Das Kleinzeug folgt dem Feld deshalb jetzt auch, aber nur zu
+     * siebzig Prozent: Auf der leersten Lichtung bleibt knapp ein Drittel
+     * stehen. Damit wird sie licht und nicht kahl – der zweite Teil des
+     * alten Satzes gilt weiter.
      */
     const lichtRausch = makeNoise2D(this.seed ^ 0x5eed10);
     function lichtungsFeld(tx, ty) {
@@ -25993,13 +26050,20 @@ class World {
       return Math.max(0, Math.min(1.3, (n - 0.47) * 3.6 + 0.5));
     }
 
+    /**
+     * `nachFeld` ist eine Stärke von 0 bis 1, nicht ein Ja oder Nein.
+     * `true` bleibt erlaubt und heißt 1 – so stand es an allen alten
+     * Aufrufstellen.
+     */
     function scatter(kinds, spots, count, spacing, nachbehandeln, nachFeld) {
+      const staerke = nachFeld === true ? 1 : (nachFeld || 0);
       let placed = 0;
       let guard = 0;
       while (placed < count && guard++ < count * 30 && spots.length) {
         const s = spots[Math.floor(rng() * spots.length)];
         if (nearFord(s.x, s.y) || nearBridge(s.x, s.y)) continue;
-        if (nachFeld && rng() > lichtungsFeld(s.x, s.y)) continue;
+        if (staerke
+          && rng() > (1 - staerke) + staerke * lichtungsFeld(s.x, s.y)) continue;
         const wx = (s.x + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
         const wy = (s.y + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
         if (self._tooClose(wx, wy, spacing)) continue;
@@ -26185,6 +26249,8 @@ class World {
      */
     const DICHTE = 0.72;
     const BAUM_DICHTE = 0.58;
+    /** Wie stark das Kleinzeug dem Lichtungsfeld folgt – siehe dort. */
+    const BODEN_FELD = 0.7;
 
     const biome = biomeFuer(this.seed);
     const nachBiom = {};
@@ -26209,33 +26275,70 @@ class World {
         nachBiom[b].push({ x: tx, y: ty });
       }
     }
+    /**
+     * Erst alle Bäume, dann alle Büsche, dann alles Kleinzeug – und zwar
+     * über ALLE Biome hinweg, nicht Biom für Biom.
+     *
+     * Vorher lief die Schleife je Biom durch und setzte dort Bäume,
+     * Büsche und Kleinzeug nacheinander. `_tooClose` fragt aber alle
+     * Objekte der Insel, nicht nur die des eigenen Bioms: Damit
+     * entschied die REIHENFOLGE der Biome darüber, wer den Platz
+     * bekommt. Ein Nadelwald, der zufällig als letzter drankam, fand
+     * seine Plätze schon von den Grasbüscheln des Nachbarn besetzt.
+     *
+     * Aufgefallen ist das erst, als das Kleinzeug anfing, dem
+     * Lichtungsfeld zu folgen: Vorher lag es gleichmäßig und störte
+     * wenig, seitdem ballt es sich – und zwar genau im Dickicht, also
+     * dort, wo auch die Bäume hinwollen. Eine Prüfung meldete einen
+     * Nadelwald mit sechs Bäumen je 100 Kacheln neben einer Heide mit
+     * drei. Das ist kein Wald.
+     *
+     * In drei Durchgängen gibt es keine Reihenfolge mehr, die etwas
+     * entscheidet: Das Große sucht sich zuerst seinen Platz, das Kleine
+     * füllt die Lücken. So herum ist es auch richtig.
+     */
+    const vorbereitet = [];
     for (const b in nachBiom) {
       const def = BIOME[b];
       const felder = nachBiom[b];
       if (!def || felder.length < 12) continue;
-      const je100 = function (n) {
-        return Math.round((felder.length * n / 100) * DICHTE);
-      };
-      const arten = def.baeume.map(function (e) { return e[0]; });
       const gewichte = [];
       for (let i = 0; i < def.baeume.length; i++) {
         for (let k = 0; k < def.baeume[i][1]; k++) gewichte.push(def.baeume[i][0]);
       }
-      // Bäume dünner als das Kleinzeug: Sie sind fest und verstellen die
-      // Sicht, ein Grasbüschel tut weder das eine noch das andere.
-      scatter(gewichte, felder, Math.round(je100(def.dichteBaum) * BAUM_DICHTE),
-        70, function (e, tx, ty) {
-        if (e.kind === 'tree_wind') e.lehnt = windNeigung(tx, ty);
-      }, true);
-      scatter(['bush_berry', 'bush_plain'], felder, je100(def.busch), 56, null, true);
-      for (let i = 0; i < def.boden.length; i++) {
-        const kind = def.boden[i][0];
+      vorbereitet.push({
+        def: def,
+        felder: felder,
+        gewichte: gewichte,
+        je100: function (n) { return Math.round((felder.length * n / 100) * DICHTE); },
+      });
+    }
+    // Bäume dünner als das Kleinzeug: Sie sind fest und verstellen die
+    // Sicht, ein Grasbüschel tut weder das eine noch das andere.
+    for (let v = 0; v < vorbereitet.length; v++) {
+      const e = vorbereitet[v];
+      scatter(e.gewichte, e.felder,
+        Math.round(e.je100(e.def.dichteBaum) * BAUM_DICHTE), 70,
+        function (ent, tx, ty) {
+          if (ent.kind === 'tree_wind') ent.lehnt = windNeigung(tx, ty);
+        }, true);
+    }
+    for (let v = 0; v < vorbereitet.length; v++) {
+      const e = vorbereitet[v];
+      scatter(['bush_berry', 'bush_plain'], e.felder, e.je100(e.def.busch), 56, null, true);
+    }
+    for (let v = 0; v < vorbereitet.length; v++) {
+      const e = vorbereitet[v];
+      for (let i = 0; i < e.def.boden.length; i++) {
+        const kind = e.def.boden[i][0];
         // Felsen brauchen Abstand, Grasbüschel nicht: Ein Findling alle
         // vierzig Punkte wäre eine Mauer.
         const abstand = kind.indexOf('rock') === 0 ? 62 : 28;
-        scatter([kind], felder, je100(def.boden[i][1]), abstand);
+        scatter([kind], e.felder, e.je100(e.def.boden[i][1]), abstand, null, BODEN_FELD);
       }
-      if (arten.length) scatter(['feather'], felder, je100(1.2), 46);
+      if (e.def.baeume.length) {
+        scatter(['feather'], e.felder, e.je100(1.2), 46, null, BODEN_FELD);
+      }
     }
 
     /**

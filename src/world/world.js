@@ -535,9 +535,32 @@ export class World {
      * gesetzt, weil scatter weitersucht, bis die Zahl erreicht ist.
      * Dieselbe Menge Wald, aber in Gruppen statt im Raster.
      *
-     * Nur Bäume und Büsche folgen dem Feld. Gras, Blumen und Steine
-     * dürfen auch auf der Lichtung liegen – eine Wiese ohne Grasbüschel
-     * wäre ein Rasen, keine Lichtung.
+     * **Nachtrag: Das Kleinzeug muss doch mitziehen – nur schwächer.**
+     *
+     * Hier stand: Nur Bäume und Büsche folgen dem Feld, Gras, Blumen und
+     * Steine dürfen auch auf der Lichtung liegen, denn eine Wiese ohne
+     * Grasbüschel wäre ein Rasen. Der erste Teil des Satzes war der
+     * Fehler, der zweite stimmt.
+     *
+     * Gemessen wurde, wie weit ein Bildpunkt vom nächsten Tuschestrich
+     * entfernt ist – also wie groß die freien Flächen wirklich sind:
+     *
+     *                      Median   größte Lücke   Fläche >20 px frei
+     *   Vorbild              4 px       233 px          12,2 %
+     *   unser Lagerplatz     6 px        61 px          14,0 %
+     *   unser Dschungel      0 px        91 px           3,3 %
+     *
+     * Im DURCHSCHNITT ist unser Lagerplatz genauso voll wie das Vorbild.
+     * Der Unterschied steht in der mittleren Spalte: Dort gibt es eine
+     * Stelle, an der auf 233 Bildpunkten nichts ist, bei uns auf 61.
+     * Das Vorbild ist nicht leerer, es ist UNGLEICH voll – es hat Flächen,
+     * auf denen das Auge ausruht, und genau die fehlten, weil auf jeder
+     * Lichtung noch Gras, Blumen und Steine lagen.
+     *
+     * Das Kleinzeug folgt dem Feld deshalb jetzt auch, aber nur zu
+     * siebzig Prozent: Auf der leersten Lichtung bleibt knapp ein Drittel
+     * stehen. Damit wird sie licht und nicht kahl – der zweite Teil des
+     * alten Satzes gilt weiter.
      */
     const lichtRausch = makeNoise2D(this.seed ^ 0x5eed10);
     function lichtungsFeld(tx, ty) {
@@ -558,13 +581,20 @@ export class World {
       return Math.max(0, Math.min(1.3, (n - 0.47) * 3.6 + 0.5));
     }
 
+    /**
+     * `nachFeld` ist eine Stärke von 0 bis 1, nicht ein Ja oder Nein.
+     * `true` bleibt erlaubt und heißt 1 – so stand es an allen alten
+     * Aufrufstellen.
+     */
     function scatter(kinds, spots, count, spacing, nachbehandeln, nachFeld) {
+      const staerke = nachFeld === true ? 1 : (nachFeld || 0);
       let placed = 0;
       let guard = 0;
       while (placed < count && guard++ < count * 30 && spots.length) {
         const s = spots[Math.floor(rng() * spots.length)];
         if (nearFord(s.x, s.y) || nearBridge(s.x, s.y)) continue;
-        if (nachFeld && rng() > lichtungsFeld(s.x, s.y)) continue;
+        if (staerke
+          && rng() > (1 - staerke) + staerke * lichtungsFeld(s.x, s.y)) continue;
         const wx = (s.x + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
         const wy = (s.y + 0.5) * TILE_SIZE + (rng() - 0.5) * 8;
         if (self._tooClose(wx, wy, spacing)) continue;
@@ -750,6 +780,8 @@ export class World {
      */
     const DICHTE = 0.72;
     const BAUM_DICHTE = 0.58;
+    /** Wie stark das Kleinzeug dem Lichtungsfeld folgt – siehe dort. */
+    const BODEN_FELD = 0.7;
 
     const biome = biomeFuer(this.seed);
     const nachBiom = {};
@@ -774,33 +806,70 @@ export class World {
         nachBiom[b].push({ x: tx, y: ty });
       }
     }
+    /**
+     * Erst alle Bäume, dann alle Büsche, dann alles Kleinzeug – und zwar
+     * über ALLE Biome hinweg, nicht Biom für Biom.
+     *
+     * Vorher lief die Schleife je Biom durch und setzte dort Bäume,
+     * Büsche und Kleinzeug nacheinander. `_tooClose` fragt aber alle
+     * Objekte der Insel, nicht nur die des eigenen Bioms: Damit
+     * entschied die REIHENFOLGE der Biome darüber, wer den Platz
+     * bekommt. Ein Nadelwald, der zufällig als letzter drankam, fand
+     * seine Plätze schon von den Grasbüscheln des Nachbarn besetzt.
+     *
+     * Aufgefallen ist das erst, als das Kleinzeug anfing, dem
+     * Lichtungsfeld zu folgen: Vorher lag es gleichmäßig und störte
+     * wenig, seitdem ballt es sich – und zwar genau im Dickicht, also
+     * dort, wo auch die Bäume hinwollen. Eine Prüfung meldete einen
+     * Nadelwald mit sechs Bäumen je 100 Kacheln neben einer Heide mit
+     * drei. Das ist kein Wald.
+     *
+     * In drei Durchgängen gibt es keine Reihenfolge mehr, die etwas
+     * entscheidet: Das Große sucht sich zuerst seinen Platz, das Kleine
+     * füllt die Lücken. So herum ist es auch richtig.
+     */
+    const vorbereitet = [];
     for (const b in nachBiom) {
       const def = BIOME[b];
       const felder = nachBiom[b];
       if (!def || felder.length < 12) continue;
-      const je100 = function (n) {
-        return Math.round((felder.length * n / 100) * DICHTE);
-      };
-      const arten = def.baeume.map(function (e) { return e[0]; });
       const gewichte = [];
       for (let i = 0; i < def.baeume.length; i++) {
         for (let k = 0; k < def.baeume[i][1]; k++) gewichte.push(def.baeume[i][0]);
       }
-      // Bäume dünner als das Kleinzeug: Sie sind fest und verstellen die
-      // Sicht, ein Grasbüschel tut weder das eine noch das andere.
-      scatter(gewichte, felder, Math.round(je100(def.dichteBaum) * BAUM_DICHTE),
-        70, function (e, tx, ty) {
-        if (e.kind === 'tree_wind') e.lehnt = windNeigung(tx, ty);
-      }, true);
-      scatter(['bush_berry', 'bush_plain'], felder, je100(def.busch), 56, null, true);
-      for (let i = 0; i < def.boden.length; i++) {
-        const kind = def.boden[i][0];
+      vorbereitet.push({
+        def: def,
+        felder: felder,
+        gewichte: gewichte,
+        je100: function (n) { return Math.round((felder.length * n / 100) * DICHTE); },
+      });
+    }
+    // Bäume dünner als das Kleinzeug: Sie sind fest und verstellen die
+    // Sicht, ein Grasbüschel tut weder das eine noch das andere.
+    for (let v = 0; v < vorbereitet.length; v++) {
+      const e = vorbereitet[v];
+      scatter(e.gewichte, e.felder,
+        Math.round(e.je100(e.def.dichteBaum) * BAUM_DICHTE), 70,
+        function (ent, tx, ty) {
+          if (ent.kind === 'tree_wind') ent.lehnt = windNeigung(tx, ty);
+        }, true);
+    }
+    for (let v = 0; v < vorbereitet.length; v++) {
+      const e = vorbereitet[v];
+      scatter(['bush_berry', 'bush_plain'], e.felder, e.je100(e.def.busch), 56, null, true);
+    }
+    for (let v = 0; v < vorbereitet.length; v++) {
+      const e = vorbereitet[v];
+      for (let i = 0; i < e.def.boden.length; i++) {
+        const kind = e.def.boden[i][0];
         // Felsen brauchen Abstand, Grasbüschel nicht: Ein Findling alle
         // vierzig Punkte wäre eine Mauer.
         const abstand = kind.indexOf('rock') === 0 ? 62 : 28;
-        scatter([kind], felder, je100(def.boden[i][1]), abstand);
+        scatter([kind], e.felder, e.je100(e.def.boden[i][1]), abstand, null, BODEN_FELD);
       }
-      if (arten.length) scatter(['feather'], felder, je100(1.2), 46);
+      if (e.def.baeume.length) {
+        scatter(['feather'], e.felder, e.je100(1.2), 46, null, BODEN_FELD);
+      }
     }
 
     /**

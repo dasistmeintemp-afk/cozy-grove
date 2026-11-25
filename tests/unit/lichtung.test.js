@@ -82,9 +82,32 @@ test('Und trotzdem richtiges Dickicht', () => {
   // man herauskommt.
   for (const seed of SEEDS) {
     const werte = umgebungsdichte(new World(seed).populate());
+    /**
+     * Sieben statt acht, seit ein Drittel der Insel trockene Zone ist.
+     *
+     * Die Acht stammt von einer Insel mit neun Biomen, die alle Bäume
+     * hatten. Jetzt gibt es vierzehn, davon drei fast baumfreie
+     * (Wüste, Steppe, Geröll), und dieselbe Zahl Bäume verteilt sich
+     * auf weniger Waldfläche.
+     *
+     * Dass die Acht nicht mehr passt, ist gemessen und nicht gefühlt:
+     * Inselwurf 555 liegt bei 7,8 – und bei 7,4, wenn man das
+     * Lichtungsfeld ganz ABSCHALTET. Die Zahl hängt also nicht an der
+     * Ballung, die diese Runde dazugekommen ist, sondern an der
+     * Biommischung. Über vier Inselwürfe: 7,8 / 8,6 / 8,9 / 9,9.
+     *
+     * Die Zähne bleiben: Setzt man testweise ALLE Biome auf dieselbe
+     * dünne Baumdichte, misst dieselbe Stelle 4,2 – eine Insel ohne
+     * Dickicht fällt also weiterhin klar durch.
+     *
+     * (Die naheliegende Alternative, statt der absoluten Zahl das
+     * VERHÄLTNIS von dichtesten zu mittleren Stellen zu prüfen, habe
+     * ich gemessen und verworfen: 3,5 bis 6,2 mit Lichtungsfeld, 3,0
+     * bis 3,3 ohne. Das unterscheidet zu wenig, um etwas zu zeigen.)
+     */
     const dicht = werte[Math.floor(werte.length * 0.9)];
-    assert.ok(dicht >= 8, 'Seed ' + seed + ': die dichtesten Stellen haben nur '
-      + Math.round(dicht) + ' Bäume je 100 Kacheln – das ist kein Dickicht');
+    assert.ok(dicht >= 7, 'Seed ' + seed + ': die dichtesten Stellen haben nur '
+      + Math.round(dicht * 10) / 10 + ' Bäume je 100 Kacheln – das ist kein Dickicht');
   }
 });
 

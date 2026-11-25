@@ -40,11 +40,31 @@ export function paintDschungelbaum(opts) {
   const o = opts || {};
   const seed = o.seed || 4101;
   const rng = makeRng(seed >>> 0);
-  const w = 232;
-  const h = 236;
+  /**
+   * Schmal und hoch, nicht breit und flach.
+   *
+   * Der erste Entwurf hatte eine Schirmkrone von 232 Punkten Breite –
+   * 3,6 Kacheln, also gut 10 Kacheln Kronenfläche. Bei der Dichte des
+   * Dschungels (8,4 Bäume je 100 Kacheln) decken die Kronen ALLEIN 86
+   * Prozent des Bodens ab. Nachgerechnet neben Eiche (26 Prozent) und
+   * Kiefer (46) war sofort klar, warum vorher nichts geholfen hat: Ich
+   * hatte die Zahl der Pflanzen am Boden fast halbiert, und das Bild
+   * blieb zu, weil darunter gar kein Boden mehr zu sehen war.
+   *
+   * Die Schirmkrone ist die Form eines FREI stehenden Tropenbaums. Im
+   * geschlossenen Bestand wachsen sie schmal nach oben – sie kämpfen um
+   * Licht, nicht um Platz –, und zwischen den Kronen bleiben Lücken.
+   * Die richtige Form ist hier also auch die botanisch richtige, und das
+   * ist meistens ein gutes Zeichen.
+   *
+   * Jetzt 178 Punkte: 2,8 Kacheln, gut 6 Kacheln Fläche, rund die
+   * Hälfte der alten Deckung. Dafür 16 Punkte höher.
+   */
+  const w = 178;
+  const h = 252;
   const cx = w / 2;
   const baseY = h - 12;
-  const kroneY = baseY - 164;
+  const kroneY = baseY - 182;
 
   /**
    * Brettwurzeln – die Stützen am Fuß tropischer Riesen.
@@ -90,15 +110,15 @@ export function paintDschungelbaum(opts) {
    */
   const hinten = [];
   const vorne = [];
-  for (let i = 0; i < 5; i++) {
-    const t = (i / 4 - 0.5) * 2;
-    hinten.push(smoothClosed(blob(cx + t * 86, kroneY + 4 + Math.abs(t) * 20,
-      40 + rng() * 10, 24 + rng() * 7, seed + 10 + i, 0.2), 7));
-  }
   for (let i = 0; i < 4; i++) {
     const t = (i / 3 - 0.5) * 2;
-    vorne.push(smoothClosed(blob(cx + t * 64, kroneY + 26 + Math.abs(t) * 12,
-      36 + rng() * 9, 21 + rng() * 6, seed + 30 + i, 0.2), 7));
+    hinten.push(smoothClosed(blob(cx + t * 52, kroneY + 4 + Math.abs(t) * 16,
+      31 + rng() * 8, 23 + rng() * 7, seed + 10 + i, 0.2), 7));
+  }
+  for (let i = 0; i < 3; i++) {
+    const t = (i / 2 - 0.5) * 2;
+    vorne.push(smoothClosed(blob(cx + t * 38, kroneY + 26 + Math.abs(t) * 10,
+      29 + rng() * 7, 20 + rng() * 6, seed + 30 + i, 0.2), 7));
   }
   const lappen = hinten.concat(vorne);
 
@@ -106,7 +126,7 @@ export function paintDschungelbaum(opts) {
     seed: seed,
     blur: 1.7,
     outline: 2.0,
-    shadow: function (g) { groundShadow(g, cx + 5, baseY - 3, 62, 16, seed + 1, 0.2); },
+    shadow: function (g) { groundShadow(g, cx + 5, baseY - 3, 46, 13, seed + 1, 0.2); },
     wash: function (g) {
       for (let i = 0; i < wurzeln.length; i++) {
         wash(g, wurzeln[i], ink.barkDark, { seed: seed + 50 + i, scale: 1.03 });
@@ -129,7 +149,7 @@ export function paintDschungelbaum(opts) {
       washGroup(g, schatten, ink.dschungelTief, { alpha: 0.5 });
       washGroup(g, [
         offsetShape(vorne[1], LIGHT.x * 18, LIGHT.y * 15, 0.6),
-        offsetShape(hinten[2], LIGHT.x * 20, LIGHT.y * 16, 0.55),
+        offsetShape(hinten[1], LIGHT.x * 20, LIGHT.y * 16, 0.55),
       ], ink.dschungelLicht, { alpha: 0.75 });
     },
     shape: function (g) {
@@ -138,7 +158,7 @@ export function paintDschungelbaum(opts) {
       for (let i = 0; i < lappen.length; i++) fill(g, lappen[i]);
     },
     detail: function (g) {
-      leafClumps(g, cx, kroneY + 16, 92, 34, seed + 500, ink.dschungelTief);
+      leafClumps(g, cx, kroneY + 16, 62, 32, seed + 500, ink.dschungelTief);
     },
     ink: function (g) {
       // Die Kanten der vorderen Lappen – dort, wo sie vor den hinteren
