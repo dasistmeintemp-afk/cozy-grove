@@ -124,8 +124,9 @@ import { getItem, itemName, CAT, CONDITIONAL, fishesOf } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
 import { dueAt, perksOf } from './milestones.js';
 import { dueSets, SET_IDS } from './collection.js';
+import { hausfarbeAus, hausfarbeFuer, HAUSFARBE_IDS, FASSADE_AB } from './hausfarbe.js';
 import {
-  abzeichenAus, faellig as faelligeAbzeichen, merke as merkeAbzeichen,
+  abzeichenAus, emptyAbzeichen, faellig as faelligeAbzeichen, merke as merkeAbzeichen,
 } from './abzeichen.js';
 import { mailFor, fileMail, unreadCount } from './mail.js';
 import { STAGES as LOAN_STAGES, statusOf, pay as payLoan, slotsAt, emptyLoan } from './loan.js';
@@ -182,7 +183,7 @@ import { num } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { UI } from '../ui/ui.js';
 import { Panels } from '../ui/panels.js';
-import { ensureRoom, ensureInnenort, seliBilder, ensureBild } from '../art/sprites.js';
+import { ensureRoom, ensureInnenort, seliBilder, ensureBild, ensureHaus } from '../art/sprites.js';
 import { applyUiScale } from '../ui/uiscale.js';
 import * as storage from '../core/storage.js';
 import * as savefile from '../core/savefile.js';
@@ -483,6 +484,8 @@ export class Game {
       advent: emptyAdvent(),
       bewohner: emptyBewohner(),
       pfade: emptyPfade(),
+      abzeichen: emptyAbzeichen(),
+      hausfarbe: HAUSFARBE_IDS[0],
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -705,6 +708,9 @@ export class Game {
     // Die Abzeichen. Ein alter Spielstand hat keine – er holt sie beim
     // ersten Durchlauf von `_checkAbzeichen` nach, alle auf einmal.
     this.state.abzeichen = abzeichenAus(this.state.abzeichen);
+    // Die Fassade. Ein alter Spielstand hat keine und bekommt die
+    // Voreinstellung – also genau das Haus, das er bisher hatte.
+    this.state.hausfarbe = hausfarbeAus(this.state.hausfarbe);
     // Der Bodenmaler fragt die Abnutzung über diese kleine Brücke ab. Er
     // bekommt eine Funktion und nicht den Stand selbst: So kennt die
     // Grafik das Spielstandsformat nicht, und die Reihenfolge beim Laden
@@ -4592,7 +4598,10 @@ export class Game {
     const e = this.world.tent;
     if (!e) return;
     const f = houseFootprint(stufe);
-    e.sprite = houseSprite(stufe);
+    // Nicht `houseSprite`, sondern das Bild in der gewaehlten Fassade.
+    // Bei der Voreinstellung gibt `ensureHaus` genau `houseSprite`
+    // zurueck – ein Spielstand ohne Anstrich sieht aus wie immer.
+    e.sprite = ensureHaus(stufe, this.state.hausfarbe);
     e.blockR = f.blockR;
     e.blockH = f.blockH;
     e.reachR = f.reachR;
@@ -6204,6 +6213,33 @@ export class Game {
     this.invalidate();
     this.save();
     return true;
+  }
+
+  /**
+   * Die Fassade streichen.
+   *
+   * Kostet nichts, wie Wand und Boden drinnen und aus demselben Grund: Am
+   * eigenen Zuhause soll nichts Pflicht sein. Erst ab der Hütte – ein Zelt
+   * hat keine Wand.
+   */
+  waehleHausfarbe(id) {
+    if (HAUSFARBE_IDS.indexOf(id) < 0) return false;
+    if ((this.state.house || 1) < FASSADE_AB) return false;
+    if (this.state.hausfarbe === id) return false;
+    this.state.hausfarbe = id;
+    // `syncHouse` holt das Bild und setzt es am Haus – dieselbe Stelle wie
+    // beim Ausbau, damit es nicht zwei Wege zum selben Sprite gibt.
+    this.syncHouse();
+    this.audio.play('ui');
+    this.ui.toast(hausfarbeFuer(id).name, 'icon_house', 'good');
+    this.invalidate();
+    this.save();
+    return true;
+  }
+
+  /** Welche Fassade dein Zuhause trägt. */
+  hausfarbe() {
+    return hausfarbeFuer(this.state.hausfarbe);
   }
 
   /* ---------------- Trachten ---------------- */
@@ -8271,7 +8307,15 @@ export class Game {
     const hausLicht = houseLight(this.state.house || 1);
     const haus = this.world.tent;
     if (hausLicht > 0 && haus) {
-      out.push({ x: haus.x, y: haus.y - 110, r: hausLicht, a: 0.82, warm: 0.8 });
+      // Das Fenster leuchtet in der Farbe des Zimmers dahinter – des
+      // VORDEREN, denn das ist das mit dem Fenster (die Kammer hat
+      // keines, siehe `fensterFuer`). Das ist die zweite Wirkung des
+      // Einrichtens nach aussen, neben dem Farbkreis: Wer drinnen
+      // Abendblau gewählt hat, sieht sein Haus nachts kühl leuchten.
+      out.push({
+        x: haus.x, y: haus.y - 110, r: hausLicht, a: 0.82, warm: 0.8,
+        rgb: this.ausstattung(0).licht,
+      });
     }
 
     const near = this.world.queryRect(

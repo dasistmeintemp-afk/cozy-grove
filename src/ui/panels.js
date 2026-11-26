@@ -9,6 +9,7 @@ import { wannText, heuteIst } from '../game/termine.js';
 import { titel as bildTitel, kennung as bildKennung } from '../game/bild.js';
 import { chronikZeilen, zeitSatz, bittenGesamt } from '../game/chronik.js';
 import { abzeichenStand, stufenGesamt, STUFEN } from '../game/abzeichen.js';
+import { HAUSFARBEN, FASSADE_AB } from '../game/hausfarbe.js';
 import { geistName as sternGeist } from '../game/sternbilder.js';
 import { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } from '../game/stories.js';
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
@@ -189,6 +190,10 @@ export class Panels {
         break;
       case 'setting':
         g.changeSetting(arg, t.getAttribute('data-val'));
+        this.render();
+        break;
+      case 'hausfarbe':
+        g.waehleHausfarbe(t.getAttribute('data-val'));
         this.render();
         break;
       case 'ausstattung':
@@ -1314,6 +1319,7 @@ export class Panels {
           '</div>';
       }).join('') +
       '</div>' +
+      this._fassade() +
       this._skizzen() +
       this._kleiderschrank() +
       '<p class="empty-note" style="padding:8px 0 0">' +
@@ -1339,6 +1345,42 @@ export class Panels {
    * kommen. Eine leere Liste mit achtundzwanzig grauen Zeilen wäre eine
    * Aufgabenliste, und dieses Spiel stellt keine.
    */
+  /**
+   * Die Fassade – Wand, Dach und Tür von außen.
+   *
+   * Direkt unter „Wand und Boden": drinnen und draußen sind dieselbe
+   * Entscheidung, nur andersherum. Erst ab der Hütte, weil ein Zelt keine
+   * Wand hat – und in diesem Fall steht hier gar nichts statt einer
+   * ausgegrauten Liste, die sagt, was man alles nicht darf.
+   *
+   * Das Pünktchen zeigt Wand und Dach übereinander, nicht nur eine Farbe:
+   * „Treibholz und Teer" und „Kalk und Kastanie" haben beinahe dieselbe
+   * Wand und unterscheiden sich nur im Dach.
+   */
+  _fassade() {
+    const g = this.game;
+    if ((g.state.house || 1) < FASSADE_AB) return '';
+    const jetztId = g.hausfarbe().id;
+    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Fassade</h3>' +
+      '<div class="rows" style="margin-top:8px">' +
+      HAUSFARBEN.map(function (f) {
+        const jetzt = f.id === jetztId;
+        return '<div class="row' + (jetzt ? '' : ' dim') + '">' +
+          '<span class="ico lg" style="background:' + f.probeWand +
+          ';border:2px solid ' + f.probeDach +
+          ';box-shadow:inset 0 9px 0 ' + f.probeDach + '"></span>' +
+          '<div class="grow"><div class="title">' + escapeHtml(f.name) + '</div></div>' +
+          (jetzt
+            ? '<span class="row-btn ghost">' + ico('icon_check') + '</span>'
+            : '<button class="row-btn" data-act="hausfarbe" data-val="' + f.id +
+              '">Streichen</button>') +
+          '</div>';
+      }).join('') +
+      '</div>' +
+      '<p class="empty-note" style="padding:8px 0 0">' +
+      'Abends leuchtet das Fenster in der Farbe deiner Wand drinnen.</p>';
+  }
+
   _skizzen() {
     const g = this.game;
     const liste = g.skizzen();

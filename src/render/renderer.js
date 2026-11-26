@@ -13,6 +13,7 @@
  */
 import { makeCanvas, ctx2d, clamp } from '../core/util.js';
 import { drawSprite, spr, hasSprite, ensureBild } from '../art/sprites.js';
+import { hausFenster } from '../art/painted-camp.js';
 import { defOf, spriteFor } from '../world/entities.js';
 import { getItem } from '../game/items.js';
 import { campfireLevelFor } from '../game/recipes.js';
@@ -1233,6 +1234,67 @@ export class Renderer {
    * andeuten. Bei reiner Übernahme der Deckung (0,24 am Abend) war der
    * Schleier zur goldenen Stunde noch grau.
    */
+/**
+   * Das Fenster des eigenen Hauses – in der Farbe des Zimmers dahinter.
+   *
+   * **Warum das im Fenster stehen muss und nicht als Schein ums Haus.**
+   * Der erste Entwurf gab der Lichtquelle des Hauses einfach eine eigene
+   * Farbe mit. Gemessen hat das nichts gebracht: Die mittlere Farbe in
+   * einem Quadrat von dreihundert Bildpunkten ums Haus lag bei warmem
+   * Zimmer (255,196,112) und bei kuehlem (168,198,240) neun Einheiten
+   * auseinander – ein additiver Schein mit Staerke 0,22, ueber
+   * zweihundertachtzig Bildpunkte verteilt, traegt keine Farbe. Hier sind
+   * es zwei handflaechengrosse Rechtecke, und dort traegt sie.
+   *
+   * Die Rechtecke kommen aus `hausFenster`, also aus derselben Rechnung,
+   * mit der der Maler sie hinmalt – eine zweite Tabelle waere ein zweites
+   * Haus.
+   *
+   * Nur das eigene Zuhause: Die Bewohnerhuetten haben kein Zimmer, dessen
+   * Farbe man gewaehlt haette.
+   */
+  _fensterlicht(ctx, game) {
+    const haus = game.world && game.world.tent;
+    if (!haus || haus.gone) return;
+    const stufe = game.state.house || 1;
+    const fenster = hausFenster(stufe);
+    if (!fenster.length) return;
+    const farbe = (game.ausstattung(0) || {}).licht;
+    if (!farbe) return;
+    const rgb = farbe[0] + ',' + farbe[1] + ',' + farbe[2];
+
+    ctx.save();
+    for (let i = 0; i < fenster.length; i++) {
+      const f = fenster[i];
+      const x = haus.x + f.x;
+      const y = haus.y + f.y;
+      // Die Scheibe selbst: deckend genug, dass die Farbe steht, und
+      // etwas eingerueckt, damit der Tuschestrich des Rahmens stehen
+      // bleibt. Ohne das Einruecken frisst das Licht den Rahmen, und das
+      // Fenster ist ein Loch.
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.82;
+      ctx.fillStyle = 'rgb(' + rgb + ')';
+      ctx.fillRect(x + 2, y + 2, f.w - 4, f.h - 4);
+      // Und der Schein davor: klein, aber hell genug, dass man ihn vom
+      // anderen Ende des Bildes als Farbe erkennt.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 1;
+      const r = Math.max(f.w, f.h) * 1.9;
+      const cx = x + f.w / 2;
+      const cy = y + f.h / 2;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grad.addColorStop(0, 'rgba(' + rgb + ',0.30)');
+      grad.addColorStop(0.4, 'rgba(' + rgb + ',0.14)');
+      grad.addColorStop(1, 'rgba(' + rgb + ',0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    }
+    ctx.restore();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+
   _dunst(lc, tint) {
     const m = Math.min(1, tint.a * 1.6);
     const r = Math.round(DUNST_HIMMEL[0] + (tint.r - DUNST_HIMMEL[0]) * m);
@@ -1389,6 +1451,7 @@ export class Renderer {
     if (game.day.isDark()) {
       const lichter = game.lightSources(time);
       this._world(ctx, camX, camY);
+      this._fensterlicht(ctx, game);
       ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < lichter.length; i++) {
         const L = lichter[i];
@@ -1397,7 +1460,10 @@ export class Renderer {
         if (!warm && !kuehl) continue;
         if (L.x + L.r < camX || L.x - L.r > camX + this.viewW) continue;
         if (L.y + L.r < camY || L.y - L.r > camY + this.viewH) continue;
-        const farbe = warm ? [255, 186, 104] : [168, 206, 236];
+        // Eine Quelle darf ihre eigene Farbe mitbringen: Das Fenster des
+        // Hauses leuchtet in der Farbe der Ausstattung dahinter. Ohne
+        // `rgb` bleibt es bei den zwei Tönen – warmes Feuer, kühler Geist.
+        const farbe = L.rgb || (warm ? [255, 186, 104] : [168, 206, 236]);
         const kraft = (warm || kuehl) * 0.22;
         const grad = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, L.r);
         grad.addColorStop(0, 'rgba(' + farbe[0] + ',' + farbe[1] + ',' + farbe[2] + ',' + kraft.toFixed(3) + ')');

@@ -7568,6 +7568,135 @@ async function run() {
       abz.einName && abz.einWas,
       JSON.stringify(abz));
 
+    // ---- Fassade und Fensterlicht ----
+    const fassade = await page.evaluate(async () => {
+      const { HAUSFARBE_IDS, FASSADE_AB } = await import('/src/game/hausfarbe.js');
+      const g = window.CozyGrove.game;
+      const r = { ids: HAUSFARBE_IDS, ab: FASSADE_AB };
+      const merk = { haus: g.state.house, farbe: g.state.hausfarbe };
+      g.panels.close();
+
+      // Am Zelt gibt es nichts zu streichen.
+      g.state.house = 1; g.syncHouse();
+      r.amZelt = g.waehleHausfarbe(HAUSFARBE_IDS[1]);
+      r.zeltSprite = g.world.tent.sprite;
+
+      // Ab der Huette schon – und jede Farbe bekommt ihr eigenes Bild.
+      g.state.house = 4; g.syncHouse();
+      r.bilder = [];
+      for (const id of HAUSFARBE_IDS) {
+        g.waehleHausfarbe(id);
+        r.bilder.push(g.world.tent.sprite);
+      }
+      // Die Voreinstellung behaelt das alte Bild: ein Spielstand ohne
+      // Anstrich sieht aus wie vorher.
+      g.waehleHausfarbe(HAUSFARBE_IDS[0]);
+      r.standardBild = g.world.tent.sprite;
+      g.waehleHausfarbe(HAUSFARBE_IDS[1]);
+      g.save();
+      const json = JSON.parse(window.localStorage.getItem('seli-grove:save:v1'));
+      r.imStand = json.state.hausfarbe;
+      // Unsinn im Spielstand faellt auf die Voreinstellung zurueck.
+      g.state.hausfarbe = 'quatsch';
+      r.quatsch = g.hausfarbe().id;
+
+      g.state.house = merk.haus;
+      g.state.hausfarbe = merk.farbe || HAUSFARBE_IDS[0];
+      g.syncHouse();
+      g.save();
+      return r;
+    });
+    check('Ein Zelt wird nicht gestrichen, ein Haus schon',
+      fassade.amZelt === false && fassade.zeltSprite === 'tent' && fassade.ab === 2,
+      JSON.stringify(fassade));
+    check('Jede Fassade hat ihr eigenes Bild, die Voreinstellung das alte',
+      new Set(fassade.bilder).size === fassade.ids.length &&
+      fassade.standardBild === 'house_4' &&
+      fassade.imStand === fassade.ids[1] && fassade.quatsch === fassade.ids[0],
+      JSON.stringify(fassade));
+
+    // Das Fenster am Abend – GEMESSEN, nicht behauptet.
+    //
+    // Diese Pruefung hat sich beim Bauen selbst als noetig erwiesen: Der
+    // erste Entwurf gab nur der Lichtquelle eine Farbe mit, und das war im
+    // Bild nicht zu sehen (ein additiver Schein mit Staerke 0,22 ueber 280
+    // Bildpunkten traegt keine Farbe). Gemessen wird deshalb die Scheibe
+    // selbst, und zwar mit dem Zoomfaktor – ohne ihn misst man eine ganz
+    // andere Stelle des Bildes, und genau das ist mir passiert.
+    const fensterlicht = await page.evaluate(async () => {
+      const { hausFenster } = await import('/src/art/painted-camp.js');
+      const g = window.CozyGrove.game;
+      const r = {};
+      const merk = { haus: g.state.house, stunde: g.day.hour,
+        px: g.player.x, py: g.player.y, drin: g.drinnen() };
+      if (merk.drin) g.verlaesst();
+      g.panels.close();
+      g.state.house = 4; g.syncHouse();
+      const h = g.world.tent;
+      g.player.x = h.x + 10; g.player.y = h.y + 170;
+      g.player.prevX = g.player.x; g.player.prevY = g.player.y;
+      g.camera.snapTo(g.player.x, g.player.y);
+      const f = hausFenster(4)[0];
+      r.fenster = f;
+
+      function scheibe() {
+        const c = document.querySelector('canvas');
+        const ctx = c.getContext('2d');
+        const dpr = c.width / c.clientWidth;
+        const z = g.renderer.zoom;
+        let rr = 0, gg = 0, bb = 0, n = 0;
+        // Ein festes Raster ueber die Scheibe – unabhaengig davon, wie
+        // gross sie auf diesem Bildschirm gerade ist.
+        for (let iy = 0; iy < 8; iy++) for (let ix = 0; ix < 8; ix++) {
+          const wx = h.x + f.x + 6 + (f.w - 12) * ix / 7;
+          const wy = h.y + f.y + 6 + (f.h - 12) * iy / 7;
+          const sx = Math.round((wx - g.camera.ox) * z * dpr);
+          const sy = Math.round((wy - g.camera.oy) * z * dpr);
+          if (sx < 0 || sy < 0 || sx >= c.width || sy >= c.height) continue;
+          const d = ctx.getImageData(sx, sy, 1, 1).data;
+          rr += d[0]; gg += d[1]; bb += d[2]; n++;
+        }
+        return n ? [Math.round(rr/n), Math.round(gg/n), Math.round(bb/n), n] : null;
+      }
+      function warten(ms) { return new Promise((ok) => setTimeout(ok, ms)); }
+
+      async function mitZimmer(id) {
+        if (!g.drinnen()) g.betritt();
+        g.waehleAusstattung(id);
+        g.verlaesst();
+        g.day.hour = 23;
+        g.invalidate();
+        await warten(700);
+        return scheibe();
+      }
+      r.holz = await mitZimmer('holz');
+      r.abend = await mitZimmer('abend');
+      // Und am Tag ist das Fenster nicht uebermalt: Dann ist die Scheibe
+      // in beiden Zimmern dieselbe.
+      g.day.hour = 12; g.invalidate();
+      await warten(700);
+      r.tag = scheibe();
+      g.day.hour = 23; g.invalidate();
+      await warten(700);
+      r.nachtAbend = scheibe();
+
+      g.state.house = merk.haus; g.day.hour = merk.stunde;
+      g.player.x = merk.px; g.player.y = merk.py;
+      g.syncHouse(); g.save();
+      return r;
+    });
+    const dd = (a, b) => (a && b)
+      ? Math.round(Math.hypot(a[0]-b[0], a[1]-b[1], a[2]-b[2])) : -1;
+    fensterlicht.holzGegenAbend = dd(fensterlicht.holz, fensterlicht.abend);
+    fensterlicht.tagGegenNacht = dd(fensterlicht.tag, fensterlicht.nachtAbend);
+    check('Nachts leuchtet die Scheibe in der Farbe des Zimmers',
+      fensterlicht.holzGegenAbend > 60 &&
+      fensterlicht.holz[2] < fensterlicht.abend[2] &&
+      fensterlicht.holz[0] > fensterlicht.abend[0],
+      JSON.stringify(fensterlicht));
+    check('Am Tag ist die Scheibe nicht übermalt',
+      fensterlicht.tagGegenNacht > 40, JSON.stringify(fensterlicht));
+
     // ---- Die Werkbank in der Kammer ----
     //
     // Der Grund, überhaupt länger als zum Schlafen hineinzugehen. Geprüft

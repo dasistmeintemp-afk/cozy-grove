@@ -45,6 +45,9 @@ import { paintNachbar } from './painted-nachbar.js';
 import { STERNBILDER } from '../game/sternbilder.js';
 import { kennung as bildKennung } from '../game/bild.js';
 import {
+  malvorgabeFuer, hausfarbeFuer, HAUSFARBE_IDS,
+} from '../game/hausfarbe.js';
+import {
   paintTable, paintChair, paintHammock, paintSwing,
   paintFirebowl, paintStringlights, paintPaperlamp,
   paintPlanter, paintTrellis, paintBirdbath, paintBeehive, paintScarecrow,
@@ -907,6 +910,36 @@ export function seliBilder(trachtId) {
  *
  * @returns {?string} der Name im Register
  */
+/**
+ * Das Zuhause in der gewaehlten Fassadenfarbe.
+ *
+ * Erst beim Nachfragen gemalt, wie `ensureBild`: Es gibt fuenf Farben und
+ * drei Ausbaustufen, also fuenfzehn moegliche Haeuser – gebraucht wird je
+ * Spielstand genau eines, und der Umstieg auf eine andere Farbe ist etwas,
+ * das man ein paarmal im ganzen Spiel tut.
+ *
+ * Die Voreinstellung `kalk` gibt NICHTS vor (siehe `hausfarbe.js`) und
+ * bekommt deshalb auch kein eigenes Bild, sondern das alte: So ist ein
+ * Spielstand, in dem nie jemand gestrichen hat, bis aufs Pixel derselbe
+ * wie vorher, und das Register bleibt um fuenfzehn Bilder leichter.
+ *
+ * @returns {string} der Name im Register
+ */
+export function ensureHaus(stage, farbe) {
+  const st = Math.max(1, Math.min(4, Math.round(stage || 1)));
+  if (st < 2) return 'tent';
+  const vorgabe = malvorgabeFuer(farbe);
+  const schluessel = hausfarbeFuer(farbe).id;
+  if (schluessel === HAUSFARBE_IDS[0]) return 'house_' + st;
+  const name = 'haus_' + st + '_' + schluessel;
+  if (registry[name]) return name;
+  // Derselbe Wurf wie beim alten Bild: Die Farbe soll die Farbe aendern,
+  // nicht die Maserung. Zwei Haeuser derselben Stufe in zwei Farben sind
+  // sonst zwei verschiedene Haeuser.
+  addArt(name, paintHouse(st, Object.assign({ seed: 600 + st * 31 }, vorgabe)));
+  return name;
+}
+
 export function ensureBild(skizze) {
   const k = bildKennung(skizze);
   if (!k) return null;

@@ -5673,21 +5673,62 @@ function paintMailbox(opts) {
  *
  * `stage` ist 2, 3 oder 4; Stufe 1 ist das Zelt und hat seinen eigenen Maler.
  */
-function paintHouse(stage, opts) {
-  const o = opts || {};
-  // Die Maße je Stufe ausgeschrieben statt in geschachtelten Fragezeichen:
-  // Beim Haus hängt jede Zahl an der nächsten, und Vordach, Tür und Fenster
-  // gehen sich nur aus dem Weg, wenn man sie nebeneinander sieht.
-  //
-  // Gemessen an der bemalten Fläche, nicht an der Leinwand: Das Zelt ist
-  // 324 × 266 groß. Ein erster Entwurf gab der Hütte 240 × 177 – der Umzug
-  // vom Zelt ins Haus hätte das Zuhause also kleiner gemacht. Die Wände
-  // stehen deshalb von Anfang an hoch, und jede Stufe legt sichtbar zu.
-  const L = stage >= 4
+/**
+ * Die Masse je Ausbaustufe.
+ *
+ * Ausgeschrieben statt in geschachtelten Fragezeichen: Beim Haus haengt
+ * jede Zahl an der naechsten, und Vordach, Tuer und Fenster gehen sich nur
+ * aus dem Weg, wenn man sie nebeneinander sieht.
+ *
+ * Gemessen an der bemalten Flaeche, nicht an der Leinwand: Das Zelt ist
+ * 324 x 266 gross. Ein erster Entwurf gab der Huette 240 x 177 – der Umzug
+ * vom Zelt ins Haus haette das Zuhause also kleiner gemacht. Die Waende
+ * stehen deshalb von Anfang an hoch, und jede Stufe legt sichtbar zu.
+ *
+ * Eine eigene Funktion und keine Tabelle im Maler, weil eine zweite Stelle
+ * sie braucht: `hausFenster` sagt dem Zeichner, wo abends das Licht steht.
+ * Zwei Tabellen nebeneinander waeren zwei Haeuser.
+ */
+function hausMasse(stage) {
+  return stage >= 4
     ? { w: 430, h: 420, halb: 150, wandH: 200, sockel: 32, giebelH: 100, tuerH: 58, tuerW: 34, fenY: 20, fenW: 52, fenH: 50 }
     : stage === 3
       ? { w: 380, h: 360, halb: 136, wandH: 178, sockel: 0, giebelH: 92, tuerH: 70, tuerW: 30, fenY: 24, fenW: 46, fenH: 44 }
       : { w: 340, h: 320, halb: 120, wandH: 152, sockel: 0, giebelH: 84, tuerH: 66, tuerW: 27, fenY: 24, fenW: 44, fenH: 42 };
+}
+
+/**
+ * Wo die Fenster sitzen – vom FUSSPUNKT des Hauses aus gerechnet.
+ *
+ * Also in denselben Koordinaten, in denen das Bild im Weltbild steht: Der
+ * Anker des Hausbildes ist (Mitte, Fusspunkt), und `ART_SCALE` ist 1. Ein
+ * Rechteck von hier laesst sich deshalb ohne Umrechnung auf die Welt legen.
+ *
+ * Gebraucht wird das fuer das Abendlicht: Von aussen soll man sehen, in
+ * welcher Farbe drinnen die Wand ist. Ein blosser Lichtkreis um das Haus
+ * konnte das nicht leisten – gemessen stand die mittlere Farbe rund ums
+ * Haus bei warmem und bei kuehlem Zimmerlicht praktisch gleich, weil ein
+ * additiver Schein mit Staerke 0,22 ueber hundertfuenfzig Bildpunkten
+ * verteilt keine Farbe traegt. Das Licht muss im Fenster stehen.
+ *
+ * Das Zelt hat keines; die Huette eines, Haus und Veranda zwei.
+ *
+ * @returns {Array} [{x, y, w, h}] – x nach rechts, y nach OBEN negativ
+ */
+function hausFenster(stage) {
+  const st = Math.round(stage || 1);
+  if (st < 2) return [];
+  const L = hausMasse(st);
+  const fenX = Math.round(L.halb * 0.34);
+  const y = -L.sockel - L.wandH + L.fenY;
+  const raus = [{ x: fenX, y: y, w: L.fenW, h: L.fenH }];
+  if (st >= 3) raus.push({ x: -fenX - L.fenW, y: y, w: L.fenW, h: L.fenH });
+  return raus;
+}
+
+function paintHouse(stage, opts) {
+  const o = opts || {};
+  const L = hausMasse(stage);
 
   const w = L.w;
   const h = L.h;
@@ -7971,6 +8012,8 @@ __e.paintFlame = paintFlame;
 __e.paintTent = paintTent;
 __e.paintBoat = paintBoat;
 __e.paintMailbox = paintMailbox;
+__e.hausMasse = hausMasse;
+__e.hausFenster = hausFenster;
 __e.paintHouse = paintHouse;
 __e.paintStall = paintStall;
 __e.paintWorkbench = paintWorkbench;
@@ -13020,6 +13063,113 @@ __e.moeglich = moeglich;
 __e.skizzeAusRoh = skizzeAusRoh;
 __e.bilderAus = bilderAus;
 __e.sortiert = sortiert;
+
+};
+
+__defs["src/game/hausfarbe.js"] = function (__e) {
+/**
+ * Die Fassade – wie dein Zuhause von außen aussieht.
+ *
+ * **Warum das fehlte.** Drinnen konnte man seit Langem Wand und Boden
+ * wählen; draußen stand für jeden dasselbe hellbeige Haus mit braunem
+ * Dach. Dabei ist das Haus das Einzige, was man von Weitem sieht – und
+ * ausgerechnet daran war nichts eigenes. Die Bewohnerhütten hatten längst
+ * farbige Dächer: `paintHouse` nimmt seit ihnen `wand`, `dach` und `tuer`
+ * entgegen. Es gab also nichts zu bauen, nur etwas zu wählen.
+ *
+ * **Kostenlos, wie drinnen.** Wand und Boden kosten nichts, weil am
+ * eigenen Zuhause nichts Pflicht sein soll. Für die Fassade gilt dasselbe:
+ * Eine Hausfarbe, die Münzen kostet, wäre eine Hausfarbe, die man sich
+ * erst verdient – und dann stünde die halbe Insel in der Farbe, die am
+ * billigsten war.
+ *
+ * **Erst ab der Hütte.** Ein Zelt hat keine Wand zum Streichen. Die
+ * Auswahl erscheint mit der zweiten Ausbaustufe, zusammen mit den vier
+ * Wänden.
+ *
+ * **Die erste Farbe lässt alles offen.** `kalk` nennt keine Werte, und das
+ * ist Absicht: `paintHouse` setzt dann seine eigenen ein – und die sind je
+ * Stufe verschieden (das Haus mit Veranda hat ein dunkleres Dach als die
+ * Hütte). Stünden hier feste Zahlen, hätte die Voreinstellung die Stufen
+ * eingeebnet, und niemand hätte gemerkt, dass dabei etwas verloren geht.
+ */
+
+/** Ab dieser Ausbaustufe gibt es etwas zu streichen. */
+const FASSADE_AB = 2;
+
+const HAUSFARBEN = [
+  {
+    // Kein einziger Wert: siehe oben. Das ist das Haus, wie es immer war.
+    id: 'kalk', name: 'Kalk und Kastanie',
+    // Nur fürs Pünktchen in der Liste – gemalt wird damit nichts.
+    probeWand: '#e0c49c', probeDach: '#a2704a',
+  },
+  {
+    id: 'moos', name: 'Moos und Eiche',
+    wand: '#d9ddc6', wandSchatten: '#b5bb9e',
+    dach: '#6b7a54', dachSchatten: '#4c583a', tuer: '#6b5536',
+    probeWand: '#d9ddc6', probeDach: '#6b7a54',
+  },
+  {
+    id: 'abend', name: 'Abendblau',
+    wand: '#d2dae6', wandSchatten: '#aab8cb',
+    dach: '#4f6076', dachSchatten: '#384658', tuer: '#5d6c82',
+    probeWand: '#d2dae6', probeDach: '#4f6076',
+  },
+  {
+    id: 'ziegel', name: 'Ziegel und Kalk',
+    wand: '#f1e7d7', wandSchatten: '#d4c7b1',
+    dach: '#b04a2e', dachSchatten: '#813020', tuer: '#8a5a38',
+    probeWand: '#f1e7d7', probeDach: '#b04a2e',
+  },
+  {
+    id: 'treibholz', name: 'Treibholz und Teer',
+    wand: '#cec1ad', wandSchatten: '#a99b86',
+    dach: '#4a4740', dachSchatten: '#32302b', tuer: '#6e6457',
+    probeWand: '#cec1ad', probeDach: '#4a4740',
+  },
+];
+
+const HAUSFARBE_IDS = HAUSFARBEN.map(function (f) { return f.id; });
+
+/** Die Fassade zu einer Kennung – oder die erste, wenn es sie nicht gibt. */
+function hausfarbeFuer(id) {
+  for (let i = 0; i < HAUSFARBEN.length; i++) {
+    if (HAUSFARBEN[i].id === id) return HAUSFARBEN[i];
+  }
+  return HAUSFARBEN[0];
+}
+
+/**
+ * Die Malvorgaben für `paintHouse` – nur die Felder, die wirklich gesetzt
+ * sind.
+ *
+ * Ein `undefined` im Objekt ist für `paintHouse` dasselbe wie ein
+ * fehlendes Feld (es steht dort überall `o.wand || …`), aber hier wird es
+ * trotzdem weggelassen: So sieht man der Rückgabe an, dass `kalk`
+ * wirklich nichts vorgibt.
+ */
+function malvorgabeFuer(id) {
+  const f = hausfarbeFuer(id);
+  const out = {};
+  const felder = ['wand', 'wandSchatten', 'dach', 'dachSchatten', 'tuer'];
+  for (let i = 0; i < felder.length; i++) {
+    if (f[felder[i]]) out[felder[i]] = f[felder[i]];
+  }
+  return out;
+}
+
+/** Eine gespeicherte Kennung säubern. */
+function hausfarbeAus(roh) {
+  return HAUSFARBE_IDS.indexOf(roh) >= 0 ? roh : HAUSFARBE_IDS[0];
+}
+
+__e.FASSADE_AB = FASSADE_AB;
+__e.HAUSFARBEN = HAUSFARBEN;
+__e.HAUSFARBE_IDS = HAUSFARBE_IDS;
+__e.hausfarbeFuer = hausfarbeFuer;
+__e.malvorgabeFuer = malvorgabeFuer;
+__e.hausfarbeAus = hausfarbeAus;
 
 };
 
@@ -20216,30 +20366,48 @@ const KAMMER_AB = 3;
  * `ensureRoom` in sprites.js). Vier Stufen mal vier Ausstattungen wären
  * sechzehn große Bilder beim Start – gebraucht wird eines.
  */
+/**
+ * `licht` ist die Farbe, in der das Fenster abends nach DRAUSSEN leuchtet.
+ *
+ * Nicht aus der Wandfarbe gerechnet: Alle vier Wände sind blass, und
+ * gemischt mit Lampenlicht kamen vier fast gleiche Gelbtöne heraus – vier
+ * Zimmer, die von aussen gleich aussehen, sind keine vier Zimmer.
+ *
+ * Von Hand gewählt, und dann noch einmal auseinandergezogen: Der erste
+ * Satz lag für drei der vier Zimmer unter 40 Einheiten auseinander
+ * (gemessen als Abstand im RGB-Würfel), und im Bild sahen Holz, Moos und
+ * Sand alle gleich gelb aus. Jetzt sind es amber, grün, blau und rosig,
+ * mit mindestens 50 Einheiten zwischen je zweien – geprüft in
+ * `hausfarbe.test.js`.
+ */
 const AUSSTATTUNG = [
   {
     id: 'holz', name: 'Holz und Kalk',
     wand: '#ece0c8', wandTief: '#d3c0a0', leiste: '#8f6d49',
     boden: '#c9a273', bodenTief: '#a17b52',
     stoff: '#e8dfc8', stoffTief: '#c9bb9c', erde: '#bfa27c',
+    licht: [255, 196, 112],
   },
   {
     id: 'moos', name: 'Moos und Eiche',
     wand: '#dbe3ca', wandTief: '#b9c6a4', leiste: '#6f7f55',
     boden: '#b79468', bodenTief: '#93714b',
     stoff: '#dee6cf', stoffTief: '#bcc7a8', erde: '#b09572',
+    licht: [196, 220, 136],
   },
   {
     id: 'abend', name: 'Abendblau',
     wand: '#cfd8e4', wandTief: '#aab8cb', leiste: '#5d6c82',
     boden: '#a98f78', bodenTief: '#866d58',
     stoff: '#d6dde6', stoffTief: '#b2bdcb', erde: '#a3917c',
+    licht: [168, 198, 240],
   },
   {
     id: 'sand', name: 'Sand und Muschel',
     wand: '#f1e6d4', wandTief: '#dccfb6', leiste: '#a8906c',
     boden: '#ddc8a4', bodenTief: '#bda57e',
     stoff: '#f2ead9', stoffTief: '#d9cdb4', erde: '#d3bd9a',
+    licht: [255, 160, 150],
   },
 ];
 
@@ -22732,6 +22900,7 @@ const { paintSternbild } = __req("src/art/painted-sternbild.js");
 const { paintNachbar } = __req("src/art/painted-nachbar.js");
 const { STERNBILDER } = __req("src/game/sternbilder.js");
 const { kennung: bildKennung } = __req("src/game/bild.js");
+const { malvorgabeFuer, hausfarbeFuer, HAUSFARBE_IDS } = __req("src/game/hausfarbe.js");
 const { paintTable, paintChair, paintHammock, paintSwing, paintFirebowl, paintStringlights, paintPaperlamp, paintPlanter, paintTrellis, paintBirdbath, paintBeehive, paintScarecrow, paintWeathervane, paintMat, paintPond, paintStumpStool, paintStonebench, paintStonelamp, paintTorch, paintFlowerbox, paintBonsai, paintHedgehogbox, paintFeeder, paintSteppingstones, paintArch, paintClothesline, paintBookstack, paintAquarium, paintButtercase } = __req("src/art/painted-decor.js");
 const { paintPet, paintBowl, PET_KINDS } = __req("src/art/painted-pet.js");
 const { paintKaktus, paintFeigenkaktus, paintAgave, paintDuerrbusch, paintDuenengras, paintSteppengras, paintDistel, paintSchaedel, paintWuestenfels } = __req("src/art/painted-wueste.js");
@@ -23574,6 +23743,36 @@ function seliBilder(trachtId) {
  *
  * @returns {?string} der Name im Register
  */
+/**
+ * Das Zuhause in der gewaehlten Fassadenfarbe.
+ *
+ * Erst beim Nachfragen gemalt, wie `ensureBild`: Es gibt fuenf Farben und
+ * drei Ausbaustufen, also fuenfzehn moegliche Haeuser – gebraucht wird je
+ * Spielstand genau eines, und der Umstieg auf eine andere Farbe ist etwas,
+ * das man ein paarmal im ganzen Spiel tut.
+ *
+ * Die Voreinstellung `kalk` gibt NICHTS vor (siehe `hausfarbe.js`) und
+ * bekommt deshalb auch kein eigenes Bild, sondern das alte: So ist ein
+ * Spielstand, in dem nie jemand gestrichen hat, bis aufs Pixel derselbe
+ * wie vorher, und das Register bleibt um fuenfzehn Bilder leichter.
+ *
+ * @returns {string} der Name im Register
+ */
+function ensureHaus(stage, farbe) {
+  const st = Math.max(1, Math.min(4, Math.round(stage || 1)));
+  if (st < 2) return 'tent';
+  const vorgabe = malvorgabeFuer(farbe);
+  const schluessel = hausfarbeFuer(farbe).id;
+  if (schluessel === HAUSFARBE_IDS[0]) return 'house_' + st;
+  const name = 'haus_' + st + '_' + schluessel;
+  if (registry[name]) return name;
+  // Derselbe Wurf wie beim alten Bild: Die Farbe soll die Farbe aendern,
+  // nicht die Maserung. Zwei Haeuser derselben Stufe in zwei Farben sind
+  // sonst zwei verschiedene Haeuser.
+  addArt(name, paintHouse(st, Object.assign({ seed: 600 + st * 31 }, vorgabe)));
+  return name;
+}
+
 function ensureBild(skizze) {
   const k = bildKennung(skizze);
   if (!k) return null;
@@ -23646,6 +23845,7 @@ __e.applyIcon = applyIcon;
 __e.isArtReady = isArtReady;
 __e.initArt = initArt;
 __e.seliBilder = seliBilder;
+__e.ensureHaus = ensureHaus;
 __e.ensureBild = ensureBild;
 __e.ensureInnenort = ensureInnenort;
 __e.ensureRoom = ensureRoom;
@@ -28955,6 +29155,7 @@ __defs["src/render/renderer.js"] = function (__e) {
  */
 const { makeCanvas, ctx2d, clamp } = __req("src/core/util.js");
 const { drawSprite, spr, hasSprite, ensureBild } = __req("src/art/sprites.js");
+const { hausFenster } = __req("src/art/painted-camp.js");
 const { defOf, spriteFor } = __req("src/world/entities.js");
 const { getItem } = __req("src/game/items.js");
 const { campfireLevelFor } = __req("src/game/recipes.js");
@@ -30175,6 +30376,67 @@ class Renderer {
    * andeuten. Bei reiner Übernahme der Deckung (0,24 am Abend) war der
    * Schleier zur goldenen Stunde noch grau.
    */
+/**
+   * Das Fenster des eigenen Hauses – in der Farbe des Zimmers dahinter.
+   *
+   * **Warum das im Fenster stehen muss und nicht als Schein ums Haus.**
+   * Der erste Entwurf gab der Lichtquelle des Hauses einfach eine eigene
+   * Farbe mit. Gemessen hat das nichts gebracht: Die mittlere Farbe in
+   * einem Quadrat von dreihundert Bildpunkten ums Haus lag bei warmem
+   * Zimmer (255,196,112) und bei kuehlem (168,198,240) neun Einheiten
+   * auseinander – ein additiver Schein mit Staerke 0,22, ueber
+   * zweihundertachtzig Bildpunkte verteilt, traegt keine Farbe. Hier sind
+   * es zwei handflaechengrosse Rechtecke, und dort traegt sie.
+   *
+   * Die Rechtecke kommen aus `hausFenster`, also aus derselben Rechnung,
+   * mit der der Maler sie hinmalt – eine zweite Tabelle waere ein zweites
+   * Haus.
+   *
+   * Nur das eigene Zuhause: Die Bewohnerhuetten haben kein Zimmer, dessen
+   * Farbe man gewaehlt haette.
+   */
+  _fensterlicht(ctx, game) {
+    const haus = game.world && game.world.tent;
+    if (!haus || haus.gone) return;
+    const stufe = game.state.house || 1;
+    const fenster = hausFenster(stufe);
+    if (!fenster.length) return;
+    const farbe = (game.ausstattung(0) || {}).licht;
+    if (!farbe) return;
+    const rgb = farbe[0] + ',' + farbe[1] + ',' + farbe[2];
+
+    ctx.save();
+    for (let i = 0; i < fenster.length; i++) {
+      const f = fenster[i];
+      const x = haus.x + f.x;
+      const y = haus.y + f.y;
+      // Die Scheibe selbst: deckend genug, dass die Farbe steht, und
+      // etwas eingerueckt, damit der Tuschestrich des Rahmens stehen
+      // bleibt. Ohne das Einruecken frisst das Licht den Rahmen, und das
+      // Fenster ist ein Loch.
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.82;
+      ctx.fillStyle = 'rgb(' + rgb + ')';
+      ctx.fillRect(x + 2, y + 2, f.w - 4, f.h - 4);
+      // Und der Schein davor: klein, aber hell genug, dass man ihn vom
+      // anderen Ende des Bildes als Farbe erkennt.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 1;
+      const r = Math.max(f.w, f.h) * 1.9;
+      const cx = x + f.w / 2;
+      const cy = y + f.h / 2;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grad.addColorStop(0, 'rgba(' + rgb + ',0.30)');
+      grad.addColorStop(0.4, 'rgba(' + rgb + ',0.14)');
+      grad.addColorStop(1, 'rgba(' + rgb + ',0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    }
+    ctx.restore();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+
   _dunst(lc, tint) {
     const m = Math.min(1, tint.a * 1.6);
     const r = Math.round(DUNST_HIMMEL[0] + (tint.r - DUNST_HIMMEL[0]) * m);
@@ -30331,6 +30593,7 @@ class Renderer {
     if (game.day.isDark()) {
       const lichter = game.lightSources(time);
       this._world(ctx, camX, camY);
+      this._fensterlicht(ctx, game);
       ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < lichter.length; i++) {
         const L = lichter[i];
@@ -30339,7 +30602,10 @@ class Renderer {
         if (!warm && !kuehl) continue;
         if (L.x + L.r < camX || L.x - L.r > camX + this.viewW) continue;
         if (L.y + L.r < camY || L.y - L.r > camY + this.viewH) continue;
-        const farbe = warm ? [255, 186, 104] : [168, 206, 236];
+        // Eine Quelle darf ihre eigene Farbe mitbringen: Das Fenster des
+        // Hauses leuchtet in der Farbe der Ausstattung dahinter. Ohne
+        // `rgb` bleibt es bei den zwei Tönen – warmes Feuer, kühler Geist.
+        const farbe = L.rgb || (warm ? [255, 186, 104] : [168, 206, 236]);
         const kraft = (warm || kuehl) * 0.22;
         const grad = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, L.r);
         grad.addColorStop(0, 'rgba(' + farbe[0] + ',' + farbe[1] + ',' + farbe[2] + ',' + kraft.toFixed(3) + ')');
@@ -41441,6 +41707,7 @@ const { wannText, heuteIst } = __req("src/game/termine.js");
 const { titel: bildTitel, kennung: bildKennung } = __req("src/game/bild.js");
 const { chronikZeilen, zeitSatz, bittenGesamt } = __req("src/game/chronik.js");
 const { abzeichenStand, stufenGesamt, STUFEN } = __req("src/game/abzeichen.js");
+const { HAUSFARBEN, FASSADE_AB } = __req("src/game/hausfarbe.js");
 const { geistName: sternGeist } = __req("src/game/sternbilder.js");
 const { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } = __req("src/game/stories.js");
 const { pointsToNext, COSY_MAX } = __req("src/game/cosiness.js");
@@ -41614,6 +41881,10 @@ class Panels {
         break;
       case 'setting':
         g.changeSetting(arg, t.getAttribute('data-val'));
+        this.render();
+        break;
+      case 'hausfarbe':
+        g.waehleHausfarbe(t.getAttribute('data-val'));
         this.render();
         break;
       case 'ausstattung':
@@ -42739,6 +43010,7 @@ class Panels {
           '</div>';
       }).join('') +
       '</div>' +
+      this._fassade() +
       this._skizzen() +
       this._kleiderschrank() +
       '<p class="empty-note" style="padding:8px 0 0">' +
@@ -42764,6 +43036,42 @@ class Panels {
    * kommen. Eine leere Liste mit achtundzwanzig grauen Zeilen wäre eine
    * Aufgabenliste, und dieses Spiel stellt keine.
    */
+  /**
+   * Die Fassade – Wand, Dach und Tür von außen.
+   *
+   * Direkt unter „Wand und Boden": drinnen und draußen sind dieselbe
+   * Entscheidung, nur andersherum. Erst ab der Hütte, weil ein Zelt keine
+   * Wand hat – und in diesem Fall steht hier gar nichts statt einer
+   * ausgegrauten Liste, die sagt, was man alles nicht darf.
+   *
+   * Das Pünktchen zeigt Wand und Dach übereinander, nicht nur eine Farbe:
+   * „Treibholz und Teer" und „Kalk und Kastanie" haben beinahe dieselbe
+   * Wand und unterscheiden sich nur im Dach.
+   */
+  _fassade() {
+    const g = this.game;
+    if ((g.state.house || 1) < FASSADE_AB) return '';
+    const jetztId = g.hausfarbe().id;
+    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Fassade</h3>' +
+      '<div class="rows" style="margin-top:8px">' +
+      HAUSFARBEN.map(function (f) {
+        const jetzt = f.id === jetztId;
+        return '<div class="row' + (jetzt ? '' : ' dim') + '">' +
+          '<span class="ico lg" style="background:' + f.probeWand +
+          ';border:2px solid ' + f.probeDach +
+          ';box-shadow:inset 0 9px 0 ' + f.probeDach + '"></span>' +
+          '<div class="grow"><div class="title">' + escapeHtml(f.name) + '</div></div>' +
+          (jetzt
+            ? '<span class="row-btn ghost">' + ico('icon_check') + '</span>'
+            : '<button class="row-btn" data-act="hausfarbe" data-val="' + f.id +
+              '">Streichen</button>') +
+          '</div>';
+      }).join('') +
+      '</div>' +
+      '<p class="empty-note" style="padding:8px 0 0">' +
+      'Abends leuchtet das Fenster in der Farbe deiner Wand drinnen.</p>';
+  }
+
   _skizzen() {
     const g = this.game;
     const liste = g.skizzen();
@@ -43943,7 +44251,8 @@ const { getItem, itemName, CAT, CONDITIONAL, fishesOf } = __req("src/game/items.
 const { RECIPES, recipeById, missingFor, campfireLevelFor } = __req("src/game/recipes.js");
 const { dueAt, perksOf } = __req("src/game/milestones.js");
 const { dueSets, SET_IDS } = __req("src/game/collection.js");
-const { abzeichenAus, faellig: faelligeAbzeichen, merke: merkeAbzeichen } = __req("src/game/abzeichen.js");
+const { hausfarbeAus, hausfarbeFuer, HAUSFARBE_IDS, FASSADE_AB } = __req("src/game/hausfarbe.js");
+const { abzeichenAus, emptyAbzeichen, faellig: faelligeAbzeichen, merke: merkeAbzeichen } = __req("src/game/abzeichen.js");
 const { mailFor, fileMail, unreadCount } = __req("src/game/mail.js");
 const { STAGES: LOAN_STAGES, statusOf, pay: payLoan, slotsAt, emptyLoan } = __req("src/game/loan.js");
 const { finaleLine, allHeard, stillSilent, circleSpots, FINALE_CLOSE, FINALE_COUNT } = __req("src/game/finale.js");
@@ -43967,7 +44276,7 @@ const { num } = __req("src/core/util.js");
 const { audio } = __req("src/core/audio.js");
 const { UI } = __req("src/ui/ui.js");
 const { Panels } = __req("src/ui/panels.js");
-const { ensureRoom, ensureInnenort, seliBilder, ensureBild } = __req("src/art/sprites.js");
+const { ensureRoom, ensureInnenort, seliBilder, ensureBild, ensureHaus } = __req("src/art/sprites.js");
 const { applyUiScale } = __req("src/ui/uiscale.js");
 const storage = __req("src/core/storage.js");
 const savefile = __req("src/core/savefile.js");
@@ -44268,6 +44577,8 @@ class Game {
       advent: emptyAdvent(),
       bewohner: emptyBewohner(),
       pfade: emptyPfade(),
+      abzeichen: emptyAbzeichen(),
+      hausfarbe: HAUSFARBE_IDS[0],
     };
     this.shop.refresh(this.day.day, this.world.seed);
     this.quests.newDay(this.day.day, this.world, this);
@@ -44490,6 +44801,9 @@ class Game {
     // Die Abzeichen. Ein alter Spielstand hat keine – er holt sie beim
     // ersten Durchlauf von `_checkAbzeichen` nach, alle auf einmal.
     this.state.abzeichen = abzeichenAus(this.state.abzeichen);
+    // Die Fassade. Ein alter Spielstand hat keine und bekommt die
+    // Voreinstellung – also genau das Haus, das er bisher hatte.
+    this.state.hausfarbe = hausfarbeAus(this.state.hausfarbe);
     // Der Bodenmaler fragt die Abnutzung über diese kleine Brücke ab. Er
     // bekommt eine Funktion und nicht den Stand selbst: So kennt die
     // Grafik das Spielstandsformat nicht, und die Reihenfolge beim Laden
@@ -48377,7 +48691,10 @@ class Game {
     const e = this.world.tent;
     if (!e) return;
     const f = houseFootprint(stufe);
-    e.sprite = houseSprite(stufe);
+    // Nicht `houseSprite`, sondern das Bild in der gewaehlten Fassade.
+    // Bei der Voreinstellung gibt `ensureHaus` genau `houseSprite`
+    // zurueck – ein Spielstand ohne Anstrich sieht aus wie immer.
+    e.sprite = ensureHaus(stufe, this.state.hausfarbe);
     e.blockR = f.blockR;
     e.blockH = f.blockH;
     e.reachR = f.reachR;
@@ -49989,6 +50306,33 @@ class Game {
     this.invalidate();
     this.save();
     return true;
+  }
+
+  /**
+   * Die Fassade streichen.
+   *
+   * Kostet nichts, wie Wand und Boden drinnen und aus demselben Grund: Am
+   * eigenen Zuhause soll nichts Pflicht sein. Erst ab der Hütte – ein Zelt
+   * hat keine Wand.
+   */
+  waehleHausfarbe(id) {
+    if (HAUSFARBE_IDS.indexOf(id) < 0) return false;
+    if ((this.state.house || 1) < FASSADE_AB) return false;
+    if (this.state.hausfarbe === id) return false;
+    this.state.hausfarbe = id;
+    // `syncHouse` holt das Bild und setzt es am Haus – dieselbe Stelle wie
+    // beim Ausbau, damit es nicht zwei Wege zum selben Sprite gibt.
+    this.syncHouse();
+    this.audio.play('ui');
+    this.ui.toast(hausfarbeFuer(id).name, 'icon_house', 'good');
+    this.invalidate();
+    this.save();
+    return true;
+  }
+
+  /** Welche Fassade dein Zuhause trägt. */
+  hausfarbe() {
+    return hausfarbeFuer(this.state.hausfarbe);
   }
 
   /* ---------------- Trachten ---------------- */
@@ -52056,7 +52400,15 @@ class Game {
     const hausLicht = houseLight(this.state.house || 1);
     const haus = this.world.tent;
     if (hausLicht > 0 && haus) {
-      out.push({ x: haus.x, y: haus.y - 110, r: hausLicht, a: 0.82, warm: 0.8 });
+      // Das Fenster leuchtet in der Farbe des Zimmers dahinter – des
+      // VORDEREN, denn das ist das mit dem Fenster (die Kammer hat
+      // keines, siehe `fensterFuer`). Das ist die zweite Wirkung des
+      // Einrichtens nach aussen, neben dem Farbkreis: Wer drinnen
+      // Abendblau gewählt hat, sieht sein Haus nachts kühl leuchten.
+      out.push({
+        x: haus.x, y: haus.y - 110, r: hausLicht, a: 0.82, warm: 0.8,
+        rgb: this.ausstattung(0).licht,
+      });
     }
 
     const near = this.world.queryRect(

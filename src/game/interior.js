@@ -115,30 +115,48 @@ export const KAMMER_AB = 3;
  * `ensureRoom` in sprites.js). Vier Stufen mal vier Ausstattungen wären
  * sechzehn große Bilder beim Start – gebraucht wird eines.
  */
+/**
+ * `licht` ist die Farbe, in der das Fenster abends nach DRAUSSEN leuchtet.
+ *
+ * Nicht aus der Wandfarbe gerechnet: Alle vier Wände sind blass, und
+ * gemischt mit Lampenlicht kamen vier fast gleiche Gelbtöne heraus – vier
+ * Zimmer, die von aussen gleich aussehen, sind keine vier Zimmer.
+ *
+ * Von Hand gewählt, und dann noch einmal auseinandergezogen: Der erste
+ * Satz lag für drei der vier Zimmer unter 40 Einheiten auseinander
+ * (gemessen als Abstand im RGB-Würfel), und im Bild sahen Holz, Moos und
+ * Sand alle gleich gelb aus. Jetzt sind es amber, grün, blau und rosig,
+ * mit mindestens 50 Einheiten zwischen je zweien – geprüft in
+ * `hausfarbe.test.js`.
+ */
 export const AUSSTATTUNG = [
   {
     id: 'holz', name: 'Holz und Kalk',
     wand: '#ece0c8', wandTief: '#d3c0a0', leiste: '#8f6d49',
     boden: '#c9a273', bodenTief: '#a17b52',
     stoff: '#e8dfc8', stoffTief: '#c9bb9c', erde: '#bfa27c',
+    licht: [255, 196, 112],
   },
   {
     id: 'moos', name: 'Moos und Eiche',
     wand: '#dbe3ca', wandTief: '#b9c6a4', leiste: '#6f7f55',
     boden: '#b79468', bodenTief: '#93714b',
     stoff: '#dee6cf', stoffTief: '#bcc7a8', erde: '#b09572',
+    licht: [196, 220, 136],
   },
   {
     id: 'abend', name: 'Abendblau',
     wand: '#cfd8e4', wandTief: '#aab8cb', leiste: '#5d6c82',
     boden: '#a98f78', bodenTief: '#866d58',
     stoff: '#d6dde6', stoffTief: '#b2bdcb', erde: '#a3917c',
+    licht: [168, 198, 240],
   },
   {
     id: 'sand', name: 'Sand und Muschel',
     wand: '#f1e6d4', wandTief: '#dccfb6', leiste: '#a8906c',
     boden: '#ddc8a4', bodenTief: '#bda57e',
     stoff: '#f2ead9', stoffTief: '#d9cdb4', erde: '#d3bd9a',
+    licht: [255, 160, 150],
   },
 ];
 

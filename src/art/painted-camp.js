@@ -384,21 +384,62 @@ export function paintMailbox(opts) {
  *
  * `stage` ist 2, 3 oder 4; Stufe 1 ist das Zelt und hat seinen eigenen Maler.
  */
-export function paintHouse(stage, opts) {
-  const o = opts || {};
-  // Die Maße je Stufe ausgeschrieben statt in geschachtelten Fragezeichen:
-  // Beim Haus hängt jede Zahl an der nächsten, und Vordach, Tür und Fenster
-  // gehen sich nur aus dem Weg, wenn man sie nebeneinander sieht.
-  //
-  // Gemessen an der bemalten Fläche, nicht an der Leinwand: Das Zelt ist
-  // 324 × 266 groß. Ein erster Entwurf gab der Hütte 240 × 177 – der Umzug
-  // vom Zelt ins Haus hätte das Zuhause also kleiner gemacht. Die Wände
-  // stehen deshalb von Anfang an hoch, und jede Stufe legt sichtbar zu.
-  const L = stage >= 4
+/**
+ * Die Masse je Ausbaustufe.
+ *
+ * Ausgeschrieben statt in geschachtelten Fragezeichen: Beim Haus haengt
+ * jede Zahl an der naechsten, und Vordach, Tuer und Fenster gehen sich nur
+ * aus dem Weg, wenn man sie nebeneinander sieht.
+ *
+ * Gemessen an der bemalten Flaeche, nicht an der Leinwand: Das Zelt ist
+ * 324 x 266 gross. Ein erster Entwurf gab der Huette 240 x 177 – der Umzug
+ * vom Zelt ins Haus haette das Zuhause also kleiner gemacht. Die Waende
+ * stehen deshalb von Anfang an hoch, und jede Stufe legt sichtbar zu.
+ *
+ * Eine eigene Funktion und keine Tabelle im Maler, weil eine zweite Stelle
+ * sie braucht: `hausFenster` sagt dem Zeichner, wo abends das Licht steht.
+ * Zwei Tabellen nebeneinander waeren zwei Haeuser.
+ */
+export function hausMasse(stage) {
+  return stage >= 4
     ? { w: 430, h: 420, halb: 150, wandH: 200, sockel: 32, giebelH: 100, tuerH: 58, tuerW: 34, fenY: 20, fenW: 52, fenH: 50 }
     : stage === 3
       ? { w: 380, h: 360, halb: 136, wandH: 178, sockel: 0, giebelH: 92, tuerH: 70, tuerW: 30, fenY: 24, fenW: 46, fenH: 44 }
       : { w: 340, h: 320, halb: 120, wandH: 152, sockel: 0, giebelH: 84, tuerH: 66, tuerW: 27, fenY: 24, fenW: 44, fenH: 42 };
+}
+
+/**
+ * Wo die Fenster sitzen – vom FUSSPUNKT des Hauses aus gerechnet.
+ *
+ * Also in denselben Koordinaten, in denen das Bild im Weltbild steht: Der
+ * Anker des Hausbildes ist (Mitte, Fusspunkt), und `ART_SCALE` ist 1. Ein
+ * Rechteck von hier laesst sich deshalb ohne Umrechnung auf die Welt legen.
+ *
+ * Gebraucht wird das fuer das Abendlicht: Von aussen soll man sehen, in
+ * welcher Farbe drinnen die Wand ist. Ein blosser Lichtkreis um das Haus
+ * konnte das nicht leisten – gemessen stand die mittlere Farbe rund ums
+ * Haus bei warmem und bei kuehlem Zimmerlicht praktisch gleich, weil ein
+ * additiver Schein mit Staerke 0,22 ueber hundertfuenfzig Bildpunkten
+ * verteilt keine Farbe traegt. Das Licht muss im Fenster stehen.
+ *
+ * Das Zelt hat keines; die Huette eines, Haus und Veranda zwei.
+ *
+ * @returns {Array} [{x, y, w, h}] – x nach rechts, y nach OBEN negativ
+ */
+export function hausFenster(stage) {
+  const st = Math.round(stage || 1);
+  if (st < 2) return [];
+  const L = hausMasse(st);
+  const fenX = Math.round(L.halb * 0.34);
+  const y = -L.sockel - L.wandH + L.fenY;
+  const raus = [{ x: fenX, y: y, w: L.fenW, h: L.fenH }];
+  if (st >= 3) raus.push({ x: -fenX - L.fenW, y: y, w: L.fenW, h: L.fenH });
+  return raus;
+}
+
+export function paintHouse(stage, opts) {
+  const o = opts || {};
+  const L = hausMasse(stage);
 
   const w = L.w;
   const h = L.h;
