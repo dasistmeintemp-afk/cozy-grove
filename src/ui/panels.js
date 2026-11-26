@@ -1283,7 +1283,12 @@ export class Panels {
         '</div></div></div>';
     }).join('');
 
-    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Dein Zuhause</h3>' +
+    // „Wie wohnlich es ist" und nicht noch einmal „Dein Zuhause": Die
+    // Überschrift stand im selben Fenster zweimal, acht Zeilen
+    // auseinander, über zwei verschiedenen Dingen – oben die vier
+    // Ausbaustufen, hier die Wohnlichkeit. Beim Lesen der Abschnitte am
+    // Stück ist es aufgefallen, im Bild nie.
+    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Wie wohnlich es ist</h3>' +
       '<div class="rows"><div class="row">' + ico('icon_heart', 'lg') +
       '<div class="grow"><div class="title">' + escapeHtml(stufe.name) + '</div>' +
       '<div class="meta">' +

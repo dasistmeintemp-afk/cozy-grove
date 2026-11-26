@@ -53,3 +53,29 @@ test('der Zwischenspeicher darf den alten Stand nicht festhalten', () => {
   assert.match(kopf, /^\/\*/m, 'die Regel muss für alle Pfade gelten');
   assert.match(kopf, /Cache-Control:\s*no-cache/i);
 });
+
+test('Keine Überschrift steht im selben Fenster zweimal', () => {
+  // „Dein Zuhause" stand im Lager-Fenster zweimal, acht Zeilen
+  // auseinander, über zwei verschiedenen Dingen: oben die vier
+  // Ausbaustufen, darunter die Wohnlichkeit. Im Bild fällt so etwas nie
+  // auf – man liest die Abschnitte nacheinander und nicht am Stück.
+  //
+  // Gelesen wird der Quelltext, nicht das fertige Fenster: Die
+  // Überschriften stehen als Zeichenketten in `panels.js`, und ein
+  // Browserlauf dafür wäre zwei Minuten für eine Zeile.
+  const quelle = readFileSync(
+    new URL('../../src/ui/panels.js', import.meta.url), 'utf8');
+  const gefunden = Object.create(null);
+  const doppelt = [];
+  const re = /<h3[^>]*>([^<+']+)<\/h3>/g;
+  let m = re.exec(quelle);
+  while (m) {
+    const titel = m[1].trim();
+    // Überschriften mit eingesetzten Werten („· 3 von 9") stehen nur
+    // einmal im Quelltext; hier zählt der feste Teil.
+    if (titel && gefunden[titel]) doppelt.push(titel);
+    gefunden[titel] = 1;
+    m = re.exec(quelle);
+  }
+  assert.deepEqual(doppelt, [], 'doppelte Überschrift: ' + doppelt.join(', '));
+});
