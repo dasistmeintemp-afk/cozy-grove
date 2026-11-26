@@ -33986,6 +33986,7 @@ const DAYBOOK_ROWS = [
   { key: 'sets', icon: 'icon_bookstack', ein: 'Reihe im Fundbuch voll', mehr: 'Reihen im Fundbuch voll' },
   { key: 'milestones', icon: 'icon_star', ein: 'Meilenstein erreicht', mehr: 'Meilensteine erreicht' },
   { key: 'kapitel', icon: 'icon_map', ein: 'Kapitel aufgeschlagen', mehr: 'Kapitel aufgeschlagen' },
+  { key: 'abzeichen', icon: 'icon_quest', ein: 'Abzeichen verdient', mehr: 'Abzeichen verdient' },
   { key: 'momente', icon: 'icon_sparkle', ein: 'Moment bemerkt', mehr: 'Momente bemerkt' },
   { key: 'sternbilder', icon: 'icon_star', ein: 'Sternbild gefunden', mehr: 'Sternbilder gefunden' },
   { key: 'erzaehlt', icon: 'icon_bookstack', ein: 'Geschichte erzählt', mehr: 'Geschichten erzählt' },
@@ -38376,6 +38377,311 @@ __e.getItem = getItem;
 
 };
 
+__defs["src/game/abzeichen.js"] = function (__e) {
+/**
+ * Abzeichen – was aus dem wird, was ohnehin gezählt wird.
+ *
+ * **Warum es sie gibt.** Das Spiel zählt eine Menge mit: das Fundbuch jede
+ * Art und jedes Stück, `records.js` jeden Fischrekord, `pfade.js` jede
+ * abgelaufene Kachel, `momente.js` jeden bemerkten Augenblick,
+ * `sternbilder.js` jedes Bild am Himmel, `orte.js` jeden selbst vergebenen
+ * Namen. Sichtbar war davon fast nichts – sechs Zeilen Chronik, und das
+ * war es. Zahlen, die niemand sieht, sind keine Belohnung, sondern
+ * Buchhaltung.
+ *
+ * **Sie zählen nichts Neues mit.** Dieselbe Regel wie in `chronik.js`, und
+ * zwar aus demselben Grund: Eine zweite Buchführung weicht irgendwann von
+ * der ersten ab, und ein alter Spielstand stünde auf Null. Jeder Wert hier
+ * kommt aus einem Feld, das es längst gibt.
+ *
+ * **Einmal erreicht, bleibt erreicht.** Das ist nicht Bequemlichkeit,
+ * sondern Notwendigkeit: Zwei der Zahlen können SINKEN. Trampelpfade
+ * verblassen täglich, und ein Weg, den man eine Woche nicht geht, ist weg
+ * (siehe `pfade.js`). Wer dafür ein Abzeichen bekäme und es beim nächsten
+ * Nachsehen wieder los wäre, würde zu Recht wütend. Deshalb steht im
+ * Spielstand die ERREICHTE Stufe und nicht der Wert, und `faellig` gibt
+ * nur, was über dieser Stufe liegt.
+ *
+ * **Zehn Abzeichen, vier Stufen, vierzig Namen.** Eine Stufe ohne eigenen
+ * Namen wäre ein Fortschrittsbalken mit Umweg. Der Name ist das, was man
+ * behält – „Alteingesessen" sagt mehr über hundert Tage als die Zahl.
+ *
+ * **Die Schwellen sind gemessen, nicht geraten.** Wo eine Obergrenze
+ * feststeht (127 Arten, 9 Sammelreihen, 8 Fischarten, 8 Orte, 8
+ * Sternbilder, 43 Momente), steht sie als letzte Stufe. Wo keine
+ * feststeht, stammt die Zahl aus dem Tempomodell, mit dem auch die
+ * Meilensteine gerechnet sind: rund fünfzehn erfüllte Bitten am Tag, die
+ * Insel nach gut fünf Wochen ganz bunt. Bei den Pfaden ist das Sternnetz
+ * vom Lager zu allen acht Geistern 397 Kacheln breit – die letzte Stufe
+ * steht bei 300 und heißt deshalb „Überall schon gewesen".
+ *
+ * Alles hier ist reine Rechnung auf einer übergebenen Lage – dieselbe Naht
+ * wie bei `chronikZeilen` und `rollSize`, damit es ohne Browser und ohne
+ * halbes Spiel prüfbar bleibt.
+ */
+
+/** Die drei Familien, in der Reihenfolge, in der sie angezeigt werden. */
+const FAMILIEN = [
+  { id: 'sammeln', name: 'Sammeln' },
+  { id: 'erkunden', name: 'Erkunden' },
+  { id: 'ausdauer', name: 'Ausdauer' },
+];
+
+const FAMILIE_IDS = FAMILIEN.map(function (f) { return f.id; });
+
+/**
+ * Was eine Stufe einbringt.
+ *
+ * Glut, nicht Münzen: Glut ist die knappe Währung (ein Auftrag bringt
+ * eine bis fünf, ein Bauplan kostet drei bis vier), und genau deshalb ist
+ * sie das Geschenk, das man merkt. Über alle zehn Abzeichen und alle vier
+ * Stufen sind das 460 Glut – bei rund 45 am Tag aus Aufträgen also etwa
+ * zehn Tagesverdienste, verteilt über ein ganzes langes Spiel. Spürbar,
+ * aber es dreht die Wirtschaft nicht um.
+ */
+const LOHN = [3, 6, 12, 25];
+
+/** Wie viele Stufen jedes Abzeichen hat. */
+const STUFEN = 4;
+
+/**
+ * Die Abzeichen.
+ *
+ * `wert` liest aus der Lage und rechnet nichts aus – wer hier rechnet,
+ * baut die zweite Buchführung, die oben ausgeschlossen ist.
+ */
+const ABZEICHEN = [
+  // ---------------------------- Sammeln ----------------------------
+  {
+    id: 'arten', familie: 'sammeln', icon: 'icon_bookstack',
+    name: 'Das Fundbuch',
+    was: 'Arten, denen du begegnet bist',
+    wert: function (l) { return l.arten || 0; },
+    schwellen: [25, 55, 90, 127],
+    namen: ['Neugierig', 'Vertraut', 'Kennerin', 'Nichts Neues mehr'],
+  },
+  {
+    id: 'dinge', familie: 'sammeln', icon: 'icon_bag',
+    name: 'Volle Taschen',
+    was: 'Dinge, die je in der Tasche lagen',
+    wert: function (l) { return l.dinge || 0; },
+    schwellen: [250, 1200, 3500, 9000],
+    namen: ['Aufgehoben', 'Angehäuft', 'Gehortet', 'Nichts weggeworfen'],
+  },
+  {
+    id: 'reihen', familie: 'sammeln', icon: 'icon_shell',
+    name: 'Die Vitrine',
+    was: 'vollständige Sammelreihen',
+    wert: function (l) { return l.reihen || 0; },
+    schwellen: [1, 3, 6, 9],
+    namen: ['Angefangen', 'Im Regal', 'Beinahe vollständig', 'Lückenlos'],
+  },
+  {
+    id: 'fische', familie: 'sammeln', icon: 'icon_rod',
+    name: 'Am Wasser',
+    was: 'Fischarten mit eigenem Maß',
+    wert: function (l) { return l.fische || 0; },
+    schwellen: [2, 4, 6, 8],
+    namen: ['Nass geworden', 'Geduldig', 'Mit Gefühl', 'Jede Art gemessen'],
+  },
+  // --------------------------- Erkunden ----------------------------
+  {
+    id: 'pfade', familie: 'erkunden', icon: 'icon_path_tile',
+    name: 'Ausgetreten',
+    was: 'Kacheln mit sichtbarem Pfad',
+    wert: function (l) { return l.pfade || 0; },
+    schwellen: [15, 60, 150, 300],
+    namen: ['Ein Trampelpfad', 'Ein Weg', 'Ein Wegenetz', 'Überall schon gewesen'],
+  },
+  {
+    id: 'orte', familie: 'erkunden', icon: 'icon_signpost',
+    name: 'Auf den Namen',
+    was: 'Orte, die du selbst benannt hast',
+    wert: function (l) { return l.orte || 0; },
+    schwellen: [1, 3, 5, 8],
+    namen: ['Erster Name', 'Drei Namen', 'Eigene Karte', 'Alles benannt'],
+  },
+  {
+    id: 'sterne', familie: 'erkunden', icon: 'icon_star',
+    name: 'Der klare Himmel',
+    was: 'gefundene Sternbilder',
+    wert: function (l) { return l.sterne || 0; },
+    schwellen: [2, 4, 6, 8],
+    namen: ['Hochgeschaut', 'Vier Bilder', 'Fast alle', 'Der ganze Himmel'],
+  },
+  // --------------------------- Ausdauer ----------------------------
+  {
+    id: 'tage', familie: 'ausdauer', icon: 'icon_day',
+    name: 'Auf der Insel',
+    was: 'Tage hier',
+    wert: function (l) { return l.tage || 0; },
+    schwellen: [7, 21, 50, 100],
+    namen: ['Angekommen', 'Eingelebt', 'Dazugehörig', 'Alteingesessen'],
+  },
+  {
+    id: 'bitten', familie: 'ausdauer', icon: 'icon_quest',
+    name: 'Immer zur Stelle',
+    was: 'erfüllte Bitten',
+    wert: function (l) { return l.bitten || 0; },
+    schwellen: [25, 100, 300, 600],
+    namen: ['Hilfsbereit', 'Verlässlich', 'Unentbehrlich', 'Niemand fragt umsonst'],
+  },
+  {
+    id: 'momente', familie: 'ausdauer', icon: 'icon_sparkle',
+    name: 'Hingesehen',
+    was: 'bemerkte Momente',
+    wert: function (l) { return l.momente || 0; },
+    schwellen: [5, 15, 30, 43],
+    namen: ['Bemerkt', 'Wachsam', 'Nichts entgeht dir', 'Alle Momente'],
+  },
+];
+
+const ABZEICHEN_IDS = ABZEICHEN.map(function (a) { return a.id; });
+
+/** Ein Abzeichen nachschlagen. */
+function abzeichenVon(id) {
+  for (let i = 0; i < ABZEICHEN.length; i++) {
+    if (ABZEICHEN[i].id === id) return ABZEICHEN[i];
+  }
+  return null;
+}
+
+/** Wie viele Stufen es insgesamt zu holen gibt. */
+const STUFEN_GESAMT = ABZEICHEN.length * STUFEN;
+
+/** Leerer Stand: Kennung → erreichte Stufe. */
+function emptyAbzeichen() {
+  return Object.create(null);
+}
+
+/**
+ * Einen gespeicherten Stand einlesen und säubern.
+ *
+ * Unbekannte Kennungen fliegen heraus, nicht nur aus Ordnungsliebe: Würde
+ * ein Abzeichen je umbenannt, hinge sonst für immer eine Stufe im Stand,
+ * die zu nichts gehört, und die Zählung „27 von 40" stimmte nicht mehr.
+ */
+function abzeichenAus(roh) {
+  const out = emptyAbzeichen();
+  if (!roh || typeof roh !== 'object') return out;
+  for (let i = 0; i < ABZEICHEN.length; i++) {
+    const id = ABZEICHEN[i].id;
+    const n = Math.floor(Number(roh[id]));
+    if (!(n > 0)) continue;
+    out[id] = Math.min(STUFEN, n);
+  }
+  return out;
+}
+
+/** Welche Stufe dieser Wert hergibt – 0, wenn noch keine. */
+function stufeFuerWert(abz, n) {
+  let s = 0;
+  for (let i = 0; i < abz.schwellen.length; i++) {
+    if ((n || 0) >= abz.schwellen[i]) s = i + 1;
+  }
+  return s;
+}
+
+/** Welche Stufe im Stand steht. */
+function stufeVon(erreicht, id) {
+  const n = erreicht ? erreicht[id] : 0;
+  return n > 0 ? Math.min(STUFEN, n) : 0;
+}
+
+/**
+ * Was gerade fällig ist – und zwar jede Stufe einzeln.
+ *
+ * Wer mit einem alten Spielstand ankommt, hat womöglich drei Stufen auf
+ * einmal offen. Die kommen dann auch alle drei, jede mit ihrem Namen und
+ * ihrem Lohn – dieselbe Entscheidung wie bei `dueAt` in `milestones.js`.
+ *
+ * @returns {Array} [{abzeichen, stufe, name, lohn}] von unten nach oben
+ */
+function faellig(lage, erreicht) {
+  const raus = [];
+  const l = lage || {};
+  for (let i = 0; i < ABZEICHEN.length; i++) {
+    const a = ABZEICHEN[i];
+    const hat = stufeVon(erreicht, a.id);
+    const soll = stufeFuerWert(a, a.wert(l));
+    for (let s = hat + 1; s <= soll; s++) {
+      raus.push({ abzeichen: a, stufe: s, name: a.namen[s - 1], lohn: LOHN[s - 1] });
+    }
+  }
+  return raus;
+}
+
+/** Eine Stufe eintragen. Zurück geht es nie. */
+function merke(erreicht, id, stufe) {
+  const stand = erreicht || emptyAbzeichen();
+  const neu = Math.min(STUFEN, Math.max(0, Math.floor(stufe || 0)));
+  if (neu > stufeVon(stand, id)) stand[id] = neu;
+  return stand;
+}
+
+/**
+ * Alles, was die Anzeige braucht – eine Zeile je Abzeichen.
+ *
+ * Der angezeigte Wert ist der WIRKLICHE, nicht der, der zur Stufe passt:
+ * Wer seine Pfade hat verwachsen lassen, soll das sehen. Das Abzeichen
+ * bleibt trotzdem.
+ *
+ * @param {object} lage die rohen Zahlen
+ * @param {object} erreicht der Spielstand
+ * @returns {Array} [{familie, zeilen: [...]}]
+ */
+function abzeichenStand(lage, erreicht) {
+  const l = lage || {};
+  const raus = [];
+  for (let f = 0; f < FAMILIEN.length; f++) {
+    const zeilen = [];
+    for (let i = 0; i < ABZEICHEN.length; i++) {
+      const a = ABZEICHEN[i];
+      if (a.familie !== FAMILIEN[f].id) continue;
+      const wert = a.wert(l);
+      const stufe = stufeVon(erreicht, a.id);
+      const naechste = stufe < STUFEN ? a.schwellen[stufe] : null;
+      zeilen.push({
+        id: a.id, icon: a.icon, name: a.name, was: a.was,
+        wert: wert, stufe: stufe,
+        // Der Name der ERREICHTEN Stufe, nicht der nächsten: Was man hat,
+        // steht da; was fehlt, steht als Zahl daneben.
+        titel: stufe > 0 ? a.namen[stufe - 1] : '',
+        naechste: naechste,
+        fehlt: naechste == null ? 0 : Math.max(0, naechste - wert),
+      });
+    }
+    raus.push({ id: FAMILIEN[f].id, name: FAMILIEN[f].name, zeilen: zeilen });
+  }
+  return raus;
+}
+
+/** Wie viele Stufen erreicht sind – für die Zeile über der Liste. */
+function stufenGesamt(erreicht) {
+  let n = 0;
+  for (let i = 0; i < ABZEICHEN.length; i++) n += stufeVon(erreicht, ABZEICHEN[i].id);
+  return { erreicht: n, gesamt: STUFEN_GESAMT };
+}
+
+__e.FAMILIEN = FAMILIEN;
+__e.FAMILIE_IDS = FAMILIE_IDS;
+__e.LOHN = LOHN;
+__e.STUFEN = STUFEN;
+__e.ABZEICHEN = ABZEICHEN;
+__e.ABZEICHEN_IDS = ABZEICHEN_IDS;
+__e.STUFEN_GESAMT = STUFEN_GESAMT;
+__e.abzeichenVon = abzeichenVon;
+__e.emptyAbzeichen = emptyAbzeichen;
+__e.abzeichenAus = abzeichenAus;
+__e.stufeFuerWert = stufeFuerWert;
+__e.stufeVon = stufeVon;
+__e.faellig = faellig;
+__e.merke = merke;
+__e.abzeichenStand = abzeichenStand;
+__e.stufenGesamt = stufenGesamt;
+
+};
+
 __defs["src/game/mail.js"] = function (__e) {
 /**
  * Die Post – ein Grund, morgens zuerst zum Briefkasten zu gehen.
@@ -39219,6 +39525,181 @@ __e.launeWort = launeWort;
 __e.saeubereName = saeubereName;
 __e.nameVon = nameVon;
 __e.istBenannt = istBenannt;
+
+};
+
+__defs["src/game/chronik.js"] = function (__e) {
+/**
+ * Die Chronik – was aus all den Tagen geworden ist.
+ *
+ * Der Tagesrückblick zeigt **einen** Tag und ist am nächsten Morgen weg. Über
+ * die ganze Zeit gab es bis hierher nichts: keine Antwort auf „wie lange bin
+ * ich schon hier", „was habe ich eigentlich alles gefangen", „wie groß war
+ * der größte". Wer sechs Wochen auf dieser Insel verbracht hat, konnte das
+ * nirgends sehen.
+ *
+ * **Sie zählt nichts Neues mit.** Das ist die ganze Idee: Die Zahlen liegen
+ * längst im Spielstand – das Fundbuch weiß, wie viel von jeder Sorte je in
+ * der Tasche lag, `records.js` kennt jeden Rekord, das Aufgabenbuch die
+ * erfüllten Bitten. Eine zweite Buchführung daneben wäre eine zweite
+ * Wahrheit, die irgendwann von der ersten abweicht – und ein Spielstand, der
+ * sie nicht hat, stünde auf Null.
+ *
+ * **Sechs Zeilen, keine Tabelle.** Es gäbe gut zwanzig Zahlen; zwanzig Zahlen
+ * sind eine Abrechnung. Hier stehen die, von denen man jemandem erzählen
+ * würde.
+ */
+const { getItem, ITEM_LIST, CAT } = __req("src/game/items.js");
+const { spanneFuer } = __req("src/game/records.js");
+
+/**
+ * Wie viele Dinge insgesamt je in der Tasche lagen.
+ *
+ * Aus dem Fundbuch gerechnet. Es zählt bei JEDEM `add` mit – Gefundenes,
+ * Gekauftes, Gebautes, Gefischtes. Deshalb heißt die Zeile „in der Tasche
+ * gehabt" und nicht „gesammelt": Das eine wäre gelogen.
+ */
+function dingeGesamt(found) {
+  let n = 0;
+  for (const id in (found || {})) n += found[id] || 0;
+  return n;
+}
+
+/** Wie viele Arten das Fundbuch kennt – und wie viele es überhaupt gibt. */
+function artenStand(found) {
+  const kennt = Object.keys(found || {}).length;
+  // Erinnerungen und Andenken zählen nicht mit: Sie kommen aus den
+  // Geschichten, nicht aus der Welt, und eine Zahl, die man nicht durch
+  // Suchen vollmachen kann, gehört nicht in eine Fortschrittszeile.
+  let gibt = 0;
+  for (let i = 0; i < ITEM_LIST.length; i++) {
+    const id = ITEM_LIST[i].id;
+    if (id.indexOf('memory_') === 0 || id.indexOf('keepsake_') === 0) continue;
+    gibt++;
+  }
+  return { kennt: Math.min(kennt, gibt), gibt: gibt };
+}
+
+/**
+ * Der größte Fang – Art und Maß.
+ *
+ * Nicht die größte Zahl in Zentimetern: Ein Wels wird nun einmal länger als
+ * eine Sardine, und dann stünde dort für immer derselbe Fisch. Gemessen wird,
+ * wie nah der Fang an dem war, was diese ART hergibt – eine 21-cm-Sardine ist
+ * das größere Kunststück als ein mittelmäßiger Wels.
+ */
+function groessterFang(records) {
+  let best = null;
+  for (const id in (records || {})) {
+    const cm = records[id];
+    if (!cm) continue;
+    const sp = spanneFuer(id);
+    const anteil = (cm - sp[0]) / Math.max(1, sp[1] - sp[0]);
+    if (!best || anteil > best.anteil) {
+      best = { id: id, cm: cm, anteil: anteil, name: (getItem(id) || {}).name || id };
+    }
+  }
+  return best;
+}
+
+/** Wie viele Bitten insgesamt erfüllt wurden. */
+function bittenGesamt(completedBySpirit) {
+  let n = 0;
+  for (const id in (completedBySpirit || {})) n += completedBySpirit[id] || 0;
+  return n;
+}
+
+/**
+ * Ein Satz zu der Zeit, die vergangen ist.
+ *
+ * Wie die Wohnstufe im Zimmer: kein Rang und keine Rechte, nur ein Wort.
+ * Die Schwellen sind an Inseltagen gemessen, und ein Inseltag dauert
+ * vierzehn Minuten – Tag 60 ist also kein Jubiläum, sondern ein guter
+ * Nachmittag mal vier.
+ */
+const ZEIT_SAETZE = [
+  { ab: 0, text: 'Gerade erst angekommen.' },
+  { ab: 8, text: 'Die Wege sind schon vertraut.' },
+  { ab: 25, text: 'Lange genug, um zu wissen, wo was wächst.' },
+  { ab: 60, text: 'Das hier ist kein Aufenthalt mehr. Das ist Zuhause.' },
+  { ab: 140, text: 'Die Insel und du kennt einander inzwischen ziemlich gut.' },
+];
+
+function zeitSatz(tage) {
+  let s = ZEIT_SAETZE[0];
+  for (let i = 0; i < ZEIT_SAETZE.length; i++) {
+    if ((tage || 0) >= ZEIT_SAETZE[i].ab) s = ZEIT_SAETZE[i];
+  }
+  return s.text;
+}
+
+/**
+ * Die Chronik als Zeilen.
+ *
+ * `lage` ist bewusst nur eine Handvoll roher Werte und kein `Game`: So lässt
+ * sich das hier ohne Browser und ohne halbes Spiel prüfen – dieselbe Naht wie
+ * bei `rollSize`, das seinen Zufall übergeben bekommt.
+ *
+ * @param {object} lage {tag, farbe, found, caught, records, bitten, meilensteine}
+ * @returns {Array} [{icon, wert, text}]
+ */
+function chronikZeilen(lage) {
+  const l = lage || {};
+  const arten = artenStand(l.found);
+  const gross = groessterFang(l.records);
+  const raus = [
+    {
+      key: 'tage', icon: 'icon_day',
+      wert: String(l.tag || 1),
+      text: (l.tag || 1) === 1 ? 'Tag auf der Insel' : 'Tage auf der Insel',
+    },
+    {
+      key: 'farbe', icon: 'icon_color',
+      wert: Math.round((l.farbe || 0) * 100) + ' %',
+      text: 'der Insel wieder bunt',
+    },
+    {
+      key: 'bitten', icon: 'icon_check',
+      wert: String(l.bitten || 0),
+      text: (l.bitten || 0) === 1 ? 'Bitte erfüllt' : 'Bitten erfüllt',
+    },
+    {
+      key: 'arten', icon: 'icon_bookstack',
+      wert: arten.kennt + ' von ' + arten.gibt,
+      text: 'Dingen schon einmal begegnet',
+    },
+    {
+      key: 'dinge', icon: 'icon_bag',
+      wert: String(dingeGesamt(l.found)),
+      text: 'Dinge in der Tasche gehabt',
+    },
+  ];
+  // Der größte Fang steht nur da, wenn überhaupt einer geangelt wurde. Eine
+  // Zeile „größter Fang: –" wäre ein Vorwurf, und das Spiel macht keine.
+  if (gross) {
+    raus.push({
+      key: 'fang', icon: 'icon_' + gross.id,
+      wert: gross.cm + ' cm',
+      text: 'größter Fang: ' + gross.name,
+    });
+  }
+  return raus;
+}
+
+/** Nur zur Sicherheit: Fische haben eine Spanne, alles andere nicht. */
+function istFisch(id) {
+  const it = getItem(id);
+  return !!(it && it.cat === CAT.FISH);
+}
+
+__e.ZEIT_SAETZE = ZEIT_SAETZE;
+__e.dingeGesamt = dingeGesamt;
+__e.artenStand = artenStand;
+__e.groessterFang = groessterFang;
+__e.bittenGesamt = bittenGesamt;
+__e.zeitSatz = zeitSatz;
+__e.chronikZeilen = chronikZeilen;
+__e.istFisch = istFisch;
 
 };
 
@@ -40599,181 +41080,6 @@ __e.UI = UI;
 
 };
 
-__defs["src/game/chronik.js"] = function (__e) {
-/**
- * Die Chronik – was aus all den Tagen geworden ist.
- *
- * Der Tagesrückblick zeigt **einen** Tag und ist am nächsten Morgen weg. Über
- * die ganze Zeit gab es bis hierher nichts: keine Antwort auf „wie lange bin
- * ich schon hier", „was habe ich eigentlich alles gefangen", „wie groß war
- * der größte". Wer sechs Wochen auf dieser Insel verbracht hat, konnte das
- * nirgends sehen.
- *
- * **Sie zählt nichts Neues mit.** Das ist die ganze Idee: Die Zahlen liegen
- * längst im Spielstand – das Fundbuch weiß, wie viel von jeder Sorte je in
- * der Tasche lag, `records.js` kennt jeden Rekord, das Aufgabenbuch die
- * erfüllten Bitten. Eine zweite Buchführung daneben wäre eine zweite
- * Wahrheit, die irgendwann von der ersten abweicht – und ein Spielstand, der
- * sie nicht hat, stünde auf Null.
- *
- * **Sechs Zeilen, keine Tabelle.** Es gäbe gut zwanzig Zahlen; zwanzig Zahlen
- * sind eine Abrechnung. Hier stehen die, von denen man jemandem erzählen
- * würde.
- */
-const { getItem, ITEM_LIST, CAT } = __req("src/game/items.js");
-const { spanneFuer } = __req("src/game/records.js");
-
-/**
- * Wie viele Dinge insgesamt je in der Tasche lagen.
- *
- * Aus dem Fundbuch gerechnet. Es zählt bei JEDEM `add` mit – Gefundenes,
- * Gekauftes, Gebautes, Gefischtes. Deshalb heißt die Zeile „in der Tasche
- * gehabt" und nicht „gesammelt": Das eine wäre gelogen.
- */
-function dingeGesamt(found) {
-  let n = 0;
-  for (const id in (found || {})) n += found[id] || 0;
-  return n;
-}
-
-/** Wie viele Arten das Fundbuch kennt – und wie viele es überhaupt gibt. */
-function artenStand(found) {
-  const kennt = Object.keys(found || {}).length;
-  // Erinnerungen und Andenken zählen nicht mit: Sie kommen aus den
-  // Geschichten, nicht aus der Welt, und eine Zahl, die man nicht durch
-  // Suchen vollmachen kann, gehört nicht in eine Fortschrittszeile.
-  let gibt = 0;
-  for (let i = 0; i < ITEM_LIST.length; i++) {
-    const id = ITEM_LIST[i].id;
-    if (id.indexOf('memory_') === 0 || id.indexOf('keepsake_') === 0) continue;
-    gibt++;
-  }
-  return { kennt: Math.min(kennt, gibt), gibt: gibt };
-}
-
-/**
- * Der größte Fang – Art und Maß.
- *
- * Nicht die größte Zahl in Zentimetern: Ein Wels wird nun einmal länger als
- * eine Sardine, und dann stünde dort für immer derselbe Fisch. Gemessen wird,
- * wie nah der Fang an dem war, was diese ART hergibt – eine 21-cm-Sardine ist
- * das größere Kunststück als ein mittelmäßiger Wels.
- */
-function groessterFang(records) {
-  let best = null;
-  for (const id in (records || {})) {
-    const cm = records[id];
-    if (!cm) continue;
-    const sp = spanneFuer(id);
-    const anteil = (cm - sp[0]) / Math.max(1, sp[1] - sp[0]);
-    if (!best || anteil > best.anteil) {
-      best = { id: id, cm: cm, anteil: anteil, name: (getItem(id) || {}).name || id };
-    }
-  }
-  return best;
-}
-
-/** Wie viele Bitten insgesamt erfüllt wurden. */
-function bittenGesamt(completedBySpirit) {
-  let n = 0;
-  for (const id in (completedBySpirit || {})) n += completedBySpirit[id] || 0;
-  return n;
-}
-
-/**
- * Ein Satz zu der Zeit, die vergangen ist.
- *
- * Wie die Wohnstufe im Zimmer: kein Rang und keine Rechte, nur ein Wort.
- * Die Schwellen sind an Inseltagen gemessen, und ein Inseltag dauert
- * vierzehn Minuten – Tag 60 ist also kein Jubiläum, sondern ein guter
- * Nachmittag mal vier.
- */
-const ZEIT_SAETZE = [
-  { ab: 0, text: 'Gerade erst angekommen.' },
-  { ab: 8, text: 'Die Wege sind schon vertraut.' },
-  { ab: 25, text: 'Lange genug, um zu wissen, wo was wächst.' },
-  { ab: 60, text: 'Das hier ist kein Aufenthalt mehr. Das ist Zuhause.' },
-  { ab: 140, text: 'Die Insel und du kennt einander inzwischen ziemlich gut.' },
-];
-
-function zeitSatz(tage) {
-  let s = ZEIT_SAETZE[0];
-  for (let i = 0; i < ZEIT_SAETZE.length; i++) {
-    if ((tage || 0) >= ZEIT_SAETZE[i].ab) s = ZEIT_SAETZE[i];
-  }
-  return s.text;
-}
-
-/**
- * Die Chronik als Zeilen.
- *
- * `lage` ist bewusst nur eine Handvoll roher Werte und kein `Game`: So lässt
- * sich das hier ohne Browser und ohne halbes Spiel prüfen – dieselbe Naht wie
- * bei `rollSize`, das seinen Zufall übergeben bekommt.
- *
- * @param {object} lage {tag, farbe, found, caught, records, bitten, meilensteine}
- * @returns {Array} [{icon, wert, text}]
- */
-function chronikZeilen(lage) {
-  const l = lage || {};
-  const arten = artenStand(l.found);
-  const gross = groessterFang(l.records);
-  const raus = [
-    {
-      key: 'tage', icon: 'icon_day',
-      wert: String(l.tag || 1),
-      text: (l.tag || 1) === 1 ? 'Tag auf der Insel' : 'Tage auf der Insel',
-    },
-    {
-      key: 'farbe', icon: 'icon_color',
-      wert: Math.round((l.farbe || 0) * 100) + ' %',
-      text: 'der Insel wieder bunt',
-    },
-    {
-      key: 'bitten', icon: 'icon_check',
-      wert: String(l.bitten || 0),
-      text: (l.bitten || 0) === 1 ? 'Bitte erfüllt' : 'Bitten erfüllt',
-    },
-    {
-      key: 'arten', icon: 'icon_bookstack',
-      wert: arten.kennt + ' von ' + arten.gibt,
-      text: 'Dingen schon einmal begegnet',
-    },
-    {
-      key: 'dinge', icon: 'icon_bag',
-      wert: String(dingeGesamt(l.found)),
-      text: 'Dinge in der Tasche gehabt',
-    },
-  ];
-  // Der größte Fang steht nur da, wenn überhaupt einer geangelt wurde. Eine
-  // Zeile „größter Fang: –" wäre ein Vorwurf, und das Spiel macht keine.
-  if (gross) {
-    raus.push({
-      key: 'fang', icon: 'icon_' + gross.id,
-      wert: gross.cm + ' cm',
-      text: 'größter Fang: ' + gross.name,
-    });
-  }
-  return raus;
-}
-
-/** Nur zur Sicherheit: Fische haben eine Spanne, alles andere nicht. */
-function istFisch(id) {
-  const it = getItem(id);
-  return !!(it && it.cat === CAT.FISH);
-}
-
-__e.ZEIT_SAETZE = ZEIT_SAETZE;
-__e.dingeGesamt = dingeGesamt;
-__e.artenStand = artenStand;
-__e.groessterFang = groessterFang;
-__e.bittenGesamt = bittenGesamt;
-__e.zeitSatz = zeitSatz;
-__e.chronikZeilen = chronikZeilen;
-__e.istFisch = istFisch;
-
-};
-
 __defs["src/core/savefile.js"] = function (__e) {
 /**
  * Spielstand als Datei – unabhängig vom Browser.
@@ -41134,6 +41440,7 @@ const { SPIRITS, friendshipLevel, friendshipProgress, birthdayOn } = __req("src/
 const { wannText, heuteIst } = __req("src/game/termine.js");
 const { titel: bildTitel, kennung: bildKennung } = __req("src/game/bild.js");
 const { chronikZeilen, zeitSatz, bittenGesamt } = __req("src/game/chronik.js");
+const { abzeichenStand, stufenGesamt, STUFEN } = __req("src/game/abzeichen.js");
 const { geistName: sternGeist } = __req("src/game/sternbilder.js");
 const { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } = __req("src/game/stories.js");
 const { pointsToNext, COSY_MAX } = __req("src/game/cosiness.js");
@@ -41872,6 +42179,58 @@ class Panels {
     html += '</div>';
     html += this._entdeckt();
     html += this._chronik();
+    html += this._abzeichen();
+    return html;
+  }
+
+  /**
+   * Die Abzeichen – was aus dem geworden ist, was ohnehin gezählt wird.
+   *
+   * Unter der Chronik und nicht in einem eigenen Fenster: Die Chronik
+   * nennt die Zahlen, die Abzeichen sagen, was sie bedeuten. Zwei Fenster
+   * mit denselben Zahlen wären zwei Fenster mit denselben Zahlen.
+   *
+   * Angezeigt wird der WIRKLICHE Wert, auch wenn er unter die erreichte
+   * Stufe gefallen ist – Trampelpfade verwachsen. Das Abzeichen bleibt
+   * trotzdem, siehe `abzeichen.js`.
+   */
+  _abzeichen() {
+    const g = this.game;
+    const erreicht = g.state.abzeichen || {};
+    const familien = abzeichenStand(g.abzeichenLage(), erreicht);
+    const ges = stufenGesamt(erreicht);
+    let html = '<h3 style="font-size:0.95em;margin:16px 0 8px">Abzeichen · ' +
+      ges.erreicht + ' von ' + ges.gesamt + '</h3>';
+    for (let f = 0; f < familien.length; f++) {
+      const fam = familien[f];
+      html += '<p class="empty-note" style="padding:2px 0 6px">' +
+        escapeHtml(fam.name) + '</p><div class="rows">';
+      for (let i = 0; i < fam.zeilen.length; i++) {
+        const z = fam.zeilen[i];
+        let pips = '';
+        for (let k = 0; k < STUFEN; k++) {
+          pips += '<i class="pip' + (k < z.stufe ? ' on' : '') + '"></i>';
+        }
+        // Der Titel der erreichten Stufe steht vorn, weil er das ist, was
+        // man behält. „Noch 12" steht hinten und nur, solange es weitergeht.
+        //
+        // Ohne Stufe steht der Name des Abzeichens oben – und dann NICHT
+        // noch einmal in der Zeile darunter. Genau so stand dort einmal
+        // „Die Vitrine · Die Vitrine 0 vollständige Sammelreihen“.
+        const titel = z.stufe > 0 ? escapeHtml(z.titel) : escapeHtml(z.name);
+        const unten = z.stufe > 0 ? '<span>' + escapeHtml(z.name) + '</span>' : '';
+        const rest = z.naechste == null
+          ? '<span class="row-btn ghost">voll</span>'
+          : '<span class="row-btn ghost">noch ' + z.fehlt + '</span>';
+        html += '<div class="row">' + ico(z.icon, 'lg') +
+          '<div class="grow"><div class="title">' + titel + '</div>' +
+          '<div class="meta">' + unten +
+          '<span><b>' + z.wert + '</b> ' + escapeHtml(z.was) + '</span></div>' +
+          '<div class="cosy-bar" aria-hidden="true">' + pips + '</div></div>' +
+          rest + '</div>';
+      }
+      html += '</div>';
+    }
     return html;
   }
 
@@ -43583,7 +43942,8 @@ const FARB_A = function (n) { return Math.round(n * MASSSTAB * MASSSTAB); };
 const { getItem, itemName, CAT, CONDITIONAL, fishesOf } = __req("src/game/items.js");
 const { RECIPES, recipeById, missingFor, campfireLevelFor } = __req("src/game/recipes.js");
 const { dueAt, perksOf } = __req("src/game/milestones.js");
-const { dueSets } = __req("src/game/collection.js");
+const { dueSets, SET_IDS } = __req("src/game/collection.js");
+const { abzeichenAus, faellig: faelligeAbzeichen, merke: merkeAbzeichen } = __req("src/game/abzeichen.js");
 const { mailFor, fileMail, unreadCount } = __req("src/game/mail.js");
 const { STAGES: LOAN_STAGES, statusOf, pay: payLoan, slotsAt, emptyLoan } = __req("src/game/loan.js");
 const { finaleLine, allHeard, stillSilent, circleSpots, FINALE_CLOSE, FINALE_COUNT } = __req("src/game/finale.js");
@@ -43591,7 +43951,8 @@ const { PLOT_STAGES, plotStage, nextPlotStage, plotBounds, inPlotAt, MAX_PLOT_ST
 const { houseStage, nextHouseStage, houseSprite, houseLight, houseColor, houseFootprint, missingFor: houseMissing } = __req("src/game/house.js");
 const { katalogFuer, katalogEintrag, kannBestellen, bestellen, faellig, emptyOrders, MAX_OFFEN } = __req("src/game/catalog.js");
 const { emptyPet, petArtFor, istZahm, istStreuner, launeAmMorgen, darfFuettern, suchtHeute, bestesFutter, futterWert, petStatus, istRuheplatz, LAUNE_MAX, LAUNE_PRO_FUTTER, ZAHM_NOETIG, saeubereName, nameVon } = __req("src/game/pet.js");
-const { rollSize, noteSize, bestSize, sizeWord, emptyRecords } = __req("src/game/records.js");
+const { rollSize, noteSize, bestSize, sizeWord, emptyRecords, recordCount } = __req("src/game/records.js");
+const { artenStand, dingeGesamt, bittenGesamt } = __req("src/game/chronik.js");
 const { regrowDays } = __req("src/game/seasons.js");
 const { setzlingFuer, setzlingVonBaum, tageFuer, stufeVon, spriteVon, tageBis: setzlingTage, SETZLINGE, AUS_BAUM } = __req("src/game/saplings.js");
 const { MAX_OFFEN: MAX_WUENSCHE, WUNSCH_MEILENSTEIN, wunschBauen, pruefeWunsch, wunschLohn, wunschTitel, wunschIcon, emptyWishes, wunschHier, wunschSorteHier, ORTE: WUNSCH_ORTE, GEDULD_TAGE: WUNSCH_GEDULD, merken, rangFuer, wunschKey } = __req("src/game/wishes.js");
@@ -44126,6 +44487,9 @@ class Game {
     this.state.advent = adventAus(this.state.advent);
     this.state.bewohner = bewohnerAus(this.state.bewohner);
     this.state.pfade = pfadeAus(this.state.pfade);
+    // Die Abzeichen. Ein alter Spielstand hat keine – er holt sie beim
+    // ersten Durchlauf von `_checkAbzeichen` nach, alle auf einmal.
+    this.state.abzeichen = abzeichenAus(this.state.abzeichen);
     // Der Bodenmaler fragt die Abnutzung über diese kleine Brücke ab. Er
     // bekommt eine Funktion und nicht den Stand selbst: So kennt die
     // Grafik das Spielstandsformat nicht, und die Reihenfolge beim Laden
@@ -44451,6 +44815,7 @@ class Game {
     this._momentPruefen(dt);
     this._sternbildPruefen(dt);
     this._checkCollection();
+    this._checkAbzeichen(dt);
     this._petSucht();
     this._petRuht(dt);
     this._updatePet(dt);
@@ -48459,6 +48824,78 @@ class Game {
     }
     this.audio.play('levelup');
     this.particles.burst('sparkle', this.player.x, this.player.y - 60, 18);
+    this.ui.refreshHud();
+    this.save();
+  }
+
+  /* ---------------- Abzeichen ---------------- */
+
+  /**
+   * Die rohen Zahlen für die Abzeichen – alle aus Feldern, die es gibt.
+   *
+   * Eine eigene Methode und kein Stück von `_checkAbzeichen`, weil die
+   * Anzeige dieselben Zahlen braucht: Stünden sie zweimal da, zeigte das
+   * Fenster irgendwann etwas anderes an, als die Prüfung rechnet.
+   */
+  abzeichenLage() {
+    const bezahlt = this.state.collected || {};
+    let reihen = 0;
+    for (let i = 0; i < SET_IDS.length; i++) if (bezahlt[SET_IDS[i]]) reihen++;
+    return {
+      arten: artenStand(this.inventory.found).kennt,
+      dinge: dingeGesamt(this.inventory.found),
+      reihen: reihen,
+      fische: recordCount(this.state.records),
+      // Die SICHTBAREN Kacheln, nicht die gemerkten: Was man im Bild
+      // nicht sieht, ist kein Weg. Dass diese Zahl wieder sinken kann,
+      // ist der Grund, warum `abzeichen.js` Stufen speichert und keine
+      // Werte.
+      pfade: pfadStand(this.state.pfade).sichtbar,
+      orte: orteStand(this.state.orte).vergeben,
+      sterne: sternbilderStand(this.state.sternbilder).gefunden,
+      tage: this.day.day,
+      bitten: bittenGesamt(this.quests.completedBySpirit),
+      momente: momenteStand(this.state.momente).gefunden,
+    };
+  }
+
+  /**
+   * Ist eine Stufe fällig?
+   *
+   * Einmal in der Sekunde, wie bei den Meilensteinen und aus demselben
+   * Grund: Zehn Zahlen zusammenzusuchen ist billig, aber nicht sechzig Mal
+   * je Sekunde billig – `pfadStand` läuft über bis zu 600 Kacheln.
+   *
+   * Mehrere Stufen auf einmal gibt es beim ersten Start eines alten
+   * Spielstands; dann ist eine Sammelmeldung ehrlicher als vierzig
+   * Türmchen hintereinander.
+   */
+  _checkAbzeichen(dt) {
+    this._abzeichenT = (this._abzeichenT || 0) - (dt || 0);
+    if (dt && this._abzeichenT > 0) return;
+    this._abzeichenT = 1;
+    if (!this.state.abzeichen) this.state.abzeichen = abzeichenAus(null);
+
+    const neu = faelligeAbzeichen(this.abzeichenLage(), this.state.abzeichen);
+    if (!neu.length) return;
+
+    let glut = 0;
+    for (let i = 0; i < neu.length; i++) {
+      merkeAbzeichen(this.state.abzeichen, neu[i].abzeichen.id, neu[i].stufe);
+      glut += neu[i].lohn;
+    }
+    this.state.ember += glut;
+    this._note('ember', glut);
+    this._note('abzeichen', neu.length);
+
+    if (neu.length > 1) {
+      this.ui.toast(neu.length + ' Abzeichen erreicht', 'icon_star', 'good');
+    } else {
+      const a = neu[0];
+      this.ui.toast(a.name + ' · ' + a.abzeichen.name, a.abzeichen.icon, 'good');
+    }
+    this.audio.play('levelup');
+    this.particles.burst('sparkle', this.player.x, this.player.y - 60, 16);
     this.ui.refreshHud();
     this.save();
   }

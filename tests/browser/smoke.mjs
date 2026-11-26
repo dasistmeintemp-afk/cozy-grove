@@ -7444,6 +7444,130 @@ async function run() {
       kammer.imStand === 2 && kammer.standVorn === 1 && kammer.standHinten === 1 &&
       kammer.standAusstattung === 'holz/abend', JSON.stringify(kammer));
 
+    // ---- Abzeichen ----
+    //
+    // Die Einheitenpruefung rechnet die Stufen; hier geht es um die Naht
+    // zum Spiel: Kommen die Zahlen aus den Feldern, die es gibt, landet
+    // die Stufe im Spielstand, gibt es die Glut genau einmal, und steht
+    // das Ganze danach im Fenster?
+    const abz = await page.evaluate(async () => {
+      const { STUFEN_GESAMT, stufenGesamt } = await import('/src/game/abzeichen.js');
+      const { MOMENT_IDS } = await import('/src/game/momente.js');
+      const { STERNBILD_IDS } = await import('/src/game/sternbilder.js');
+      const { ITEM_LIST } = await import('/src/game/items.js');
+      const g = window.CozyGrove.game;
+      const r = { gesamt: STUFEN_GESAMT };
+      g.panels.close();
+      // Alles, was hier verbogen wird, kommt am Ende zurueck. Ohne das
+      // stolpert der naechste Block ueber ein Fundbuch mit 70 Eintraegen –
+      // genau so ist diese Pruefung beim ersten Lauf aufgefallen.
+      const merk = {
+        found: Object.assign({}, g.inventory.found),
+        pfade: g.state.pfade,
+        momente: g.state.momente.gefunden,
+        sternbilder: g.state.sternbilder.gefunden,
+        orte: g.state.orte,
+        records: g.state.records,
+        tag: g.day.day,
+        bitten: Object.assign({}, g.quests.completedBySpirit),
+        abzeichen: g.state.abzeichen,
+        glut: g.state.ember,
+        tagebuch: (g.state.daybook && g.state.daybook.abzeichen) || 0,
+      };
+      g.state.abzeichen = {};
+      r.leer = stufenGesamt(g.state.abzeichen).erreicht;
+
+      // Ein gelaufenes Spiel – ausschliesslich ueber Felder, die es gibt.
+      for (let i = 0; i < 70 && i < ITEM_LIST.length; i++) {
+        g.inventory.found[ITEM_LIST[i].id] = 20 + i;
+      }
+      // 80 Kacheln sichtbar, 30 nur gemerkt: So faellt auf, wenn die Lage
+      // die falsche der beiden Zahlen nimmt – bei gleich vielen nicht.
+      for (let i = 0; i < 80; i++) g.state.pfade['90,' + i] = 20;
+      for (let i = 0; i < 30; i++) g.state.pfade['91,' + i] = 5;
+      for (let i = 0; i < 18; i++) g.state.momente.gefunden[MOMENT_IDS[i]] = 3;
+      for (let i = 0; i < 5; i++) g.state.sternbilder.gefunden[STERNBILD_IDS[i]] = 4;
+      g.state.orte = [{ x: 100, y: 100, name: 'Am Steg' }];
+      g.state.records = { fish_trout: 41, fish_carp: 55 };
+      g.day.day = 34;
+      for (const id in g.quests.completedBySpirit) g.quests.completedBySpirit[id] = 20;
+
+      const lage = g.abzeichenLage();
+      r.lage = lage;
+      // Die Lage rechnet nichts selbst aus: Jede Zahl muss in einem Feld
+      // des Spielstands stehen.
+      r.pfadeStimmt = lage.pfade === 80;
+      r.momenteStimmt = lage.momente === 18;
+      r.sterneStimmt = lage.sterne === 5;
+      r.orteStimmt = lage.orte === 1;
+      r.fischeStimmt = lage.fische === 2;
+      r.tageStimmt = lage.tage === 34;
+
+      const vorGlut = g.state.ember;
+      g._abzeichenT = 0;
+      g._checkAbzeichen(0);
+      r.glutDazu = g.state.ember - vorGlut;
+      r.stufen = stufenGesamt(g.state.abzeichen).erreicht;
+      r.tagebuch = (g.state.daybook && g.state.daybook.abzeichen) || 0;
+
+      // Zweimal gibt es nichts.
+      const nochmal = g.state.ember;
+      g._abzeichenT = 0;
+      g._checkAbzeichen(0);
+      r.zweimal = g.state.ember - nochmal;
+
+      // Verwachsene Pfade nehmen nichts weg.
+      const hatte = g.state.abzeichen.pfade;
+      g.state.pfade = {};
+      g._abzeichenT = 0;
+      g._checkAbzeichen(0);
+      r.pfadStufeBleibt = g.state.abzeichen.pfade === hatte && hatte > 0;
+
+      // Und das Ganze steht im Spielstand.
+      g.save();
+      const json = JSON.parse(window.localStorage.getItem('seli-grove:save:v1'));
+      r.imStand = json.state.abzeichen ? Object.keys(json.state.abzeichen).length : 0;
+
+      // Das Fenster zeigt es auch.
+      g.openPanel('quests');
+      const text = document.getElementById('panel-root').textContent;
+      r.ueberschrift = text.indexOf('Abzeichen · ' + r.stufen + ' von ' + STUFEN_GESAMT) >= 0;
+      r.familien = ['Sammeln', 'Erkunden', 'Ausdauer'].every((n) => text.indexOf(n) >= 0);
+      // Ein Stufenname, der bei dieser Lage wirklich dasteht: Fuenf
+      // Sternbilder sind Stufe 2, und die heisst „Vier Bilder".
+      r.einName = text.indexOf('Vier Bilder') >= 0;
+      r.einWas = text.indexOf('Kacheln mit sichtbarem Pfad') >= 0;
+      g.panels.close();
+
+      g.inventory.found = merk.found;
+      g.state.pfade = merk.pfade;
+      g.state.momente.gefunden = merk.momente;
+      g.state.sternbilder.gefunden = merk.sternbilder;
+      g.state.orte = merk.orte;
+      g.state.records = merk.records;
+      g.day.day = merk.tag;
+      g.quests.completedBySpirit = merk.bitten;
+      g.state.abzeichen = merk.abzeichen;
+      g.state.ember = merk.glut;
+      if (g.state.daybook) g.state.daybook.abzeichen = merk.tagebuch;
+      g.save();
+      return r;
+    });
+    check('Die Abzeichen lesen nur Zahlen, die es schon gibt',
+      abz.pfadeStimmt && abz.momenteStimmt && abz.sterneStimmt &&
+      abz.orteStimmt && abz.fischeStimmt && abz.tageStimmt, JSON.stringify(abz));
+    check('Ein gelaufenes Spiel holt seine Abzeichen nach – mit Glut und Tagebuchzeile',
+      abz.leer === 0 && abz.stufen > 8 && abz.stufen < abz.gesamt &&
+      abz.glutDazu > 0 && abz.tagebuch >= abz.stufen, JSON.stringify(abz));
+    check('Dieselbe Stufe gibt es kein zweites Mal',
+      abz.zweimal === 0, JSON.stringify(abz));
+    check('Ein verwachsener Pfad nimmt das Abzeichen nicht wieder weg',
+      abz.pfadStufeBleibt === true, JSON.stringify(abz));
+    check('Die Abzeichen stehen im Spielstand und im Fenster',
+      abz.imStand >= 8 && abz.ueberschrift && abz.familien &&
+      abz.einName && abz.einWas,
+      JSON.stringify(abz));
+
     // ---- Die Werkbank in der Kammer ----
     //
     // Der Grund, überhaupt länger als zum Schlafen hineinzugehen. Geprüft

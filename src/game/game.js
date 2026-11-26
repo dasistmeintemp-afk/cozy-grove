@@ -123,7 +123,10 @@ const FARB_A = function (n) { return Math.round(n * MASSSTAB * MASSSTAB); };
 import { getItem, itemName, CAT, CONDITIONAL, fishesOf } from './items.js';
 import { RECIPES, recipeById, missingFor, campfireLevelFor } from './recipes.js';
 import { dueAt, perksOf } from './milestones.js';
-import { dueSets } from './collection.js';
+import { dueSets, SET_IDS } from './collection.js';
+import {
+  abzeichenAus, faellig as faelligeAbzeichen, merke as merkeAbzeichen,
+} from './abzeichen.js';
 import { mailFor, fileMail, unreadCount } from './mail.js';
 import { STAGES as LOAN_STAGES, statusOf, pay as payLoan, slotsAt, emptyLoan } from './loan.js';
 import { finaleLine, allHeard, stillSilent, circleSpots, FINALE_CLOSE, FINALE_COUNT } from './finale.js';
@@ -145,7 +148,8 @@ import {
   suchtHeute, bestesFutter, futterWert, petStatus, istRuheplatz,
   LAUNE_MAX, LAUNE_PRO_FUTTER, ZAHM_NOETIG, saeubereName, nameVon,
 } from './pet.js';
-import { rollSize, noteSize, bestSize, sizeWord, emptyRecords } from './records.js';
+import { rollSize, noteSize, bestSize, sizeWord, emptyRecords, recordCount } from './records.js';
+import { artenStand, dingeGesamt, bittenGesamt } from './chronik.js';
 import { regrowDays } from './seasons.js';
 import {
   setzlingFuer, setzlingVonBaum, tageFuer, stufeVon, spriteVon, tageBis as setzlingTage,
@@ -698,6 +702,9 @@ export class Game {
     this.state.advent = adventAus(this.state.advent);
     this.state.bewohner = bewohnerAus(this.state.bewohner);
     this.state.pfade = pfadeAus(this.state.pfade);
+    // Die Abzeichen. Ein alter Spielstand hat keine – er holt sie beim
+    // ersten Durchlauf von `_checkAbzeichen` nach, alle auf einmal.
+    this.state.abzeichen = abzeichenAus(this.state.abzeichen);
     // Der Bodenmaler fragt die Abnutzung über diese kleine Brücke ab. Er
     // bekommt eine Funktion und nicht den Stand selbst: So kennt die
     // Grafik das Spielstandsformat nicht, und die Reihenfolge beim Laden
@@ -1023,6 +1030,7 @@ export class Game {
     this._momentPruefen(dt);
     this._sternbildPruefen(dt);
     this._checkCollection();
+    this._checkAbzeichen(dt);
     this._petSucht();
     this._petRuht(dt);
     this._updatePet(dt);
@@ -5031,6 +5039,78 @@ export class Game {
     }
     this.audio.play('levelup');
     this.particles.burst('sparkle', this.player.x, this.player.y - 60, 18);
+    this.ui.refreshHud();
+    this.save();
+  }
+
+  /* ---------------- Abzeichen ---------------- */
+
+  /**
+   * Die rohen Zahlen für die Abzeichen – alle aus Feldern, die es gibt.
+   *
+   * Eine eigene Methode und kein Stück von `_checkAbzeichen`, weil die
+   * Anzeige dieselben Zahlen braucht: Stünden sie zweimal da, zeigte das
+   * Fenster irgendwann etwas anderes an, als die Prüfung rechnet.
+   */
+  abzeichenLage() {
+    const bezahlt = this.state.collected || {};
+    let reihen = 0;
+    for (let i = 0; i < SET_IDS.length; i++) if (bezahlt[SET_IDS[i]]) reihen++;
+    return {
+      arten: artenStand(this.inventory.found).kennt,
+      dinge: dingeGesamt(this.inventory.found),
+      reihen: reihen,
+      fische: recordCount(this.state.records),
+      // Die SICHTBAREN Kacheln, nicht die gemerkten: Was man im Bild
+      // nicht sieht, ist kein Weg. Dass diese Zahl wieder sinken kann,
+      // ist der Grund, warum `abzeichen.js` Stufen speichert und keine
+      // Werte.
+      pfade: pfadStand(this.state.pfade).sichtbar,
+      orte: orteStand(this.state.orte).vergeben,
+      sterne: sternbilderStand(this.state.sternbilder).gefunden,
+      tage: this.day.day,
+      bitten: bittenGesamt(this.quests.completedBySpirit),
+      momente: momenteStand(this.state.momente).gefunden,
+    };
+  }
+
+  /**
+   * Ist eine Stufe fällig?
+   *
+   * Einmal in der Sekunde, wie bei den Meilensteinen und aus demselben
+   * Grund: Zehn Zahlen zusammenzusuchen ist billig, aber nicht sechzig Mal
+   * je Sekunde billig – `pfadStand` läuft über bis zu 600 Kacheln.
+   *
+   * Mehrere Stufen auf einmal gibt es beim ersten Start eines alten
+   * Spielstands; dann ist eine Sammelmeldung ehrlicher als vierzig
+   * Türmchen hintereinander.
+   */
+  _checkAbzeichen(dt) {
+    this._abzeichenT = (this._abzeichenT || 0) - (dt || 0);
+    if (dt && this._abzeichenT > 0) return;
+    this._abzeichenT = 1;
+    if (!this.state.abzeichen) this.state.abzeichen = abzeichenAus(null);
+
+    const neu = faelligeAbzeichen(this.abzeichenLage(), this.state.abzeichen);
+    if (!neu.length) return;
+
+    let glut = 0;
+    for (let i = 0; i < neu.length; i++) {
+      merkeAbzeichen(this.state.abzeichen, neu[i].abzeichen.id, neu[i].stufe);
+      glut += neu[i].lohn;
+    }
+    this.state.ember += glut;
+    this._note('ember', glut);
+    this._note('abzeichen', neu.length);
+
+    if (neu.length > 1) {
+      this.ui.toast(neu.length + ' Abzeichen erreicht', 'icon_star', 'good');
+    } else {
+      const a = neu[0];
+      this.ui.toast(a.name + ' · ' + a.abzeichen.name, a.abzeichen.icon, 'good');
+    }
+    this.audio.play('levelup');
+    this.particles.burst('sparkle', this.player.x, this.player.y - 60, 16);
     this.ui.refreshHud();
     this.save();
   }

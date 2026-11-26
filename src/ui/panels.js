@@ -8,6 +8,7 @@ import {
 import { wannText, heuteIst } from '../game/termine.js';
 import { titel as bildTitel, kennung as bildKennung } from '../game/bild.js';
 import { chronikZeilen, zeitSatz, bittenGesamt } from '../game/chronik.js';
+import { abzeichenStand, stufenGesamt, STUFEN } from '../game/abzeichen.js';
 import { geistName as sternGeist } from '../game/sternbilder.js';
 import { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } from '../game/stories.js';
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
@@ -753,6 +754,58 @@ export class Panels {
     html += '</div>';
     html += this._entdeckt();
     html += this._chronik();
+    html += this._abzeichen();
+    return html;
+  }
+
+  /**
+   * Die Abzeichen – was aus dem geworden ist, was ohnehin gezählt wird.
+   *
+   * Unter der Chronik und nicht in einem eigenen Fenster: Die Chronik
+   * nennt die Zahlen, die Abzeichen sagen, was sie bedeuten. Zwei Fenster
+   * mit denselben Zahlen wären zwei Fenster mit denselben Zahlen.
+   *
+   * Angezeigt wird der WIRKLICHE Wert, auch wenn er unter die erreichte
+   * Stufe gefallen ist – Trampelpfade verwachsen. Das Abzeichen bleibt
+   * trotzdem, siehe `abzeichen.js`.
+   */
+  _abzeichen() {
+    const g = this.game;
+    const erreicht = g.state.abzeichen || {};
+    const familien = abzeichenStand(g.abzeichenLage(), erreicht);
+    const ges = stufenGesamt(erreicht);
+    let html = '<h3 style="font-size:0.95em;margin:16px 0 8px">Abzeichen · ' +
+      ges.erreicht + ' von ' + ges.gesamt + '</h3>';
+    for (let f = 0; f < familien.length; f++) {
+      const fam = familien[f];
+      html += '<p class="empty-note" style="padding:2px 0 6px">' +
+        escapeHtml(fam.name) + '</p><div class="rows">';
+      for (let i = 0; i < fam.zeilen.length; i++) {
+        const z = fam.zeilen[i];
+        let pips = '';
+        for (let k = 0; k < STUFEN; k++) {
+          pips += '<i class="pip' + (k < z.stufe ? ' on' : '') + '"></i>';
+        }
+        // Der Titel der erreichten Stufe steht vorn, weil er das ist, was
+        // man behält. „Noch 12" steht hinten und nur, solange es weitergeht.
+        //
+        // Ohne Stufe steht der Name des Abzeichens oben – und dann NICHT
+        // noch einmal in der Zeile darunter. Genau so stand dort einmal
+        // „Die Vitrine · Die Vitrine 0 vollständige Sammelreihen“.
+        const titel = z.stufe > 0 ? escapeHtml(z.titel) : escapeHtml(z.name);
+        const unten = z.stufe > 0 ? '<span>' + escapeHtml(z.name) + '</span>' : '';
+        const rest = z.naechste == null
+          ? '<span class="row-btn ghost">voll</span>'
+          : '<span class="row-btn ghost">noch ' + z.fehlt + '</span>';
+        html += '<div class="row">' + ico(z.icon, 'lg') +
+          '<div class="grow"><div class="title">' + titel + '</div>' +
+          '<div class="meta">' + unten +
+          '<span><b>' + z.wert + '</b> ' + escapeHtml(z.was) + '</span></div>' +
+          '<div class="cosy-bar" aria-hidden="true">' + pips + '</div></div>' +
+          rest + '</div>';
+      }
+      html += '</div>';
+    }
     return html;
   }
 
