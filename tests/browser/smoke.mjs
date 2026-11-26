@@ -5868,6 +5868,135 @@ async function run() {
      */
     check('Flüssige Darstellung (' + fps + ' fps)', fps >= 18, fpsWerte.join(' '));
 
+    /**
+     * Wie viel Fläche je Bild überhaupt gerastert wird.
+     *
+     * Die Bildrate daneben misst auf diesem Rechner vor allem, was
+     * sonst gerade läuft: Fünf Läufe derselben Fassung lieferten am Tag
+     * 33 bis 44 Bilder je Sekunde. Mit so einer Streuung ist weder eine
+     * Verbesserung zu zeigen noch eine Verschlechterung zu bemerken.
+     *
+     * Die gezeichnete Fläche schwankt weniger – aber die GANZE Fläche
+     * je Bild schwankt immer noch zu sehr, um eine enge Grenze zu
+     * tragen: Zwei Läufe lieferten 9,7 und 11,6 Bildschirme, je
+     * nachdem, wie viele Objekte gerade halb koloriert sind (die malt
+     * `_blend` zweimal) und wie gross die Leinwand sich gerade
+     * geregelt hat.
+     *
+     * Gemessen wird deshalb EINE geometrische Grösse, die nicht vom
+     * Inhalt abhängt: **wie viel Fläche der Bodendurchgang zeichnet,
+     * geteilt durch das Sichtfenster.**
+     *
+     * Ein Bodenstück ist 512 Punkte breit, das Sichtfenster rund 2080
+     * mal 1170. Werden die Stücke ganz gezeichnet, ragen die am Rand
+     * grösstenteils hinaus – jeder zweite gerasterte Bildpunkt fällt
+     * aus dem Bild, und das in beiden Durchgängen, Farbe wie Tusche.
+     *
+     * Der Durchgang zeichnet drei Lagen (Farbfläche, Papierschleier,
+     * Tusche); die Zahl ist durch zwei geteilt und liegt deshalb bei
+     * 1,51 statt bei 1,00. Entscheidend ist der Vergleich: ohne
+     * Zuschnitt sind es 2,12, mit 1,51 – beides auf die zweite
+     * Nachkommastelle reproduzierbar, über mehrere Läufe. Die Grenze
+     * liegt dazwischen.
+     *
+     * Was sich damit NICHT prüfen lässt, steht hier trotzdem, damit es
+     * niemand neu sucht: die eingesparte Lichtebene am hellen Mittag.
+     * Sie ist eine bildschirmgrosse Kopie von mehreren, und zwischen
+     * vier und fünf solcher Kopien lässt sich keine Grenze ziehen, die
+     * etwas bedeutet.
+     */
+    const flaeche = await page.evaluate(() => new Promise((fertig) => {
+      const g = window.CozyGrove.game;
+      const c = g.world.campfire;
+      g.player.x = c.x; g.player.y = c.y + 80;
+      g.player.prevX = g.player.x; g.player.prevY = g.player.y;
+      g.camera.snapTo(g.player.x, g.player.y);
+      g.day.hour = 13;
+      g.weather.kind = 'clear'; g.weather.level = 0; g.weather.strength = 0;
+      g.panels.close();
+
+      const leinwand = document.querySelector('canvas');
+      const P = CanvasRenderingContext2D.prototype;
+      const echtBild = P.drawImage;
+      const echtRect = P.fillRect;
+      const boden = Object.getPrototypeOf(g.ground);
+      const echtBoden = boden.draw;
+
+      let sammeln = false;
+      let imBoden = false;
+      let bodenPx = 0;
+      let ganzseitig = 0;
+      function mass(ctx) {
+        const t = ctx.getTransform ? ctx.getTransform() : null;
+        return t ? Math.abs(t.a * t.d) : 1;
+      }
+      function zaehle(ctx, w, h) {
+        if (!sammeln || ctx.canvas !== leinwand) return;
+        const px = Math.abs(w * h) * mass(ctx);
+        if (imBoden) bodenPx += px;
+        // „Bildschirmgross" heisst: deckt mindestens 95 Prozent der
+        // Leinwand ab. Der Boden zaehlt nicht mit – er MUSS das Bild
+        // fuellen, das ist seine Aufgabe.
+        if (!imBoden && px >= leinwand.width * leinwand.height * 0.95) ganzseitig++;
+      }
+      P.drawImage = function (img) {
+        const a = arguments;
+        let w = 0; let h = 0;
+        if (a.length >= 9) { w = a[7]; h = a[8]; }
+        else if (a.length >= 5) { w = a[3]; h = a[4]; }
+        else { w = img.width || 0; h = img.height || 0; }
+        zaehle(this, w, h);
+        return echtBild.apply(this, a);
+      };
+      P.fillRect = function (x, y, w, h) {
+        zaehle(this, w, h);
+        return echtRect.apply(this, arguments);
+      };
+      // NUR der erste Bodendurchgang je Bild. Der zweite kommt aus
+      // `_drawColorPass` und malt absichtlich nur den Ausschnitt unter
+      // der Farbmaske – ihn mitzuzählen machte aus 1,00 eine 1,51 und
+      // aus der Messung Unsinn.
+      let bodenRunde = 0;
+      boden.draw = function () {
+        bodenRunde++;
+        imBoden = bodenRunde === 1;
+        try { return echtBoden.apply(this, arguments); } finally { imBoden = false; }
+      };
+
+      // Erst ein paar Bilder laufen lassen, damit die Bodenstuecke
+      // fertig gebacken sind – ein halb aufgebauter Boden zeichnet
+      // weniger und wuerde die Messung schoenen.
+      let bilder = 0;
+      const MESSEN = 10;
+      function tick() {
+        bilder++;
+        bodenRunde = 0;
+        if (bilder === 30) { sammeln = true; bodenPx = 0; ganzseitig = 0; }
+        if (bilder >= 30 + MESSEN) {
+          sammeln = false;
+          P.drawImage = echtBild;
+          P.fillRect = echtRect;
+          boden.draw = echtBoden;
+          const r = g.renderer;
+          // Das Sichtfenster auf dem Bildschirm – genau die Leinwand.
+          const sicht = r.viewW * r.zoom * (r.viewH * r.zoom);
+          fertig({
+            // Zwei Durchgaenge (Farbe und Tusche), deshalb durch zwei.
+            bodenFaktor: Math.round((bodenPx / MESSEN) / sicht / 2 * 100) / 100,
+            // Zwei Durchgaenge im ersten Aufruf: Farbflaeche und Tusche.
+            ganzseitig: ganzseitig / MESSEN,
+            breite: leinwand.width, hoehe: leinwand.height,
+          });
+          return;
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }));
+    check('Der Boden zeichnet nur, was im Bild liegt',
+      flaeche.bodenFaktor > 1.2 && flaeche.bodenFaktor <= 1.7,
+      JSON.stringify(flaeche));
+
     // Kleines Fenster / Hochformat: nichts darf überlaufen
     await page.setViewportSize({ width: 390, height: 780 });
     await page.waitForTimeout(600);

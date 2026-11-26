@@ -317,23 +317,56 @@ export class GroundLayer {
       }
       : function () { return true; };
 
+    /**
+     * Von jedem Stück nur den Teil, der wirklich im Bild liegt.
+     *
+     * Ein Stück ist 512 Punkte breit, das Sichtfenster rund 2080 mal
+     * 1170. Die Stücke am Rand ragen deshalb grösstenteils hinaus:
+     * Gemessen deckten fünf mal vier Stücke 5,2 Millionen Weltpunkte ab,
+     * wovon 2,4 Millionen sichtbar waren – **jeder zweite gerasterte
+     * Bildpunkt fiel weg**, und zwar in beiden Durchgängen, Farbe wie
+     * Tusche.
+     *
+     * `drawImage` mit Quellrechteck rastert nur das Ziel. Den Ausschnitt
+     * auszurechnen kostet acht Zeilen Arithmetik je Stück und spart je
+     * Bild rund zwei Bildschirmflächen von dreizehn.
+     *
+     * Ein `clip` hilft hier NICHT: Es verwirft die Bildpunkte erst,
+     * nachdem sie gerechnet sind – dieselbe Lehre wie beim
+     * Farbdurchgang eine Methode weiter oben.
+     */
+    const sichtX0 = viewX;
+    const sichtY0 = viewY;
+    const sichtX1 = viewX + viewW;
+    const sichtY1 = viewY + viewH;
+
     // 1 – Farbflächen
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
         if (!drin(cx, cy)) continue;
+        // Der sichtbare Ausschnitt dieses Stücks in Weltkoordinaten.
+        // Aufgerundet nach aussen: Ein halber Bildpunkt Rand ist
+        // billiger als eine Fuge zwischen zwei Stücken.
+        const wx0 = Math.max(cx * CHUNK_PX, Math.floor(sichtX0));
+        const wy0 = Math.max(cy * CHUNK_PX, Math.floor(sichtY0));
+        const wx1 = Math.min((cx + 1) * CHUNK_PX, Math.ceil(sichtX1));
+        const wy1 = Math.min((cy + 1) * CHUNK_PX, Math.ceil(sichtY1));
+        if (wx1 <= wx0 || wy1 <= wy0) continue;
         const chunk = this._get(cx, cy, allowPaint);
         if (chunk) {
           // Nur den Kern zeichnen: Der Malrand enthält Nachbardaten und würde
           // das benachbarte Stück überschreiben – das gäbe ein Rastermuster.
+          const sx = CHUNK_PAD + (wx0 - cx * CHUNK_PX);
+          const sy = CHUNK_PAD + (wy0 - cy * CHUNK_PX);
           ctx.drawImage(chunk.wash,
-            CHUNK_PAD * WASH_SCALE, CHUNK_PAD * WASH_SCALE,
-            CHUNK_PX * WASH_SCALE, CHUNK_PX * WASH_SCALE,
-            cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, CHUNK_PX);
+            sx * WASH_SCALE, sy * WASH_SCALE,
+            (wx1 - wx0) * WASH_SCALE, (wy1 - wy0) * WASH_SCALE,
+            wx0, wy0, wx1 - wx0, wy1 - wy0);
         } else {
           // Noch nicht gemalt: Papierton in BEIDEN Durchgängen, sonst klafft
           // zwischen Zeichnung und Farbe eine sichtbare Kante.
           ctx.fillStyle = INK.paper;
-          ctx.fillRect(cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, CHUNK_PX);
+          ctx.fillRect(wx0, wy0, wx1 - wx0, wy1 - wy0);
         }
       }
     }
@@ -351,10 +384,17 @@ export class GroundLayer {
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
         if (!drin(cx, cy)) continue;
+        const wx0 = Math.max(cx * CHUNK_PX, Math.floor(sichtX0));
+        const wy0 = Math.max(cy * CHUNK_PX, Math.floor(sichtY0));
+        const wx1 = Math.min((cx + 1) * CHUNK_PX, Math.ceil(sichtX1));
+        const wy1 = Math.min((cy + 1) * CHUNK_PX, Math.ceil(sichtY1));
+        if (wx1 <= wx0 || wy1 <= wy0) continue;
         const chunk = this._get(cx, cy, false);
         if (chunk) {
-          ctx.drawImage(chunk.ink, CHUNK_PAD, CHUNK_PAD, CHUNK_PX, CHUNK_PX,
-            cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, CHUNK_PX);
+          ctx.drawImage(chunk.ink,
+            CHUNK_PAD + (wx0 - cx * CHUNK_PX), CHUNK_PAD + (wy0 - cy * CHUNK_PX),
+            wx1 - wx0, wy1 - wy0,
+            wx0, wy0, wx1 - wx0, wy1 - wy0);
         }
       }
     }

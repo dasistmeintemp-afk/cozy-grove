@@ -525,9 +525,20 @@ export class Renderer {
 
     game.ground.beginFrame();
 
-    this._screen(ctx);
-    ctx.fillStyle = INK.paper;
-    ctx.fillRect(0, 0, this.w, this.h);
+    /**
+     * KEIN Löschen der Leinwand.
+     *
+     * Hier stand eine bildschirmgrosse Füllung in Papierton. Sie war
+     * einmal nötig und ist es nicht mehr: `GroundLayer.draw` deckt seit
+     * dem Zuschnitt genau das Sichtfenster ab – Stück für Stück, und wo
+     * noch keines gemalt ist, legt es selbst Papierton hin. Das
+     * Sichtfenster ist `w / zoom` mal `h / zoom`, also exakt die
+     * Leinwand.
+     *
+     * Gemessen war das eine volle Bildschirmfläche von achteinhalb je
+     * Bild, für Bildpunkte, die im selben Bild noch einmal überschrieben
+     * werden.
+     */
 
     // 1 – Boden: blasse Zeichnung, darüber die Farbe durch die weiche Maske
     this._world(ctx, camX, camY);
@@ -1378,10 +1389,29 @@ export class Renderer {
    */
   _drawOverlay(ctx, game, camX, camY, time) {
     const tint = game.day.tint();
-    const lc = this.lightCtx;
+    /**
+     * Die eigene Ebene nur, wenn sie wirklich gebraucht wird.
+     *
+     * Gebraucht wird sie für genau zwei Dinge, und beide kommen nicht
+     * jeden Augenblick vor: Nachts stanzen die Lichtkegel mit
+     * `destination-out` Löcher in den Nachtton, und in der goldenen
+     * Stunde liegt das Schräglicht mit `lighter` darüber. Beides geht
+     * nur auf einer eigenen Ebene – übereinandergelegte
+     * `source-over`-Flächen dagegen sind assoziativ, die kann man
+     * ebenso gut direkt auf das Bild malen.
+     *
+     * Am helllichten Tag war das zweimal eine bildschirmgrosse Fläche
+     * umsonst: einmal die Ebene leeren, einmal sie aufs Bild kopieren.
+     * Von achteinhalb Bildschirmflächen je Bild also zwei – und der
+     * Tag ist das, was man die meiste Zeit sieht.
+     */
+    const dunkel = game.day.isDark();
+    const gold = game.day.goldeneStunde ? game.day.goldeneStunde() : 0;
+    const eigeneEbene = dunkel || gold > 0.01;
+    const lc = eigeneEbene ? this.lightCtx : ctx;
     this._screen(lc);
     lc.globalCompositeOperation = 'source-over';
-    lc.clearRect(0, 0, this.w, this.h);
+    if (eigeneEbene) lc.clearRect(0, 0, this.w, this.h);
 
     /**
      * Tageszeit, Jahreszeit und Wetter in EINEM Überzug.
@@ -1428,7 +1458,7 @@ export class Renderer {
     this._dunst(lc, { r: tr, g: tg, b: tb, a: ta });
     this._schraeglicht(lc, game);
 
-    if (game.day.isDark()) {
+    if (dunkel) {
       this._world(lc, camX, camY);
       lc.globalCompositeOperation = 'destination-out';
       const lights = game.lightSources(time);
@@ -1449,7 +1479,7 @@ export class Renderer {
     }
     lc.drawImage(this._vignetteLayer(), 0, 0);
     this._screen(ctx);
-    ctx.drawImage(this.lightCanvas, 0, 0);
+    if (eigeneEbene) ctx.drawImage(this.lightCanvas, 0, 0);
 
     /**
      * Und jetzt leuchten die Lichter wirklich.
