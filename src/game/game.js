@@ -27,7 +27,8 @@ import {
   stueckAn, maxStuecke,
   gemuetlichkeit, wohnBonus, wohnStufe, emptyInterior, interiorAus, RAND,
   emptyRaum, anDerInnenTuer, innenTuerFuer, INNENTUER_TIEFE,
-  bettFuer, amBett, ausstattungFuer, AUSSTATTUNG_IDS,
+  bettFuer, amBett, werkbankFuer, anDerWerkbank, inDerWerkbank,
+  ausstattungFuer, AUSSTATTUNG_IDS,
   wandPlatzFrei, wandStueckAn, wandHoehe, maxWandStuecke, WAND_RAND, WAND_ABSTAND,
   klemmeInRaum, gruppen, gruppenPunkte,
 } from './interior.js';
@@ -6034,6 +6035,17 @@ export class Game {
   }
 
   /**
+   * Wo die Werkbank in der Kammer steht – oder null.
+   *
+   * Dieselbe Bauart wie `bettPunkt`: Der Renderer fragt nach einem Punkt
+   * und muss nicht wissen, ab welcher Ausbaustufe es eine Kammer gibt.
+   */
+  werkbankPunkt() {
+    if (this.ort()) return null;
+    return werkbankFuer(this.raum());
+  }
+
+  /**
    * Wie dunkel es drinnen gerade ist (0 = hell).
    *
    * Draußen wird es nachts richtig dunkel – das ist der Grund, Laternen
@@ -6483,6 +6495,9 @@ export class Game {
       const bdy = b.y - y;
       if (bdx * bdx + bdy * bdy < 54 * 54) return false;
     }
+    // Und durch die Werkbank auch nicht. Sie ist fest eingebaut wie das
+    // Bett und muss deshalb hier stehen und nicht in `innenStuecke`.
+    if (inDerWerkbank(x, y, raum)) return false;
     const stuecke = this.innenStuecke();
     for (let i = 0; i < stuecke.length; i++) {
       const s = stuecke[i];
@@ -6764,6 +6779,10 @@ export class Game {
       this.ui.setPrompt('Schlafen');
       return;
     }
+    if (anDerWerkbank(this.innen.x, this.innen.y, this.raum())) {
+      this.ui.setPrompt('Werkbank');
+      return;
+    }
     // Vor dem Bett und der Tür, aber nach dem Aufstellen: Wer gerade ein
     // Möbel setzt, will das zu Ende bringen.
     if (this.gastInReichweite()) {
@@ -6812,6 +6831,7 @@ export class Game {
       return;
     }
     if (amBett(this.innen.x, this.innen.y, this.raum())) { this.sleep(false); return; }
+    if (anDerWerkbank(this.innen.x, this.innen.y, this.raum())) { this.openPanel('craft'); return; }
     if (anDerTuer(this.innen.x, this.innen.y, this.raum())) { this.verlaesst(); return; }
     if (anDerInnenTuer(this.innen.x, this.innen.y, this.raum())) { this.wechsleRaum(); return; }
     // Der Gast kommt vor den Möbeln: Wer neben ihm steht, will mit ihm

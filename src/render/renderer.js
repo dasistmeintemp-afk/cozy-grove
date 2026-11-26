@@ -339,6 +339,13 @@ export class Renderer {
     // In der Kammer steht keines – dort gibt `bettPunkt()` null zurück.
     const bett = game.bettPunkt();
     if (bett) liste.push({ y: bett.y, flach: false, sprite: 'bed', x: bett.x });
+    // Und die Werkbank in der Kammer, aus demselben Grund wie das Bett:
+    // Sie soll sich einsortieren wie ein Möbel, sonst stünde Seli davor,
+    // wenn sie dahinter steht.
+    const werkbank = game.werkbankPunkt();
+    if (werkbank) {
+      liste.push({ y: werkbank.y, flach: false, sprite: 'workbench', x: werkbank.x });
+    }
     const stuecke = game.innenStuecke();
     for (let i = 0; i < stuecke.length; i++) {
       const s = stuecke[i];

@@ -20168,8 +20168,8 @@ const RAEUME = [
  * Ausgang: Geschlafen und hinausgegangen wird vorn.
  */
 const KAMMERN = [
-  { stufe: 3, name: 'Die Kammer', w: 520, h: 400, wand: 140, bett: false, ausgang: false, fenster: 0 },
-  { stufe: 4, name: 'Die Werkkammer', w: 660, h: 470, wand: 150, bett: false, ausgang: false, fenster: 0 },
+  { stufe: 3, name: 'Die Kammer', w: 520, h: 400, wand: 140, bett: false, ausgang: false, fenster: 0, kammer: true },
+  { stufe: 4, name: 'Die Werkkammer', w: 660, h: 470, wand: 150, bett: false, ausgang: false, fenster: 0, kammer: true },
 ];
 
 /**
@@ -20354,6 +20354,10 @@ function wandPlatzFrei(wand, x, y, raum, ausser) {
   // Wandbretts hinter dem Kopfteil hervor – halb verdeckt ist schlechter als
   // gar nicht dort. In der Kammer steht kein Bett, dort entfällt die Regel.
   if (b && Math.abs(b.x - x) < BETT_BREITE / 2 + WAND_ABSTAND * 0.7) return false;
+  // Für die Werkbank gilt das ausdrücklich NICHT: Sie steht frei im Raum,
+  // ihre Platte endet 96 Punkte über ihrem Fusspunkt und damit unterhalb
+  // der Wand – nachgerechnet in `werkbankFuer`. Eine Sperre dafür hätte
+  // die Kammer der dritten Stufe auf einen Aufhängepunkt heruntergebracht.
   // Und nicht über die Verbindungstür. Sie sitzt oben in der Wand, genau
   // dort, wo sonst Bilder hängen – ein Kranz über der Tür wäre ein Kranz,
   // durch den man hindurchläuft.
@@ -20531,6 +20535,92 @@ function bettFuer(raum) {
 /** Wie hoch das Bett über seinem Fußpunkt steht – siehe `paintBed`. */
 const BETT_HOEHE = 180;
 
+/**
+ * Die Werkbank in der Kammer.
+ *
+ * **Warum drinnen überhaupt etwas zu TUN sein muss.** Das Haus hatte vier
+ * Ausbaustufen, zwei Räume, vier Ausstattungen und Platz für Möbel – und
+ * keinen einzigen Grund, länger als zum Schlafen hineinzugehen. Gebaut,
+ * gekocht und gewerkelt wurde ausschliesslich draussen am Lager. Ein
+ * Zuhause, das man nur ansieht, ist ein Museum; der zweite Raum hiess
+ * sogar „Die Werkkammer“, und darin wurde nicht gearbeitet.
+ *
+ * **Sie ersetzt die draussen nicht.** Die Werkbank am Lagerfeuer bleibt,
+ * wo sie ist: Jule arbeitet dort vormittags, und wer gerade sägt, will
+ * nicht erst nach Hause laufen. Die hier ist die zweite, und das ist der
+ * Punkt – man kann morgens drinnen anfangen statt drinnen aufzuwachen und
+ * sofort hinauszugehen.
+ *
+ * **Fest eingebaut wie das Bett**, aus demselben Grund: Eine Werkbank, die
+ * man versehentlich einpackt, ist eine Stelle, an der man sich seinen
+ * eigenen Raum kaputtmachen kann.
+ *
+ * **Sie steht frei im Raum und nicht an der Wand** – und das ist das
+ * Ergebnis zweier verworfener Entwürfe, nicht die erste Idee. An der
+ * Rückwand rechts stand sie in der Verbindungstür; im Bild werkelte Seli
+ * in der Türöffnung. Weiter links stand sie frei von der Tür und nahm
+ * dafür die Wand: Die Bank ist 236 breit, die Tür sperrt 96 plus Rand, und
+ * in die Kammer der dritten Stufe (520 breit) passt beides nicht
+ * nebeneinander – von 42 Aufhängepunkten blieb **einer** übrig, gezählt,
+ * nicht geschätzt. Ein Raum ohne Wand ist aber genau das, was die Prüfung
+ * „Auch in der Kammer ist Wand frei“ verhindern soll.
+ *
+ * Frei im Raum löst beides auf einmal: Die Wand bleibt ganz, die Tür
+ * bleibt frei, und man kann um die Bank herumgehen – was für eine
+ * Werkbank ohnehin richtiger aussieht als ein Tisch, der an der Wand
+ * klebt.
+ */
+function werkbankFuer(raum) {
+  if (!raum || !raum.kammer) return null;
+  return {
+    x: Math.round(raum.w * 0.58),
+    // Ein gutes Stück vor der Wand: Oben ragt die Bank 96 Punkte über
+    // ihren Fusspunkt. Stünde sie direkt an der Wandkante, läge ihre
+    // Platte wieder in der Höhe, in der die Bilder hängen.
+    y: Math.round(raum.wand + (raum.h - raum.wand) * 0.34),
+  };
+}
+
+/** Wie hoch die Werkbank über ihrem Fusspunkt steht – siehe `paintWorkbench`. */
+const WERKBANK_HOEHE = 96;
+
+/** Wie nah man ihr sein muss, um sie zu benutzen. */
+const WERKBANK_REICHWEITE = 72;
+
+/** Wie breit sie dasteht – die Breite von `paintWorkbench`, nicht geschätzt. */
+const WERKBANK_BREITE = 236;
+
+/**
+ * Steht sie vor der Werkbank?
+ *
+ * Ein Streifen davor, kein Kreis um die Mitte. Beim Kreis mit 72 Punkten
+ * stand man am linken Tischende 108 Punkte von der Mitte entfernt – mit
+ * den Händen auf der Platte und ohne Hinweis. Ein Tisch ist breit; man
+ * arbeitet überall an ihm.
+ */
+function anDerWerkbank(x, y, raum) {
+  const w = werkbankFuer(raum);
+  if (!w) return false;
+  const dy = y - w.y;
+  return Math.abs(x - w.x) <= WERKBANK_BREITE / 2 &&
+    dy > -WERKBANK_REICHWEITE / 2 && dy < WERKBANK_REICHWEITE;
+}
+
+/**
+ * Und läuft sie dagegen?
+ *
+ * Die Platte selbst, enger als die Reichweite: Sonst stünde man vor der
+ * Bank, bekäme den Hinweis und käme nicht nah genug heran, um ihn zu
+ * benutzen. Der Streifen zwischen 30 und 72 Punkten davor ist genau der
+ * Platz, an dem man steht und werkelt.
+ */
+function inDerWerkbank(x, y, raum) {
+  const w = werkbankFuer(raum);
+  if (!w) return false;
+  const dy = y - w.y;
+  return Math.abs(x - w.x) < WERKBANK_BREITE / 2 - 4 && dy > -46 && dy < 30;
+}
+
 /** Und wie breit – für die Frage, welches Stück Wand es verdeckt. */
 const BETT_BREITE = 150;
 
@@ -20578,6 +20668,16 @@ function platzFrei(stuecke, x, y, raum, ausser) {
   // demselben Grund: Ein zugestellter Durchgang wäre die einzige Sackgasse,
   // die dieses Spiel anbieten könnte.
   if (anDerInnenTuer(x, y, raum)) return false;
+  // Und nicht in die Werkbank. Sie steht fest eingebaut in der Kammer;
+  // ein Sessel darin wäre dasselbe Problem wie ein Stuhl im Bett.
+  // Als Kreis mit 62 Punkten Radius geschrieben war das zu klein: Die
+  // Werkbank ist 236 breit, ein Sessel stand ihr bei 70 Punkten Abstand
+  // schon im Tisch. Rechteck statt Kreis, nach der wirklichen Platte.
+  const wb = werkbankFuer(raum);
+  if (wb) {
+    const wdy = y - wb.y;
+    if (Math.abs(wb.x - x) < WERKBANK_BREITE / 2 + 14 && wdy > -52 && wdy < 54) return false;
+  }
   const liste = stuecke || [];
   const d2 = STUECK_ABSTAND * STUECK_ABSTAND;
   for (let i = 0; i < liste.length; i++) {
@@ -20878,6 +20978,9 @@ __e.INNENTUER_BREITE = INNENTUER_BREITE;
 __e.INNENTUER_TIEFE = INNENTUER_TIEFE;
 __e.TUER_TIEFE = TUER_TIEFE;
 __e.BETT_HOEHE = BETT_HOEHE;
+__e.WERKBANK_HOEHE = WERKBANK_HOEHE;
+__e.WERKBANK_REICHWEITE = WERKBANK_REICHWEITE;
+__e.WERKBANK_BREITE = WERKBANK_BREITE;
 __e.BETT_BREITE = BETT_BREITE;
 __e.WOHN_STUFEN = WOHN_STUFEN;
 __e.WOHN_BONUS_MAX = WOHN_BONUS_MAX;
@@ -20903,6 +21006,9 @@ __e.anDerInnenTuer = anDerInnenTuer;
 __e.tuerFuer = tuerFuer;
 __e.anDerTuer = anDerTuer;
 __e.bettFuer = bettFuer;
+__e.werkbankFuer = werkbankFuer;
+__e.anDerWerkbank = anDerWerkbank;
+__e.inDerWerkbank = inDerWerkbank;
 __e.amBett = amBett;
 __e.imRaum = imRaum;
 __e.klemmeInRaum = klemmeInRaum;
@@ -29175,6 +29281,13 @@ class Renderer {
     // In der Kammer steht keines – dort gibt `bettPunkt()` null zurück.
     const bett = game.bettPunkt();
     if (bett) liste.push({ y: bett.y, flach: false, sprite: 'bed', x: bett.x });
+    // Und die Werkbank in der Kammer, aus demselben Grund wie das Bett:
+    // Sie soll sich einsortieren wie ein Möbel, sonst stünde Seli davor,
+    // wenn sie dahinter steht.
+    const werkbank = game.werkbankPunkt();
+    if (werkbank) {
+      liste.push({ y: werkbank.y, flach: false, sprite: 'workbench', x: werkbank.x });
+    }
     const stuecke = game.innenStuecke();
     for (let i = 0; i < stuecke.length; i++) {
       const s = stuecke[i];
@@ -43433,7 +43546,7 @@ const { CROPS, cropOfSeed, stageOf, daysToRipe, growthPerDay, harvestOf, kreuzCh
 const { todayOf, shoalIndex, EVENTS } = __req("src/game/calendar.js");
 const { festOn, festSatz, SCHMUCK_RADIUS, SCHMUCK_ANZAHL, SCHMUCK_ABSTAND, emptyFeste } = __req("src/game/festivals.js");
 const { emptyDaybook, daybookHasContent } = __req("src/game/daybook.js");
-const { raumFuer, raeumeFuer, raumZahl, tuerFuer, anDerTuer, imRaum, platzFrei, stueckAn, maxStuecke, gemuetlichkeit, wohnBonus, wohnStufe, emptyInterior, interiorAus, RAND, emptyRaum, anDerInnenTuer, innenTuerFuer, INNENTUER_TIEFE, bettFuer, amBett, ausstattungFuer, AUSSTATTUNG_IDS, wandPlatzFrei, wandStueckAn, wandHoehe, maxWandStuecke, WAND_RAND, WAND_ABSTAND, klemmeInRaum, gruppen, gruppenPunkte } = __req("src/game/interior.js");
+const { raumFuer, raeumeFuer, raumZahl, tuerFuer, anDerTuer, imRaum, platzFrei, stueckAn, maxStuecke, gemuetlichkeit, wohnBonus, wohnStufe, emptyInterior, interiorAus, RAND, emptyRaum, anDerInnenTuer, innenTuerFuer, INNENTUER_TIEFE, bettFuer, amBett, werkbankFuer, anDerWerkbank, inDerWerkbank, ausstattungFuer, AUSSTATTUNG_IDS, wandPlatzFrei, wandStueckAn, wandHoehe, maxWandStuecke, WAND_RAND, WAND_ABSTAND, klemmeInRaum, gruppen, gruppenPunkte } = __req("src/game/interior.js");
 const { innenOrtFuer, inhaltFuer, imOrt, amAusgang, emptyInnenorte, innenorteAus, ORT_RAND } = __req("src/game/innenorte.js");
 const { ortgeistFuer, offeneBitte, ketteFertig, emptyOrtgeister, ortgeisterAus } = __req("src/game/ortgeister.js");
 const { wandererAm, besuchFuer, emptyWanderer, heuteGetauscht, heuteGegruesst, tauschZahl, andenkenFuer, MITBRINGSEL, SAETZE: WANDER_SAETZE, naechsterBesuch } = __req("src/game/wanderer.js");
@@ -49350,6 +49463,17 @@ class Game {
   }
 
   /**
+   * Wo die Werkbank in der Kammer steht – oder null.
+   *
+   * Dieselbe Bauart wie `bettPunkt`: Der Renderer fragt nach einem Punkt
+   * und muss nicht wissen, ab welcher Ausbaustufe es eine Kammer gibt.
+   */
+  werkbankPunkt() {
+    if (this.ort()) return null;
+    return werkbankFuer(this.raum());
+  }
+
+  /**
    * Wie dunkel es drinnen gerade ist (0 = hell).
    *
    * Draußen wird es nachts richtig dunkel – das ist der Grund, Laternen
@@ -49799,6 +49923,9 @@ class Game {
       const bdy = b.y - y;
       if (bdx * bdx + bdy * bdy < 54 * 54) return false;
     }
+    // Und durch die Werkbank auch nicht. Sie ist fest eingebaut wie das
+    // Bett und muss deshalb hier stehen und nicht in `innenStuecke`.
+    if (inDerWerkbank(x, y, raum)) return false;
     const stuecke = this.innenStuecke();
     for (let i = 0; i < stuecke.length; i++) {
       const s = stuecke[i];
@@ -50080,6 +50207,10 @@ class Game {
       this.ui.setPrompt('Schlafen');
       return;
     }
+    if (anDerWerkbank(this.innen.x, this.innen.y, this.raum())) {
+      this.ui.setPrompt('Werkbank');
+      return;
+    }
     // Vor dem Bett und der Tür, aber nach dem Aufstellen: Wer gerade ein
     // Möbel setzt, will das zu Ende bringen.
     if (this.gastInReichweite()) {
@@ -50128,6 +50259,7 @@ class Game {
       return;
     }
     if (amBett(this.innen.x, this.innen.y, this.raum())) { this.sleep(false); return; }
+    if (anDerWerkbank(this.innen.x, this.innen.y, this.raum())) { this.openPanel('craft'); return; }
     if (anDerTuer(this.innen.x, this.innen.y, this.raum())) { this.verlaesst(); return; }
     if (anDerInnenTuer(this.innen.x, this.innen.y, this.raum())) { this.wechsleRaum(); return; }
     // Der Gast kommt vor den Möbeln: Wer neben ihm steht, will mit ihm

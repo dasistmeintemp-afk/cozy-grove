@@ -29,6 +29,8 @@ import {
   fensterFuer, wandHoehe, maxWandStuecke, anDerWand, wandPlatzFrei, wandStueckAn,
   WAND_ABSTAND, WAND_RAND,
   gruppen, gruppenPunkte, GRUPPE_BONUS, GRUPPE_MAX, GRUPPE_RADIUS,
+  werkbankFuer, anDerWerkbank, inDerWerkbank,
+  WERKBANK_BREITE, WERKBANK_HOEHE,
 } from '../../src/game/interior.js';
 import { HOUSE_STAGES, MAX_HOUSE_STAGE, houseColor } from '../../src/game/house.js';
 import { getItem, ITEM_LIST, CAT } from '../../src/game/items.js';
@@ -726,4 +728,103 @@ test('Der Zuschlag bleibt ein Zuschlag', () => {
     'ein Teppich mit drei Stühlen schlägt drei Teppiche');
   assert.deepEqual(gruppen(null, getItem), []);
   assert.equal(gruppenPunkte([], getItem), 0);
+});
+
+/* ======================= Die Werkbank in der Kammer ======================= */
+
+test('Nur die Kammer hat eine Werkbank', () => {
+  // Der ganze Sinn des zweiten Raums: Er heisst „Die Werkkammer", und dort
+  // wird gewerkelt. Im Wohnraum nicht – sonst stünde in jeder Zeltecke
+  // eine Werkbank und der Ausbau brächte nichts.
+  for (let st = 1; st <= MAX_HOUSE_STAGE; st++) {
+    for (let i = 0; i < raumZahl(st); i++) {
+      const r = raumFuer(st, i);
+      const wb = werkbankFuer(r);
+      if (i === 0) {
+        assert.equal(wb, null, 'Stufe ' + st + ': Werkbank im Wohnraum');
+      } else {
+        assert.ok(wb, 'Stufe ' + st + ': keine Werkbank in ' + r.name);
+      }
+    }
+  }
+  assert.equal(werkbankFuer(null), null);
+});
+
+test('An die Werkbank kommt man wirklich heran', () => {
+  // Die Prüfung mit den Zähnen. Reichweite und Sperre sind zwei getrennte
+  // Rechtecke, und wenn sich die Sperre über die ganze Reichweite legt,
+  // bekommt man den Hinweis „Werkbank" an einer Stelle, an der man nicht
+  // stehen kann – man liefe dagegen und nichts geschähe. Deshalb wird hier
+  // gezählt und nicht geprüft, dass es die Funktionen gibt.
+  for (let st = KAMMER_AB; st <= MAX_HOUSE_STAGE; st++) {
+    const r = raumFuer(st, 1);
+    const wb = werkbankFuer(r);
+    let erreichbar = 0;
+    for (let x = 0; x <= r.w; x += 4) {
+      for (let y = 0; y <= r.h; y += 4) {
+        if (!imRaum(x, y, r)) continue;
+        if (inDerWerkbank(x, y, r)) continue;
+        if (anDerWerkbank(x, y, r)) erreichbar++;
+      }
+    }
+    assert.ok(erreichbar >= 200,
+      r.name + ': nur ' + erreichbar + ' Punkte, von denen aus man sie bedienen kann');
+    // Und zwar an der ganzen Bank, nicht nur in ihrer Mitte. Mit einem
+    // Kreis um den Mittelpunkt (erster Entwurf, Radius 72) stand man am
+    // Ende der 236 Punkte breiten Platte 108 Punkte von der Mitte weg und
+    // bekam keinen Hinweis – Hände auf dem Tisch, Werkbank angeblich
+    // ausser Reichweite.
+    for (const dx of [-108, -60, 0, 60, 108]) {
+      assert.ok(anDerWerkbank(wb.x + dx, wb.y + 40, r),
+        r.name + ': am Tisch bei dx=' + dx + ' zählt nicht');
+    }
+    // Mitten im Tisch steht man nicht, davor schon.
+    assert.ok(inDerWerkbank(wb.x, wb.y, r), r.name + ': man läuft durch die Werkbank');
+    assert.ok(!inDerWerkbank(wb.x, wb.y + 50, r), r.name + ': der Werkplatz selbst ist gesperrt');
+    assert.ok(!anDerWerkbank(wb.x, wb.y + 200, r), r.name + ': quer durchs Zimmer zählt');
+  }
+});
+
+test('Die Werkbank steht weder in der Tür noch vor der Wand', () => {
+  // Beide Fehler waren im Bild zu sehen, bevor sie hier standen: erst
+  // werkelte Seli in der Verbindungstür, dann verdeckte die Bank die Wand
+  // so weit, dass in der Kammer der dritten Stufe ein Aufhängepunkt
+  // übrigblieb. Zwei Entwürfe, zwei Messungen, diese Prüfung.
+  for (let st = KAMMER_AB; st <= MAX_HOUSE_STAGE; st++) {
+    const r = raumFuer(st, 1);
+    const wb = werkbankFuer(r);
+    const t = innenTuerFuer(r);
+    // Kein Punkt der Bank liegt im Türstreifen. Nur waagerecht zu messen
+    // wäre zu streng – in der kleinen Kammer steht sie unter der Tür, aber
+    // eben zwei Schritte davor, und das ist kein Problem, sondern Platz.
+    for (let x = wb.x - WERKBANK_BREITE / 2; x <= wb.x + WERKBANK_BREITE / 2; x += 4) {
+      for (let y = wb.y - WERKBANK_HOEHE; y <= wb.y + 20; y += 4) {
+        assert.ok(!anDerInnenTuer(x, y, r),
+          r.name + ': Werkbank steht in der Verbindungstür (' + Math.round(x) + '/' + Math.round(y) + ')');
+      }
+    }
+    assert.ok(t.x > 0);
+    // Oben endet sie unterhalb der Höhe, in der die Bilder hängen.
+    assert.ok(wb.y - WERKBANK_HOEHE > wandHoehe(r),
+      r.name + ': Werkbank verdeckt die Bilderreihe');
+    // Und niemand steht beim Werkeln im Türstreifen.
+    assert.ok(!anDerInnenTuer(wb.x, wb.y + 40, r), r.name + ': Werkplatz liegt in der Tür');
+  }
+});
+
+test('Neben die Werkbank passt kein Möbelstück', () => {
+  // Dieselbe Regel wie beim Bett, aus demselben Grund: Ein Sessel in der
+  // Tischplatte ist ein Möbel, das man nicht mehr anfassen kann. Als Kreis
+  // mit 62 Punkten Radius geschrieben griff die Regel zu kurz – die Bank
+  // ist 236 breit.
+  for (let st = KAMMER_AB; st <= MAX_HOUSE_STAGE; st++) {
+    const r = raumFuer(st, 1);
+    const wb = werkbankFuer(r);
+    for (const dx of [-100, -50, 0, 50, 100]) {
+      assert.ok(!platzFrei([], wb.x + dx, wb.y, r),
+        r.name + ': Platz mitten in der Werkbank (dx=' + dx + ')');
+    }
+    // Weit genug weg geht wieder.
+    assert.ok(platzFrei([], wb.x, wb.y + 130, r), r.name + ': vor der Werkbank gesperrt');
+  }
 });

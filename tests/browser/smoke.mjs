@@ -7444,6 +7444,81 @@ async function run() {
       kammer.imStand === 2 && kammer.standVorn === 1 && kammer.standHinten === 1 &&
       kammer.standAusstattung === 'holz/abend', JSON.stringify(kammer));
 
+    // ---- Die Werkbank in der Kammer ----
+    //
+    // Der Grund, überhaupt länger als zum Schlafen hineinzugehen. Geprüft
+    // wird nicht, DASS es sie gibt – das tut die Einheitenprüfung –,
+    // sondern dass die Kette vom Davorstehen bis zum offenen Fenster hält:
+    // Hinweis, Tastendruck, Fenster. Und dass man hinkommt, ohne gegen die
+    // Bank zu laufen.
+    const werkbank = await page.evaluate(async () => {
+      const { werkbankFuer, anDerWerkbank, WERKBANK_BREITE } =
+        await import('/src/game/interior.js');
+      const g = window.CozyGrove.game;
+      const r = {};
+      const merkHaus = g.state.house;
+      const merkInterior = g.state.interior;
+      g.state.house = 4;
+      g.state.interior = { raeume: [
+        { stuecke: [], wand: [], ausstattung: 'holz' },
+        { stuecke: [], wand: [], ausstattung: 'holz' },
+      ] };
+      g.syncHouse();
+      g.betritt();
+
+      // Vorn gibt es keine. Dort steht das Bett.
+      r.vornPunkt = g.werkbankPunkt();
+      g.innen.raum = 1;
+      const kammer2 = g.raum();
+      const wb = werkbankFuer(kammer2);
+      r.wb = wb ? { x: wb.x, y: wb.y } : null;
+
+      // Davorstellen: Hinweis, dann Tastendruck.
+      g.innen.x = wb.x;
+      g.innen.y = wb.y + 46;
+      r.begehbar = g._innenBegehbar(g.innen.x, g.innen.y);
+      g._innenPrompt();
+      r.hinweis = g.ui._lastPrompt;
+      g.panels.close();
+      g._innenInteract();
+      r.fenster = g.panels.current;
+      g.panels.close();
+
+      // Auch am Ende der Platte, nicht nur in ihrer Mitte.
+      g.innen.x = wb.x - Math.round(WERKBANK_BREITE / 2) + 6;
+      g.innen.y = wb.y + 46;
+      r.randBegehbar = g._innenBegehbar(g.innen.x, g.innen.y);
+      g._innenPrompt();
+      r.randHinweis = g.ui._lastPrompt;
+
+      // Durch die Bank geht es nicht.
+      r.durchDieBank = g._innenBegehbar(wb.x, wb.y);
+      r.anDerBank = anDerWerkbank(wb.x, wb.y + 46, kammer2);
+
+      // Und es gibt ein Bild dafür. Der Zeichner holt es über genau
+      // diesen Namen; fehlte es, bediente man etwas Unsichtbares.
+      const { hasSprite } = await import('/src/art/sprites.js');
+      r.imBild = hasSprite('workbench');
+
+      g.innen.raum = 0;
+      g.verlaesst();
+      g.state.house = merkHaus;
+      g.state.interior = merkInterior;
+      g.syncHouse();
+      return r;
+    });
+    check('Im Wohnraum steht keine Werkbank, in der Kammer schon',
+      werkbank.vornPunkt === null && werkbank.wb !== null, JSON.stringify(werkbank));
+    check('Vor der Werkbank steht der Hinweis und die Taste öffnet das Fenster',
+      werkbank.begehbar === true && werkbank.hinweis === 'Werkbank' &&
+      werkbank.fenster === 'craft', JSON.stringify(werkbank));
+    check('Auch am Ende der Platte wird gewerkelt',
+      werkbank.randBegehbar === true && werkbank.randHinweis === 'Werkbank',
+      JSON.stringify(werkbank));
+    check('Durch die Werkbank läuft man nicht hindurch',
+      werkbank.durchDieBank === false && werkbank.anDerBank === true &&
+      werkbank.imBild === true, JSON.stringify(werkbank));
+
     // ---- Ein Spielstand von vor der Kammer ----
     const altesZimmer = await page.evaluate(async () => {
       const { interiorAus } = await import('/src/game/interior.js');

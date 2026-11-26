@@ -67,8 +67,8 @@ export const RAEUME = [
  * Ausgang: Geschlafen und hinausgegangen wird vorn.
  */
 export const KAMMERN = [
-  { stufe: 3, name: 'Die Kammer', w: 520, h: 400, wand: 140, bett: false, ausgang: false, fenster: 0 },
-  { stufe: 4, name: 'Die Werkkammer', w: 660, h: 470, wand: 150, bett: false, ausgang: false, fenster: 0 },
+  { stufe: 3, name: 'Die Kammer', w: 520, h: 400, wand: 140, bett: false, ausgang: false, fenster: 0, kammer: true },
+  { stufe: 4, name: 'Die Werkkammer', w: 660, h: 470, wand: 150, bett: false, ausgang: false, fenster: 0, kammer: true },
 ];
 
 /**
@@ -253,6 +253,10 @@ export function wandPlatzFrei(wand, x, y, raum, ausser) {
   // Wandbretts hinter dem Kopfteil hervor – halb verdeckt ist schlechter als
   // gar nicht dort. In der Kammer steht kein Bett, dort entfällt die Regel.
   if (b && Math.abs(b.x - x) < BETT_BREITE / 2 + WAND_ABSTAND * 0.7) return false;
+  // Für die Werkbank gilt das ausdrücklich NICHT: Sie steht frei im Raum,
+  // ihre Platte endet 96 Punkte über ihrem Fusspunkt und damit unterhalb
+  // der Wand – nachgerechnet in `werkbankFuer`. Eine Sperre dafür hätte
+  // die Kammer der dritten Stufe auf einen Aufhängepunkt heruntergebracht.
   // Und nicht über die Verbindungstür. Sie sitzt oben in der Wand, genau
   // dort, wo sonst Bilder hängen – ein Kranz über der Tür wäre ein Kranz,
   // durch den man hindurchläuft.
@@ -430,6 +434,92 @@ export function bettFuer(raum) {
 /** Wie hoch das Bett über seinem Fußpunkt steht – siehe `paintBed`. */
 export const BETT_HOEHE = 180;
 
+/**
+ * Die Werkbank in der Kammer.
+ *
+ * **Warum drinnen überhaupt etwas zu TUN sein muss.** Das Haus hatte vier
+ * Ausbaustufen, zwei Räume, vier Ausstattungen und Platz für Möbel – und
+ * keinen einzigen Grund, länger als zum Schlafen hineinzugehen. Gebaut,
+ * gekocht und gewerkelt wurde ausschliesslich draussen am Lager. Ein
+ * Zuhause, das man nur ansieht, ist ein Museum; der zweite Raum hiess
+ * sogar „Die Werkkammer“, und darin wurde nicht gearbeitet.
+ *
+ * **Sie ersetzt die draussen nicht.** Die Werkbank am Lagerfeuer bleibt,
+ * wo sie ist: Jule arbeitet dort vormittags, und wer gerade sägt, will
+ * nicht erst nach Hause laufen. Die hier ist die zweite, und das ist der
+ * Punkt – man kann morgens drinnen anfangen statt drinnen aufzuwachen und
+ * sofort hinauszugehen.
+ *
+ * **Fest eingebaut wie das Bett**, aus demselben Grund: Eine Werkbank, die
+ * man versehentlich einpackt, ist eine Stelle, an der man sich seinen
+ * eigenen Raum kaputtmachen kann.
+ *
+ * **Sie steht frei im Raum und nicht an der Wand** – und das ist das
+ * Ergebnis zweier verworfener Entwürfe, nicht die erste Idee. An der
+ * Rückwand rechts stand sie in der Verbindungstür; im Bild werkelte Seli
+ * in der Türöffnung. Weiter links stand sie frei von der Tür und nahm
+ * dafür die Wand: Die Bank ist 236 breit, die Tür sperrt 96 plus Rand, und
+ * in die Kammer der dritten Stufe (520 breit) passt beides nicht
+ * nebeneinander – von 42 Aufhängepunkten blieb **einer** übrig, gezählt,
+ * nicht geschätzt. Ein Raum ohne Wand ist aber genau das, was die Prüfung
+ * „Auch in der Kammer ist Wand frei“ verhindern soll.
+ *
+ * Frei im Raum löst beides auf einmal: Die Wand bleibt ganz, die Tür
+ * bleibt frei, und man kann um die Bank herumgehen – was für eine
+ * Werkbank ohnehin richtiger aussieht als ein Tisch, der an der Wand
+ * klebt.
+ */
+export function werkbankFuer(raum) {
+  if (!raum || !raum.kammer) return null;
+  return {
+    x: Math.round(raum.w * 0.58),
+    // Ein gutes Stück vor der Wand: Oben ragt die Bank 96 Punkte über
+    // ihren Fusspunkt. Stünde sie direkt an der Wandkante, läge ihre
+    // Platte wieder in der Höhe, in der die Bilder hängen.
+    y: Math.round(raum.wand + (raum.h - raum.wand) * 0.34),
+  };
+}
+
+/** Wie hoch die Werkbank über ihrem Fusspunkt steht – siehe `paintWorkbench`. */
+export const WERKBANK_HOEHE = 96;
+
+/** Wie nah man ihr sein muss, um sie zu benutzen. */
+export const WERKBANK_REICHWEITE = 72;
+
+/** Wie breit sie dasteht – die Breite von `paintWorkbench`, nicht geschätzt. */
+export const WERKBANK_BREITE = 236;
+
+/**
+ * Steht sie vor der Werkbank?
+ *
+ * Ein Streifen davor, kein Kreis um die Mitte. Beim Kreis mit 72 Punkten
+ * stand man am linken Tischende 108 Punkte von der Mitte entfernt – mit
+ * den Händen auf der Platte und ohne Hinweis. Ein Tisch ist breit; man
+ * arbeitet überall an ihm.
+ */
+export function anDerWerkbank(x, y, raum) {
+  const w = werkbankFuer(raum);
+  if (!w) return false;
+  const dy = y - w.y;
+  return Math.abs(x - w.x) <= WERKBANK_BREITE / 2 &&
+    dy > -WERKBANK_REICHWEITE / 2 && dy < WERKBANK_REICHWEITE;
+}
+
+/**
+ * Und läuft sie dagegen?
+ *
+ * Die Platte selbst, enger als die Reichweite: Sonst stünde man vor der
+ * Bank, bekäme den Hinweis und käme nicht nah genug heran, um ihn zu
+ * benutzen. Der Streifen zwischen 30 und 72 Punkten davor ist genau der
+ * Platz, an dem man steht und werkelt.
+ */
+export function inDerWerkbank(x, y, raum) {
+  const w = werkbankFuer(raum);
+  if (!w) return false;
+  const dy = y - w.y;
+  return Math.abs(x - w.x) < WERKBANK_BREITE / 2 - 4 && dy > -46 && dy < 30;
+}
+
 /** Und wie breit – für die Frage, welches Stück Wand es verdeckt. */
 export const BETT_BREITE = 150;
 
@@ -477,6 +567,16 @@ export function platzFrei(stuecke, x, y, raum, ausser) {
   // demselben Grund: Ein zugestellter Durchgang wäre die einzige Sackgasse,
   // die dieses Spiel anbieten könnte.
   if (anDerInnenTuer(x, y, raum)) return false;
+  // Und nicht in die Werkbank. Sie steht fest eingebaut in der Kammer;
+  // ein Sessel darin wäre dasselbe Problem wie ein Stuhl im Bett.
+  // Als Kreis mit 62 Punkten Radius geschrieben war das zu klein: Die
+  // Werkbank ist 236 breit, ein Sessel stand ihr bei 70 Punkten Abstand
+  // schon im Tisch. Rechteck statt Kreis, nach der wirklichen Platte.
+  const wb = werkbankFuer(raum);
+  if (wb) {
+    const wdy = y - wb.y;
+    if (Math.abs(wb.x - x) < WERKBANK_BREITE / 2 + 14 && wdy > -52 && wdy < 54) return false;
+  }
   const liste = stuecke || [];
   const d2 = STUECK_ABSTAND * STUECK_ABSTAND;
   for (let i = 0; i < liste.length; i++) {
