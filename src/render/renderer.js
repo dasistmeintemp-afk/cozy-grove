@@ -546,6 +546,10 @@ export class Renderer {
     // liefe eine gestrichelte Linie quer über Zelt und Bäume.
     this._drawPlot(ctx, game, camX, camY);
 
+    // Die Gartenbeete liegen genauso auf dem Boden – unter allem, was
+    // darin wächst, und unter Seli, wenn sie darüber läuft.
+    this._gartenbeete(ctx, game);
+
     // 2 – Objekte in EINEM Durchgang. Wie farbig etwas ist, entscheidet die
     //     Farbquelle an seiner Position – das spart das zweite Malen der
     //     ganzen Szene und war der Grund für die schlechte Bildrate.
@@ -1253,6 +1257,23 @@ export class Renderer {
    * Nur das eigene Zuhause: Die Bewohnerhuetten haben kein Zimmer, dessen
    * Farbe man gewaehlt haette.
    */
+/**
+   * Die umgegrabenen Beete an der Haustuer.
+   *
+   * Hier und nicht als Objekte in der Welt: Sie ergeben sich vollstaendig
+   * aus Hausposition und Ausbaustufe (siehe `garten.js`), blockieren
+   * nichts und werden nie angefasst. Als Eintraege in der Entitaetenliste
+   * haetten sie einen Platz im Spielstand gebraucht, eine Kollisionsform,
+   * eine Objektart und eine Regel, was beim Ausbauen mit ihnen geschieht –
+   * fuer eine Flaeche, die nur daliegt.
+   */
+  _gartenbeete(ctx, game) {
+    const beete = game.gartenbeete();
+    for (let i = 0; i < beete.length; i++) {
+      drawSprite(ctx, 'gartenbeet', beete[i].x, beete[i].y, false);
+    }
+  }
+
   _fensterlicht(ctx, game) {
     const haus = game.world && game.world.tent;
     if (!haus || haus.gone) return;

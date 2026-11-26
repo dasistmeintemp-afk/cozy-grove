@@ -10,6 +10,7 @@ import { titel as bildTitel, kennung as bildKennung } from '../game/bild.js';
 import { chronikZeilen, zeitSatz, bittenGesamt } from '../game/chronik.js';
 import { abzeichenStand, stufenGesamt, STUFEN } from '../game/abzeichen.js';
 import { HAUSFARBEN, FASSADE_AB } from '../game/hausfarbe.js';
+import { gartenStand } from '../game/garten.js';
 import { geistName as sternGeist } from '../game/sternbilder.js';
 import { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } from '../game/stories.js';
 import { pointsToNext, COSY_MAX } from '../game/cosiness.js';
@@ -1319,6 +1320,7 @@ export class Panels {
           '</div>';
       }).join('') +
       '</div>' +
+      this._garten() +
       this._fassade() +
       this._skizzen() +
       this._kleiderschrank() +
@@ -1345,6 +1347,34 @@ export class Panels {
    * kommen. Eine leere Liste mit achtundzwanzig grauen Zeilen wäre eine
    * Aufgabenliste, und dieses Spiel stellt keine.
    */
+  /**
+   * Der Garten an der Haustür.
+   *
+   * Nur eine Zeile, kein Bedienfeld: Gesät wird draußen am Beet, nicht im
+   * Fenster. Was hier steht, ist die Antwort auf „wie viele habe ich
+   * eigentlich und sind sie voll" – und der Hinweis, dass es sie gibt.
+   */
+  _garten() {
+    const g = this.game;
+    const beete = g.gartenbeete();
+    if (!beete.length) return '';
+    const stand = gartenStand(beete, g.world.entities.filter(function (e) {
+      return e.kind === 'crop';
+    }));
+    const frei = stand.beete - stand.belegt;
+    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Garten an der Tür</h3>' +
+      '<div class="rows"><div class="row">' + ico('icon_seed_berry', 'lg') +
+      '<div class="grow"><div class="title">' +
+      (frei === 0 ? 'Alle Beete bestellt' : frei + (frei === 1 ? ' Beet frei' : ' Beete frei')) +
+      '</div><div class="meta">' +
+      '<span>' + stand.belegt + ' von ' + stand.beete + ' bepflanzt</span>' +
+      '<span>wächst einen Schritt schneller</span>' +
+      '</div></div></div></div>' +
+      '<p class="empty-note" style="padding:8px 0 0">' +
+      'Saat aus der Tasche wählen und vor ein Beet stellen – sie rastet ein. ' +
+      'Mit dem Ausbau kommen neue Beete dazu.</p>';
+  }
+
   /**
    * Die Fassade – Wand, Dach und Tür von außen.
    *

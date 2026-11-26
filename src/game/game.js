@@ -126,6 +126,9 @@ import { dueAt, perksOf } from './milestones.js';
 import { dueSets, SET_IDS } from './collection.js';
 import { hausfarbeAus, hausfarbeFuer, HAUSFARBE_IDS, FASSADE_AB } from './hausfarbe.js';
 import {
+  gartenBeete, beetAn, imGarten, gartenStand, GARTEN_BONUS,
+} from './garten.js';
+import {
   abzeichenAus, emptyAbzeichen, faellig as faelligeAbzeichen, merke as merkeAbzeichen,
 } from './abzeichen.js';
 import { mailFor, fileMail, unreadCount } from './mail.js';
@@ -4597,6 +4600,10 @@ export class Game {
     const stufe = this.state.house || 1;
     const e = this.world.tent;
     if (!e) return;
+    // Die gemerkten Gartenbeete wegwerfen: Stufe oder Standort können
+    // sich gerade geändert haben, und der Schlüssel allein fängt nicht
+    // ab, dass inzwischen ein Baum neben einem Beet gewachsen ist.
+    this._beeteKey = null;
     const f = houseFootprint(stufe);
     // Nicht `houseSprite`, sondern das Bild in der gewaehlten Fassade.
     // Bei der Voreinstellung gibt `ensureHaus` genau `houseSprite`
@@ -5563,6 +5570,9 @@ export class Game {
   /** Alle Beete einen Tag weiterwachsen lassen. */
   growCrops(regen) {
     const grund = growthPerDay(regen) + this.perks().grow;
+    // Einmal geholt, nicht je Beet: `imGarten` rechnet nur, der Zugriff
+    // auf das Haus nicht.
+    const beete = this.gartenbeete();
     let reif = 0;
     for (let i = 0; i < this.world.entities.length; i++) {
       const e = this.world.entities[i];
@@ -5574,7 +5584,12 @@ export class Game {
       // zweiter Rechenweg daneben.
       const nachbarn = this.beetHilfe(e.x, e.y);
       const gegossen = e.watered === this.day.day;
-      const zuwachs = grund + nachbarn.wachstum + (gegossen ? 1 : 0);
+      // Was an der eigenen Haustür steht, bekommt einen Schritt extra –
+      // nicht weil der Boden besser wäre, sondern weil man im Vorbeigehen
+      // danach sieht. Derselbe Summand wie Gießen und Bienenkorb.
+      const imBeet = imGarten(beete, e.x, e.y);
+      const zuwachs = grund + nachbarn.wachstum + (gegossen ? 1 : 0) +
+        (imBeet ? GARTEN_BONUS : 0);
       // Für die Dämmerblume zählt nicht, ob HEUTE gegossen wurde, sondern ob
       // das Beet WÄHREND DES WACHSENS gegossen wurde. Der Unterschied ist
       // kein Detail: `waterCrop` lehnt ein reifes Beet ab, und diese Zeile
@@ -7638,6 +7653,19 @@ export class Game {
     const px = Math.round(p.x);
     const py = Math.round(p.y);
 
+    // Saat rastet ins Gartenbeet ein. Vor den Ringen und vor
+    // `_canPlaceAt`, weil das Beet eigene Regeln hat: Dort wächst es auch
+    // auf Sand und Fels, und ein Beet, in das man „ungefähr" sät, ist
+    // kein Beet.
+    const beet = this._gartenbeetFuer(px, py);
+    if (beet) {
+      this.placing.x = beet.x;
+      this.placing.y = beet.y;
+      this.placing.valid = true;
+      this.placing.reason = null;
+      return;
+    }
+
     if (this._canPlaceAt(px, py)) {
       this.placing.x = px;
       this.placing.y = py;
@@ -7671,8 +7699,88 @@ export class Game {
     this.placing.reason = this._placeReason(px, py);
   }
 
+  /**
+   * Das freie Gartenbeet, in das hier gesät würde – oder null.
+   *
+   * Nur beim Säen: Ein Stuhl im Beet wäre ein Stuhl im Beet. Und nur,
+   * wenn es noch leer ist – zwei Pflanzen in einem Beet wären zwei
+   * Pflanzen auf einem Punkt.
+   */
+  /**
+   * Die Beete, die es wirklich gibt.
+   *
+   * Gesiebt, nicht nur gerechnet: Das Haus kann am Wasser, am Fels oder
+   * zwischen Bäumen stehen – ein Beet im Teich wäre ein Beet im Teich.
+   * Gesiebt wird an GENAU dieser Stelle, und der Zeichner fragt dieselbe
+   * Methode; sonst sähe man Beete, in die man nicht säen kann, oder
+   * umgekehrt.
+   *
+   * Gepflanzt wird nicht mitgesiebt: Ein Beet, in dem etwas wächst, ist
+   * belegt und nicht verschwunden – siehe `_gartenbeetFuer`.
+   */
+  gartenbeete() {
+    const haus = this.world.tent;
+    if (!haus || haus.gone) return [];
+    // Gemerkt, solange Haus und Stufe gleich bleiben. Nicht aus
+    // Sparsamkeit im Zeichner – sechs Beete sind nichts –, sondern wegen
+    // `_canPlaceAt`: Das sucht beim Aufstellen in Ringen und fragt bis zu
+    // hundertmal je Bild, ob ein Punkt im Beet liegt.
+    const schluessel = (this.state.house || 1) + ':' +
+      Math.round(haus.x) + ':' + Math.round(haus.y);
+    if (this._beeteKey === schluessel) return this._beete;
+    const alle = gartenBeete(this.state.house || 1, haus.x, haus.y);
+    const raus = [];
+    for (let i = 0; i < alle.length; i++) {
+      const b = alle[i];
+      // Nicht die ganze Beetfläche abfragen, sondern ihren Kern: Mit
+      // dem vollen Rechteck (40 × 30) blieben am Lager von sechs Beeten
+      // fünf und auf der ersten Stufe eines von zwei übrig – jeder Busch,
+      // der eine Ecke berührte, löschte ein ganzes Beet. Mit 30 × 22
+      // sind es alle sechs, und Wasser und Fels fangen es weiterhin ab.
+      // Gemessen auf Inselwurf 4711.
+      if (!this.world.canStand(b.x, b.y, 30, 22)) continue;
+      raus.push(b);
+    }
+    this._beeteKey = schluessel;
+    this._beete = raus;
+    return raus;
+  }
+
+  /** Liegt dieser Punkt auf einem Gartenbeet? */
+  _aufGartenbeet(x, y) {
+    return imGarten(this.gartenbeete(), x, y);
+  }
+
+  _gartenbeetFuer(x, y) {
+    if (!this.placing || !this.placing.plant) return null;
+    const beet = beetAn(this.gartenbeete(), x, y);
+    if (!beet) return null;
+    // Der Abstand muss hier NACHGERECHNET werden: `queryNear` ist eine
+    // Grobsuche über Rasterzellen und gibt auch zurück, was weiter weg
+    // liegt. Ohne diese Zeile galt das Nachbarbeet 78 Punkte weiter als
+    // belegt, sobald im ersten etwas wuchs – im Bild rastete die Saat
+    // nur noch in die vorderste Reihe ein, und zwar genau dann, wenn man
+    // schon etwas gesät hatte.
+    const nah = this.world.queryNear(beet.x, beet.y, 40);
+    for (let i = 0; i < nah.length; i++) {
+      const e = nah[i];
+      if (e.gone || e.kind !== 'crop') continue;
+      const dx = e.x - beet.x;
+      const dy = e.y - beet.y;
+      if (dx * dx + dy * dy < 40 * 40) return null;
+    }
+    return beet;
+  }
+
   /** Warum geht es hier nicht? Für den Hinweis unten am Bild. */
   _placeReason(x, y) {
+    if (this._aufGartenbeet(x, y)) {
+      // Nur Saat kommt ins Beet, und die wäre eingerastet. Wer das hier
+      // liest, hält etwas anderes in der Hand – oder das Beet ist belegt.
+      return this.placing && this.placing.plant
+        ? 'In dem Beet wächst schon etwas'
+        : 'Ins Beet kommt nur Saat';
+    }
     if (this.placing && this.placing.plant) {
       const t = this.world.tileAt(x, y);
       if (t !== T.GRASS && t !== T.DIRT) return 'Hier wächst nichts';
@@ -7706,6 +7814,10 @@ export class Game {
   }
 
   _canPlaceAt(x, y) {
+    // Auf ein Gartenbeet kommt nur Saat. Ein Sessel im Beet wäre ein
+    // Sessel im Beet – und das Beet darunter sähe man danach nie wieder.
+    // Die Saat kommt hier gar nicht an: Sie rastet vorher ein.
+    if (this._aufGartenbeet(x, y)) return false;
     if (!this.world.canStand(x, y, 12, 8)) return false;
     if (this.world.regionAtPixel(x, y) == null) return false;
     // Gesät wird nur auf Wiese und Erde. Auf Sand, Fels, Weg oder Brücke

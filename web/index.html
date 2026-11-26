@@ -18231,7 +18231,7 @@ __defs["src/art/painted-ground.js"] = function (__e) {
 const { makeCanvas, ctx2d } = __req("src/core/util.js");
 const { makeRng, hashString } = __req("src/core/rng.js");
 const { blob, smoothClosed, offsetShape, pathFrom, inkStroke, inkLine, blurCanvas, LIGHT } = __req("src/art/brush.js");
-const { INK } = __req("src/art/painted.js");
+const { INK, slab } = __req("src/art/painted.js");
 const { T, TILE_SIZE, TILE_DEF, isWalkable, isWater } = __req("src/art/tiles.js");
 
 /**
@@ -19540,12 +19540,87 @@ function paintGroundDecal(kind, seed) {
   return { color: color, line: line, w: s, h: s, ax: s / 2, ay: s / 2 };
 }
 
+/**
+ * Ein umgegrabenes Beet – der Garten an der Haustür.
+ *
+ * Flach wie ein Teppich: Es liegt unter allem und blockiert nichts.
+ *
+ * **Eckig, nicht rund.** Der erste Entwurf war ein `blob` – im Bild sah
+ * er aus wie eine Pfütze Matsch oder ein flacher Stein, und zwischen den
+ * Trittsteinen am Lager ging er unter. Ein Beet ist gestochen: gerade
+ * Kanten, aufgeworfener Rand, Furchen quer. Genau diese drei Dinge
+ * machen aus der braunen Fläche ein Beet, und alle drei brauchen eine
+ * Ecke, an der sie anfangen.
+ *
+ * Kein `paintObject`: Das Beet soll keinen Schlagschatten werfen – es
+ * liegt ja IM Boden. Dieselbe Bauweise wie `paintGroundDecal` eine
+ * Funktion weiter oben, aus demselben Grund.
+ */
+function paintGartenbeet(seed) {
+  const w = 96;
+  const h = 72;
+  const color = makeCanvas(w, h);
+  const cctx = ctx2d(color);
+  const line = makeCanvas(w, h);
+  const lctx = ctx2d(line);
+
+  // Die Formen einmal gerechnet, nicht je Ebene neu: Sonst würfelte
+  // `slab` zweimal und das blasse Blatt hätte eine andere Kante als das
+  // bunte – im Malbuchmodus läge der Strich dann neben der Farbe.
+  const rand = slab(4, 5, w - 4, h - 5, seed, 1.6);
+  const erde = slab(11, 12, w - 11, h - 12, seed + 3, 1.2);
+
+  function draw(g, pale) {
+    g.imageSmoothingEnabled = true;
+    // Der aufgeworfene Rand ist heller als die Erde darin – frisch
+    // umgegrabene Erde ist feucht und dunkel, der Wall drumherum nicht.
+    g.fillStyle = pale ? '#efe9db' : '#a98a63';
+    pathFrom(g, rand, true);
+    g.fill();
+    g.fillStyle = pale ? '#e4ddcc' : '#6b5134';
+    pathFrom(g, erde, true);
+    g.fill();
+    // Drei Furchen. Ohne sie ist das Beet ein Fleck.
+    for (let i = 0; i < 3; i++) {
+      const y = 12 + ((h - 24) / 4) * (i + 1);
+      inkLine(g, 15, y, w - 15, y + (i - 1) * 1.2,
+        { width: 2.4, bend: 0.05, seed: seed + 11 + i, color: INK.line, alpha: pale ? 0.3 : 0.55 });
+    }
+    inkStroke(g, erde,
+      { width: 1.8, vary: 0.3, seed: seed + 19, color: INK.lineSoft, alpha: pale ? 0.3 : 0.5 });
+    inkStroke(g, rand,
+      { width: 2.6, vary: 0.3, seed: seed + 21, color: INK.line, alpha: pale ? 0.5 : 0.9 });
+    if (!pale) {
+      // Krümel: ein paar dunkle Punkte, damit die Fläche nicht glatt ist.
+      const rng = makeRng(seed + 31);
+      g.save();
+      g.globalAlpha = 0.3;
+      g.fillStyle = '#48361f';
+      g.beginPath();
+      for (let i = 0; i < 16; i++) {
+        const x = 16 + rng() * (w - 32);
+        const y = 16 + rng() * (h - 32);
+        const r = 1.3 + rng() * 2.0;
+        g.moveTo(x + r, y);
+        g.ellipse(x, y, r, r * 0.7, 0, 0, Math.PI * 2);
+      }
+      g.fill();
+      g.restore();
+    }
+  }
+
+  draw(cctx, false);
+  draw(lctx, true);
+  return { color: color, line: line, w: w, h: h, ax: w / 2, ay: h / 2 };
+}
+
 __e.CHUNK_TILES = CHUNK_TILES;
 __e.CHUNK_PX = CHUNK_PX;
 __e.CHUNK_PAD = CHUNK_PAD;
 __e.WASH_SCALE = WASH_SCALE;
 __e.paintGroundChunk = paintGroundChunk;
 __e.paintGroundDecal = paintGroundDecal;
+__e.paintGartenbeet = paintGartenbeet;
 
 };
 
@@ -22908,7 +22983,7 @@ const { paintDschungelbaum, paintPalme, paintRiesenblatt, paintBambus, paintLian
 const { paintTanne, STUFEN_LICHTER } = __req("src/art/painted-advent.js");
 const { BEWOHNER } = __req("src/game/bewohner.js");
 const { ICON_PAINTERS, paintFishIcon, iconFromArt } = __req("src/art/painted-icons.js");
-const { paintGroundDecal } = __req("src/art/painted-ground.js");
+const { paintGroundDecal, paintGartenbeet } = __req("src/art/painted-ground.js");
 const { paintRoom, paintBed, paintPicture, paintWreath, paintShelf, paintHangplant } = __req("src/art/painted-interior.js");
 const { RAEUME, TUER_BREITE, raumFuer, ausstattungFuer, fensterFuer, tuerFuer, innenTuerFuer, hatVerbindung } = __req("src/game/interior.js");
 const { BUGS, MEMORY_KINDS } = __req("src/game/items.js");
@@ -23482,6 +23557,8 @@ function initArt() {
   addArt('paket', paintCrate({ seed: 557 }), 0.42);
   addArt('chest', paintChest({ seed: 571 }));
   addArt('path_tile', paintGroundDecal('path', 591), 1);
+  // Das Gartenbeet an der Haustuer – flach, wie der Steinweg.
+  addArt('gartenbeet', paintGartenbeet(5917), 1);
   addArt('bridge', paintGroundDecal('bridge', 593), 1);
 
   /* --- Deko zum Einrichten --- */
@@ -29688,6 +29765,10 @@ class Renderer {
     // liefe eine gestrichelte Linie quer über Zelt und Bäume.
     this._drawPlot(ctx, game, camX, camY);
 
+    // Die Gartenbeete liegen genauso auf dem Boden – unter allem, was
+    // darin wächst, und unter Seli, wenn sie darüber läuft.
+    this._gartenbeete(ctx, game);
+
     // 2 – Objekte in EINEM Durchgang. Wie farbig etwas ist, entscheidet die
     //     Farbquelle an seiner Position – das spart das zweite Malen der
     //     ganzen Szene und war der Grund für die schlechte Bildrate.
@@ -30395,6 +30476,23 @@ class Renderer {
    * Nur das eigene Zuhause: Die Bewohnerhuetten haben kein Zimmer, dessen
    * Farbe man gewaehlt haette.
    */
+/**
+   * Die umgegrabenen Beete an der Haustuer.
+   *
+   * Hier und nicht als Objekte in der Welt: Sie ergeben sich vollstaendig
+   * aus Hausposition und Ausbaustufe (siehe `garten.js`), blockieren
+   * nichts und werden nie angefasst. Als Eintraege in der Entitaetenliste
+   * haetten sie einen Platz im Spielstand gebraucht, eine Kollisionsform,
+   * eine Objektart und eine Regel, was beim Ausbauen mit ihnen geschieht –
+   * fuer eine Flaeche, die nur daliegt.
+   */
+  _gartenbeete(ctx, game) {
+    const beete = game.gartenbeete();
+    for (let i = 0; i < beete.length; i++) {
+      drawSprite(ctx, 'gartenbeet', beete[i].x, beete[i].y, false);
+    }
+  }
+
   _fensterlicht(ctx, game) {
     const haus = game.world && game.world.tent;
     if (!haus || haus.gone) return;
@@ -38643,6 +38741,211 @@ __e.getItem = getItem;
 
 };
 
+__defs["src/game/garten.js"] = function (__e) {
+/**
+ * Der Garten an der Haustür.
+ *
+ * **Was gefehlt hat.** Säen konnte man längst – überall, wo Gras oder Erde
+ * liegt. Genau das war das Problem: Ein Beet irgendwo im Wald ist kein
+ * Garten, sondern ein vergessenes Beet. Man kam an ihm vorbei, wenn man
+ * zufällig dort vorbeikam. Und die Fläche, die einem wirklich gehört – der
+ * Streifen vor der eigenen Tür –, hatte überhaupt keine Aufgabe: Innen
+ * zählt jedes Möbelstück, draußen am Lagerfeuer zählt jede Deko für die
+ * Geister, aber direkt vor dem eigenen Haus zählte nichts.
+ *
+ * **Also beides auf einmal.** Vor der Tür liegen umgegrabene Beete: feste
+ * Plätze, die mit dem Haus wachsen. Wer dort sät, sieht seine Beete jeden
+ * Morgen beim Hinausgehen – und das ist der ganze Punkt.
+ *
+ * **Sie sind kein zweites Anbausystem.** Was dort wächst, ist dieselbe
+ * `crop`-Pflanze wie überall, mit demselben Wachstum, demselben Gießen und
+ * derselben Ernte. Der Garten gibt nur drei Dinge dazu:
+ *
+ * 1. **Die Plätze stehen fest.** Man sät nicht ungefähr vor die Tür,
+ *    sondern ins Beet – es rastet ein.
+ * 2. **Hier wächst auch, wo sonst nichts wüchse.** Das Beet ist
+ *    umgegrabene Erde; ob darunter Sand oder Fels liegt, ist egal. Auf
+ *    der Felseninsel ist das der Unterschied zwischen Garten und keinem
+ *    Garten.
+ * 3. **Ein Schritt mehr am Tag**, derselbe Summand wie Gießen oder ein
+ *    Bienenkorb (siehe `growCrops`). Nicht weil der Boden besser wäre,
+ *    sondern weil man im Vorbeigehen danach sieht.
+ *
+ * **Keine Pflicht, kein Verfall.** Wie beim Anbau überhaupt: Ein leeres
+ * Beet ist ein leeres Beet, kein Vorwurf.
+ *
+ * Alles hier ist reine Rechnung auf einer Ausbaustufe und einem Punkt –
+ * dieselbe Naht wie bei `werkbankFuer` und `hausFenster`.
+ */
+
+/**
+ * Wie viele Beete je Ausbaustufe.
+ *
+ * Schon beim Zelt zwei: Der Garten ist das Erste, was man vor der eigenen
+ * Tür tun kann, und er soll nicht auf das Haus warten. Danach wächst er
+ * mit – das ist neben dem Zimmer der zweite Grund, überhaupt auszubauen.
+ */
+const BEETE_JE_STUFE = [2, 3, 4, 6];
+
+/** Wie groß ein Beet im Bild ist – siehe `paintGartenbeet`. */
+const BEET_B = 96;
+const BEET_H = 72;
+
+/**
+ * Wie weit die Beetspalten von der Hausmitte entfernt stehen.
+ *
+ * Fest und nicht je Stufe: siehe `gartenPlaetze`.
+ */
+const SPALTE = 180;
+
+/** Wie weit die Reihen auseinanderliegen. */
+const REIHE = 96;
+
+/**
+ * Wie nah man einem Beet kommen muss, damit die Saat einrastet.
+ *
+ * Höchstens halb so viel wie der Reihenabstand, und das ist keine
+ * Feinheit: Bei 60 und Reihen im Abstand 78 reichte der Fangbereich des
+ * vorderen Beets bis in das hintere. Wer vor dem vorderen stand und
+ * säte, säte ins hintere – gemessen, nicht vermutet.
+ */
+const EINRASTEN = 44;
+
+/**
+ * Wie viel ein Beet an der Tür am Tag zulegt.
+ *
+ * Derselbe Summand wie Gießen und wie der Bienenkorb – ein Schritt. Mehr
+ * wäre keine Bequemlichkeit mehr, sondern ein Grund, nirgendwo sonst zu
+ * säen, und dann wäre die ganze Insel wieder nur Kulisse.
+ */
+const GARTEN_BONUS = 1;
+
+/**
+ * Wo die Beete liegen – vom FUSSPUNKT des Hauses aus gerechnet.
+ *
+ * Links und rechts abwechselnd, damit der Weg zur Tür frei bleibt: Der
+ * erste Entwurf setzte alle Beete links in einen Block, und das Haus sah
+ * aus, als stünde es am Rand eines Ackers. Zwei Spalten, die die Tür
+ * einrahmen, lesen sich als Garten.
+ *
+ * **Die Plätze hängen NICHT an der Ausbaustufe.** Der erste Entwurf
+ * rückte die Spalten mit dem Kollisionsradius des Hauses nach außen –
+ * und damit wanderte beim Ausbau der ganze Garten. Was man vorgestern
+ * gesät hatte, stand danach neben dem Beet statt darin, verlor den
+ * Schritt am Tag, und ein neues Beet wurde darüber gemalt. Die Zahl ist
+ * deshalb fest und am größten Haus gemessen: 180 abzüglich halber
+ * Beetbreite sind 132, und der größte Kollisionsradius (Haus mit
+ * Veranda) ist 122.
+ *
+ * Mit der Stufe wächst nur die ANZAHL.
+ *
+ * @returns {Array} [{x, y}] – x nach rechts, y nach VORN (unten)
+ */
+function gartenPlaetze(stufe) {
+  const st = Math.max(1, Math.min(BEETE_JE_STUFE.length, Math.round(stufe || 1)));
+  const n = BEETE_JE_STUFE[st - 1];
+  const raus = [];
+  for (let i = 0; i < n; i++) {
+    const reihe = Math.floor(i / 2);
+    const links = i % 2 === 0;
+    raus.push({
+      x: links ? -SPALTE : SPALTE,
+      // VOR dem Haus, nicht daneben. Bei 24 lag die Oberkante des Beets
+      // 12 Punkte über dem Fußpunkt – also unter der gemalten Hauswand,
+      // und beim Zelt und der Hütte sah man vom ersten Beet nur die
+      // untere Hälfte.
+      y: 58 + reihe * REIHE,
+    });
+  }
+  return raus;
+}
+
+/**
+ * Die Beete in Weltkoordinaten – ALLE, auch die, wo nichts hinpasst.
+ *
+ * Wer sie wirklich braucht, filtert selbst: Das Haus kann am Wasser, am
+ * Fels oder zwischen Bäumen stehen, und ein Beet im Teich wäre ein Beet
+ * im Teich. Was an einer Stelle steht, weiß nur die Welt; deshalb gibt
+ * es diese Liste roh heraus und `Game.gartenbeete()` siebt sie – an
+ * EINER Stelle, damit Bild und Regel dieselben Beete meinen.
+ */
+function gartenBeete(stufe, hausX, hausY) {
+  const plaetze = gartenPlaetze(stufe);
+  const raus = [];
+  for (let i = 0; i < plaetze.length; i++) {
+    raus.push({ i: i, x: hausX + plaetze[i].x, y: hausY + plaetze[i].y });
+  }
+  return raus;
+}
+
+/**
+ * Das Beet, in das dieser Punkt einrastet – oder null.
+ *
+ * Nur eines, nämlich das nächste: Zwei überlappende Fänge wären ein Punkt,
+ * der je nach Rundung mal hier und mal dort landet.
+ *
+ * Nimmt die FERTIGE Beetliste und rechnet sie nicht selbst aus. Der Grund
+ * steht bei `gartenBeete`: Welche Beete es wirklich gibt, hängt davon ab,
+ * was an ihrer Stelle steht, und das weiß nur die Welt.
+ */
+function beetAn(beete, x, y, tol) {
+  const r = tol == null ? EINRASTEN : tol;
+  let bestes = null;
+  let d2 = r * r;
+  for (let i = 0; i < (beete || []).length; i++) {
+    const dx = beete[i].x - x;
+    const dy = beete[i].y - y;
+    const d = dx * dx + dy * dy;
+    if (d < d2) { d2 = d; bestes = beete[i]; }
+  }
+  return bestes;
+}
+
+/**
+ * Liegt dieser Punkt auf einem Beet?
+ *
+ * Mit der WIRKLICHEN Beetfläche gerechnet, nicht mit dem Fangradius: Die
+ * Frage „wächst das hier im Garten" ist eine andere als „rastet die Saat
+ * hier ein". Eine Pflanze am Rand des Fangbereichs steht neben dem Beet
+ * und soll dann auch nicht den Schritt extra bekommen.
+ */
+function imGarten(beete, x, y) {
+  for (let i = 0; i < (beete || []).length; i++) {
+    if (Math.abs(beete[i].x - x) <= BEET_B / 2 &&
+        Math.abs(beete[i].y - y) <= BEET_H / 2) return true;
+  }
+  return false;
+}
+
+/** Wie viele Beete bepflanzt sind – für den Hinweis im Fenster. */
+function gartenStand(beete, pflanzen) {
+  let belegt = 0;
+  for (let i = 0; i < (beete || []).length; i++) {
+    for (let k = 0; k < (pflanzen || []).length; k++) {
+      const p = pflanzen[k];
+      if (p.gone) continue;
+      if (Math.abs(p.x - beete[i].x) <= BEET_B / 2 &&
+          Math.abs(p.y - beete[i].y) <= BEET_H / 2) { belegt++; break; }
+    }
+  }
+  return { belegt: belegt, beete: (beete || []).length };
+}
+
+__e.BEETE_JE_STUFE = BEETE_JE_STUFE;
+__e.BEET_B = BEET_B;
+__e.BEET_H = BEET_H;
+__e.SPALTE = SPALTE;
+__e.REIHE = REIHE;
+__e.EINRASTEN = EINRASTEN;
+__e.GARTEN_BONUS = GARTEN_BONUS;
+__e.gartenPlaetze = gartenPlaetze;
+__e.gartenBeete = gartenBeete;
+__e.beetAn = beetAn;
+__e.imGarten = imGarten;
+__e.gartenStand = gartenStand;
+
+};
+
 __defs["src/game/abzeichen.js"] = function (__e) {
 /**
  * Abzeichen – was aus dem wird, was ohnehin gezählt wird.
@@ -41708,6 +42011,7 @@ const { titel: bildTitel, kennung: bildKennung } = __req("src/game/bild.js");
 const { chronikZeilen, zeitSatz, bittenGesamt } = __req("src/game/chronik.js");
 const { abzeichenStand, stufenGesamt, STUFEN } = __req("src/game/abzeichen.js");
 const { HAUSFARBEN, FASSADE_AB } = __req("src/game/hausfarbe.js");
+const { gartenStand } = __req("src/game/garten.js");
 const { geistName: sternGeist } = __req("src/game/sternbilder.js");
 const { STAGES, storyIcon, keepsakeOf, storyLine, storyClose, storyIntro } = __req("src/game/stories.js");
 const { pointsToNext, COSY_MAX } = __req("src/game/cosiness.js");
@@ -43010,6 +43314,7 @@ class Panels {
           '</div>';
       }).join('') +
       '</div>' +
+      this._garten() +
       this._fassade() +
       this._skizzen() +
       this._kleiderschrank() +
@@ -43036,6 +43341,34 @@ class Panels {
    * kommen. Eine leere Liste mit achtundzwanzig grauen Zeilen wäre eine
    * Aufgabenliste, und dieses Spiel stellt keine.
    */
+  /**
+   * Der Garten an der Haustür.
+   *
+   * Nur eine Zeile, kein Bedienfeld: Gesät wird draußen am Beet, nicht im
+   * Fenster. Was hier steht, ist die Antwort auf „wie viele habe ich
+   * eigentlich und sind sie voll" – und der Hinweis, dass es sie gibt.
+   */
+  _garten() {
+    const g = this.game;
+    const beete = g.gartenbeete();
+    if (!beete.length) return '';
+    const stand = gartenStand(beete, g.world.entities.filter(function (e) {
+      return e.kind === 'crop';
+    }));
+    const frei = stand.beete - stand.belegt;
+    return '<h3 style="font-size:0.95em;margin:18px 0 8px">Garten an der Tür</h3>' +
+      '<div class="rows"><div class="row">' + ico('icon_seed_berry', 'lg') +
+      '<div class="grow"><div class="title">' +
+      (frei === 0 ? 'Alle Beete bestellt' : frei + (frei === 1 ? ' Beet frei' : ' Beete frei')) +
+      '</div><div class="meta">' +
+      '<span>' + stand.belegt + ' von ' + stand.beete + ' bepflanzt</span>' +
+      '<span>wächst einen Schritt schneller</span>' +
+      '</div></div></div></div>' +
+      '<p class="empty-note" style="padding:8px 0 0">' +
+      'Saat aus der Tasche wählen und vor ein Beet stellen – sie rastet ein. ' +
+      'Mit dem Ausbau kommen neue Beete dazu.</p>';
+  }
+
   /**
    * Die Fassade – Wand, Dach und Tür von außen.
    *
@@ -44252,6 +44585,7 @@ const { RECIPES, recipeById, missingFor, campfireLevelFor } = __req("src/game/re
 const { dueAt, perksOf } = __req("src/game/milestones.js");
 const { dueSets, SET_IDS } = __req("src/game/collection.js");
 const { hausfarbeAus, hausfarbeFuer, HAUSFARBE_IDS, FASSADE_AB } = __req("src/game/hausfarbe.js");
+const { gartenBeete, beetAn, imGarten, gartenStand, GARTEN_BONUS } = __req("src/game/garten.js");
 const { abzeichenAus, emptyAbzeichen, faellig: faelligeAbzeichen, merke: merkeAbzeichen } = __req("src/game/abzeichen.js");
 const { mailFor, fileMail, unreadCount } = __req("src/game/mail.js");
 const { STAGES: LOAN_STAGES, statusOf, pay: payLoan, slotsAt, emptyLoan } = __req("src/game/loan.js");
@@ -48690,6 +49024,10 @@ class Game {
     const stufe = this.state.house || 1;
     const e = this.world.tent;
     if (!e) return;
+    // Die gemerkten Gartenbeete wegwerfen: Stufe oder Standort können
+    // sich gerade geändert haben, und der Schlüssel allein fängt nicht
+    // ab, dass inzwischen ein Baum neben einem Beet gewachsen ist.
+    this._beeteKey = null;
     const f = houseFootprint(stufe);
     // Nicht `houseSprite`, sondern das Bild in der gewaehlten Fassade.
     // Bei der Voreinstellung gibt `ensureHaus` genau `houseSprite`
@@ -49656,6 +49994,9 @@ class Game {
   /** Alle Beete einen Tag weiterwachsen lassen. */
   growCrops(regen) {
     const grund = growthPerDay(regen) + this.perks().grow;
+    // Einmal geholt, nicht je Beet: `imGarten` rechnet nur, der Zugriff
+    // auf das Haus nicht.
+    const beete = this.gartenbeete();
     let reif = 0;
     for (let i = 0; i < this.world.entities.length; i++) {
       const e = this.world.entities[i];
@@ -49667,7 +50008,12 @@ class Game {
       // zweiter Rechenweg daneben.
       const nachbarn = this.beetHilfe(e.x, e.y);
       const gegossen = e.watered === this.day.day;
-      const zuwachs = grund + nachbarn.wachstum + (gegossen ? 1 : 0);
+      // Was an der eigenen Haustür steht, bekommt einen Schritt extra –
+      // nicht weil der Boden besser wäre, sondern weil man im Vorbeigehen
+      // danach sieht. Derselbe Summand wie Gießen und Bienenkorb.
+      const imBeet = imGarten(beete, e.x, e.y);
+      const zuwachs = grund + nachbarn.wachstum + (gegossen ? 1 : 0) +
+        (imBeet ? GARTEN_BONUS : 0);
       // Für die Dämmerblume zählt nicht, ob HEUTE gegossen wurde, sondern ob
       // das Beet WÄHREND DES WACHSENS gegossen wurde. Der Unterschied ist
       // kein Detail: `waterCrop` lehnt ein reifes Beet ab, und diese Zeile
@@ -51731,6 +52077,19 @@ class Game {
     const px = Math.round(p.x);
     const py = Math.round(p.y);
 
+    // Saat rastet ins Gartenbeet ein. Vor den Ringen und vor
+    // `_canPlaceAt`, weil das Beet eigene Regeln hat: Dort wächst es auch
+    // auf Sand und Fels, und ein Beet, in das man „ungefähr" sät, ist
+    // kein Beet.
+    const beet = this._gartenbeetFuer(px, py);
+    if (beet) {
+      this.placing.x = beet.x;
+      this.placing.y = beet.y;
+      this.placing.valid = true;
+      this.placing.reason = null;
+      return;
+    }
+
     if (this._canPlaceAt(px, py)) {
       this.placing.x = px;
       this.placing.y = py;
@@ -51764,8 +52123,88 @@ class Game {
     this.placing.reason = this._placeReason(px, py);
   }
 
+  /**
+   * Das freie Gartenbeet, in das hier gesät würde – oder null.
+   *
+   * Nur beim Säen: Ein Stuhl im Beet wäre ein Stuhl im Beet. Und nur,
+   * wenn es noch leer ist – zwei Pflanzen in einem Beet wären zwei
+   * Pflanzen auf einem Punkt.
+   */
+  /**
+   * Die Beete, die es wirklich gibt.
+   *
+   * Gesiebt, nicht nur gerechnet: Das Haus kann am Wasser, am Fels oder
+   * zwischen Bäumen stehen – ein Beet im Teich wäre ein Beet im Teich.
+   * Gesiebt wird an GENAU dieser Stelle, und der Zeichner fragt dieselbe
+   * Methode; sonst sähe man Beete, in die man nicht säen kann, oder
+   * umgekehrt.
+   *
+   * Gepflanzt wird nicht mitgesiebt: Ein Beet, in dem etwas wächst, ist
+   * belegt und nicht verschwunden – siehe `_gartenbeetFuer`.
+   */
+  gartenbeete() {
+    const haus = this.world.tent;
+    if (!haus || haus.gone) return [];
+    // Gemerkt, solange Haus und Stufe gleich bleiben. Nicht aus
+    // Sparsamkeit im Zeichner – sechs Beete sind nichts –, sondern wegen
+    // `_canPlaceAt`: Das sucht beim Aufstellen in Ringen und fragt bis zu
+    // hundertmal je Bild, ob ein Punkt im Beet liegt.
+    const schluessel = (this.state.house || 1) + ':' +
+      Math.round(haus.x) + ':' + Math.round(haus.y);
+    if (this._beeteKey === schluessel) return this._beete;
+    const alle = gartenBeete(this.state.house || 1, haus.x, haus.y);
+    const raus = [];
+    for (let i = 0; i < alle.length; i++) {
+      const b = alle[i];
+      // Nicht die ganze Beetfläche abfragen, sondern ihren Kern: Mit
+      // dem vollen Rechteck (40 × 30) blieben am Lager von sechs Beeten
+      // fünf und auf der ersten Stufe eines von zwei übrig – jeder Busch,
+      // der eine Ecke berührte, löschte ein ganzes Beet. Mit 30 × 22
+      // sind es alle sechs, und Wasser und Fels fangen es weiterhin ab.
+      // Gemessen auf Inselwurf 4711.
+      if (!this.world.canStand(b.x, b.y, 30, 22)) continue;
+      raus.push(b);
+    }
+    this._beeteKey = schluessel;
+    this._beete = raus;
+    return raus;
+  }
+
+  /** Liegt dieser Punkt auf einem Gartenbeet? */
+  _aufGartenbeet(x, y) {
+    return imGarten(this.gartenbeete(), x, y);
+  }
+
+  _gartenbeetFuer(x, y) {
+    if (!this.placing || !this.placing.plant) return null;
+    const beet = beetAn(this.gartenbeete(), x, y);
+    if (!beet) return null;
+    // Der Abstand muss hier NACHGERECHNET werden: `queryNear` ist eine
+    // Grobsuche über Rasterzellen und gibt auch zurück, was weiter weg
+    // liegt. Ohne diese Zeile galt das Nachbarbeet 78 Punkte weiter als
+    // belegt, sobald im ersten etwas wuchs – im Bild rastete die Saat
+    // nur noch in die vorderste Reihe ein, und zwar genau dann, wenn man
+    // schon etwas gesät hatte.
+    const nah = this.world.queryNear(beet.x, beet.y, 40);
+    for (let i = 0; i < nah.length; i++) {
+      const e = nah[i];
+      if (e.gone || e.kind !== 'crop') continue;
+      const dx = e.x - beet.x;
+      const dy = e.y - beet.y;
+      if (dx * dx + dy * dy < 40 * 40) return null;
+    }
+    return beet;
+  }
+
   /** Warum geht es hier nicht? Für den Hinweis unten am Bild. */
   _placeReason(x, y) {
+    if (this._aufGartenbeet(x, y)) {
+      // Nur Saat kommt ins Beet, und die wäre eingerastet. Wer das hier
+      // liest, hält etwas anderes in der Hand – oder das Beet ist belegt.
+      return this.placing && this.placing.plant
+        ? 'In dem Beet wächst schon etwas'
+        : 'Ins Beet kommt nur Saat';
+    }
     if (this.placing && this.placing.plant) {
       const t = this.world.tileAt(x, y);
       if (t !== T.GRASS && t !== T.DIRT) return 'Hier wächst nichts';
@@ -51799,6 +52238,10 @@ class Game {
   }
 
   _canPlaceAt(x, y) {
+    // Auf ein Gartenbeet kommt nur Saat. Ein Sessel im Beet wäre ein
+    // Sessel im Beet – und das Beet darunter sähe man danach nie wieder.
+    // Die Saat kommt hier gar nicht an: Sie rastet vorher ein.
+    if (this._aufGartenbeet(x, y)) return false;
     if (!this.world.canStand(x, y, 12, 8)) return false;
     if (this.world.regionAtPixel(x, y) == null) return false;
     // Gesät wird nur auf Wiese und Erde. Auf Sand, Fels, Weg oder Brücke

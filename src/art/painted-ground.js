@@ -14,7 +14,7 @@ import { makeRng, hashString } from '../core/rng.js';
 import {
   blob, smoothClosed, offsetShape, pathFrom, inkStroke, inkLine, blurCanvas, LIGHT,
 } from './brush.js';
-import { INK } from './painted.js';
+import { INK, slab } from './painted.js';
 import { T, TILE_SIZE, TILE_DEF, isWalkable, isWater } from './tiles.js';
 
 /**
@@ -1321,4 +1321,78 @@ export function paintGroundDecal(kind, seed) {
   draw(cctx, false);
   draw(lctx, true);
   return { color: color, line: line, w: s, h: s, ax: s / 2, ay: s / 2 };
+}
+
+/**
+ * Ein umgegrabenes Beet – der Garten an der Haustür.
+ *
+ * Flach wie ein Teppich: Es liegt unter allem und blockiert nichts.
+ *
+ * **Eckig, nicht rund.** Der erste Entwurf war ein `blob` – im Bild sah
+ * er aus wie eine Pfütze Matsch oder ein flacher Stein, und zwischen den
+ * Trittsteinen am Lager ging er unter. Ein Beet ist gestochen: gerade
+ * Kanten, aufgeworfener Rand, Furchen quer. Genau diese drei Dinge
+ * machen aus der braunen Fläche ein Beet, und alle drei brauchen eine
+ * Ecke, an der sie anfangen.
+ *
+ * Kein `paintObject`: Das Beet soll keinen Schlagschatten werfen – es
+ * liegt ja IM Boden. Dieselbe Bauweise wie `paintGroundDecal` eine
+ * Funktion weiter oben, aus demselben Grund.
+ */
+export function paintGartenbeet(seed) {
+  const w = 96;
+  const h = 72;
+  const color = makeCanvas(w, h);
+  const cctx = ctx2d(color);
+  const line = makeCanvas(w, h);
+  const lctx = ctx2d(line);
+
+  // Die Formen einmal gerechnet, nicht je Ebene neu: Sonst würfelte
+  // `slab` zweimal und das blasse Blatt hätte eine andere Kante als das
+  // bunte – im Malbuchmodus läge der Strich dann neben der Farbe.
+  const rand = slab(4, 5, w - 4, h - 5, seed, 1.6);
+  const erde = slab(11, 12, w - 11, h - 12, seed + 3, 1.2);
+
+  function draw(g, pale) {
+    g.imageSmoothingEnabled = true;
+    // Der aufgeworfene Rand ist heller als die Erde darin – frisch
+    // umgegrabene Erde ist feucht und dunkel, der Wall drumherum nicht.
+    g.fillStyle = pale ? '#efe9db' : '#a98a63';
+    pathFrom(g, rand, true);
+    g.fill();
+    g.fillStyle = pale ? '#e4ddcc' : '#6b5134';
+    pathFrom(g, erde, true);
+    g.fill();
+    // Drei Furchen. Ohne sie ist das Beet ein Fleck.
+    for (let i = 0; i < 3; i++) {
+      const y = 12 + ((h - 24) / 4) * (i + 1);
+      inkLine(g, 15, y, w - 15, y + (i - 1) * 1.2,
+        { width: 2.4, bend: 0.05, seed: seed + 11 + i, color: INK.line, alpha: pale ? 0.3 : 0.55 });
+    }
+    inkStroke(g, erde,
+      { width: 1.8, vary: 0.3, seed: seed + 19, color: INK.lineSoft, alpha: pale ? 0.3 : 0.5 });
+    inkStroke(g, rand,
+      { width: 2.6, vary: 0.3, seed: seed + 21, color: INK.line, alpha: pale ? 0.5 : 0.9 });
+    if (!pale) {
+      // Krümel: ein paar dunkle Punkte, damit die Fläche nicht glatt ist.
+      const rng = makeRng(seed + 31);
+      g.save();
+      g.globalAlpha = 0.3;
+      g.fillStyle = '#48361f';
+      g.beginPath();
+      for (let i = 0; i < 16; i++) {
+        const x = 16 + rng() * (w - 32);
+        const y = 16 + rng() * (h - 32);
+        const r = 1.3 + rng() * 2.0;
+        g.moveTo(x + r, y);
+        g.ellipse(x, y, r, r * 0.7, 0, 0, Math.PI * 2);
+      }
+      g.fill();
+      g.restore();
+    }
+  }
+
+  draw(cctx, false);
+  draw(lctx, true);
+  return { color: color, line: line, w: w, h: h, ax: w / 2, ay: h / 2 };
 }

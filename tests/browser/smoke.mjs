@@ -6313,8 +6313,14 @@ async function run() {
       g.world.plotStage = 1;
 
       // Auf eigenem Grund darf man näher ans Zelt bauen
+      //
+      // Der Punkt lag einmal bei (+90, +60) – und liegt seit dem Garten
+      // an der Haustür mitten im rechten Beet. Das ist kein Fehler,
+      // sondern der Preis: Vor der eigenen Tür steht jetzt etwas. Unter
+      // dem Zelt, zwischen den beiden Beetspalten, ist weiterhin Platz,
+      // und genau das soll diese Prüfung sagen.
       const zelt = g.world.tent;
-      const nah = { x: zelt.x + 90, y: zelt.y + 60 };
+      const nah = { x: zelt.x + 30, y: zelt.y + 120 };
       g.placing = null;
       const drinErlaubt = g._canPlaceAt(nah.x, nah.y);
       const grundDafuer = drinErlaubt ? null : g._placeReason(nah.x, nah.y);
@@ -7639,17 +7645,27 @@ async function run() {
       const f = hausFenster(4)[0];
       r.fenster = f;
 
-      function scheibe() {
+      // Wetter aus. Nebel legt einen grauen Schleier ueber das ganze
+      // Bild, und genau darin steckte die Unzuverlaessigkeit dieser
+      // Pruefung: Sie mass bei Nebel (206,205,204) statt eines blauen
+      // Fensters und fiel je nach Tag mal durch und mal nicht.
+      g.weather.kind = 'clear';
+      g.weather.level = 0;
+      g.weather.strength = 0;
+
+      // Ein FESTES Raster von 8 mal 8 Punkten ueber den Ausschnitt –
+      // unabhaengig davon, wie gross er auf diesem Bildschirm gerade ist.
+      // Und mit dem Zoomfaktor gerechnet: ohne ihn misst man eine ganz
+      // andere Stelle des Bildes.
+      function raster(wx0, wy0, bw, bh) {
         const c = document.querySelector('canvas');
         const ctx = c.getContext('2d');
         const dpr = c.width / c.clientWidth;
         const z = g.renderer.zoom;
         let rr = 0, gg = 0, bb = 0, n = 0;
-        // Ein festes Raster ueber die Scheibe – unabhaengig davon, wie
-        // gross sie auf diesem Bildschirm gerade ist.
         for (let iy = 0; iy < 8; iy++) for (let ix = 0; ix < 8; ix++) {
-          const wx = h.x + f.x + 6 + (f.w - 12) * ix / 7;
-          const wy = h.y + f.y + 6 + (f.h - 12) * iy / 7;
+          const wx = wx0 + bw * ix / 7;
+          const wy = wy0 + bh * iy / 7;
           const sx = Math.round((wx - g.camera.ox) * z * dpr);
           const sy = Math.round((wy - g.camera.oy) * z * dpr);
           if (sx < 0 || sy < 0 || sx >= c.width || sy >= c.height) continue;
@@ -7658,19 +7674,41 @@ async function run() {
         }
         return n ? [Math.round(rr/n), Math.round(gg/n), Math.round(bb/n), n] : null;
       }
+      function scheibe() {
+        return raster(h.x + f.x + 6, h.y + f.y + 6, f.w - 12, f.h - 12);
+      }
       function warten(ms) { return new Promise((ok) => setTimeout(ok, ms)); }
 
+      // Die Ausstattung DIREKT setzen und nicht ueber `betritt` /
+      // `waehleAusstattung` / `verlaesst`: Das Hinausgehen blendet die Tuer
+      // ueber das ganze Bild, und die Messung fiel mitten in die Blende –
+      // gemessen wurde dann ein grauer Schleier (206,205,204) statt eines
+      // blauen Fensters. Ein laengeres Warten haette den Fehler nur
+      // seltener gemacht.
       async function mitZimmer(id) {
-        if (!g.drinnen()) g.betritt();
-        g.waehleAusstattung(id);
-        g.verlaesst();
+        if (g.drinnen()) g.verlaesst();
+        g.state.interior.raeume[0].ausstattung = id;
         g.day.hour = 23;
         g.invalidate();
-        await warten(700);
+        await warten(900);
         return scheibe();
       }
+      // Ein Vergleichsfleck WEIT weg vom Haus.
+      //
+      // Erst stand er an der Wand unter dem Fenster – und war damit
+      // wertlos: Der Lichtkreis des Hauses faerbt die Wand mit, also
+      // waren Scheibe und Wand bei kuehlem Zimmer BEIDE blau, und die
+      // Differenz hob genau das auf, was gemessen werden sollte
+      // (warm +26, kuehl +25). Sechshundert Punkte weiter liegt der
+      // Fleck ausserhalb des Scheins und sagt nur noch, ob das ganze
+      // Bild gerade einen Stich hat.
+      function ferneErde() {
+        return raster(h.x - 700, h.y + 200, 60, 40);
+      }
       r.holz = await mitZimmer('holz');
+      r.holzFern = ferneErde();
       r.abend = await mitZimmer('abend');
+      r.abendFern = ferneErde();
       // Und am Tag ist das Fenster nicht uebermalt: Dann ist die Scheibe
       // in beiden Zimmern dieselbe.
       g.day.hour = 12; g.invalidate();
@@ -7687,15 +7725,141 @@ async function run() {
     });
     const dd = (a, b) => (a && b)
       ? Math.round(Math.hypot(a[0]-b[0], a[1]-b[1], a[2]-b[2])) : -1;
-    fensterlicht.holzGegenAbend = dd(fensterlicht.holz, fensterlicht.abend);
+    // Wie warm die Scheibe ist: Rot minus Blau. Bei warmem Zimmerlicht
+    // deutlich positiv, bei kuehlem um null.
+    const waerme = (p) => p ? p[0] - p[2] : null;
+    fensterlicht.waermeHolz = waerme(fensterlicht.holz);
+    fensterlicht.waermeAbend = waerme(fensterlicht.abend);
+    // Und zur Kontrolle: Hat das ganze Bild einen Stich? Dann waere der
+    // Unterschied oben keiner.
+    fensterlicht.stich = waerme(fensterlicht.holzFern) - waerme(fensterlicht.abendFern);
     fensterlicht.tagGegenNacht = dd(fensterlicht.tag, fensterlicht.nachtAbend);
     check('Nachts leuchtet die Scheibe in der Farbe des Zimmers',
-      fensterlicht.holzGegenAbend > 60 &&
-      fensterlicht.holz[2] < fensterlicht.abend[2] &&
-      fensterlicht.holz[0] > fensterlicht.abend[0],
+      fensterlicht.waermeHolz > 50 && fensterlicht.waermeAbend < 20 &&
+      fensterlicht.waermeHolz - fensterlicht.waermeAbend > 50 &&
+      Math.abs(fensterlicht.stich) < 12,
       JSON.stringify(fensterlicht));
     check('Am Tag ist die Scheibe nicht übermalt',
       fensterlicht.tagGegenNacht > 40, JSON.stringify(fensterlicht));
+
+    // ---- Der Garten an der Haustuer ----
+    const hausgarten = await page.evaluate(async () => {
+      const { BEETE_JE_STUFE, BEET_B } = await import('/src/game/garten.js');
+      const g = window.CozyGrove.game;
+      const r = { jeStufe: BEETE_JE_STUFE };
+      const merk = { haus: g.state.house, px: g.player.x, py: g.player.y,
+        drin: g.drinnen(), dir: g.player.dir };
+      if (merk.drin) g.verlaesst();
+      g.panels.close();
+      g.cancelPlacing();
+
+      // Es gibt ein Bild dafuer, sonst laegen unsichtbare Beete herum.
+      const { hasSprite } = await import('/src/art/sprites.js');
+      r.imBild = hasSprite('gartenbeet');
+
+      // Die Zahl waechst mit dem Haus – und keines liegt im Wasser.
+      r.zahl = [];
+      for (let st = 1; st <= 4; st++) {
+        g.state.house = st; g.syncHouse();
+        const beete = g.gartenbeete();
+        r.zahl.push(beete.length);
+        r.alleBegehbar = beete.every((b) => g.world.canStand(b.x, b.y, 8, 6));
+      }
+
+      // Saeen rastet ein – in JEDES Beet, auch wenn im Nachbarbeet schon
+      // etwas waechst. Genau das ging einmal nicht: `queryNear` ist eine
+      // Grobsuche, und das Beet 78 Punkte weiter galt als belegt.
+      g.state.house = 4; g.syncHouse();
+      const beete = g.gartenbeete();
+      g.inventory.add('seed_berry', 12);
+      r.getroffen = [];
+      for (const b of beete) {
+        g.player.x = b.x; g.player.y = b.y + 96; g.player.dir = 'up';
+        g.player.prevX = g.player.x; g.player.prevY = g.player.y;
+        g.startPlacing('seed_berry');
+        g._updatePlacing();
+        const p = g.placing;
+        r.getroffen.push(!!(p && p.valid &&
+          Math.abs(p.x - b.x) < 2 && Math.abs(p.y - b.y) < 2));
+        g.confirmPlacing();
+      }
+      // Dasselbe Beet ein zweites Mal: rastet NICHT ein.
+      const b0 = beete[0];
+      g.player.x = b0.x; g.player.y = b0.y + 96; g.player.dir = 'up';
+      g.startPlacing('seed_berry');
+      g._updatePlacing();
+      r.zweimal = g.placing
+        ? (Math.abs(g.placing.x - b0.x) > 20 || Math.abs(g.placing.y - b0.y) > 20)
+        : null;
+      g.cancelPlacing();
+
+      // Deko kommt nicht ins Beet.
+      g.inventory.add('bench', 1);
+      g.player.x = b0.x; g.player.y = b0.y + 96; g.player.dir = 'up';
+      g.startPlacing('bench');
+      g._updatePlacing();
+      r.dekoDaneben = g.placing
+        ? (Math.abs(g.placing.x - b0.x) > 20 || Math.abs(g.placing.y - b0.y) > 20)
+        : null;
+      g.cancelPlacing();
+
+      // Und was im Beet steht, waechst einen Schritt schneller.
+      const drin = g.world.entities.filter((e) =>
+        e.kind === 'crop' && !e.gone &&
+        beete.some((b) => Math.abs(b.x - e.x) < 4 && Math.abs(b.y - e.y) < 4));
+      // Eine FRISCHE Vergleichspflanze weit weg vom Haus. Eine
+      // vorhandene zu nehmen ging daneben: Aus frueheren Pruefungen stand
+      // dort eine laengst reife, und reif waechst nichts mehr – gemessen
+      // wuchs sie um 0 statt um 1, und die Pruefung meldete einen Fehler,
+      // den es nicht gab.
+      const { makeEntity } = await import('/src/world/entities.js');
+      const ferne = makeEntity('crop', beete[0].x - 900, beete[0].y + 900, {
+        cropId: 'berry', grown: 0, plantedDay: g.day.day,
+      });
+      g.world.entities.push(ferne);
+      const frei = [ferne];
+      r.imBeet = drin.length;
+      const vorher = drin.map((e) => e.grown || 0);
+      const vorherFrei = frei.map((e) => e.grown || 0);
+      g.growCrops(false);
+      r.zuwachsBeet = drin.map((e, i) => (e.grown || 0) - vorher[i]);
+      r.zuwachsFrei = frei.map((e, i) => (e.grown || 0) - vorherFrei[i]);
+      r.vergleich = frei.length;
+      ferne.gone = true;
+
+      // Das Fenster sagt, wie viele frei sind.
+      g.openPanel('plot');
+      const text = document.getElementById('panel-root').textContent;
+      r.imFenster = text.indexOf('Garten an der Tür') >= 0;
+      r.zaehlung = text.indexOf('von ' + beete.length + ' bepflanzt') >= 0;
+      g.panels.close();
+
+      // Aufraeumen: die gesaeten Beete wieder leeren.
+      for (const e of g.world.entities) {
+        if (e.kind === 'crop' && beete.some((b) =>
+          Math.abs(b.x - e.x) < 60 && Math.abs(b.y - e.y) < 60)) e.gone = true;
+      }
+      g.state.house = merk.haus;
+      g.player.x = merk.px; g.player.y = merk.py; g.player.dir = merk.dir;
+      g.syncHouse(); g.save();
+      return r;
+    });
+    check('Der Garten wächst mit dem Haus und liegt auf festem Boden',
+      hausgarten.imBild === true && hausgarten.alleBegehbar === true &&
+      hausgarten.zahl[3] > hausgarten.zahl[0] &&
+      hausgarten.zahl.every((n, i) => n <= hausgarten.jeStufe[i]),
+      JSON.stringify(hausgarten));
+    check('Saat rastet in jedes Beet ein, auch neben einem vollen',
+      hausgarten.getroffen.length >= 4 && hausgarten.getroffen.every((x) => x === true),
+      JSON.stringify(hausgarten));
+    check('In ein volles Beet und auf ein Beet kommt nichts',
+      hausgarten.zweimal === true && hausgarten.dekoDaneben === true, JSON.stringify(hausgarten));
+    check('Was im Beet steht, wächst einen Schritt schneller',
+      hausgarten.imBeet >= 4 && hausgarten.vergleich >= 1 &&
+      hausgarten.zuwachsBeet.every((z) => z === 2) &&
+      hausgarten.zuwachsFrei.every((z) => z === 1), JSON.stringify(hausgarten));
+    check('Der Garten steht im Fenster',
+      hausgarten.imFenster === true && hausgarten.zaehlung === true, JSON.stringify(hausgarten));
 
     // ---- Die Werkbank in der Kammer ----
     //

@@ -70,7 +70,7 @@ import {
 import { paintTanne, STUFEN_LICHTER } from './painted-advent.js';
 import { BEWOHNER } from '../game/bewohner.js';
 import { ICON_PAINTERS, paintFishIcon, iconFromArt } from './painted-icons.js';
-import { paintGroundDecal } from './painted-ground.js';
+import { paintGroundDecal, paintGartenbeet } from './painted-ground.js';
 import {
   paintRoom, paintBed, paintPicture, paintWreath, paintShelf, paintHangplant,
 } from './painted-interior.js';
@@ -649,6 +649,8 @@ export function initArt() {
   addArt('paket', paintCrate({ seed: 557 }), 0.42);
   addArt('chest', paintChest({ seed: 571 }));
   addArt('path_tile', paintGroundDecal('path', 591), 1);
+  // Das Gartenbeet an der Haustuer – flach, wie der Steinweg.
+  addArt('gartenbeet', paintGartenbeet(5917), 1);
   addArt('bridge', paintGroundDecal('bridge', 593), 1);
 
   /* --- Deko zum Einrichten --- */
