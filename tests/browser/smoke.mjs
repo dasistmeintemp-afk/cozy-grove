@@ -5896,8 +5896,10 @@ async function run() {
      * Tusche); die Zahl ist durch zwei geteilt und liegt deshalb bei
      * 1,51 statt bei 1,00. Entscheidend ist der Vergleich: ohne
      * Zuschnitt sind es 2,12, mit 1,51 – beides auf die zweite
-     * Nachkommastelle reproduzierbar, über mehrere Läufe. Die Grenze
-     * liegt dazwischen.
+     * Nachkommastelle reproduzierbar: 1,51 in drei Läufen hintereinander
+     * und bei zwei verschiedenen Leinwandgrössen. Die Grenze liegt bei
+     * 1,8 und nicht knapper – einmal kam 1,74 heraus, als in derselben
+     * Sitzung ein Fenster mit 3500 Punkten Inhalt offen war.
      *
      * Was sich damit NICHT prüfen lässt, steht hier trotzdem, damit es
      * niemand neu sucht: die eingesparte Lichtebene am hellen Mittag.
@@ -5994,8 +5996,95 @@ async function run() {
       requestAnimationFrame(tick);
     }));
     check('Der Boden zeichnet nur, was im Bild liegt',
-      flaeche.bodenFaktor > 1.2 && flaeche.bodenFaktor <= 1.7,
+      flaeche.bodenFaktor > 1.2 && flaeche.bodenFaktor <= 1.8,
       JSON.stringify(flaeche));
+
+    // ---- Das Lager-Fenster hat Reiter ----
+    //
+    // Es war eine Rumpelkammer: zehn Abschnitte untereinander, 3157
+    // Bildpunkte in einem 549 Punkte hohen Fenster – fast sechs
+    // Fensterlaengen am Stueck. Wer die Fassade streichen wollte,
+    // rollte an sieben Ueberschriften vorbei.
+    //
+    // Geprueft wird nicht nur, DASS es Reiter gibt, sondern vor allem,
+    // dass beim Umbau nichts verlorengegangen ist: Die Abschnitte aus
+    // allen Reitern zusammen muessen dieselben sein wie vorher, jeder
+    // genau einmal. Das ist das Risiko bei so einem Umbau – ein
+    // Abschnitt, den niemand mehr findet, faellt erst auf, wenn jemand
+    // ihn sucht.
+    const lagerReiter = await page.evaluate(() => {
+      const g = window.CozyGrove.game;
+      // Auch die Farbquelle des Hauses sichern. `syncHouse` lässt sie
+      // nie wieder schrumpfen – Farbe verschwindet auf dieser Insel
+      // nicht –, und mit Stufe 4 steht sie danach auf dem grössten
+      // Radius. Eine spätere Prüfung misst, ob ein Möbelstück sie
+      // wachsen lässt, und fand sie bereits am Anschlag.
+      const quelle = g.colorField.find('house');
+      const merk = { haus: g.state.house, grund: g.state.plot,
+        ziel: quelle ? quelle.target : null };
+      g.state.house = 4; g.state.plot = 2; g.syncHouse();
+      g.panels.close();
+      g.openPanel('plot');
+      const koerper = document.getElementById('panel-body');
+      const namen = Array.from(document.querySelectorAll('#panel-root .tab'))
+        .map((e) => e.textContent.trim());
+      const je = {};
+      const alle = [];
+      for (const name of namen) {
+        // Die Knöpfe JEDES MAL neu suchen: Beim Umschalten wird der
+        // Fensterinhalt samt Reiterleiste neu gebaut, und die alten
+        // Knöpfe hängen danach an keinem Dokument mehr – geklickt
+        // hatten sie, bewirkt hatten sie nichts, und alle drei Reiter
+        // lieferten denselben Inhalt.
+        const k = Array.from(document.querySelectorAll('#panel-root .tab'))
+          .find((e) => e.textContent.trim() === name);
+        // Wirklich klicken, nicht den Zustand setzen: Der Weg vom
+        // Knopf zum neuen Inhalt geht durch den Ereignisbehandler, und
+        // genau der war beim Umbau neu.
+        k.click();
+        const hs = Array.from(koerper.querySelectorAll('h3'))
+          .map((e) => e.textContent.trim());
+        je[name] = { n: hs.length, laenge: koerper.scrollHeight };
+        for (const h of hs) alle.push(h);
+      }
+      const gesehen = Object.create(null);
+      const doppelt = [];
+      for (const h of alle) { if (gesehen[h]) doppelt.push(h); gesehen[h] = 1; }
+      g.panels.close();
+      g.state.house = merk.haus; g.state.plot = merk.grund; g.syncHouse();
+      const q2 = g.colorField.find('house');
+      if (q2 && merk.ziel != null) {
+        q2.target = merk.ziel;
+      } else if (q2) {
+        // Vorher gab es gar keine Quelle: Das Zelt faerbt nicht
+        // (`houseColor` ist 0 auf Stufe 1). Sie muss wieder weg, sonst
+        // steht sie fuer alles Folgende auf dem groessten Radius – und
+        // die Pruefung, ob ein Moebelstueck sie wachsen laesst, findet
+        // sie am Anschlag.
+        const i = g.colorField.sources.indexOf(q2);
+        if (i >= 0) g.colorField.sources.splice(i, 1);
+        g.colorField.markDirty();
+      }
+      return { namen, je, abschnitte: alle.length, doppelt,
+        sichtbar: koerper.clientHeight };
+    });
+    const laengen = Object.keys(lagerReiter.je).map((k) => lagerReiter.je[k].laenge);
+    lagerReiter.laengste = Math.max.apply(null, laengen);
+    const meisten = Math.max.apply(null,
+      Object.keys(lagerReiter.je).map((k) => lagerReiter.je[k].n));
+    lagerReiter.meisteAbschnitte = meisten;
+    check('Das Lager-Fenster ist in Reiter geteilt',
+      lagerReiter.namen.length === 3 &&
+      lagerReiter.namen.join('|') === 'Ausbau|Einrichten|Tracht und Tier',
+      JSON.stringify(lagerReiter));
+    check('Beim Umbau ist kein Abschnitt verlorengegangen',
+      lagerReiter.abschnitte === 10 && lagerReiter.doppelt.length === 0,
+      JSON.stringify(lagerReiter));
+    check('Kein Reiter ist wieder eine Rumpelkammer',
+      // Vorher: zehn Abschnitte und 3157 Punkte in einem Zug. Jetzt
+      // hoechstens fuenf und 1540 – die Grenzen liegen knapp darueber.
+      lagerReiter.meisteAbschnitte <= 5 && lagerReiter.laengste <= 1900,
+      JSON.stringify(lagerReiter));
 
     // Kleines Fenster / Hochformat: nichts darf überlaufen
     await page.setViewportSize({ width: 390, height: 780 });
@@ -7958,6 +8047,9 @@ async function run() {
 
       // Das Fenster sagt, wie viele frei sind.
       g.openPanel('plot');
+      // Der Garten steht seit dem Umbau unter „Einrichten".
+      g.panels.tab = 'einrichten';
+      g.panels.render();
       const text = document.getElementById('panel-root').textContent;
       r.imFenster = text.indexOf('Garten an der Tür') >= 0;
       r.zaehlung = text.indexOf('von ' + beete.length + ' bepflanzt') >= 0;
@@ -9319,6 +9411,9 @@ async function run() {
       const benannt = g.benennePet('  Moos  ');
       const nameNachher = g.petStatus().name;
       g.openPanel('plot');
+      // Das Haustier steht seit dem Umbau unter „Tracht und Tier".
+      g.panels.tab = 'tracht';
+      g.panels.render();
       await new Promise((res) => setTimeout(res, 220));
       const imFenster = document.getElementById('panel-body').textContent;
       const nameImFenster = imFenster.indexOf('Moos') >= 0;

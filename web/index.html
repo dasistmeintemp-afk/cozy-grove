@@ -43101,7 +43101,53 @@ class Panels {
    * sonst – ohne sie fällt man drei Bäume und wundert sich am dritten
    * Morgen.
    */
+  /**
+   * Das Lager-Fenster – und warum es Reiter hat.
+   *
+   * Hier standen neun Abschnitte untereinander: Grundstück, Ausbau,
+   * Haustier, Bucht, Zuhause, Wohnlichkeit, Wand und Boden, Garten,
+   * Skizzen, Kleiderschrank. Gezählt, nicht geschätzt – und zwei davon
+   * habe ich selbst dazugelegt. Wer die Fassade streichen wollte, rollte
+   * an sieben Überschriften vorbei, die ihn gerade nicht interessierten.
+   *
+   * Drei Reiter, und jeder Name sagt, was darin steht:
+   *
+   * - **Ausbau**: was grösser wird und Material oder Glut kostet.
+   * - **Einrichten**: was anders aussieht und nichts kostet.
+   * - **Tracht und Tier**: was zu dir gehört und nicht zum Platz.
+   *
+   * Die Trennung ist nicht nach Ort (drinnen/draussen) gezogen, sondern
+   * danach, WAS man gerade vorhat. Wer streicht, wählt auch Wand und
+   * Boden; wer ausbaut, sieht Grundstück und Haus nebeneinander und
+   * kann abwägen, wofür die Glut reicht.
+   */
   _plot() {
+    const REITER = [
+      ['ausbau', 'Ausbau'],
+      ['einrichten', 'Einrichten'],
+      ['tracht', 'Tracht und Tier'],
+    ];
+    const ids = REITER.map(function (r) { return r[0]; });
+    const tab = this.tab && ids.indexOf(this.tab) >= 0 ? this.tab : ids[0];
+    let kopf = '<div class="tabs">';
+    for (let i = 0; i < REITER.length; i++) {
+      kopf += '<button class="tab" data-act="tab" data-arg="' + REITER[i][0] +
+        '" aria-selected="' + (REITER[i][0] === tab) + '">' +
+        escapeHtml(REITER[i][1]) + '</button>';
+    }
+    kopf += '</div>';
+
+    if (tab === 'einrichten') {
+      return kopf + this._zimmer() + this._garten() + this._fassade() + this._skizzen();
+    }
+    if (tab === 'tracht') {
+      return kopf + this._kleiderschrank() + this._pet();
+    }
+    return kopf + this._gelaende() + this._house();
+  }
+
+  /** Das Grundstück selbst: wie gross es ist und was der Ausbau kostet. */
+  _gelaende() {
     const g = this.game;
     const stand = g.plotStatus();
     const inhalt = g.plotContents();
@@ -43142,9 +43188,7 @@ class Panels {
         '</div>';
     }
     html += '</div>';
-    html += this._pet();
     html += this._islePlot();
-    html += this._house();
     return html;
   }
 
@@ -43305,7 +43349,6 @@ class Panels {
         'Stufe ' + stand.stufe + ' von ' + MAX_HOUSE_STAGE + ' – mehr wird es nicht. ' +
         'Es reicht auch.</p>';
     }
-    html += this._zimmer();
     return html;
   }
 
@@ -43389,10 +43432,6 @@ class Panels {
           '</div>';
       }).join('') +
       '</div>' +
-      this._garten() +
-      this._fassade() +
-      this._skizzen() +
-      this._kleiderschrank() +
       '<p class="empty-note" style="padding:8px 0 0">' +
       'Am Haus <b>E</b> drücken, dann bist du drinnen. Hinstellen wie draußen – ' +
       'aus der Tasche auswählen, auf Sitzmöbel setzt du dich. Bilder und ' +
